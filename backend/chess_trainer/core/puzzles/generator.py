@@ -90,6 +90,42 @@ def _final_alternatives(
     return accepted
 
 
+def _pv_never_materializes(
+    board: chess.Board, pv: tuple[str, ...], target: int, start_balance: int,
+    solver: chess.Color, max_solver_moves: int,
+) -> bool:
+    """True se a PV (>=4 lances) percorre até max_solver_moves lances do solver sem o ganho se
+    materializar em nenhum ponto (mesma condição de _final_alternatives). PV curta, lance ilegal na
+    PV, ou fim de jogo inesperado são inconclusivos (False): deixa o laço normal decidir."""
+    if len(pv) < 4:
+        return False
+    b = board.copy()
+    pairs = min(max_solver_moves, len(pv) // 2)
+    for i in range(pairs):
+        try:
+            b.push_uci(pv[2 * i])
+        except ValueError:
+            return False
+        if b.is_checkmate():
+            return False  # materializa via mate
+        if b.is_game_over():
+            return False  # inconclusivo
+        gain_now = _gain(b, solver, start_balance)
+        reply_index = 2 * i + 1
+        if reply_index >= len(pv):
+            return False  # PV termina no lance do solver: inconclusivo
+        try:
+            b.push_uci(pv[reply_index])
+        except ValueError:
+            return False
+        if b.is_game_over():
+            return False
+        gain_after = _gain(b, solver, start_balance)
+        if gain_now >= target and gain_after >= target:
+            return False  # materializou
+    return True
+
+
 def _draft(board: chess.Board, moves: list[SolutionMove], end_reason: str) -> PuzzleDraft:
     return PuzzleDraft(
         fen_start=board.fen(),
@@ -116,6 +152,8 @@ def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: P
         # (mate perdido) não pode exigir ganho de dama se a posição só vale +3
         target = floor_to_piece(min(clamp(drop_cp), lines[0].score) / 100)
         if target <= 0:
+            return None
+        if _pv_never_materializes(board, lines[0].pv, target, start_balance, solver, cfg.max_solver_moves):
             return None
 
     limit = cfg.max_mate_moves if mate_mode else cfg.max_solver_moves

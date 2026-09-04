@@ -158,6 +158,16 @@ def test_truncated_alternative_pv_is_rejected():
 HANGING_KNIGHT = "4k3/8/8/3n4/8/1B6/7P/4K3 w - - 0 1"          # Bxd5 ganha o cavalo
 
 
+QUIET_SHUFFLE = "4k3/8/8/8/8/8/P3KN2/8 w - - 0 1"  # branco já tem cavalo a mais; PV não ganha mais material
+
+
+def test_pv_that_never_materializes_is_discarded_without_extra_calls():
+    pv = ("f2d3", "e8d8", "d3c5", "d8e8", "c5d3", "e8d8")
+    fake = FakeEngine({chess.Board(QUIET_SHUFFLE).epd(): [LineEval("f2d3", 150, pv)]})
+    assert generate_punish(chess.Board(QUIET_SHUFFLE), drop_cp=1000, engine=fake, cfg=CFG) is None
+    assert len(fake.calls) == 1
+
+
 def test_target_is_capped_by_solver_eval():
     """Queda gigante (mate perdido) não pode exigir alvo de dama: o alvo segue a avaliação do solver."""
     fake = FakeEngine({
