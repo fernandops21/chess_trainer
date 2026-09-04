@@ -3,3 +3,5 @@
 backend/data/
 backend/engines/
 __pycache__/
+frontend/dist/
+frontend/node_modules/
