@@ -1,6 +1,7 @@
-from typing import Callable
+from typing import Callable, Iterable
 
 import chess
+import chess.engine
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
@@ -12,6 +13,8 @@ from chess_trainer.core.puzzles.generator import PuzzleConfig, PuzzleDraft, gene
 from chess_trainer.core.puzzles.themes import infer_theme
 
 ProgressFn = Callable[[str, int, int, str], None]
+StopFn = Callable[[], bool]
+Draft = tuple[Position, str, PuzzleDraft]
 
 
 def build_drafts(pos: Position, engine: EngineLike, cfg: PuzzleConfig) -> list[tuple[str, PuzzleDraft]]:
@@ -24,9 +27,20 @@ def build_drafts(pos: Position, engine: EngineLike, cfg: PuzzleConfig) -> list[t
         if punish is not None:
             drafts.append(("punish", punish))
     if pos.mistake_by == "me":
-        avoid = generate_avoid(board_before, engine, cfg)
+        avoid = generate_avoid(board_before, engine, cfg, played_uci=pos.move_uci)
         if avoid is not None:
             drafts.append(("avoid", avoid))
+    return drafts
+
+
+def draft_puzzles(positions: Iterable[Position], engine: EngineLike, cfg: PuzzleConfig) -> list[Draft]:
+    """Fase pura de engine: nenhum acesso ao banco, para rodar fora da transação de escrita."""
+    drafts: list[Draft] = []
+    for pos in positions:
+        if not pos.is_mistake:
+            continue
+        for kind, draft in build_drafts(pos, engine, cfg):
+            drafts.append((pos, kind, draft))
     return drafts
 
 
@@ -51,18 +65,22 @@ def persist_draft(db: Session, pos: Position, game: Game, kind: str, draft: Puzz
     return puzzle
 
 
-def generate_puzzles_for_game(db: Session, game: Game, engine: EngineLike, cfg: PuzzleConfig) -> int:
+def persist_drafts(db: Session, game: Game, drafts: Iterable[Draft]) -> int:
+    """Fase curta de escrita: assume que a engine já terminou."""
     created = 0
-    for pos in game.positions:
-        if not pos.is_mistake:
-            continue
-        for kind, draft in build_drafts(pos, engine, cfg):
-            if persist_draft(db, pos, game, kind, draft) is not None:
-                created += 1
+    for pos, kind, draft in drafts:
+        if persist_draft(db, pos, game, kind, draft) is not None:
+            created += 1
     return created
 
 
-def regenerate_all(db: Session, engine: EngineLike, settings: AppSettings, progress: ProgressFn | None = None) -> int:
+def regenerate_all(
+    db: Session,
+    engine: EngineLike,
+    settings: AppSettings,
+    progress: ProgressFn | None = None,
+    should_stop: StopFn | None = None,
+) -> int:
     db.execute(delete(Review))
     db.execute(delete(Puzzle))
     db.commit()
@@ -71,11 +89,25 @@ def regenerate_all(db: Session, engine: EngineLike, settings: AppSettings, progr
     games = db.scalars(select(Game).where(Game.analyzed_at.is_not(None)).order_by(Game.played_at.desc())).all()
     total = 0
     for i, game in enumerate(games):
+        if should_stop is not None and should_stop():
+            if progress:
+                progress("regenerate", i, len(games), "cancelado")
+            return total
         if progress:
             progress("regenerate", i, len(games), f"{game.white} x {game.black}")
-        classify_positions(game.positions, game.my_color, thresholds)
-        total += generate_puzzles_for_game(db, game, engine, cfg)
-        db.commit()
+        try:
+            # sem autoflush: reclassificar suja as posições, mas a escrita só acontece no commit abaixo,
+            # depois que a engine terminou — nunca com a engine pensando e o banco travado
+            with db.no_autoflush:
+                positions = list(game.positions)
+                classify_positions(positions, game.my_color, thresholds)
+                drafts = draft_puzzles(positions, engine, cfg)
+            total += persist_drafts(db, game, drafts)
+            db.commit()
+        except chess.engine.EngineError:
+            db.rollback()
+            engine.restart()
+            continue
     if progress:
         progress("regenerate", len(games), len(games), "concluído")
     return total

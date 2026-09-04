@@ -98,3 +98,31 @@ def test_regenerate_all_drops_reviews_and_rebuilds(db_session):
     assert db_session.scalar(select(func.count(Review.id))) == 0
     new = db_session.scalars(select(Puzzle)).one()
     assert new.id != old.id and new.theme == "mate_in_1"
+
+
+def test_regenerate_all_survives_engine_crash(db_session):
+    game = _game(pgn=SCHOLAR)
+    db_session.add(game)
+    db_session.commit()
+    analyze_pending(db_session, _engine(), SETTINGS)
+
+    engine = _engine()
+    engine.fail_next = True
+    assert regenerate_all(db_session, engine, SETTINGS) == 0
+    assert db_session.scalar(select(func.count(Puzzle.id))) == 0
+
+    assert regenerate_all(db_session, engine, SETTINGS) == 1
+    assert db_session.scalar(select(func.count(Puzzle.id))) == 1
+
+
+def test_analyze_pending_stops_when_asked(db_session):
+    db_session.add_all([_game(source_id="g1", pgn=SCHOLAR), _game(source_id="g2", pgn=SCHOLAR)])
+    db_session.commit()
+    seen = {"n": 0}
+
+    def should_stop() -> bool:
+        seen["n"] += 1
+        return seen["n"] > 1  # deixa a primeira partida terminar
+
+    assert analyze_pending(db_session, _engine(), SETTINGS, should_stop=should_stop) == 1
+    assert db_session.scalar(select(func.count(Game.id)).where(Game.analyzed_at.is_not(None))) == 1

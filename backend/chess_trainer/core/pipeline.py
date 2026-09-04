@@ -10,9 +10,10 @@ from chess_trainer.core.analysis.engine import EngineLike
 from chess_trainer.core.analysis.game_analyzer import analyze_game
 from chess_trainer.core.analysis.mistakes import classify_positions
 from chess_trainer.core.models import Game, Position, utcnow
-from chess_trainer.core.puzzles.service import generate_puzzles_for_game
+from chess_trainer.core.puzzles.service import draft_puzzles, persist_drafts
 
 ProgressFn = Callable[[str, int, int, str], None]
+StopFn = Callable[[], bool]
 
 
 def analyze_pending(
@@ -21,6 +22,7 @@ def analyze_pending(
     settings: AppSettings,
     progress: ProgressFn | None = None,
     limit: int | None = None,
+    should_stop: StopFn | None = None,
 ) -> int:
     thresholds = thresholds_from(settings)
     cfg = puzzle_config_from(settings)
@@ -32,8 +34,15 @@ def analyze_pending(
 
     analyzed = 0
     for i, game in enumerate(games):
+        if should_stop is not None and should_stop():
+            if progress:
+                progress("analyze", i, len(games), "cancelado")
+            return analyzed
         if progress:
             progress("analyze", i, len(games), f"{game.white} x {game.black}")
+
+        # Fase de engine: nada é escrito no banco enquanto o Stockfish pensa, para que
+        # o SQLite não fique travado por minutos e outras requisições possam gravar.
         try:
             data = analyze_game(game.pgn, engine, settings.analysis_depth)
         except ValueError:
@@ -47,18 +56,21 @@ def analyze_pending(
             engine.restart()
             continue
 
-        rows = [Position(game_id=game.id, **asdict(d)) for d in data]
+        rows = [Position(game_id=game.id, **asdict(d)) for d in data]  # transientes: fora da sessão
         classify_positions(rows, game.my_color, thresholds)
-        db.add_all(rows)
-        game.analyzed_at = utcnow()
-        game.analysis_depth = settings.analysis_depth
-        db.flush()
         try:
-            generate_puzzles_for_game(db, game, engine, cfg)
+            drafts = draft_puzzles(rows, engine, cfg)
         except chess.engine.EngineError:
             db.rollback()
             engine.restart()
             continue
+
+        # Fase de escrita: curta, sem nenhuma chamada à engine no meio.
+        db.add_all(rows)
+        db.flush()  # atribui os ids das posições usados pelos puzzles
+        persist_drafts(db, game, drafts)
+        game.analyzed_at = utcnow()
+        game.analysis_depth = settings.analysis_depth
         db.commit()
         analyzed += 1
 
