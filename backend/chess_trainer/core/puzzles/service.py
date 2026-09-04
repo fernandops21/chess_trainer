@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from chess_trainer.config import AppSettings, puzzle_config_from, thresholds_from
 from chess_trainer.core.analysis.engine import EngineLike
 from chess_trainer.core.analysis.mistakes import classify_positions
+from chess_trainer.core.evals import is_mate_for
 from chess_trainer.core.models import Game, Position, Puzzle, Review
 from chess_trainer.core.puzzles.generator import PuzzleConfig, PuzzleDraft, generate_avoid, generate_punish
 from chess_trainer.core.puzzles.themes import infer_theme
@@ -23,9 +24,11 @@ def build_drafts(pos: Position, engine: EngineLike, cfg: PuzzleConfig) -> list[t
     board_after.push_uci(pos.move_uci)
     drafts: list[tuple[str, PuzzleDraft]] = []
     if not board_after.is_game_over():
-        punish = generate_punish(board_after, pos.eval_before - pos.eval_after, engine, cfg)
-        if punish is not None:
-            drafts.append(("punish", punish))
+        solver_eval = -pos.eval_after
+        if is_mate_for(solver_eval) or solver_eval >= cfg.min_solver_eval_cp:
+            punish = generate_punish(board_after, pos.eval_before - pos.eval_after, engine, cfg)
+            if punish is not None:
+                drafts.append(("punish", punish))
     if pos.mistake_by == "me":
         avoid = generate_avoid(board_before, engine, cfg, played_uci=pos.move_uci)
         if avoid is not None:
