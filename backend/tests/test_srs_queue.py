@@ -13,6 +13,11 @@ def test_local_day_start_is_within_last_24h():
     start = local_day_start(NOW)
     assert start <= NOW and NOW - start < timedelta(hours=24)
     assert start.tzinfo is None
+    from datetime import timezone
+    start_local = start.replace(tzinfo=timezone.utc).astimezone()
+    now_local = NOW.replace(tzinfo=timezone.utc).astimezone()
+    assert (start_local.hour, start_local.minute, start_local.second) == (0, 0, 0)
+    assert start_local.date() == now_local.date()
 
 
 def test_due_puzzles_first_most_overdue_first(db_session):

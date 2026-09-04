@@ -10,8 +10,10 @@ from chess_trainer.core.models import Game, Puzzle, Review
 
 def local_day_start(now_utc: datetime) -> datetime:
     local = now_utc.replace(tzinfo=timezone.utc).astimezone()
-    start_local = local.replace(hour=0, minute=0, second=0, microsecond=0)
-    return start_local.astimezone(timezone.utc).replace(tzinfo=None)
+    midnight_naive_local = local.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
+    # naive datetime .astimezone() é interpretado como hora local do sistema,
+    # com o offset correto para aquele instante (resolve DST na meia-noite)
+    return midnight_naive_local.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 @dataclass
