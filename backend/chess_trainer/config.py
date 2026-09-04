@@ -4,6 +4,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from chess_trainer.core.analysis.mistakes import Thresholds
 from chess_trainer.core.models import Setting
 
 
@@ -49,3 +50,10 @@ def save_settings(db: Session, settings: AppSettings) -> AppSettings:
     for key, value in asdict(settings).items():
         set_setting(db, key, value)
     return settings
+
+
+def thresholds_from(settings: AppSettings) -> Thresholds:
+    return Thresholds(
+        mistake_cp=settings.mistake_threshold_cp,
+        blunder_cp=settings.blunder_threshold_cp,
+    )
