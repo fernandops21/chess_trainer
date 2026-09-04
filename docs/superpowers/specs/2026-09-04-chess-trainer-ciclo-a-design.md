@@ -119,6 +119,10 @@ Settings  chave/valor: chesscom_username, categories, stockfish_path,
 - API pública, sem autenticação:
   `GET https://api.chess.com/pub/player/{user}/games/archives` lista os
   meses; `GET .../games/{yyyy}/{mm}` devolve as partidas com PGN.
+  O nome de usuário deve ser enviado em **minúsculas** (a API rejeita
+  `theRealZibs`, aceita `therealzibs`); normalizar ao salvar a
+  configuração. Usuário do autor: `therealzibs` (16 meses de arquivo
+  desde 2023-05).
 - Percorre os meses a partir do último importado (incremental). Para
   cada partida: pula se `source_id` já existe; `category` é o campo
   `time_class` do chess.com (bullet/blitz/rapid/daily); o valor
