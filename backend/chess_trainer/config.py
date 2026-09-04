@@ -1,0 +1,51 @@
+import json
+from dataclasses import asdict, dataclass, field, fields
+from typing import Any
+
+from sqlalchemy.orm import Session
+
+from chess_trainer.core.models import Setting
+
+
+@dataclass
+class AppSettings:
+    chesscom_username: str = ""
+    categories: list[str] = field(default_factory=lambda: ["rapid", "daily", "classical"])
+    stockfish_path: str = ""
+    analysis_depth: int = 18
+    puzzle_depth: int = 22
+    mistake_threshold_cp: int = 100
+    blunder_threshold_cp: int = 200
+    avoid_gap_cp: int = 150
+    new_per_day: int = 10
+    leech_lapses: int = 5
+
+
+def get_setting(db: Session, key: str, default: Any = None) -> Any:
+    row = db.get(Setting, key)
+    return json.loads(row.value) if row else default
+
+
+def set_setting(db: Session, key: str, value: Any) -> None:
+    row = db.get(Setting, key)
+    if row is None:
+        db.add(Setting(key=key, value=json.dumps(value)))
+    else:
+        row.value = json.dumps(value)
+    db.commit()
+
+
+def load_settings(db: Session) -> AppSettings:
+    values: dict[str, Any] = {}
+    for f in fields(AppSettings):
+        stored = get_setting(db, f.name, None)
+        if stored is not None:
+            values[f.name] = stored
+    return AppSettings(**values)
+
+
+def save_settings(db: Session, settings: AppSettings) -> AppSettings:
+    settings.chesscom_username = settings.chesscom_username.strip().lower()
+    for key, value in asdict(settings).items():
+        set_setting(db, key, value)
+    return settings
