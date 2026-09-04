@@ -167,3 +167,20 @@ def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: P
         lines = None
 
     return None
+
+
+def generate_avoid(board_before: chess.Board, engine: EngineLike, cfg: PuzzleConfig) -> PuzzleDraft | None:
+    lines = engine.analyse(board_before, cfg.depth, multipv=2)
+    if len(lines) < 2:
+        return None
+    best, second = lines[0], lines[1]
+    if best.score - second.score < cfg.avoid_gap_cp:
+        return None
+    return PuzzleDraft(
+        fen_start=board_before.fen(),
+        side_to_move=_color_name(board_before.turn),
+        moves=[SolutionMove(best.move, "solver")],
+        end_reason="explanation",
+        solver_moves=1,
+        explanation_pv=list(best.pv[:6]),
+    )
