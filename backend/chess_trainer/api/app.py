@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from chess_trainer.api.jobs import JobRunner
-from chess_trainer.api.routes import system
+from chess_trainer.api.routes import games, system, training
 from chess_trainer.config import AppSettings
 from chess_trainer.core.analysis.engine import EngineLike, StockfishEngine, find_stockfish
 from chess_trainer.core.db import init_db, make_engine, make_session_factory
@@ -51,6 +51,8 @@ def create_app(db_path: str | None = None, engine_factory=None, chesscom_factory
         app.state.engine_probe = _probe_engine_factory(engine_factory)
 
     app.include_router(system.router)
+    app.include_router(games.router)
+    app.include_router(training.router)
 
     dist = BACKEND_DIR.parent / "frontend" / "dist"
     if dist.is_dir():
