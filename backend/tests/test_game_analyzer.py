@@ -46,3 +46,10 @@ def test_engine_called_once_per_position():
 def test_empty_pgn_raises():
     with pytest.raises(ValueError):
         analyze_game('[Event "x"]\n\n*', FakeEngine(), depth=8)
+
+
+def test_empty_engine_output_on_live_position_raises():
+    import chess.engine
+    fake = FakeEngine(default=lambda board: [])
+    with pytest.raises(chess.engine.EngineError):
+        analyze_game(SCHOLAR, fake, depth=8)

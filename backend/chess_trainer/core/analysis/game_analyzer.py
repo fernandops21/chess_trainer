@@ -2,6 +2,7 @@ import io
 from dataclasses import dataclass
 
 import chess
+import chess.engine
 import chess.pgn
 
 from chess_trainer.core.analysis.engine import EngineLike, terminal_score
@@ -25,7 +26,7 @@ def _evaluate(board: chess.Board, engine: EngineLike, depth: int) -> tuple[int, 
         return term, None
     lines = engine.analyse(board, depth, multipv=1)
     if not lines:
-        return 0, None
+        raise chess.engine.EngineError("engine não devolveu linhas para uma posição não terminal")
     return lines[0].score, lines[0].move
 
 
