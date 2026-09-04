@@ -178,7 +178,11 @@ Função pura sobre a lista de `Position` de uma partida. Para cada lance,
 ## 7. Geração de puzzles
 
 Roda por `Position` marcada como erro. Usa a engine com `puzzle_depth`
-e multipv = 3.
+e multipv = 3. A resposta do defensor a cada lance do solver é analisada
+numa profundidade menor, `reply_depth` (padrão `puzzle_depth − 6`, mínimo
+12, nunca maior que `puzzle_depth`), exceto em modo mate, onde a resposta
+usa a profundidade cheia (`puzzle_depth`): uma defesa mal calculada por
+profundidade rasa quebraria a linha de mate inteira.
 
 ### 7.1 Puzzle "punir" (todo erro, seu ou do adversário)
 
@@ -215,9 +219,13 @@ e multipv = 3.
   solver só responde pelos lances dele.
 - **Puzzles triviais**: peça de valor ≥ 3 deixada de graça na própria
   casa de destino do lance errado (indefesa, ou atacada por uma peça do
-  solver que vale menos que ela), sem nada maior por trás (avaliação do
-  solver não indica mate nem vantagem além do valor dessa peça), não
-  vira puzzle "punir". Peças de valor < 3 (peão) não entram nessa regra.
+  solver que vale menos que ela, considerando só atacantes cuja captura
+  é de fato legal — cravadas e reis que capturariam entrando em xeque
+  não contam), sem nada maior por trás (avaliação do solver não indica
+  mate nem vantagem além do **ganho líquido** dessa captura: o valor da
+  peça inteiro se estiver indefesa, ou o valor da peça menos o do
+  atacante mais barato se estiver defendida), não vira puzzle "punir".
+  Peças de valor < 3 (peão) não entram nessa regra.
 
 ### 7.2 Puzzle "evitar" (só nos seus erros)
 
