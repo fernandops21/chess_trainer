@@ -17,7 +17,7 @@
 - Avaliações: inteiros em centipawns, sempre do ponto de vista do lado que vai jogar na posição avaliada. Mate em n = `100000 - n`; mate contra em n = `-(100000 - n)`. Limiar de mate: `|score| >= 90000`.
 - Datas: `datetime` **naive em UTC** em todo o código e no banco. Helper único `utcnow()` em `core/models.py`. "Hoje" = meia-noite local convertida para UTC (`local_day_start`).
 - Usuário do chess.com sempre em minúsculas e sem espaços ao salvar.
-- Defaults das configurações (spec §3): categorias `["rapid","daily","classical"]`, `analysis_depth=18`, `puzzle_depth=22`, `mistake_threshold_cp=100`, `blunder_threshold_cp=200`, `avoid_gap_cp=150`, `new_per_day=10`, `leech_lapses=5`.
+- Defaults das configurações (spec §3): categorias `["rapid","daily","classical"]`, `analysis_depth=18`, `puzzle_depth=20`, `mistake_threshold_cp=100`, `blunder_threshold_cp=200`, `avoid_gap_cp=150`, `new_per_day=10`, `leech_lapses=5`.
 - Geração de puzzles (spec §7): multipv 3, janela de alternativas 50 cp, máximo 10 lances do solver (15 em mate), solver precisa estar ≥ +100 cp ou com mate a favor, alternativas só no lance final.
 - SRS (spec §8): ease inicial 2.5, mínimo 1.3; erro ou dica → intervalo 1 e ease −0.2, lapses +1; acerto: 0→1, 1→3, senão `round(intervalo_real × ease)`; bônus +0.1 de ease se `duration_ms ≤ 10000 × solver_moves`.
 - IDs são UUID4 em string. Nenhum módulo de `core/` importa de `api/`.

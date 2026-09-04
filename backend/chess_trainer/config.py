@@ -15,7 +15,7 @@ class AppSettings:
     categories: list[str] = field(default_factory=lambda: ["rapid", "daily", "classical"])
     stockfish_path: str = ""
     analysis_depth: int = 18
-    puzzle_depth: int = 22
+    puzzle_depth: int = 20
     mistake_threshold_cp: int = 100
     blunder_threshold_cp: int = 200
     avoid_gap_cp: int = 150

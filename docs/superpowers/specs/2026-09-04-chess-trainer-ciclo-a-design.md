@@ -105,7 +105,7 @@ Session   id, started_at, ended_at (nullable), planned_minutes (nullable),
           filters (JSON)
 
 Settings  chave/valor: chesscom_username, categories, stockfish_path,
-          analysis_depth (18), puzzle_depth (22),
+          analysis_depth (18), puzzle_depth (20),
           mistake_threshold_cp (100), blunder_threshold_cp (200),
           avoid_gap_cp (150), new_per_day (10), leech_lapses (5)
 ```

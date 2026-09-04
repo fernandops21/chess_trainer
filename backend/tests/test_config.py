@@ -5,7 +5,7 @@ def test_defaults_when_empty(db_session):
     s = load_settings(db_session)
     assert s == AppSettings()
     assert s.categories == ["rapid", "daily", "classical"]
-    assert s.analysis_depth == 18 and s.puzzle_depth == 22
+    assert s.analysis_depth == 18 and s.puzzle_depth == 20
     assert s.mistake_threshold_cp == 100 and s.blunder_threshold_cp == 200
     assert s.avoid_gap_cp == 150 and s.new_per_day == 10 and s.leech_lapses == 5
 
@@ -18,7 +18,7 @@ def test_save_normalizes_username_and_roundtrips(db_session):
     assert again.chesscom_username == "therealzibs"
     assert again.categories == ["rapid"]
     assert again.analysis_depth == 12
-    assert again.puzzle_depth == 22  # default preservado
+    assert again.puzzle_depth == 20  # default preservado
 
 
 def test_raw_setting_helpers(db_session):
