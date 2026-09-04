@@ -27,3 +27,11 @@ def test_avoid_not_generated_when_gap_is_small():
 def test_avoid_not_generated_with_single_line():
     fake = FakeEngine({chess.Board(FEN).epd(): [LineEval("f1b5", 320, ("f1b5",))]})
     assert generate_avoid(chess.Board(FEN), fake, CFG) is None
+
+
+def test_avoid_not_generated_when_best_is_the_move_played():
+    """Se o melhor lance é justamente o que foi jogado, não há o que evitar."""
+    pv = ("f1b5", "a7a6", "b5a4", "g8f6", "e1g1", "f8e7")
+    fake = FakeEngine({chess.Board(FEN).epd(): [LineEval("f1b5", 320, pv), LineEval("d2d3", 100, ("d2d3",))]})
+    assert generate_avoid(chess.Board(FEN), fake, CFG, played_uci="f1b5") is None
+    assert generate_avoid(chess.Board(FEN), fake, CFG, played_uci="d2d4") is not None

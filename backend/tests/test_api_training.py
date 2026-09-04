@@ -101,3 +101,10 @@ def test_leech_and_unleech(ready):
 def test_review_unknown_puzzle_is_404(ready):
     _, client = ready
     assert client.post("/api/reviews", json={"puzzle_id": "nope", "correct": True}).status_code == 404
+
+
+def test_review_unknown_session_is_404(ready):
+    _, client = ready
+    puzzle = client.get("/api/queue").json()["items"][0]
+    r = client.post("/api/reviews", json={"puzzle_id": puzzle["id"], "session_id": "nope", "correct": True})
+    assert r.status_code == 404 and "sessão" in r.json()["detail"]

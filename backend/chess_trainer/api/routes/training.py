@@ -11,7 +11,7 @@ from chess_trainer.api.schemas import (
 )
 from chess_trainer.config import get_setting, load_settings
 from chess_trainer.core.models import Game, Puzzle, Review, TrainingSession, utcnow
-from chess_trainer.core.srs.queue import QueueFilters, build_queue, count_new_reviewed_today, local_day_start
+from chess_trainer.core.srs.queue import QueueFilters, build_queue, local_day_start
 from chess_trainer.core.srs.reviews import record_review, unleech
 
 router = APIRouter(prefix="/api")
@@ -99,6 +99,8 @@ def end_session(session_id: str, db: Session = Depends(get_db)):
 @router.post("/reviews", response_model=ReviewOut, status_code=201)
 def post_review(body: ReviewIn, db: Session = Depends(get_db)):
     puzzle = _get_puzzle(db, body.puzzle_id)
+    if body.session_id is not None and db.get(TrainingSession, body.session_id) is None:
+        raise HTTPException(404, "sessão não encontrada")
     review = record_review(db, puzzle, session_id=body.session_id, correct=body.correct,
                            used_hint=body.used_hint, duration_ms=body.duration_ms,
                            now=utcnow(), settings=load_settings(db))
