@@ -38,3 +38,20 @@
 
 ## Verificação manual
 - Task 16: complete — Stockfish 17.x installed in backend/engines (user-approved download), slow test passed, 3 real games analyzed (2 daily vs Coach-Mittens, 1 rapid) → 14 mistakes, 5 puzzles, all solutions legal and ending in concrete material gain; queue/dashboard/cancel verified live. Game 4 (139 plies) exceeded 45 min of puzzle generation; run aborted by killing the server (DB consistent by design).
+
+## Benchmark após as otimizações de geração (2026-09-04, branch feat/perf-geracao, puzzle_depth 20)
+
+| Cenário | Antes | Depois |
+|---|---|---|
+| Regerar as 3 partidas já analisadas (8, 20 e 37 lances) | ~570 s | 118 s |
+| Partida de 50 lances | — | 203 s (9 puzzles) |
+| Partida de 60 lances | — | 160 s (2 puzzles) |
+| Partida de 70 lances | — | 167 s (10 puzzles) |
+| Partida de 109 lances | (139 lances: >45 min, abortada) | 411 s (11 puzzles) |
+
+O tempo agora é dominado por puzzles legítimos (~15 s cada); os filtros eliminaram o trabalho inútil.
+Leitura prática: a fila consome no máximo `new_per_day` (10) puzzles novos por dia, e uma hora de análise
+rende ~100 puzzles, ou seja, ~10 dias de treino. Não há necessidade de analisar as 1675 partidas; analisar
+as mais recentes em lotes pequenos (limit 5–10) é suficiente. Puzzle "h3 Cxf2 Rxf2" da partida contra ThyEnigma
+deixou de ser gerado em profundidade 20 (a melhor defesa passa a ser Ch6 e o ganho não se materializa): comportamento
+correto pela regra de materialização, não falso positivo dos filtros.
