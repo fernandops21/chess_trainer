@@ -73,7 +73,7 @@ def post_import(request: Request, db: Session = Depends(get_db)):
         try:
             s = load_settings(session)
             client = app.state.chesscom_factory(s)
-            import_games(session, client, s, progress)
+            import_games(session, client, s, progress, should_stop=app.state.jobs.should_stop)
             set_setting(session, "last_import_at", utcnow().isoformat())
         finally:
             if client is not None:
@@ -113,11 +113,21 @@ def _engine_job(request: Request, name: str, work):
 
 @router.post("/analyze", status_code=202)
 def post_analyze(request: Request, limit: int | None = None):
+    stop = request.app.state.jobs.should_stop
     return _engine_job(request, "analyze",
-                       lambda db, engine, s, progress: analyze_pending(db, engine, s, progress, limit))
+                       lambda db, engine, s, progress: analyze_pending(db, engine, s, progress, limit,
+                                                                      should_stop=stop))
 
 
 @router.post("/puzzles/regenerate", status_code=202)
 def post_regenerate(request: Request):
+    stop = request.app.state.jobs.should_stop
     return _engine_job(request, "regenerate",
-                       lambda db, engine, s, progress: regenerate_all(db, engine, s, progress))
+                       lambda db, engine, s, progress: regenerate_all(db, engine, s, progress, should_stop=stop))
+
+
+@router.post("/jobs/cancel", status_code=202)
+def post_cancel(request: Request):
+    if not request.app.state.jobs.cancel():
+        raise HTTPException(409, "nenhuma tarefa em andamento")
+    return {"cancelled": True}

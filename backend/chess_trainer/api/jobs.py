@@ -24,6 +24,7 @@ class JobRunner:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
+        self._cancel = threading.Event()
         self.status = JobStatus()
 
     @property
@@ -34,15 +35,30 @@ class JobRunner:
         with self._lock:
             if self.is_busy:
                 return False
+            self._cancel.clear()
             self.status = JobStatus(state="running", job=name)
             self._thread = threading.Thread(target=self._run, args=(fn,), daemon=True)
             self._thread.start()
             return True
 
+    def cancel(self) -> bool:
+        """Pede parada ao job em andamento; False se não há nada rodando."""
+        with self._lock:
+            if not self.is_busy:
+                return False
+            self._cancel.set()
+            return True
+
+    def should_stop(self) -> bool:
+        """Passado aos jobs para que parem entre partidas/meses; o trabalho já commitado fica."""
+        return self._cancel.is_set()
+
     def _run(self, fn: Callable[[ProgressFn], None]) -> None:
         try:
             fn(self.progress)
             self.status.state = "idle"
+            if self._cancel.is_set():
+                self.status.message = "cancelado"
         except Exception as exc:  # noqa: BLE001 - qualquer falha vira estado de erro visível
             self.status.state = "error"
             self.status.error = str(exc)

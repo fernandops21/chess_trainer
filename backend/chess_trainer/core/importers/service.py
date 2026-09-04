@@ -12,6 +12,7 @@ from chess_trainer.core.importers.chesscom import ChessComClient
 from chess_trainer.core.models import Game
 
 ProgressFn = Callable[[str, int, int, str], None]
+StopFn = Callable[[], bool]
 LAST_ARCHIVE_KEY = "last_imported_archive"
 
 
@@ -68,6 +69,7 @@ def import_games(
     client: ChessComClient,
     settings: AppSettings,
     progress: ProgressFn | None = None,
+    should_stop: StopFn | None = None,
 ) -> ImportResult:
     username = settings.chesscom_username.strip().lower()
     if not username:
@@ -80,6 +82,10 @@ def import_games(
 
     result = ImportResult()
     for i, archive_url in enumerate(pending):
+        if should_stop is not None and should_stop():
+            if progress:
+                progress("import", i, len(pending), "cancelado")
+            return result
         if progress:
             progress("import", i, len(pending), _month_label(archive_url))
         set_setting(db, LAST_ARCHIVE_KEY, archive_url)  # ponto de retomada, gravado antes de buscar

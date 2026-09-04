@@ -109,3 +109,30 @@ def test_job_error_is_reported(app):
     snap = app.state.jobs.snapshot()
     assert snap["state"] == "error" and "falhou feio" in snap["error"]
     assert app.state.jobs.submit("import", lambda p: None) is True  # volta a aceitar
+
+
+def test_cancel_when_idle_is_409(client):
+    assert client.post("/api/jobs/cancel").status_code == 409
+
+
+def test_cancel_stops_running_job(client, app):
+    import threading
+    import time
+    started = threading.Event()
+
+    def looping(progress):
+        started.set()
+        for _ in range(500):  # ~10 s no pior caso; o cancel encerra bem antes
+            if app.state.jobs.should_stop():
+                return
+            time.sleep(0.02)
+        raise AssertionError("job não foi cancelado")
+
+    assert app.state.jobs.submit("analyze", looping) is True
+    started.wait(timeout=5)
+    r = client.post("/api/jobs/cancel")
+    assert r.status_code == 202 and r.json() == {"cancelled": True}
+    app.state.jobs.wait(timeout=10)
+    job = client.get("/api/status").json()["job"]
+    assert job["state"] == "idle" and "cancelado" in job["message"]
+    assert client.post("/api/jobs/cancel").status_code == 409  # já terminou
