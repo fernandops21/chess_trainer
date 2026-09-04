@@ -124,6 +124,11 @@ def _pv_never_materializes(
         gain_after = _gain(b, solver, start_balance)
         if gain_now >= target and gain_after >= target:
             return False  # materializou
+    if pairs < max_solver_moves and len(pv) % 2 == 1:
+        # a PV tem um lance do solver a mais além dos pares completos (ex.: termina numa
+        # captura do solver) que o laço acima nunca chega a examinar; sem olhar esse lance
+        # final não dá para afirmar que o ganho nunca materializa -- inconclusivo.
+        return False
     return True
 
 
@@ -154,6 +159,10 @@ def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: P
         target = floor_to_piece(min(clamp(drop_cp), lines[0].score) / 100)
         if target <= 0:
             return None
+        # Pré-checagem barata: pode descartar puzzles que o laço completo abaixo teria encontrado,
+        # quando a resposta rasa (reply_depth) do laço se desvia da PV usada aqui. Isso é aceito:
+        # a linha profunda (multipv=3, depth cheio) já disse que o ganho não se sustenta ao longo
+        # dessa PV, então vale a pena economizar as chamadas de engine do laço nesse caso.
         if _pv_never_materializes(board, lines[0].pv, target, start_balance, solver, cfg.max_solver_moves):
             return None
 
@@ -180,7 +189,10 @@ def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: P
         if after.is_game_over():
             return None
 
-        reply_lines = engine.analyse(after, cfg.reply_depth, multipv=1)
+        # modo mate exige profundidade cheia na resposta: uma defesa mal calculada por
+        # profundidade rasa (reply_depth) quebra a linha de mate inteira.
+        reply_depth = cfg.depth if mate_mode else cfg.reply_depth
+        reply_lines = engine.analyse(after, reply_depth, multipv=1)
         if not reply_lines:
             return None
         reply = reply_lines[0]

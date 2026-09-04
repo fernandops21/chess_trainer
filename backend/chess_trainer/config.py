@@ -63,6 +63,8 @@ def thresholds_from(settings: AppSettings) -> Thresholds:
 def puzzle_config_from(settings: AppSettings) -> PuzzleConfig:
     return PuzzleConfig(
         depth=settings.puzzle_depth,
-        reply_depth=max(12, settings.puzzle_depth - 6),
+        # nunca mais fundo que depth: com puzzle_depth abaixo do mínimo prático (12),
+        # o piso de 12 poderia ultrapassar a própria profundidade principal.
+        reply_depth=min(settings.puzzle_depth, max(12, settings.puzzle_depth - 6)),
         avoid_gap_cp=settings.avoid_gap_cp,
     )

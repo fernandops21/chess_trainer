@@ -21,7 +21,12 @@ Draft = tuple[Position, str, PuzzleDraft]
 
 def _is_trivial_punish(board_after: chess.Board, move_uci: str, solver_eval: int) -> bool:
     """Peça de valor >= 3 deixada de graça na própria casa de destino, sem nada maior por trás
-    (avaliação do solver não indica mate nem vantagem além do valor da peça)."""
+    (avaliação do solver não indica mate nem vantagem além do ganho líquido dessa captura).
+
+    Só conta atacantes cuja captura é de fato legal: `is_attacked_by`/`attackers` são puramente
+    geométricos e ignoram cravadas (peça presa ao próprio rei) e reis que capturariam entrando em
+    xeque -- um "atacante" nessas condições não pode de fato punir, então não torna o puzzle trivial.
+    """
     to_sq = chess.Move.from_uci(move_uci).to_square
     piece = board_after.piece_at(to_sq)
     if piece is None:
@@ -31,18 +36,32 @@ def _is_trivial_punish(board_after: chess.Board, move_uci: str, solver_eval: int
         return False
     solver = board_after.turn
     mover = not solver
-    if not board_after.is_attacked_by(solver, to_sq):
-        return False
+
+    def _legal_capture_value(from_sq: chess.Square) -> int | None:
+        attacker = board_after.piece_at(from_sq)
+        promotion = chess.QUEEN if attacker.piece_type == chess.PAWN and chess.square_rank(to_sq) in (0, 7) else None
+        move = chess.Move(from_sq, to_sq, promotion=promotion)
+        if move not in board_after.legal_moves:
+            return None
+        return PIECE_VALUES[attacker.piece_type]
+
+    attacker_values = [
+        v for a in board_after.attackers(solver, to_sq) if (v := _legal_capture_value(a)) is not None
+    ]
+    if not attacker_values:
+        return False  # nenhum atacante consegue capturar de fato (preso ou rei entraria em xeque)
+
     undefended = not board_after.is_attacked_by(mover, to_sq)
-    cheaper_attacker = any(
-        PIECE_VALUES[board_after.piece_at(a).piece_type] < value
-        for a in board_after.attackers(solver, to_sq)
-    )
+    # o rei nunca conta na comparação de "atacante mais barato": ele só pode capturar
+    # legalmente uma casa indefesa, caso já coberto pelo ramo `undefended` abaixo.
+    cheaper_values = [v for v in attacker_values if v > 0]
+    cheaper_attacker = bool(cheaper_values) and min(cheaper_values) < value
     if not (undefended or cheaper_attacker):
         return False
     if is_mate_for(solver_eval):
         return False
-    return solver_eval <= value * 100 + 200
+    net = value if undefended else value - min(cheaper_values)
+    return solver_eval <= net * 100 + 200
 
 
 def build_drafts(pos: Position, engine: EngineLike, cfg: PuzzleConfig) -> list[tuple[str, PuzzleDraft]]:

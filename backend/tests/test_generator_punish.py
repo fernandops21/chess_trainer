@@ -2,7 +2,13 @@ import chess
 
 from chess_trainer.core.analysis.engine import LineEval
 from chess_trainer.core.evals import MATE_SCORE
-from chess_trainer.core.puzzles.generator import PuzzleConfig, _final_alternatives, generate_punish
+from chess_trainer.core.puzzles.generator import (
+    PuzzleConfig,
+    _final_alternatives,
+    _pv_never_materializes,
+    generate_punish,
+)
+from chess_trainer.core.puzzles.material import material_balance
 from tests.fakes import FakeEngine, first_legal_default
 
 CFG = PuzzleConfig(depth=10)
@@ -124,7 +130,7 @@ def test_slower_mate_is_not_an_alternative():
     assert draft.moves[0].alternatives == []
 
 
-def test_reply_analysis_uses_reply_depth():
+def test_reply_analysis_uses_full_depth_in_mate_mode():
     fake = FakeEngine({
         chess.Board(MATE_IN_2).epd(): [LineEval("e1e8", M - 2, ("e1e8", "c8e8", "a4e8"))],
         _after(MATE_IN_2, "e1e8").epd(): [LineEval("c8e8", -(M - 1), ("c8e8", "a4e8"))],
@@ -133,9 +139,21 @@ def test_reply_analysis_uses_reply_depth():
     cfg = PuzzleConfig(depth=22, reply_depth=16)
     draft = generate_punish(chess.Board(MATE_IN_2), drop_cp=5000, engine=fake, cfg=cfg)
     assert draft is not None
-    # primeira e terceira chamadas (multipv=3, o solver) usam depth=22; a resposta do
-    # defensor (multipv=1, segunda chamada) usa reply_depth=16.
-    assert fake.depths == [22, 16, 22]
+    # em modo mate, a resposta do defensor usa profundidade cheia (cfg.depth), não reply_depth:
+    # um mate mal calculado por profundidade rasa quebra a solução inteira.
+    assert fake.depths == [22, 22, 22]
+
+
+def test_reply_analysis_uses_reply_depth_in_material_mode():
+    fake = FakeEngine({
+        chess.Board(HANGING_QUEEN).epd(): [LineEval("c3d5", 900, ("c3d5", "e8d7"))],
+        _after(HANGING_QUEEN, "c3d5").epd(): [LineEval("e8d7", -900, ("e8d7",))],
+    })
+    cfg = PuzzleConfig(depth=22, reply_depth=16)
+    draft = generate_punish(chess.Board(HANGING_QUEEN), drop_cp=900, engine=fake, cfg=cfg)
+    assert draft is not None
+    # fora do modo mate, a resposta do defensor usa reply_depth (mais rasa).
+    assert fake.depths == [22, 16]
 
 
 def test_draft_json_shape():
@@ -180,6 +198,21 @@ def test_pv_that_never_materializes_is_discarded_without_extra_calls():
     fake = FakeEngine({chess.Board(QUIET_SHUFFLE).epd(): [LineEval("f2d3", 150, pv)]})
     assert generate_punish(chess.Board(QUIET_SHUFFLE), drop_cp=1000, engine=fake, cfg=CFG) is None
     assert len(fake.calls) == 1
+
+
+ODD_PV_FEN = "4k3/8/8/3q4/8/8/4K3/3R4 w - - 0 1"  # torre dá voltas e no fim captura a dama (Rxd5)
+
+
+def test_pv_never_materializes_returns_false_for_odd_pv_ending_on_solver_capture():
+    """PV com número ímpar de lances (5): a divisão inteira por 2 descartava o último lance do
+    solver (índice 4, a captura que materializa o ganho), fazendo o pré-filtro devolver True
+    (nunca materializa) por engano. Com o lance final examinado, o resultado correto é
+    inconclusivo (False): deixa o laço normal decidir."""
+    board = chess.Board(ODD_PV_FEN)
+    solver = chess.WHITE
+    start_balance = material_balance(board, solver)
+    pv = ("d1c1", "e8f8", "c1d1", "f8e8", "d1d5")
+    assert _pv_never_materializes(board, pv, 9, start_balance, solver, max_solver_moves=10) is False
 
 
 def test_target_is_capped_by_solver_eval():

@@ -3,7 +3,7 @@ import chess
 from chess_trainer.core.evals import MATE_SCORE
 from chess_trainer.core.models import Position
 from chess_trainer.core.puzzles.generator import PuzzleConfig
-from chess_trainer.core.puzzles.service import build_drafts
+from chess_trainer.core.puzzles.service import _is_trivial_punish, build_drafts
 from tests.fakes import FakeEngine, first_legal_default
 
 CFG = PuzzleConfig(depth=10)
@@ -54,7 +54,9 @@ def test_trivial_rule_yields_to_mate_for_solver():
 
 
 def test_defended_queen_with_cheap_attacker_is_trivial():
-    pos = _pos(fen=DEFENDED_QUEEN_FEN, move_uci="d8d5", eval_after=-900)
+    # bound corrigido usa o ganho líquido (9-3=6 -> 800cp), não o valor de face (900cp+200);
+    # com eval_after=-700 (solver +700) o ganho líquido ainda cobre a vantagem.
+    pos = _pos(fen=DEFENDED_QUEEN_FEN, move_uci="d8d5", eval_after=-700)
     fake = FakeEngine()
     assert build_drafts(pos, fake, CFG) == []
     assert fake.calls == []
@@ -65,3 +67,35 @@ def test_hanging_pawn_is_not_trivial():
     fake = FakeEngine(default=first_legal_default(0))
     build_drafts(pos, fake, CFG)
     assert fake.calls != []
+
+
+# Achado 1: rei conta como "atacante" com PIECE_VALUES[KING] = 0, tornando qualquer peça
+# defendida "trivial" por comparação (0 < valor), mesmo quando Kxsquare é ilegal.
+KING_ONLY_ATTACKER_FEN = "4k3/8/2p1K3/3n4/8/8/8/8 w - - 0 1"  # Nd5 defendido por c6; só o Ke6 "ataca", mas Kxd5 é ilegal
+
+
+def test_king_only_attacker_is_not_trivial():
+    board_after = chess.Board(KING_ONLY_ATTACKER_FEN)
+    assert not _is_trivial_punish(board_after, "c7d5", 300)
+
+
+# Achado 2: atacante presa (pin) não pode capturar de fato; is_attacked_by/attackers ignoram isso.
+PINNED_ATTACKER_FEN = "4k3/8/8/3qb3/8/2N5/8/K7 w - - 0 1"  # Qd5 indefesa; Nc3 preso ao Ka1 pelo Be5, Nxd5 ilegal
+
+
+def test_pinned_attacker_is_not_trivial():
+    board_after = chess.Board(PINNED_ATTACKER_FEN)
+    assert not _is_trivial_punish(board_after, "d8d5", 300)
+
+
+# Achado 4: o teto de avaliação da regra trivial deve usar o ganho líquido da captura
+# (valor da peça menos o atacante mais barato quando defendida), não o valor de face.
+DEFENDED_BISHOP_FEN = "3qk3/8/8/3b4/2P5/8/8/4K3 w - - 0 1"  # Bd5 defendido pela Qd8; cxd5 (peão) ataca
+
+
+def test_trivial_bound_uses_net_gain_not_face_value():
+    board_after = chess.Board(DEFENDED_BISHOP_FEN)
+    # ganho líquido = 3 (bispo) - 1 (peão) = 2 -> teto 400cp; 500 > 400 não é trivial.
+    assert not _is_trivial_punish(board_after, "d7d5", 500)
+    # 300 <= 400 -> trivial.
+    assert _is_trivial_punish(board_after, "d7d5", 300)

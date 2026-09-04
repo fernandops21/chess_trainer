@@ -1,4 +1,4 @@
-from chess_trainer.config import AppSettings, get_setting, load_settings, save_settings, set_setting
+from chess_trainer.config import AppSettings, get_setting, load_settings, puzzle_config_from, save_settings, set_setting
 
 
 def test_defaults_when_empty(db_session):
@@ -19,6 +19,20 @@ def test_save_normalizes_username_and_roundtrips(db_session):
     assert again.categories == ["rapid"]
     assert again.analysis_depth == 12
     assert again.puzzle_depth == 20  # default preservado
+
+
+def test_puzzle_config_from_derives_reply_depth():
+    cfg = puzzle_config_from(AppSettings(puzzle_depth=20))
+    assert cfg.depth == 20 and cfg.reply_depth == 14
+
+    cfg = puzzle_config_from(AppSettings(puzzle_depth=12))
+    assert cfg.depth == 12 and cfg.reply_depth == 12
+
+
+def test_puzzle_config_from_clamps_reply_depth_to_depth():
+    # profundidade abaixo do mínimo prático (12): reply_depth não pode superar depth.
+    cfg = puzzle_config_from(AppSettings(puzzle_depth=10))
+    assert cfg.depth == 10 and cfg.reply_depth == 10
 
 
 def test_raw_setting_helpers(db_session):
