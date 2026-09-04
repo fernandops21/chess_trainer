@@ -82,6 +82,25 @@ def test_analyze_without_engine_is_503():
     assert client.post("/api/analyze").status_code == 503
 
 
+def test_second_job_while_busy_is_409(client, app):
+    import threading
+    release = threading.Event()
+    started = threading.Event()
+
+    def blocking(progress):
+        started.set()
+        release.wait(timeout=10)
+
+    assert app.state.jobs.submit("analyze", blocking) is True
+    started.wait(timeout=5)
+    client.put("/api/settings", json={"chesscom_username": "therealzibs"})
+    assert client.post("/api/import").status_code == 409
+    assert client.post("/api/analyze").status_code == 409
+    release.set()
+    app.state.jobs.wait()
+    assert client.get("/api/status").json()["job"]["state"] == "idle"
+
+
 def test_job_error_is_reported(app):
     def boom(progress):
         raise RuntimeError("falhou feio")

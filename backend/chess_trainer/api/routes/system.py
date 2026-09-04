@@ -69,12 +69,15 @@ def post_import(request: Request, db: Session = Depends(get_db)):
 
     def job(progress):
         session = app.state.session_factory()
+        client = None
         try:
             s = load_settings(session)
             client = app.state.chesscom_factory(s)
             import_games(session, client, s, progress)
             set_setting(session, "last_import_at", utcnow().isoformat())
         finally:
+            if client is not None:
+                client.close()
             session.close()
 
     return _submit(request, "import", job)

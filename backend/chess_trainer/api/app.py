@@ -24,6 +24,17 @@ def default_chesscom_factory(settings: AppSettings) -> ChessComClient:
     return ChessComClient(USER_AGENT)
 
 
+def _probe_engine_factory(engine_factory):
+    def probe(settings: AppSettings) -> tuple[bool, str | None]:
+        engine = engine_factory(settings)
+        available = engine is not None
+        if engine is not None:
+            engine.close()
+        return available, "fake"
+
+    return probe
+
+
 def create_app(db_path: str | None = None, engine_factory=None, chesscom_factory=None) -> FastAPI:
     if db_path is None:
         db_path = os.environ.get("CHESS_TRAINER_DB", str(BACKEND_DIR / "data" / "chess_trainer.db"))
@@ -37,7 +48,7 @@ def create_app(db_path: str | None = None, engine_factory=None, chesscom_factory
     app.state.chesscom_factory = chesscom_factory or default_chesscom_factory
     if engine_factory is not None:
         # em testes a disponibilidade da engine é decidida pela factory, não pelo disco
-        app.state.engine_probe = lambda s: (engine_factory(s) is not None, "fake")
+        app.state.engine_probe = _probe_engine_factory(engine_factory)
 
     app.include_router(system.router)
 
