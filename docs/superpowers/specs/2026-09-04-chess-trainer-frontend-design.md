@@ -140,7 +140,7 @@ partidas" que leva ao Painel.
   por clique, ◀ ▶ e teclado; ao lado do lance atual, avaliação antes/depois
   (formato `+1.25` / `#3`) e melhor lance da engine; em cada erro com puzzle,
   atalho "Treinar este" (abre `/treinar?puzzle=<id>`, que carrega esse puzzle
-  fora da fila, sem registrar revisão). Partida não analisada: lances sem
+  fora da ordem da fila; a resolução é registrada como revisão normal). Partida não analisada: lances sem
   avaliação e botão "Analisar esta partida" (`POST /api/analyze?game_id=`).
 - Sem gráfico de avaliação nesta versão.
 
@@ -153,7 +153,11 @@ partidas" que leva ao Painel.
 - Detalhe (painel lateral no desktop, tela cheia no celular): tabuleiro na
   posição do erro; o que foi jogado; a refutação (linha do puzzle "punir")
   e a linha da engine navegáveis; links para a partida e para treinar o
-  puzzle.
+  puzzle. Como a refutação já foi mostrada nesta tela, "Treinar este" a
+  partir daqui abre o puzzle com aviso "solução já vista" e a resolução é
+  registrada com `used_hint = true` (conta como erro, volta em 1 dia); a
+  partir da tela de partida, onde só o lance errado está marcado, a revisão é
+  registrada normalmente.
 - Seção "Sanguessugas" no topo quando existir alguma (`GET /api/leeches`):
   mesma ficha, botão "Devolver à fila" (`POST /api/puzzles/{id}/unleech`).
 
