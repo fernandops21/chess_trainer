@@ -1,0 +1,66 @@
+import threading
+from dataclasses import asdict, dataclass
+from datetime import datetime
+from typing import Callable
+
+from chess_trainer.core.models import utcnow
+
+ProgressFn = Callable[[str, int, int, str], None]
+
+
+@dataclass
+class JobStatus:
+    state: str = "idle"  # idle | running | error
+    job: str | None = None
+    stage: str = ""
+    done: int = 0
+    total: int = 0
+    message: str = ""
+    error: str | None = None
+    finished_at: datetime | None = None
+
+
+class JobRunner:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._thread: threading.Thread | None = None
+        self.status = JobStatus()
+
+    @property
+    def is_busy(self) -> bool:
+        return self._thread is not None and self._thread.is_alive()
+
+    def submit(self, name: str, fn: Callable[[ProgressFn], None]) -> bool:
+        with self._lock:
+            if self.is_busy:
+                return False
+            self.status = JobStatus(state="running", job=name)
+            self._thread = threading.Thread(target=self._run, args=(fn,), daemon=True)
+            self._thread.start()
+            return True
+
+    def _run(self, fn: Callable[[ProgressFn], None]) -> None:
+        try:
+            fn(self.progress)
+            self.status.state = "idle"
+        except Exception as exc:  # noqa: BLE001 - qualquer falha vira estado de erro visível
+            self.status.state = "error"
+            self.status.error = str(exc)
+        finally:
+            self.status.finished_at = utcnow()
+
+    def progress(self, stage: str, done: int, total: int, message: str = "") -> None:
+        self.status.stage = stage
+        self.status.done = done
+        self.status.total = total
+        self.status.message = message
+
+    def wait(self, timeout: float = 60.0) -> None:
+        if self._thread is not None:
+            self._thread.join(timeout)
+
+    def snapshot(self) -> dict:
+        data = asdict(self.status)
+        if data["finished_at"] is not None:
+            data["finished_at"] = data["finished_at"].isoformat()
+        return data
