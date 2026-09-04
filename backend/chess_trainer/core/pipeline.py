@@ -59,11 +59,17 @@ def analyze_pending(
         rows = [Position(game_id=game.id, **asdict(d)) for d in data]  # transientes: fora da sessão
         classify_positions(rows, game.my_color, thresholds)
         try:
-            drafts = draft_puzzles(rows, engine, cfg)
+            drafts = draft_puzzles(rows, engine, cfg, should_stop=should_stop)
         except chess.engine.EngineError:
             db.rollback()
             engine.restart()
             continue
+
+        if drafts is None:
+            db.rollback()
+            if progress:
+                progress("analyze", i, len(games), "cancelado")
+            return analyzed
 
         # Fase de escrita: curta, sem nenhuma chamada à engine no meio.
         db.add_all(rows)

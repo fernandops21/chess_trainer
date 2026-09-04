@@ -115,14 +115,68 @@ def test_regenerate_all_survives_engine_crash(db_session):
     assert db_session.scalar(select(func.count(Puzzle.id))) == 1
 
 
+class _CountingEngine(FakeEngine):
+    """Conta chamadas com multipv=3 (fase de puzzles, geracao de 'punir')."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.multipv3_calls = 0
+
+    def analyse(self, board, depth, multipv=1):
+        lines = super().analyse(board, depth, multipv)
+        if multipv == 3:
+            self.multipv3_calls += 1
+        return lines
+
+
+def test_analyze_pending_cancels_mid_game_without_persisting(db_session):
+    game = _game(pgn=SCHOLAR)
+    db_session.add(game)
+    db_session.commit()
+    engine = _CountingEngine(
+        {_before_mate().epd(): [LineEval("h5f7", MATE_SCORE - 1, ("h5f7",))]},
+        first_legal_default(0),
+    )
+    should_stop = lambda: engine.multipv3_calls >= 1  # noqa: E731
+
+    n = analyze_pending(db_session, engine, SETTINGS, should_stop=should_stop)
+
+    assert n == 0
+    assert game.analyzed_at is None
+    assert db_session.scalar(select(func.count(Position.id))) == 0
+    assert db_session.scalar(select(func.count(Puzzle.id))) == 0
+
+
+def test_regenerate_all_cancels_mid_game_without_committing(db_session):
+    game = _game(pgn=SCHOLAR)
+    db_session.add(game)
+    db_session.commit()
+    analyze_pending(db_session, _engine(), SETTINGS)
+    before = db_session.scalar(select(func.count(Puzzle.id)))
+    assert before == 1
+
+    engine = _CountingEngine(
+        {_before_mate().epd(): [LineEval("h5f7", MATE_SCORE - 1, ("h5f7",))]},
+        first_legal_default(0),
+    )
+    should_stop = lambda: engine.multipv3_calls >= 1  # noqa: E731
+
+    n = regenerate_all(db_session, engine, SETTINGS, should_stop=should_stop)
+
+    assert n == 0
+    # deleção de Puzzle/Review antes do laço é commitada; a partida cancelada não é recriada
+    assert db_session.scalar(select(func.count(Puzzle.id))) == 0
+
+
 def test_analyze_pending_stops_when_asked(db_session):
     db_session.add_all([_game(source_id="g1", pgn=SCHOLAR), _game(source_id="g2", pgn=SCHOLAR)])
     db_session.commit()
-    seen = {"n": 0}
 
+    # baseado em estado real (partidas já commitadas), não em contagem de chamadas: agora
+    # should_stop também é checado dentro de draft_puzzles (item 5), então uma partida pode
+    # chamá-lo mais de uma vez antes de terminar.
     def should_stop() -> bool:
-        seen["n"] += 1
-        return seen["n"] > 1  # deixa a primeira partida terminar
+        return db_session.scalar(select(func.count(Game.id)).where(Game.analyzed_at.is_not(None))) >= 1
 
     assert analyze_pending(db_session, _engine(), SETTINGS, should_stop=should_stop) == 1
     assert db_session.scalar(select(func.count(Game.id)).where(Game.analyzed_at.is_not(None))) == 1

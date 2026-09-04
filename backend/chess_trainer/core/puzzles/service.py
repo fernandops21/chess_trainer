@@ -36,14 +36,22 @@ def build_drafts(pos: Position, engine: EngineLike, cfg: PuzzleConfig) -> list[t
     return drafts
 
 
-def draft_puzzles(positions: Iterable[Position], engine: EngineLike, cfg: PuzzleConfig) -> list[Draft]:
-    """Fase pura de engine: nenhum acesso ao banco, para rodar fora da transação de escrita."""
+def draft_puzzles(
+    positions: Iterable[Position], engine: EngineLike, cfg: PuzzleConfig, should_stop: StopFn | None = None,
+) -> list[Draft] | None:
+    """Fase pura de engine: nenhum acesso ao banco, para rodar fora da transação de escrita.
+
+    Se `should_stop` virar verdadeiro entre um erro e o próximo, devolve None: o chamador não
+    deve persistir nada desta partida.
+    """
     drafts: list[Draft] = []
     for pos in positions:
         if not pos.is_mistake:
             continue
         for kind, draft in build_drafts(pos, engine, cfg):
             drafts.append((pos, kind, draft))
+        if should_stop is not None and should_stop():
+            return None
     return drafts
 
 
@@ -104,7 +112,12 @@ def regenerate_all(
             with db.no_autoflush:
                 positions = list(game.positions)
                 classify_positions(positions, game.my_color, thresholds)
-                drafts = draft_puzzles(positions, engine, cfg)
+                drafts = draft_puzzles(positions, engine, cfg, should_stop=should_stop)
+            if drafts is None:
+                db.rollback()
+                if progress:
+                    progress("regenerate", i, len(games), "cancelado")
+                return total
             total += persist_drafts(db, game, drafts)
             db.commit()
         except chess.engine.EngineError:
