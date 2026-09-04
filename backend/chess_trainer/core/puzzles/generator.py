@@ -148,7 +148,7 @@ def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: P
 
         if not mate_mode and _gain(after, solver, start_balance) >= target \
                 and _gain(after_reply, solver, start_balance) >= target:
-            if after_reply.is_game_over() and not after_reply.is_insufficient_material():
+            if after_reply.is_game_over():
                 return None
             alts = _final_alternatives(current, close_alts, mate_mode, target, start_balance, solver)
             if alts is None:
