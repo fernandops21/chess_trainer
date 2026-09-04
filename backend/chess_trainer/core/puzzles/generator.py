@@ -62,16 +62,26 @@ def _final_alternatives(
     """Alternativas aceitas no lance final; None se alguma alternativa próxima não materializa."""
     accepted: list[str] = []
     for alt in close_alts:
+        if not alt.pv or alt.pv[0] != alt.move:
+            return None
         b = board.copy()
         b.push_uci(alt.move)
         if b.is_checkmate():
             accepted.append(alt.move)
             continue
+        if b.is_game_over():
+            return None
         if mate_mode:
             return None
+        if len(alt.pv) < 2:
+            return None
         gain_now = _gain(b, solver, start_balance)
-        if len(alt.pv) > 1:
+        try:
             b.push_uci(alt.pv[1])
+        except ValueError:
+            return None
+        if b.is_game_over():
+            return None
         gain_after = _gain(b, solver, start_balance)
         if gain_now >= target and gain_after >= target:
             accepted.append(alt.move)
@@ -138,6 +148,8 @@ def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: P
 
         if not mate_mode and _gain(after, solver, start_balance) >= target \
                 and _gain(after_reply, solver, start_balance) >= target:
+            if after_reply.is_game_over() and not after_reply.is_insufficient_material():
+                return None
             alts = _final_alternatives(current, close_alts, mate_mode, target, start_balance, solver)
             if alts is None:
                 return None

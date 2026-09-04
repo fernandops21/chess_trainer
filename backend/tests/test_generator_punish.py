@@ -2,7 +2,7 @@ import chess
 
 from chess_trainer.core.analysis.engine import LineEval
 from chess_trainer.core.evals import MATE_SCORE
-from chess_trainer.core.puzzles.generator import PuzzleConfig, generate_punish
+from chess_trainer.core.puzzles.generator import PuzzleConfig, _final_alternatives, generate_punish
 from tests.fakes import FakeEngine, first_legal_default
 
 CFG = PuzzleConfig(depth=10)
@@ -22,6 +22,7 @@ TWO_CAPTURES = "4k3/8/8/3q4/8/2N1N3/8/4K3 w - - 0 1"          # Nc3xd5 ou Ne3xd5
 RECAPTURE = "8/8/4k3/3q4/8/8/8/3RK3 w - - 0 1"                # Rxd5 Kxd5
 VAGUE = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1"
 MATE_IN_1 = "6k1/5ppp/8/8/8/8/8/R3K3 w - - 0 1"               # Ra8#
+DEAD_DRAW_CAPTURE = "4k3/8/8/3q4/8/2N5/8/4K3 w - - 0 1"       # Nxd5 deixa R+C x R: empate
 
 
 def test_hanging_queen_ends_at_capture():
@@ -125,3 +126,26 @@ def test_draft_json_shape():
     import json
     data = json.loads(draft.to_json())
     assert data == {"moves": [{"uci": "a1a8", "by": "solver", "alternatives": []}], "explanation_pv": []}
+
+
+def test_capture_into_dead_draw_is_discarded():
+    fake = FakeEngine({chess.Board(DEAD_DRAW_CAPTURE).epd(): [LineEval("c3d5", 900, ("c3d5", "e8d7"))]})
+    assert generate_punish(chess.Board(DEAD_DRAW_CAPTURE), drop_cp=900, engine=fake, cfg=CFG) is None
+    assert len(fake.calls) == 1
+
+
+def test_stalemating_alternative_is_rejected():
+    board = chess.Board("k7/2n5/K7/8/8/8/7Q/8 w - - 0 1")
+    alts = [LineEval("h2c7", 900, ("h2c7",))]
+    assert _final_alternatives(board, alts, False, 3, 6, chess.WHITE) is None
+
+
+def test_truncated_alternative_pv_is_rejected():
+    fake = FakeEngine({
+        chess.Board(TWO_CAPTURES).epd(): [
+            LineEval("c3d5", 900, ("c3d5", "e8d7")),
+            LineEval("e3d5", 890, ("e3d5",)),
+        ],
+        _after(TWO_CAPTURES, "c3d5").epd(): [LineEval("e8d7", -900, ("e8d7",))],
+    })
+    assert generate_punish(chess.Board(TWO_CAPTURES), drop_cp=900, engine=fake, cfg=CFG) is None
