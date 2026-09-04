@@ -21,6 +21,14 @@ M = MATE_SCORE
     (1500, 1100, None),             # decidido dos dois lados
     (-1500, -1900, None),           # perdido dos dois lados
     (1500, 900, "blunder"),         # saiu da zona decidida
+    (M - 2, 1200, "blunder"),       # perdeu mate mesmo ficando na zona decidida
+    (1200, -(M - 3), "blunder"),    # entregou mate a partir da zona decidida
+    (0, -100, "mistake"),           # queda exatamente no limiar de mistake
+    (0, -200, "blunder"),           # queda exatamente no limiar de blunder
+    (0, -99, None),                 # um abaixo do limiar
+    (1000, 1000, None),             # exatamente na borda decidida, dos dois lados
+    (1000, 700, "blunder"),         # na borda antes, saiu depois
+    (-1000, -1300, None),           # perdido dos dois lados, na borda
 ])
 def test_classify_move(before, after, expected):
     assert classify_move(before, after, T) == expected
