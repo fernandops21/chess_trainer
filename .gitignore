@@ -1,0 +1,5 @@
+.superpowers/
+.venv/
+backend/data/
+backend/engines/
+__pycache__/
