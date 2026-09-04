@@ -112,7 +112,9 @@ def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: P
     if not mate_mode:
         if lines[0].score < cfg.min_solver_eval_cp:
             return None
-        target = floor_to_piece(clamp(drop_cp) / 100)
+        # o alvo é o menor entre a queda e a avaliação do solver: uma queda enorme
+        # (mate perdido) não pode exigir ganho de dama se a posição só vale +3
+        target = floor_to_piece(min(clamp(drop_cp), lines[0].score) / 100)
         if target <= 0:
             return None
 
@@ -169,11 +171,15 @@ def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: P
     return None
 
 
-def generate_avoid(board_before: chess.Board, engine: EngineLike, cfg: PuzzleConfig) -> PuzzleDraft | None:
+def generate_avoid(
+    board_before: chess.Board, engine: EngineLike, cfg: PuzzleConfig, played_uci: str | None = None,
+) -> PuzzleDraft | None:
     lines = engine.analyse(board_before, cfg.depth, multipv=2)
     if len(lines) < 2:
         return None
     best, second = lines[0], lines[1]
+    if played_uci is not None and best.move == played_uci:
+        return None  # o lance jogado já era o melhor; não há o que evitar
     if best.score - second.score < cfg.avoid_gap_cp:
         return None
     return PuzzleDraft(

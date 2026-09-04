@@ -101,11 +101,15 @@ def test_gain_must_survive_best_reply():
         chess.Board(RECAPTURE).epd(): [LineEval("d1d5", 450, ("d1d5", "e6d5"))],
         _after(RECAPTURE, "d1d5").epd(): [LineEval("e6d5", -50, ("e6d5",))],
     }
-    # alvo 3 (queda 400): ganho líquido 9-5=4 sobrevive → termina em Rxd5
+    # alvo 3 (queda 400, solver +4.50): ganho líquido 9-5=4 sobrevive → termina em Rxd5
     draft = generate_punish(chess.Board(RECAPTURE), 400, FakeEngine(script, first_legal_default(450)), CFG)
     assert draft is not None and [m.uci for m in draft.moves] == ["d1d5"]
-    # alvo 5 (queda 600): 4 < 5 → continua e, sem mais material, é descartado
-    assert generate_punish(chess.Board(RECAPTURE), 600, FakeEngine(script, first_legal_default(450)), CFG) is None
+    # alvo 9 (queda e solver +9.00): 4 < 9 → continua e, sem mais material, é descartado
+    big = {
+        chess.Board(RECAPTURE).epd(): [LineEval("d1d5", 900, ("d1d5", "e6d5"))],
+        _after(RECAPTURE, "d1d5").epd(): [LineEval("e6d5", -50, ("e6d5",))],
+    }
+    assert generate_punish(chess.Board(RECAPTURE), 900, FakeEngine(big, first_legal_default(900)), CFG) is None
 
 
 def test_slower_mate_is_not_an_alternative():
@@ -149,3 +153,18 @@ def test_truncated_alternative_pv_is_rejected():
         _after(TWO_CAPTURES, "c3d5").epd(): [LineEval("e8d7", -900, ("e8d7",))],
     })
     assert generate_punish(chess.Board(TWO_CAPTURES), drop_cp=900, engine=fake, cfg=CFG) is None
+
+
+HANGING_KNIGHT = "4k3/8/8/3n4/8/1B6/7P/4K3 w - - 0 1"          # Bxd5 ganha o cavalo
+
+
+def test_target_is_capped_by_solver_eval():
+    """Queda gigante (mate perdido) não pode exigir alvo de dama: o alvo segue a avaliação do solver."""
+    fake = FakeEngine({
+        chess.Board(HANGING_KNIGHT).epd(): [LineEval("b3d5", 300, ("b3d5", "e8d7"))],
+        _after(HANGING_KNIGHT, "b3d5").epd(): [LineEval("e8d7", -300, ("e8d7",))],
+    })
+    draft = generate_punish(chess.Board(HANGING_KNIGHT), drop_cp=100_297, engine=fake, cfg=CFG)
+    assert draft is not None
+    assert draft.end_reason == "material_gain" and draft.solver_moves == 1
+    assert [(m.uci, m.by) for m in draft.moves] == [("b3d5", "solver")]

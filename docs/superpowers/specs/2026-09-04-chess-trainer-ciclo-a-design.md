@@ -192,6 +192,10 @@ e multipv = 3.
     esperado (`eval_after` convertido em peões, arredondado para baixo
     para o valor de peça mais próximo: 1, 3, 5, 9) **e** a posição está
     quieta (nenhuma recaptura imediata devolve o material).
+  - O ganho esperado é o **menor** entre a queda de avaliação do erro e a
+    avaliação da engine para o solver na posição inicial do puzzle: perder
+    um mate ou uma vantagem posicional enorme não pode exigir o ganho de
+    uma dama quando a posição só vale, por exemplo, +3.
   - Se em até 10 lances do solver não materializa: puzzle **descartado**.
 - Só gera se, na posição inicial, a avaliação para o solver é ≥ +100 cp
   ou mate a favor. (Se o erro foi "perder um mate" mas o lado que errou
