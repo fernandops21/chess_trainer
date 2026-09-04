@@ -124,6 +124,20 @@ def test_slower_mate_is_not_an_alternative():
     assert draft.moves[0].alternatives == []
 
 
+def test_reply_analysis_uses_reply_depth():
+    fake = FakeEngine({
+        chess.Board(MATE_IN_2).epd(): [LineEval("e1e8", M - 2, ("e1e8", "c8e8", "a4e8"))],
+        _after(MATE_IN_2, "e1e8").epd(): [LineEval("c8e8", -(M - 1), ("c8e8", "a4e8"))],
+        _after(MATE_IN_2, "e1e8", "c8e8").epd(): [LineEval("a4e8", M - 1, ("a4e8",))],
+    })
+    cfg = PuzzleConfig(depth=22, reply_depth=16)
+    draft = generate_punish(chess.Board(MATE_IN_2), drop_cp=5000, engine=fake, cfg=cfg)
+    assert draft is not None
+    # primeira e terceira chamadas (multipv=3, o solver) usam depth=22; a resposta do
+    # defensor (multipv=1, segunda chamada) usa reply_depth=16.
+    assert fake.depths == [22, 16, 22]
+
+
 def test_draft_json_shape():
     fake = FakeEngine({chess.Board(MATE_IN_1).epd(): [LineEval("a1a8", M - 1, ("a1a8",))]})
     draft = generate_punish(chess.Board(MATE_IN_1), drop_cp=5000, engine=fake, cfg=CFG)

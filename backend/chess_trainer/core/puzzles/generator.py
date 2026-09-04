@@ -34,6 +34,7 @@ class PuzzleDraft:
 @dataclass(frozen=True)
 class PuzzleConfig:
     depth: int = 22
+    reply_depth: int = 16
     alt_window_cp: int = 50
     max_solver_moves: int = 10
     max_mate_moves: int = 15
@@ -179,7 +180,7 @@ def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: P
         if after.is_game_over():
             return None
 
-        reply_lines = engine.analyse(after, cfg.depth, multipv=1)
+        reply_lines = engine.analyse(after, cfg.reply_depth, multipv=1)
         if not reply_lines:
             return None
         reply = reply_lines[0]
