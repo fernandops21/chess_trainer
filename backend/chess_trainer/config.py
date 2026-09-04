@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from chess_trainer.core.analysis.mistakes import Thresholds
 from chess_trainer.core.models import Setting
+from chess_trainer.core.puzzles.generator import PuzzleConfig
 
 
 @dataclass
@@ -57,3 +58,7 @@ def thresholds_from(settings: AppSettings) -> Thresholds:
         mistake_cp=settings.mistake_threshold_cp,
         blunder_cp=settings.blunder_threshold_cp,
     )
+
+
+def puzzle_config_from(settings: AppSettings) -> PuzzleConfig:
+    return PuzzleConfig(depth=settings.puzzle_depth, avoid_gap_cp=settings.avoid_gap_cp)
