@@ -1,0 +1,23 @@
+{"games": [
+  {
+    "url": "https://www.chess.com/game/live/1001",
+    "pgn": "[Event \"Live Chess\"]\n[Site \"Chess.com\"]\n[Date \"2026.08.02\"]\n[White \"therealzibs\"]\n[Black \"opp_one\"]\n[Result \"1-0\"]\n[TimeControl \"600\"]\n[Link \"https://www.chess.com/game/live/1001\"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0\n",
+    "time_control": "600", "end_time": 1785672000, "rated": true, "time_class": "rapid", "rules": "chess",
+    "white": {"username": "therealzibs", "result": "win", "rating": 1200},
+    "black": {"username": "opp_one", "result": "checkmated", "rating": 1180}
+  },
+  {
+    "url": "https://www.chess.com/game/live/1002",
+    "pgn": "[Event \"Live Chess\"]\n[Site \"Chess.com\"]\n[Date \"2026.08.03\"]\n[White \"opp_two\"]\n[Black \"therealzibs\"]\n[Result \"0-1\"]\n[TimeControl \"180\"]\n[Link \"https://www.chess.com/game/live/1002\"]\n\n1. f3 e5 2. g4 Qh4# 0-1\n",
+    "time_control": "180", "end_time": 1785758400, "rated": true, "time_class": "blitz", "rules": "chess",
+    "white": {"username": "opp_two", "result": "checkmated", "rating": 1100},
+    "black": {"username": "therealzibs", "result": "win", "rating": 1210}
+  },
+  {
+    "url": "https://www.chess.com/game/live/1003",
+    "pgn": "[Event \"Live Chess\"]\n[Site \"Chess.com\"]\n[Date \"2026.08.04\"]\n[White \"therealzibs\"]\n[Black \"opp_three\"]\n[Result \"1/2-1/2\"]\n[TimeControl \"600\"]\n[Variant \"Chess960\"]\n[Link \"https://www.chess.com/game/live/1003\"]\n\n1. e4 e5 1/2-1/2\n",
+    "time_control": "600", "end_time": 1785844800, "rated": true, "time_class": "rapid", "rules": "chess960",
+    "white": {"username": "therealzibs", "result": "agreed", "rating": 1200},
+    "black": {"username": "opp_three", "result": "agreed", "rating": 1200}
+  }
+]}
