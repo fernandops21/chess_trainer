@@ -213,6 +213,11 @@ e multipv = 3.
   o puzzle é descartado.
 - Lances do defensor: sempre a melhor defesa da engine. Ao resolver, o
   solver só responde pelos lances dele.
+- **Puzzles triviais**: peça de valor ≥ 3 deixada de graça na própria
+  casa de destino do lance errado (indefesa, ou atacada por uma peça do
+  solver que vale menos que ela), sem nada maior por trás (avaliação do
+  solver não indica mate nem vantagem além do valor dessa peça), não
+  vira puzzle "punir". Peças de valor < 3 (peão) não entram nessa regra.
 
 ### 7.2 Puzzle "evitar" (só nos seus erros)
 

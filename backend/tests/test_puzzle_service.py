@@ -32,3 +32,36 @@ def test_prefilter_allows_engine_when_mate_for_solver():
     fake = FakeEngine(default=first_legal_default(0))
     build_drafts(pos, fake, CFG)
     assert fake.calls != []
+
+
+HANGING_QUEEN_FEN = "3qk3/8/8/8/8/2N5/8/4K3 b - - 0 1"  # ...Qd5?? indefesa, atacada pelo Nc3
+DEFENDED_QUEEN_FEN = "3qk3/8/2p5/8/8/2N5/8/4K3 b - - 0 1"  # ...Qd5?? defendida, mas Nc3 (mais barato) ataca
+HANGING_PAWN_FEN = "4k3/4p3/8/8/8/3N4/8/4K3 b - - 0 1"  # ...e5?? peão indefeso atacado pelo Nd3
+
+
+def test_trivial_hanging_queen_is_not_generated():
+    pos = _pos(fen=HANGING_QUEEN_FEN, move_uci="d8d5", eval_after=-900)
+    fake = FakeEngine()
+    assert build_drafts(pos, fake, CFG) == []
+    assert fake.calls == []
+
+
+def test_trivial_rule_yields_to_mate_for_solver():
+    pos = _pos(fen=HANGING_QUEEN_FEN, move_uci="d8d5", eval_after=-(MATE_SCORE - 2))
+    fake = FakeEngine(default=first_legal_default(0))
+    build_drafts(pos, fake, CFG)
+    assert fake.calls != []
+
+
+def test_defended_queen_with_cheap_attacker_is_trivial():
+    pos = _pos(fen=DEFENDED_QUEEN_FEN, move_uci="d8d5", eval_after=-900)
+    fake = FakeEngine()
+    assert build_drafts(pos, fake, CFG) == []
+    assert fake.calls == []
+
+
+def test_hanging_pawn_is_not_trivial():
+    pos = _pos(fen=HANGING_PAWN_FEN, move_uci="e7e5", eval_after=-300)
+    fake = FakeEngine(default=first_legal_default(0))
+    build_drafts(pos, fake, CFG)
+    assert fake.calls != []

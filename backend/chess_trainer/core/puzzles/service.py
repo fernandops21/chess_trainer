@@ -11,11 +11,38 @@ from chess_trainer.core.analysis.mistakes import classify_positions
 from chess_trainer.core.evals import is_mate_for
 from chess_trainer.core.models import Game, Position, Puzzle, Review
 from chess_trainer.core.puzzles.generator import PuzzleConfig, PuzzleDraft, generate_avoid, generate_punish
+from chess_trainer.core.puzzles.material import PIECE_VALUES
 from chess_trainer.core.puzzles.themes import infer_theme
 
 ProgressFn = Callable[[str, int, int, str], None]
 StopFn = Callable[[], bool]
 Draft = tuple[Position, str, PuzzleDraft]
+
+
+def _is_trivial_punish(board_after: chess.Board, move_uci: str, solver_eval: int) -> bool:
+    """Peça de valor >= 3 deixada de graça na própria casa de destino, sem nada maior por trás
+    (avaliação do solver não indica mate nem vantagem além do valor da peça)."""
+    to_sq = chess.Move.from_uci(move_uci).to_square
+    piece = board_after.piece_at(to_sq)
+    if piece is None:
+        return False
+    value = PIECE_VALUES[piece.piece_type]
+    if value < 3:
+        return False
+    solver = board_after.turn
+    mover = not solver
+    if not board_after.is_attacked_by(solver, to_sq):
+        return False
+    undefended = not board_after.is_attacked_by(mover, to_sq)
+    cheaper_attacker = any(
+        PIECE_VALUES[board_after.piece_at(a).piece_type] < value
+        for a in board_after.attackers(solver, to_sq)
+    )
+    if not (undefended or cheaper_attacker):
+        return False
+    if is_mate_for(solver_eval):
+        return False
+    return solver_eval <= value * 100 + 200
 
 
 def build_drafts(pos: Position, engine: EngineLike, cfg: PuzzleConfig) -> list[tuple[str, PuzzleDraft]]:
@@ -26,9 +53,10 @@ def build_drafts(pos: Position, engine: EngineLike, cfg: PuzzleConfig) -> list[t
     if not board_after.is_game_over():
         solver_eval = -pos.eval_after
         if is_mate_for(solver_eval) or solver_eval >= cfg.min_solver_eval_cp:
-            punish = generate_punish(board_after, pos.eval_before - pos.eval_after, engine, cfg)
-            if punish is not None:
-                drafts.append(("punish", punish))
+            if not _is_trivial_punish(board_after, pos.move_uci, solver_eval):
+                punish = generate_punish(board_after, pos.eval_before - pos.eval_after, engine, cfg)
+                if punish is not None:
+                    drafts.append(("punish", punish))
     if pos.mistake_by == "me":
         avoid = generate_avoid(board_before, engine, cfg, played_uci=pos.move_uci)
         if avoid is not None:
