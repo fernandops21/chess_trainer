@@ -16,7 +16,7 @@ def _after(fen: str, *ucis: str) -> chess.Board:
     return b
 
 
-HANGING_QUEEN = "4k3/8/8/3q4/8/2N5/8/4K3 w - - 0 1"          # Nxd5 ganha a dama
+HANGING_QUEEN = "4k3/8/8/3q4/8/2N5/7P/4K3 w - - 0 1"          # Nxd5 ganha a dama
 MATE_IN_2 = "2r3k1/5ppp/8/8/Q7/8/8/4R1K1 w - - 0 1"           # Re8+ Rxe8 Qxe8#
 TWO_CAPTURES = "4k3/8/8/3q4/8/2N1N3/8/4K3 w - - 0 1"          # Nc3xd5 ou Ne3xd5
 RECAPTURE = "8/8/4k3/3q4/8/8/8/3RK3 w - - 0 1"                # Rxd5 Kxd5

@@ -126,6 +126,8 @@ def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: P
                 return None
             moves.append(SolutionMove(best.move, "solver", alts))
             return _draft(board, moves, "mate")
+        if after.is_game_over():
+            return None
 
         reply_lines = engine.analyse(after, cfg.depth, multipv=1)
         if not reply_lines:
