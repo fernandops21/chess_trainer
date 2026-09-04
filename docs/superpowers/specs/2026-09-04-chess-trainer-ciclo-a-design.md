@@ -80,18 +80,22 @@ Game      id, source ("chess.com"), source_id (URL da partida, único),
           analysis_depth (nullable)
 
 Position  id, game_id, ply, fen (antes do lance), move_played (SAN),
+          move_uci,
           eval_before (cp ou mate, do ponto de vista de quem joga),
           eval_after, best_move (UCI), best_eval,
           is_mistake (bool), mistake_level (mistake|blunder|null),
           mistake_by (me|opponent|null)
 
-Puzzle    id, position_id, kind (punish|avoid), fen_start, side_to_move,
+Puzzle    id, position_id, game_id, kind (punish|avoid), fen_start, side_to_move,
           solution (JSON: lista de lances UCI alternando solver/engine,
           com alternativas válidas por lance do solver),
           end_reason (mate|material_gain|explanation),
           theme (mate_in_n|fork|hanging_piece|pin|discovered_attack|
           tactic), category (copiada da partida, para filtro),
-          created_at, is_leech (bool), leech_since (nullable)
+          solver_moves (int), created_at, is_leech (bool),
+          leech_since (nullable),
+          srs_ease, srs_interval_days, srs_lapses, srs_due_at,
+          srs_last_reviewed_at   ← estado SRS atual (cache)
 
 Review    id, puzzle_id, session_id, reviewed_at, result (correct|wrong),
           used_hint (bool), duration_ms,
@@ -110,8 +114,11 @@ Settings  chave/valor: chesscom_username, categories, stockfish_path,
   Reprocessar a detecção de erros ou regerar puzzles não exige rodar a
   engine de novo.
 - `Puzzle` deriva de `Position`; `Review` deriva de `Puzzle`. O estado
-  atual de SRS de um puzzle é a sua `Review` mais recente; puzzle sem
-  `Review` é "novo".
+  atual de SRS fica **em cache no `Puzzle`** (`srs_ease`,
+  `srs_interval_days`, `srs_lapses`, `srs_due_at`,
+  `srs_last_reviewed_at`); cada `Review` é o registro histórico de uma
+  resolução e repete o estado resultante. Puzzle com `srs_due_at` nulo é
+  "novo".
 - Dedup: `fen_start + kind` é único em `Puzzle`.
 
 ## 4. Importação (chess.com)
@@ -186,11 +193,20 @@ e multipv = 3.
     para o valor de peça mais próximo: 1, 3, 5, 9) **e** a posição está
     quieta (nenhuma recaptura imediata devolve o material).
   - Se em até 10 lances do solver não materializa: puzzle **descartado**.
-- Unicidade por lance do solver: com multipv, qualquer lance alternativo
-  cuja avaliação esteja a menos de 50 cp do melhor **e** também
-  materialize é aceito como resposta alternativa. Se um alternativo é
-  "quase tão bom" mas não materializa, a solução é cortada no lance
-  anterior; se isso deixa a solução vazia, o puzzle é descartado.
+- Só gera se, na posição inicial, a avaliação para o solver é ≥ +100 cp
+  ou mate a favor. (Se o erro foi "perder um mate" mas o lado que errou
+  segue ganhando, não há o que punir.)
+- Unicidade por lance do solver (multipv = 3, janela de 50 cp):
+  - No **lance final** (o que materializa), um alternativo dentro da
+    janela que também materializa (mate em 1, ou captura que atinge o
+    ganho e sobrevive à melhor resposta) é aceito como resposta
+    alternativa; um alternativo dentro da janela que **não** materializa
+    descarta o puzzle.
+  - Em **lances intermediários**, qualquer alternativo dentro da janela
+    descarta o puzzle: se o solver desviar, a linha não continua.
+- Mates com mais de 15 lances do solver são descartados (limite prático).
+- Se a linha termina em fim de jogo que não é mate (afogamento, etc.),
+  o puzzle é descartado.
 - Lances do defensor: sempre a melhor defesa da engine. Ao resolver, o
   solver só responde pelos lances dele.
 
@@ -237,9 +253,12 @@ SM-2 adaptado, implementado como função pura
   favor). `ease += 0.1` se acertou rápido (`duration_ms` ≤ 10 s por
   lance do solver), senão inalterada.
 - `due_at = reviewed_at + interval dias`.
+- Datas: todas em UTC, armazenadas sem fuso; "hoje" para o limite de
+  novos por dia e para a sequência de dias usa a meia-noite local.
 - **Sanguessuga**: quando `lapses` atinge `leech_lapses` (5), o puzzle
   recebe `is_leech = true` e sai da fila. Aparece na tela de revisão de
-  erros; "devolver à fila" zera `lapses`, mantém `ease`, `due_at = hoje`.
+  erros; "devolver à fila" zera `srs_lapses`, mantém `srs_ease`,
+  `srs_due_at = agora`, `is_leech = false`.
 
 Fila do dia (`GET /api/queue`):
 
