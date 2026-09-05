@@ -87,7 +87,7 @@ def test_regenerate_kind_avoid_route(client, app):
     client.put("/api/settings", json={"chesscom_username": "therealzibs", "analysis_depth": 4})
     client.post("/api/import"); app.state.jobs.wait()
     r = client.post("/api/puzzles/regenerate", params={"kind": "avoid"})
-    assert r.status_code == 202 and r.json()["job"] == "regenerate"
+    assert r.status_code == 202 and r.json()["job"] == "regenerate_avoid"
     app.state.jobs.wait()
     assert app.state.jobs.snapshot()["state"] == "idle"
     assert client.post("/api/puzzles/regenerate", params={"kind": "xyz"}).status_code == 422
@@ -154,6 +154,30 @@ def test_cancel_stops_running_job(client, app):
     job = client.get("/api/status").json()["job"]
     assert job["state"] == "idle" and "cancelado" in job["message"]
     assert client.post("/api/jobs/cancel").status_code == 409  # já terminou
+
+
+def test_cancel_requested_flag_reported_and_reset(client, app):
+    import threading
+    started = threading.Event()
+    release = threading.Event()
+
+    def blocking(progress):
+        started.set()
+        release.wait(timeout=10)
+
+    assert app.state.jobs.submit("analyze", blocking) is True
+    started.wait(timeout=5)
+    r = client.post("/api/jobs/cancel")
+    assert r.status_code == 202
+    status = client.get("/api/status").json()
+    assert status["job"]["cancel_requested"] is True
+    release.set()
+    app.state.jobs.wait(timeout=10)
+
+    assert app.state.jobs.submit("import", lambda p: None) is True
+    app.state.jobs.wait(timeout=10)
+    status = client.get("/api/status").json()
+    assert status["job"]["cancel_requested"] is False
 
 
 def test_analyze_single_game(client, app):

@@ -18,6 +18,7 @@ class JobStatus:
     message: str = ""
     error: str | None = None
     finished_at: datetime | None = None
+    cancel_requested: bool = False
 
 
 class JobRunner:
@@ -47,6 +48,7 @@ class JobRunner:
             if not self.is_busy:
                 return False
             self._cancel.set()
+            self.status.cancel_requested = True
             return True
 
     def should_stop(self) -> bool:

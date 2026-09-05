@@ -152,7 +152,8 @@ def post_regenerate(request: Request, kind: Literal["avoid"] | None = None):
     """Sem `kind`, regera tudo (apaga o histórico); `kind=avoid` regera só os "evitar"."""
     stop = request.app.state.jobs.should_stop
     regenerate = regenerate_avoid if kind == "avoid" else regenerate_all
-    return _engine_job(request, "regenerate",
+    job_name = "regenerate_avoid" if kind == "avoid" else "regenerate"
+    return _engine_job(request, job_name,
                        lambda db, engine, s, progress: regenerate(db, engine, s, progress, should_stop=stop))
 
 

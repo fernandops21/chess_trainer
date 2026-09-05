@@ -27,6 +27,7 @@ export interface JobStatus {
   message: string;
   error: string | null;
   finished_at: string | null;
+  cancel_requested: boolean;
 }
 
 export interface StatusOut {
