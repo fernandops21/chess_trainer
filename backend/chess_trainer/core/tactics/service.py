@@ -1,11 +1,12 @@
+import json
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 
-from sqlalchemy import exists, func, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
-from chess_trainer.config import AppSettings, get_setting, set_setting
-from chess_trainer.core.models import LichessPuzzle, LichessPuzzleTheme, TacticsAttempt
+from chess_trainer.config import AppSettings, get_setting
+from chess_trainer.core.models import LichessPuzzle, LichessPuzzleTheme, Setting, TacticsAttempt
 from chess_trainer.core.srs.queue import local_day_start
 from chess_trainer.core.tactics.rating import elo_update
 
@@ -15,35 +16,64 @@ FAILED_COOLDOWN = timedelta(days=1)
 SAMPLE = 50
 
 
-def _candidates(db: Session, lo: int, hi: int, themes: Sequence[str], exclude: Sequence[str], now: datetime):
-    q = select(LichessPuzzle.id).where(LichessPuzzle.rating.between(lo, hi))
-    if themes:
-        q = q.where(LichessPuzzle.id.in_(select(LichessPuzzleTheme.puzzle_id).where(LichessPuzzleTheme.theme.in_(list(themes)))))
-    if exclude:
-        q = q.where(LichessPuzzle.id.not_in(list(exclude)))
-    solved = select(TacticsAttempt.puzzle_id).where(TacticsAttempt.correct.is_(True))
-    recent_fail = select(TacticsAttempt.puzzle_id).where(TacticsAttempt.attempted_at > now - FAILED_COOLDOWN)
-    q = q.where(LichessPuzzle.id.not_in(solved)).where(LichessPuzzle.id.not_in(recent_fail))
-    return q
+def _with_themes(q: Select, themes: Sequence[str]) -> Select:
+    if not themes:
+        return q
+    return q.where(LichessPuzzle.id.in_(
+        select(LichessPuzzleTheme.puzzle_id).where(LichessPuzzleTheme.theme.in_(list(themes)))))
+
+
+def _seen_ids(db: Session, now: datetime, exclude: Sequence[str]) -> set[str]:
+    """Ids que não podem ser sorteados: já resolvidos ou tentados nas últimas 24 h, mais os excluídos.
+
+    Carregado de uma vez porque `tactics_attempts` é pequeno (uma linha por tentativa do usuário),
+    enquanto `lichess_puzzles` tem milhões: filtrar em Python evita `NOT IN (subconsulta)` no SQL,
+    que fazia a seleção varrer a tabela inteira.
+    """
+    rows = db.scalars(select(TacticsAttempt.puzzle_id).where(
+        or_(TacticsAttempt.correct.is_(True), TacticsAttempt.attempted_at > now - FAILED_COOLDOWN)))
+    return set(rows) | set(exclude)
+
+
+def _pick_failed(db: Session, lo: int, hi: int, themes: Sequence[str], seen: set[str], now: datetime) -> str | None:
+    """Sorteia entre os errados há mais de um dia, partindo de `tactics_attempts` (poucas linhas)."""
+    q = (select(LichessPuzzle.id)
+         .join(TacticsAttempt, TacticsAttempt.puzzle_id == LichessPuzzle.id)
+         .where(LichessPuzzle.rating.between(lo, hi),
+                TacticsAttempt.correct.is_(False),
+                TacticsAttempt.attempted_at <= now - FAILED_COOLDOWN))
+    ids = db.scalars(_with_themes(q, themes).distinct().order_by(func.random()).limit(SAMPLE)).all()
+    return next((i for i in ids if i not in seen), None)
+
+
+def _pick_base(db: Session, lo: int, hi: int, themes: Sequence[str], seen: set[str]) -> str | None:
+    """Sorteia na janela de rating e só então descarta os vistos ("amostra e filtra")."""
+    q = _with_themes(select(LichessPuzzle.id).where(LichessPuzzle.rating.between(lo, hi)), themes)
+    q = q.order_by(func.random())
+    ids = db.scalars(q.limit(SAMPLE)).all()
+    picked = next((i for i in ids if i not in seen), None)
+    if picked is None and len(ids) == SAMPLE:
+        # a amostra encheu e caiu toda em vistos: a janela ainda pode ter opção, tenta uma vez maior
+        ids = db.scalars(q.limit(SAMPLE * 10)).all()
+        picked = next((i for i in ids if i not in seen), None)
+    return picked
 
 
 def pick_next(db: Session, settings: AppSettings, now: datetime, themes: Sequence[str] = (),
               exclude: Sequence[str] = ()) -> LichessPuzzle | None:
     """Sorteia uma tática na janela de rating; errados antigos têm prioridade; alarga a janela se vazio."""
+    if db.scalar(select(LichessPuzzle.id).limit(1)) is None:
+        return None
+    seen = _seen_ids(db, now, exclude)
     window = settings.tactics_window
-    while window <= MAX_WINDOW:
+    while True:
         lo, hi = settings.tactics_rating - window, settings.tactics_rating + window
-        base = _candidates(db, lo, hi, themes, exclude, now)
-        failed = base.where(exists().where(TacticsAttempt.puzzle_id == LichessPuzzle.id))
-        ids = db.scalars(failed.order_by(func.random()).limit(SAMPLE)).all()
-        if not ids:
-            ids = db.scalars(base.order_by(func.random()).limit(SAMPLE)).all()
-        if ids:
-            return db.get(LichessPuzzle, ids[0])
-        if db.scalar(select(func.count(LichessPuzzle.id))) == 0:
+        picked = _pick_failed(db, lo, hi, themes, seen, now) or _pick_base(db, lo, hi, themes, seen)
+        if picked is not None:
+            return db.get(LichessPuzzle, picked)
+        if window >= MAX_WINDOW:
             return None
-        window += WIDEN_STEP
-    return None
+        window = min(window + WIDEN_STEP, MAX_WINDOW)
 
 
 def record_attempt(db: Session, puzzle_id: str, *, correct: bool, used_hint: bool, duration_ms: int,
@@ -57,8 +87,13 @@ def record_attempt(db: Session, puzzle_id: str, *, correct: bool, used_hint: boo
                              used_hint=used_hint, duration_ms=duration_ms, rating_before=before, rating_after=after,
                              puzzle_rating=puzzle.rating)
     db.add(attempt)
+    # tentativa e rating novo no mesmo commit: nunca sobra uma tentativa sem o rating correspondente
+    row = db.get(Setting, "tactics_rating")
+    if row is None:
+        db.add(Setting(key="tactics_rating", value=json.dumps(after)))
+    else:
+        row.value = json.dumps(after)
     db.commit()
-    set_setting(db, "tactics_rating", after)
     return attempt
 
 

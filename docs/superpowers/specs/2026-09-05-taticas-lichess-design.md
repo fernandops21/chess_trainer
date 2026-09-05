@@ -23,8 +23,9 @@ primeiro item das "fases futuras" do spec do ciclo A.
   por espaço) começa com esse lance do adversário e depois alterna solver /
   adversário até o fim do puzzle.
 - Importação com filtro (configurável): `NbPlays ≥ lichess_min_plays` (padrão
-  200) e `Popularity ≥ lichess_min_popularity` (padrão 60), rating entre 400 e
-  3000. Estimativa: ~1 milhão de puzzles.
+  2000) e `Popularity ≥ lichess_min_popularity` (padrão 90), rating entre 400 e
+  3000. Estimativa: ~1 milhão de puzzles (medido em 6,1 milhões de linhas; com
+  o filtro antigo de 200/60 seriam ~3,9 milhões e um banco de 1,6 GB).
 - Tabelas novas (SQLite, mesmo banco):
   - `lichess_puzzles(id TEXT PK, fen, moves, rating INT, rating_deviation INT,
     popularity INT, nb_plays INT, themes TEXT, opening_tags TEXT)`, índice em
@@ -37,7 +38,7 @@ primeiro item das "fases futuras" do spec do ciclo A.
 - Estado do importador em `Setting`: `lichess_imported_at`, `lichess_count`,
   `lichess_source_rows`.
 - Configurações novas: `tactics_rating` (inicial 1200), `tactics_window`
-  (±150), `lichess_min_plays` (200), `lichess_min_popularity` (60).
+  (±150), `lichess_min_plays` (2000), `lichess_min_popularity` (90).
 - Importação é um job (`import_lichess`) do `JobRunner`: baixa o arquivo para
   `backend/data/` (pulando se já existe e tem o tamanho certo), descomprime em
   streaming (`zstandard`), filtra, insere em lotes de 5 000 com

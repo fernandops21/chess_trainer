@@ -52,4 +52,4 @@ def test_raw_setting_helpers(db_session):
 
 def test_tactics_settings_defaults(db_session):
     s = load_settings(db_session)
-    assert (s.tactics_rating, s.tactics_window, s.lichess_min_plays, s.lichess_min_popularity) == (1200, 150, 200, 60)
+    assert (s.tactics_rating, s.tactics_window, s.lichess_min_plays, s.lichess_min_popularity) == (1200, 150, 2000, 90)

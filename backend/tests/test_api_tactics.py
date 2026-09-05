@@ -19,6 +19,8 @@ def client(tmp_path: Path):
 
 
 def run_import(client):
+    # as linhas de teste têm poucas partidas/popularidade: afrouxa o filtro padrão (2000/90)
+    assert client.put("/api/settings", json={"lichess_min_plays": 200, "lichess_min_popularity": 60}).status_code == 200
     assert client.post("/api/tactics/import").status_code == 202
     client.app.state.jobs.wait()
     job = client.get("/api/status").json()["job"]
@@ -67,3 +69,15 @@ def test_import_busy_409(client):
     finally:
         gate.set()
         client.app.state.jobs.wait()
+
+
+def test_next_404_when_no_tactic_matches_filters(client):
+    run_import(client)
+    r = client.get("/api/tactics/next", params={"themes": " skewer , "})
+    assert r.status_code == 404 and r.json()["detail"] == "nenhuma tática disponível com esses filtros"
+
+
+def test_attempt_unknown_session_404(client):
+    run_import(client)
+    r = client.post("/api/tactics/attempts", json={"puzzle_id": "00sHx", "correct": True, "session_id": "nada"})
+    assert r.status_code == 404 and r.json()["detail"] == "sessão não encontrada"

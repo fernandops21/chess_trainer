@@ -18,6 +18,10 @@ ProgressFn = Callable[[str, int, int, str], None]
 StopFn = Callable[[], bool]
 
 
+class DownloadCancelled(RuntimeError):
+    """Download interrompido a pedido do usuário: não é erro, é cancelamento."""
+
+
 @dataclass(frozen=True)
 class ImportFilter:
     min_plays: int
@@ -129,7 +133,7 @@ def download_file(url: str, dest: Path, progress: ProgressFn, should_stop: StopF
                     done += len(chunk)
                     progress("download", done, total, f"{done / 2**20:.0f} MB baixados")
                     if should_stop is not None and should_stop():
-                        raise RuntimeError("download cancelado")
+                        raise DownloadCancelled("download cancelado")
         part.replace(dest)
         return dest
     finally:

@@ -56,7 +56,7 @@ Frontend (`frontend/src/`):
 - Test: `backend/tests/test_models.py` (append), `backend/tests/test_config.py` (append)
 
 **Interfaces:**
-- Produces: modelos `LichessPuzzle(id, fen, moves, rating, rating_deviation, popularity, nb_plays, themes, opening_tags)`, `LichessPuzzleTheme(theme, puzzle_id)` (PK composta), `TacticsAttempt(id, puzzle_id, session_id, attempted_at, correct, used_hint, duration_ms, rating_before, rating_after, puzzle_rating)`; `AppSettings.tactics_rating=1200`, `tactics_window=150`, `lichess_min_plays=200`, `lichess_min_popularity=60`.
+- Produces: modelos `LichessPuzzle(id, fen, moves, rating, rating_deviation, popularity, nb_plays, themes, opening_tags)`, `LichessPuzzleTheme(theme, puzzle_id)` (PK composta), `TacticsAttempt(id, puzzle_id, session_id, attempted_at, correct, used_hint, duration_ms, rating_before, rating_after, puzzle_rating)`; `AppSettings.tactics_rating=1200`, `tactics_window=150`, `lichess_min_plays=2000`, `lichess_min_popularity=90`.
 
 - [ ] **Step 1: Dependência**
 
@@ -153,7 +153,7 @@ Anexar em `backend/tests/test_config.py`:
 ```python
 def test_tactics_settings_defaults(db_session):
     s = load_settings(db_session)
-    assert (s.tactics_rating, s.tactics_window, s.lichess_min_plays, s.lichess_min_popularity) == (1200, 150, 200, 60)
+    assert (s.tactics_rating, s.tactics_window, s.lichess_min_plays, s.lichess_min_popularity) == (1200, 150, 2000, 90)
 ```
 
 (`load_settings` já está importado no arquivo; conferir.) Run → FAIL.
@@ -165,8 +165,8 @@ Em `config.py`, `AppSettings` ganha ao fim:
 ```python
     tactics_rating: int = 1200
     tactics_window: int = 150
-    lichess_min_plays: int = 200
-    lichess_min_popularity: int = 60
+    lichess_min_plays: int = 2000
+    lichess_min_popularity: int = 90
 ```
 
 Em `api/schemas.py`, `SettingsOut` ganha `tactics_rating: int`, `tactics_window: int`, `lichess_min_plays: int`, `lichess_min_popularity: int`; `SettingsIn` ganha os mesmos como `int | None = None`.

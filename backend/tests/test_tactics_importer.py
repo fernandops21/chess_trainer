@@ -5,7 +5,13 @@ import pytest
 from sqlalchemy import func, select
 
 from chess_trainer.core.models import LichessPuzzle, LichessPuzzleTheme
-from chess_trainer.core.tactics.importer import ImportFilter, download_file, import_csv_zst, write_csv_zst
+from chess_trainer.core.tactics.importer import (
+    DownloadCancelled,
+    ImportFilter,
+    download_file,
+    import_csv_zst,
+    write_csv_zst,
+)
 
 ROWS = [
     {"PuzzleId": "00sHx", "FEN": "q3k1nr/1pp1nQpp/3p4/1P2p3/4P3/B1PP1b2/B5PP/5K2 b k - 0 17", "Moves": "e8d7 a2e6 d7d8 f7f8",
@@ -96,3 +102,17 @@ def test_download_skips_when_size_matches(tmp_path: Path):
     download_file("https://example.test/db.zst", dest, lambda *a: None,
                   http=httpx.Client(transport=httpx.MockTransport(handler)))
     assert dest.read_bytes() == b"abc"
+
+
+def test_download_cancel_raises_download_cancelled(tmp_path: Path):
+    # cancelar não é falha: o job precisa distinguir isso de um erro de rede
+    payload = b"x" * (2 * 2**20)
+
+    def handler(request: httpx.Request):
+        return httpx.Response(200, content=payload, headers={"content-length": str(len(payload))})
+
+    dest = tmp_path / "db.csv.zst"
+    with pytest.raises(DownloadCancelled):
+        download_file("https://example.test/db.zst", dest, lambda *a: None, should_stop=lambda: True,
+                      http=httpx.Client(transport=httpx.MockTransport(handler)))
+    assert not dest.exists()

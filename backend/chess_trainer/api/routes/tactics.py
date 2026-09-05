@@ -3,15 +3,16 @@ from datetime import timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from chess_trainer.api.deps import get_db
 from chess_trainer.api.schemas import AttemptIn, AttemptOut, TacticOut, TacticsStatusOut, ThemeCountOut, ThemeStatOut
 from chess_trainer.config import load_settings, set_setting
-from chess_trainer.core.models import TrainingSession, utcnow
+from chess_trainer.core.models import LichessPuzzle, TrainingSession, utcnow
 from chess_trainer.core.stats import theme_stats
 from chess_trainer.core.tactics.convert import to_tactic
-from chess_trainer.core.tactics.importer import ImportFilter, download_file, import_csv_zst
+from chess_trainer.core.tactics.importer import DownloadCancelled, ImportFilter, download_file, import_csv_zst
 from chess_trainer.core.tactics.service import pick_next, record_attempt, tactics_status, theme_counts
 from chess_trainer.core.tactics.themes import THEME_LABELS
 
@@ -19,7 +20,7 @@ router = APIRouter(prefix="/api")
 
 
 def _csv(value: str | None) -> list[str]:
-    return [v for v in (value or "").split(",") if v]
+    return [item for item in (v.strip() for v in (value or "").split(",")) if item]
 
 
 @router.get("/tactics/status", response_model=TacticsStatusOut)
@@ -47,6 +48,10 @@ def post_import(request: Request):
                 set_setting(session, "lichess_source_rows", stats.rows_read)
             progress("import", stats.rows_read, stats.rows_read,
                      f"{stats.imported} táticas novas de {stats.rows_read} linhas" + (" (cancelado)" if stats.cancelled else ""))
+        except DownloadCancelled:
+            # cancelar não é erro: o JobRunner encerra em "idle" com a mensagem "cancelado"
+            progress("download", 0, 0, "download cancelado")
+            return
         finally:
             session.close()
 
@@ -57,8 +62,8 @@ def post_import(request: Request):
 
 @router.get("/tactics/next", response_model=TacticOut)
 def get_next(themes: str | None = None, exclude: str | None = None, db: Session = Depends(get_db)):
-    status = tactics_status(db, utcnow())
-    if not status["imported"]:
+    # checagem barata: um COUNT(*) na tabela de milhões de táticas custaria caro por requisição
+    if db.scalar(select(LichessPuzzle.id).limit(1)) is None:
         raise HTTPException(404, "banco de táticas não importado; baixe em Configurações")
     settings = load_settings(db)
     row = pick_next(db, settings, utcnow(), themes=_csv(themes), exclude=_csv(exclude))
@@ -77,8 +82,8 @@ def post_attempt(body: AttemptIn, db: Session = Depends(get_db)):
     try:
         a = record_attempt(db, body.puzzle_id, correct=body.correct, used_hint=body.used_hint,
                            duration_ms=body.duration_ms, session_id=body.session_id, now=utcnow(), settings=load_settings(db))
-    except KeyError:
-        raise HTTPException(404, "tática não encontrada")
+    except KeyError as exc:
+        raise HTTPException(404, "tática não encontrada") from exc
     return AttemptOut(id=a.id, puzzle_id=a.puzzle_id, correct=a.correct, used_hint=a.used_hint,
                       rating_before=a.rating_before, rating_after=a.rating_after,
                       delta=a.rating_after - a.rating_before, puzzle_rating=a.puzzle_rating)

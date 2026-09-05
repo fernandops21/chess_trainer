@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from chess_trainer.config import AppSettings, get_setting
 from chess_trainer.core.models import LichessPuzzle, LichessPuzzleTheme, TacticsAttempt, utcnow
+from chess_trainer.core.tactics import service
 from chess_trainer.core.tactics.service import pick_next, record_attempt, tactics_status, theme_counts
 
 FEN = "8/8/8/8/8/8/8/K6k w - - 0 1"
@@ -67,3 +68,18 @@ def test_theme_counts_and_status(db_session):
     assert theme_counts(db_session)[0] == ("fork", 2)
     st = tactics_status(db_session, utcnow())
     assert st["imported"] is True and st["count"] == 2 and st["attempts_today"] == 0 and st["rating"] == 1200
+
+
+def test_pick_retries_when_sample_is_fully_filtered(db_session, monkeypatch):
+    # com SAMPLE=1 o sorteio quase sempre cai num resolvido; a segunda tentativa
+    # (LIMIT SAMPLE * 10) tem que achar o único que ainda não foi feito
+    add(db_session, "s1", 1200); add(db_session, "s2", 1200); add(db_session, "aberto", 1200)
+    now = utcnow()
+    for pid in ("s1", "s2"):
+        db_session.add(TacticsAttempt(puzzle_id=pid, correct=True, rating_before=1200, rating_after=1216,
+                                      puzzle_rating=1200, attempted_at=now - timedelta(days=3)))
+    db_session.commit()
+    monkeypatch.setattr(service, "SAMPLE", 1)
+    monkeypatch.setattr(service, "MAX_WINDOW", 150)  # uma única janela: só a re-amostragem pode salvar
+    s = AppSettings(tactics_rating=1200, tactics_window=150)
+    assert {pick_next(db_session, s, now).id for _ in range(10)} == {"aberto"}
