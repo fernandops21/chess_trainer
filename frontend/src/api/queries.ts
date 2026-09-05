@@ -33,8 +33,8 @@ export const useQueue = (f: QueueFilters, enabled = true) => useQuery({ queryKey
 export const useLeeches = () => useQuery({ queryKey: keys.leeches, queryFn: api.leeches });
 export const usePuzzleQuery = (id: string | null) =>
   useQuery({ queryKey: keys.puzzle(id ?? ""), queryFn: () => api.puzzle(id!), enabled: !!id });
-export const useTacticsStatus = () =>
-  useQuery({ queryKey: keys.tacticsStatus, queryFn: api.tacticsStatus });
+export const useTacticsStatus = (enabled = true) =>
+  useQuery({ queryKey: keys.tacticsStatus, queryFn: api.tacticsStatus, enabled });
 export const useTacticThemes = () =>
   useQuery({ queryKey: keys.tacticThemes, queryFn: api.tacticThemes });
 export const useThemeStats = (days = 30) =>

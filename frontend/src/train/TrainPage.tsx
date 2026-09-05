@@ -10,6 +10,8 @@ import { PuzzleView } from "./PuzzleView";
 import { ResultPanel } from "./ResultPanel";
 import { SessionStart, type SessionConfig } from "./SessionStart";
 import { SessionSummary, type Done } from "./SessionSummary";
+import { TacticSession, type TacticSummaryData } from "./TacticSession";
+import { TacticSummary } from "./TacticSummary";
 import { usePuzzle } from "./usePuzzle";
 import { mmss, useSessionClock } from "./useSessionClock";
 
@@ -125,19 +127,24 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
   );
 }
 
+type OwnSummary = { done: Done[]; elapsedLabel: string; reason: string };
+
 export function TrainPage() {
   const [params] = useSearchParams();
   const single = params.get("puzzle");
   const [config, setConfig] = useState<SessionConfig | null>(null);
-  const [summary, setSummary] = useState<{ done: Done[]; elapsedLabel: string; reason: string } | null>(null);
+  const [summary, setSummary] = useState<OwnSummary | null>(null);
+  const [tacticSummary, setTacticSummary] = useState<TacticSummaryData | null>(null);
+  const restart = () => { setSummary(null); setTacticSummary(null); setConfig(null); };
 
   if (single) return <><h1>Treinar</h1><SingleTrain id={single} seen={params.get("seen") === "1"} /></>;
-  return (
-    <>
-      <h1>Treinar</h1>
-      {summary ? <SessionSummary {...summary} onNew={() => { setSummary(null); setConfig(null); }} />
-        : config ? <Session config={config} onFinish={(done, elapsedLabel, reason) => { setSummary({ done, elapsedLabel, reason }); }} />
-        : <SessionStart onStart={setConfig} />}
-    </>
-  );
+
+  let body;
+  if (tacticSummary) body = <TacticSummary {...tacticSummary} onNew={restart} />;
+  else if (summary) body = <SessionSummary {...summary} onNew={restart} />;
+  else if (config?.source === "tactics") body = <TacticSession config={config} onFinish={setTacticSummary} />;
+  else if (config) body = <Session config={config} onFinish={(done, elapsedLabel, reason) => setSummary({ done, elapsedLabel, reason })} />;
+  else body = <SessionStart onStart={setConfig} />;
+
+  return <><h1>Treinar</h1>{body}</>;
 }
