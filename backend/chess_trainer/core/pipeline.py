@@ -23,12 +23,14 @@ def analyze_pending(
     progress: ProgressFn | None = None,
     limit: int | None = None,
     should_stop: StopFn | None = None,
+    game_id: str | None = None,
 ) -> int:
     thresholds = thresholds_from(settings)
     cfg = puzzle_config_from(settings)
-    games = db.scalars(
-        select(Game).where(Game.analyzed_at.is_(None)).order_by(Game.played_at.desc())
-    ).all()
+    stmt = select(Game).where(Game.analyzed_at.is_(None)).order_by(Game.played_at.desc())
+    if game_id is not None:
+        stmt = stmt.where(Game.id == game_id)
+    games = db.scalars(stmt).all()
     if limit is not None:
         games = games[:limit]
 

@@ -1,3 +1,5 @@
+import os
+import socket
 from dataclasses import asdict
 from datetime import datetime
 
@@ -15,6 +17,19 @@ from chess_trainer.core.pipeline import analyze_pending
 from chess_trainer.core.puzzles.service import regenerate_all
 
 router = APIRouter(prefix="/api")
+
+
+def local_ip() -> str:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+
+
+def local_url() -> str:
+    return f"http://{local_ip()}:{os.environ.get('CHESS_TRAINER_PORT', '8000')}"
 
 
 def _engine_available(request: Request, settings: AppSettings) -> tuple[bool, str | None]:
@@ -38,6 +53,7 @@ def status(request: Request, db: Session = Depends(get_db)):
         "games_total": total,
         "games_pending": pending,
         "last_import_at": last_import,
+        "local_url": local_url(),
     }
 
 
@@ -112,11 +128,17 @@ def _engine_job(request: Request, name: str, work):
 
 
 @router.post("/analyze", status_code=202)
-def post_analyze(request: Request, limit: int | None = None):
+def post_analyze(request: Request, limit: int | None = None, game_id: str | None = None, db: Session = Depends(get_db)):
+    if game_id is not None:
+        game = db.get(Game, game_id)
+        if game is None:
+            raise HTTPException(404, "partida não encontrada")
+        if game.analyzed_at is not None:
+            raise HTTPException(409, "partida já analisada")
     stop = request.app.state.jobs.should_stop
     return _engine_job(request, "analyze",
-                       lambda db, engine, s, progress: analyze_pending(db, engine, s, progress, limit,
-                                                                      should_stop=stop))
+                       lambda db_, engine, s, progress: analyze_pending(db_, engine, s, progress, limit,
+                                                                      should_stop=stop, game_id=game_id))
 
 
 @router.post("/puzzles/regenerate", status_code=202)

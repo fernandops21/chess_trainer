@@ -100,6 +100,16 @@ def test_regenerate_all_drops_reviews_and_rebuilds(db_session):
     assert new.id != old.id and new.theme == "mate_in_1"
 
 
+def test_analyze_pending_by_game_id(db_session):
+    g1 = _game(source_id="g1", pgn=SCHOLAR)
+    g2 = _game(source_id="g2", pgn=SCHOLAR)
+    db_session.add_all([g1, g2])
+    db_session.commit()
+    assert analyze_pending(db_session, _engine(), SETTINGS, game_id=g2.id) == 1
+    assert g2.analyzed_at is not None and g1.analyzed_at is None
+    assert analyze_pending(db_session, _engine(), SETTINGS, game_id=g2.id) == 0  # já analisada
+
+
 def test_regenerate_all_survives_engine_crash(db_session):
     game = _game(pgn=SCHOLAR)
     db_session.add(game)

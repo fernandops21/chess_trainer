@@ -136,3 +136,20 @@ def test_cancel_stops_running_job(client, app):
     job = client.get("/api/status").json()["job"]
     assert job["state"] == "idle" and "cancelado" in job["message"]
     assert client.post("/api/jobs/cancel").status_code == 409  # já terminou
+
+
+def test_analyze_single_game(client, app):
+    client.put("/api/settings", json={"chesscom_username": "therealzibs", "analysis_depth": 4})
+    client.post("/api/import"); app.state.jobs.wait()
+    game_id = client.get("/api/games").json()[0]["id"]
+    assert client.post("/api/analyze", params={"game_id": "nope"}).status_code == 404
+    r = client.post("/api/analyze", params={"game_id": game_id})
+    assert r.status_code == 202
+    app.state.jobs.wait()
+    assert client.get(f"/api/games/{game_id}").json()["analyzed_at"] is not None
+    assert client.post("/api/analyze", params={"game_id": game_id}).status_code == 409
+
+
+def test_status_has_local_url(client):
+    url = client.get("/api/status").json()["local_url"]
+    assert url.startswith("http://") and url.endswith(":8000")
