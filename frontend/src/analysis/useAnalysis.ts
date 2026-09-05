@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 import type { Key } from "chessground/types";
 import { destsFrom } from "../board/dests";
@@ -93,6 +93,10 @@ export function useAnalysis(fenStart: string, opts: UseAnalysisOptions = {}) {
     };
     if (ucis.length > 0) step();
   }, [play, stepMs]);
+
+  useEffect(() => () => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+  }, []);
 
   const s = stackRef.current;
   const fen = s.fens[s.index];

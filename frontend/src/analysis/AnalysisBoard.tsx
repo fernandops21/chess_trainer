@@ -36,7 +36,7 @@ export function AnalysisBoard({ fenStart, orientation, backTo }: { fenStart: str
           onMove={onMove}
         />
         <div className="row" style={{ marginTop: 8 }}>
-          <button onClick={an.reset} disabled={an.index === 0} aria-label="posição inicial">⏮</button>
+          <button onClick={an.reset} disabled={an.fens.length <= 1} aria-label="posição inicial">⏮</button>
           <button onClick={an.undo} disabled={an.index === 0} aria-label="desfazer">◀</button>
           <button onClick={() => setOrient((o) => (o === "white" ? "black" : "white"))}>Inverter</button>
           <Link to={backTo}>Voltar</Link>

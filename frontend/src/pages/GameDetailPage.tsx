@@ -44,6 +44,9 @@ export function GameDetailPage() {
             <button onClick={() => setCurrent((c) => Math.max(0, c - 1))} aria-label="anterior">◀</button>
             <button onClick={() => setCurrent((c) => Math.min(plies.length, c + 1))} aria-label="próximo">▶</button>
             <button onClick={() => setCurrent(plies.length)} aria-label="fim">⏭</button>
+            <button onClick={() => navigate(`/analise?fen=${encodeURIComponent(fen)}&orientation=${game.my_color}&back=${encodeURIComponent(`/partidas/${game.id}?ply=${current}`)}`)}>
+              Explorar daqui
+            </button>
           </div>
           {ply && game.analyzed_at && (
             <div className="card" style={{ marginTop: 10 }}>

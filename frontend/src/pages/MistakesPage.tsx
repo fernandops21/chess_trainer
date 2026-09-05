@@ -26,9 +26,13 @@ function MistakeDetail({ m, onClose }: { m: MistakeOut; onClose: () => void }) {
       <div className="muted" style={{ marginTop: 8 }}>
         Você jogou <b>{m.move_played}</b> ({formatEval(m.eval_before)} → {formatEval(m.eval_after)}); melhor era <b>{m.best_move}</b>.
         {puzzle && <> Refutação acima ({themeLabel(puzzle.theme)}).</>}
+        {m.puzzles.length === 0 && m.mistake_by === "me" && <> Sem puzzle: posicional ou trivial.</>}
       </div>
       <div className="row" style={{ marginTop: 10 }}>
         <Link to={`/partidas/${m.game_id}?ply=${m.ply}`}>ver na partida</Link>
+        <button onClick={() => nav(`/analise?fen=${encodeURIComponent(m.fen)}&orientation=${m.my_color}&back=${encodeURIComponent("/erros")}`)}>
+          Explorar
+        </button>
         {m.puzzles.map((p) => (
           <button key={p.id} onClick={() => nav(`/treinar?puzzle=${p.id}&seen=1`)}>
             Treinar este ({p.kind === "punish" ? "punir" : "evitar"})
@@ -82,7 +86,7 @@ export function MistakesPage() {
           <button key={m.position_id} className="mistakerow" onClick={() => setOpen(m)}>
             <MiniBoard fen={m.fen} orientation={m.my_color} />
             <div style={{ flex: 1, textAlign: "left" }}>
-              <div><b>{m.move_played}</b> <span className={`tag ${m.mistake_level}`}>{levelLabel(m.mistake_level)}</span>{m.mistake_by === "opponent" && <span className="tag">adversário</span>}</div>
+              <div><b>{m.move_played}</b> <span className={`tag ${m.mistake_level}`}>{levelLabel(m.mistake_level)}</span>{m.mistake_by === "opponent" && <span className="tag">adversário</span>}{m.puzzles.length === 0 && m.mistake_by === "me" && <span className="tag">posicional</span>}</div>
               <div className="muted">{formatEval(m.eval_before)} → {formatEval(m.eval_after)} · melhor {m.best_move} {m.puzzles[0] && `· ${themeLabel(m.puzzles[0].theme)}`}</div>
               <div className="muted">{m.white} × {m.black} · {formatDate(m.played_at)} · {m.category}</div>
             </div>

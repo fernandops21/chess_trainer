@@ -31,3 +31,17 @@ test("playLine aplica os lances em sequência", () => {
   expect(result.current.sans).toEqual(["e4", "e5", "Nf3"]);
   vi.useRealTimers();
 });
+
+test("playLine cancela o timer ao desmontar (sem erro nem estado após o unmount)", () => {
+  vi.useFakeTimers();
+  const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  const { result, unmount } = renderHook(() => useAnalysis(START, { stepMs: 10 }));
+  act(() => result.current.playLine(["e2e4", "e7e5", "g1f3"]));
+  expect(result.current.sans).toEqual(["e4"]); // primeiro lance é síncrono; os demais ficam agendados
+  unmount();
+  expect(() => { act(() => { vi.advanceTimersByTime(1000); }); }).not.toThrow();
+  expect(result.current.sans).toEqual(["e4"]);
+  expect(errorSpy).not.toHaveBeenCalled();
+  errorSpy.mockRestore();
+  vi.useRealTimers();
+});
