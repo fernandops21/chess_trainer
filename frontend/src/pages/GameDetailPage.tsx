@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useGame, useStartJob, useStatus } from "../api/queries";
 import { Board } from "../board/Board";
 import { ErrorBox } from "../components/ErrorBox";
@@ -10,11 +10,16 @@ import { buildPlies } from "../lib/plies";
 export function GameDetailPage() {
   const { id = "" } = useParams();
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const { data: game, error, isLoading } = useGame(id);
   const { data: status } = useStatus();
   const start = useStartJob();
   const plies = useMemo(() => (game ? buildPlies(game) : []), [game]);
-  const [current, setCurrent] = useState<number>(Number(params.get("ply")) || 0);
+  const [current, setCurrent] = useState<number>(Math.max(0, Number(params.get("ply")) || 0));
+
+  useEffect(() => {
+    if (plies.length > 0) setCurrent((c) => Math.min(c, plies.length));
+  }, [plies.length]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "ArrowLeft") setCurrent((c) => Math.max(0, c - 1)); if (e.key === "ArrowRight") setCurrent((c) => Math.min(plies.length, c + 1)); };
@@ -44,7 +49,7 @@ export function GameDetailPage() {
             <div className="card" style={{ marginTop: 10 }}>
               <div>Lance {Math.ceil(ply.ply / 2)}{ply.ply % 2 ? "." : "…"} {ply.san} {ply.level && <span className={`tag ${ply.level}`}>{levelLabel(ply.level)}{ply.by === "me" ? " seu" : " do adversário"}</span>}</div>
               <div className="muted">avaliação {formatEval(ply.evalBefore ?? 0)} → {formatEval(ply.evalAfter ?? 0)}{ply.bestMove ? ` · melhor: ${ply.bestMove}` : ""}</div>
-              {ply.puzzleIds.map((pid) => <Link key={pid} to={`/treinar?puzzle=${pid}`}><button style={{ marginTop: 6 }}>Treinar este</button></Link>)}
+              {ply.puzzleIds.map((pid) => <button key={pid} style={{ marginTop: 6 }} onClick={() => navigate(`/treinar?puzzle=${pid}`)}>Treinar este</button>)}
             </div>
           )}
         </div>

@@ -11,10 +11,19 @@ export interface Ply {
 export function buildPlies(game: GameDetail): Ply[] {
   if (game.analyzed_at && game.positions.length > 0) {
     return game.positions.map((p) => {
-      const c = new Chess(p.fen);
-      const mv = c.move(uciToMove(p.move_uci));
+      let fenAfter = p.fen;
+      let lastMove: [Key, Key] = [uciToMove(p.move_uci).from as Key, uciToMove(p.move_uci).to as Key];
+      try {
+        const c = new Chess(p.fen);
+        const mv = c.move(uciToMove(p.move_uci));
+        fenAfter = c.fen();
+        lastMove = [mv.from as Key, mv.to as Key];
+      } catch {
+        // malformed row (illegal move for its fen): keep fenAfter = p.fen and
+        // lastMove derived directly from the uci so the list still renders.
+      }
       return {
-        ply: p.ply, san: p.move_played, fenBefore: p.fen, fenAfter: c.fen(), lastMove: [mv.from as Key, mv.to as Key],
+        ply: p.ply, san: p.move_played, fenBefore: p.fen, fenAfter, lastMove,
         evalBefore: p.eval_before, evalAfter: p.eval_after, level: p.mistake_level ?? undefined, by: p.mistake_by ?? undefined,
         bestMove: p.best_move ?? undefined, puzzleIds: p.puzzle_ids,
       };

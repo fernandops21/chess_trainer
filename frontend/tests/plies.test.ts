@@ -26,6 +26,18 @@ test("usa positions quando analisada", () => {
   expect(plies[1].fenAfter.split(" ")[1]).toBe("w");
 });
 
+test("tolera lance ilegal em positions sem lançar exceção", () => {
+  const analyzed: GameDetail = { ...base, analyzed_at: "2026-09-04T13:00:00", positions: [
+    { id: "p1", ply: 1, fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", move_played: "e4", move_uci: "e2e5", eval_before: 30, eval_after: 25, best_move: "e2e4", is_mistake: false, mistake_level: null, mistake_by: null, puzzle_ids: [] },
+  ] };
+  expect(() => buildPlies(analyzed)).not.toThrow();
+  const plies = buildPlies(analyzed);
+  expect(plies).toHaveLength(1);
+  expect(plies[0].san).toBe("e4");
+  expect(plies[0].fenAfter).toBe(analyzed.positions[0].fen);
+  expect(plies[0].lastMove).toEqual(["e2", "e5"]);
+});
+
 test("deriva plies de PGN com comentários de relógio (chess.com)", () => {
   const withClock: GameDetail = {
     ...base,

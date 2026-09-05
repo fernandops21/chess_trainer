@@ -58,4 +58,4 @@ input, select { min-height: var(--tap); padding: 0 10px; border: 1px solid var(-
 .moverow .san.blunder { color: var(--bad); font-weight: 700; }
 
 .gamerow { display: grid; grid-template-columns: 90px 1fr 80px 80px 70px 90px; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); text-decoration: none; color: inherit; align-items: center; min-height: var(--tap); }
-@media (max-width: 899px) { .gamerow { grid-template-columns: 80px 1fr 70px; } .gamerow > :nth-child(3), .gamerow > :nth-child(5) { display: none; } }
+@media (max-width: 899px) { .gamerow { grid-template-columns: 72px 1fr 64px 84px; } .gamerow > :nth-child(3), .gamerow > :nth-child(5) { display: none; } }
