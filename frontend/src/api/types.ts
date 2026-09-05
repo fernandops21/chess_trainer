@@ -13,6 +13,9 @@ export interface Settings {
   avoid_gap_cp: number;
   new_per_day: number;
   leech_lapses: number;
+  analysis_seconds: number;
+  puzzle_search_seconds: number;
+  puzzle_reply_seconds: number;
 }
 
 export interface JobStatus {
