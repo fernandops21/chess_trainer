@@ -55,7 +55,7 @@ function LeechCard({ p }: { p: PuzzleOut }) {
 }
 
 export function MistakesPage() {
-  const [q, setQ] = useState<MistakesQuery>({ by: "me", limit: 200 });
+  const [q, setQ] = useState<MistakesQuery>({ by: "me", limit: 50 });
   const { data, error, isLoading } = useMistakes(q);
   const leeches = useLeeches();
   const [open, setOpen] = useState<MistakeOut | null>(null);
@@ -67,13 +67,13 @@ export function MistakesPage() {
         <div className="card"><h3 style={{ marginTop: 0 }}>Sanguessugas</h3>{leeches.data.map((p) => <LeechCard key={p.id} p={p} />)}</div>
       )}
       <div className="row card">
-        <select value={q.level ?? ""} onChange={(e) => setQ({ ...q, level: (e.target.value || undefined) as MistakesQuery["level"] })} aria-label="Nível">
+        <select value={q.level ?? ""} onChange={(e) => setQ({ ...q, level: (e.target.value || undefined) as MistakesQuery["level"], limit: 50 })} aria-label="Nível">
           <option value="">mistake e blunder</option><option value="mistake">só mistake</option><option value="blunder">só blunder</option>
         </select>
-        <select value={q.category ?? ""} onChange={(e) => setQ({ ...q, category: e.target.value || undefined })} aria-label="Categoria">
+        <select value={q.category ?? ""} onChange={(e) => setQ({ ...q, category: e.target.value || undefined, limit: 50 })} aria-label="Categoria">
           <option value="">categoria</option><option value="rapid">rapid</option><option value="daily">daily</option><option value="blitz">blitz</option><option value="bullet">bullet</option>
         </select>
-        <label><input type="checkbox" checked={q.by === "all"} onChange={(e) => setQ({ ...q, by: e.target.checked ? "all" : "me" })} /> incluir erros do adversário</label>
+        <label><input type="checkbox" checked={q.by === "all"} onChange={(e) => setQ({ ...q, by: e.target.checked ? "all" : "me", limit: 50 })} /> incluir erros do adversário</label>
       </div>
       <ErrorBox error={error ?? leeches.error} />
       {isLoading && <p className="muted">Carregando…</p>}
@@ -89,6 +89,7 @@ export function MistakesPage() {
           </button>
         ))}
         {!isLoading && items.length === 0 && <p className="muted" style={{ padding: 16 }}>Nenhum erro com esses filtros.</p>}
+        {items.length >= (q.limit ?? 50) && <div style={{ padding: 16, textAlign: "center" }}><button onClick={() => setQ({ ...q, limit: (q.limit ?? 50) + 50 })}>Mostrar mais</button></div>}
       </div>
       {open && <MistakeDetail m={open} onClose={() => setOpen(null)} />}
     </>
