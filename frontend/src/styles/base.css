@@ -34,3 +34,6 @@ input, select { min-height: var(--tap); padding: 0 10px; border: 1px solid var(-
   .content { padding: 12px; padding-bottom: 80px; }
   .two-col { grid-template-columns: 1fr; gap: 12px; }
 }
+
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+.modal { width: min(480px, 100%); margin: 0; }

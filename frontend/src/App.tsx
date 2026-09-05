@@ -1,13 +1,25 @@
-// App.tsx (esqueleto; a Task 4 preenche as rotas)
 import { Routes, Route } from "react-router-dom";
+import { Nav } from "./components/Nav";
+import { DashboardPage } from "./pages/DashboardPage";
+import { GamesPage } from "./pages/GamesPage";
+import { GameDetailPage } from "./pages/GameDetailPage";
+import { MistakesPage } from "./pages/MistakesPage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { TrainPage } from "./train/TrainPage";
 
 export function App() {
   return (
     <div className="app">
-      <nav className="nav"><div className="brand">Chess Trainer</div></nav>
+      <Nav />
       <main className="content">
         <Routes>
-          <Route path="*" element={<h1>Chess Trainer</h1>} />
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/treinar" element={<TrainPage />} />
+          <Route path="/partidas" element={<GamesPage />} />
+          <Route path="/partidas/:id" element={<GameDetailPage />} />
+          <Route path="/erros" element={<MistakesPage />} />
+          <Route path="/config" element={<SettingsPage />} />
+          <Route path="*" element={<DashboardPage />} />
         </Routes>
       </main>
     </div>
