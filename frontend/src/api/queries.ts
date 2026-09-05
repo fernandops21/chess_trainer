@@ -33,7 +33,7 @@ export const usePuzzleQuery = (id: string | null) =>
 function useInvalidate(extra: readonly (readonly unknown[])[] = []) {
   const qc = useQueryClient();
   return () => {
-    for (const k of [keys.status, keys.dashboard, ["queue"], ...extra]) void qc.invalidateQueries({ queryKey: k });
+    for (const k of [keys.status, keys.dashboard, ["queue"], ["game"], ...extra]) void qc.invalidateQueries({ queryKey: k });
   };
 }
 
