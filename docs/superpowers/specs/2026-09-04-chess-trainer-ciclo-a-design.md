@@ -242,13 +242,15 @@ materialização com a mesma máquina.
 ### 7.2 Puzzle "evitar" (só nos seus erros)
 
 - Início: posição **antes** do seu lance errado, com as suas peças; o
-  solver é você. Primeira busca multipv = 3 na posição inicial.
+  solver é você. Primeira busca multipv = 3 na posição inicial. Se a engine
+  devolver menos de duas linhas, não dá para medir o gap: não gera puzzle.
 - Não gera se o melhor lance da engine é justamente o que você jogou: não
   há o que evitar.
 - Não gera se `gap = best_eval − segundo_melhor_eval < avoid_gap_cp`: com
   duas boas opções, o lance certo não é único o bastante para virar
   puzzle. Mate a favor só no melhor lance conta como gap infinito (a
-  diferença é categórica, não em centipeões).
+  diferença é categórica, não em centipeões), mesmo que a segunda linha
+  também seja mate a favor com um número de lances diferente.
 - Fora do modo mate, não gera se `best_eval < min_solver_eval_cp`: sem
   vantagem concreta para o solver não há linha a jogar.
 - Ganho esperado: o **menor** entre o gap e a avaliação do melhor lance,

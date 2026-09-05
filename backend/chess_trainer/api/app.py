@@ -1,4 +1,5 @@
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -54,6 +55,14 @@ def _probe_engine_factory(engine_factory):
     return probe
 
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    yield
+    # fecha a engine interativa (se alguma vez foi criada) para não deixar o processo
+    # do Stockfish orfão quando o servidor desliga
+    app.state.analyzer.close()
+
+
 def create_app(
     db_path: str | None = None,
     engine_factory=None,
@@ -66,7 +75,7 @@ def create_app(
     db_engine = make_engine(db_path)
     init_db(db_engine)
 
-    app = FastAPI(title="Chess Trainer", version="0.1.0")
+    app = FastAPI(title="Chess Trainer", version="0.1.0", lifespan=_lifespan)
     app.state.session_factory = make_session_factory(db_engine)
     app.state.jobs = JobRunner()
     app.state.engine_factory = engine_factory or default_engine_factory

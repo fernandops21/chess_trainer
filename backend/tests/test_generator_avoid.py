@@ -48,14 +48,34 @@ def test_avoid_not_generated_with_single_line():
 
 
 def test_avoid_not_generated_without_materialization():
-    fake = FakeEngine(default=first_legal_default(400))  # +4 "posicional": nunca captura
-    assert generate_avoid(chess.Board("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1"), fake, CFG) is None
+    # Duas linhas (gap = 400 >= avoid_gap_cp), mas a melhor nunca ganha material de fato:
+    # só reis e peão andando de um lado para o outro, o "+4" nunca vira captura.
+    fen = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1"
+    fake = FakeEngine(
+        {chess.Board(fen).epd(): [LineEval("e1d1", 400, ("e1d1", "e8d8", "d1c1", "d8c8")), LineEval("e2e3", 0, ("e2e3",))]},
+        default=first_legal_default(400),
+    )
+    assert generate_avoid(chess.Board(fen), fake, CFG) is None
 
 
 def test_avoid_mate_mode_runs_to_checkmate():
     MATE = "2r3k1/5ppp/8/8/Q7/8/8/4R1K1 w - - 0 1"
     fake = FakeEngine({
         chess.Board(MATE).epd(): [LineEval("e1e8", M - 2, ("e1e8", "c8e8", "a4e8")), LineEval("a4a7", 100, ("a4a7",))],
+        _after(MATE, "e1e8").epd(): [LineEval("c8e8", -(M - 1), ("c8e8",))],
+        _after(MATE, "e1e8", "c8e8").epd(): [LineEval("a4e8", M - 1, ("a4e8",))],
+    })
+    d = generate_avoid(chess.Board(MATE), fake, CFG, played_uci="a4a7")
+    assert d is not None and d.end_reason == "mate" and d.solver_moves == 2
+
+
+def test_avoid_mate_mode_with_second_mate_line_is_still_infinite_gap():
+    # A segunda linha também mata (mate-in-4, M-4), só que mais devagar: a diferença numérica
+    # entre M-2 e M-4 é minúscula perto de avoid_gap_cp, mas mate a favor no melhor lance
+    # continua valendo gap infinito -- não pode ser descartado como "gap pequeno".
+    MATE = "2r3k1/5ppp/8/8/Q7/8/8/4R1K1 w - - 0 1"
+    fake = FakeEngine({
+        chess.Board(MATE).epd(): [LineEval("e1e8", M - 2, ("e1e8", "c8e8", "a4e8")), LineEval("e1e7", M - 4, ("e1e7",))],
         _after(MATE, "e1e8").epd(): [LineEval("c8e8", -(M - 1), ("c8e8",))],
         _after(MATE, "e1e8", "c8e8").epd(): [LineEval("a4e8", M - 1, ("a4e8",))],
     })

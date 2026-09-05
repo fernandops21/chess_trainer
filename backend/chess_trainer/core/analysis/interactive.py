@@ -3,6 +3,7 @@ from collections import OrderedDict
 from typing import Callable
 
 import chess
+import chess.engine
 
 from chess_trainer.core.analysis.engine import EngineLike
 
@@ -61,7 +62,15 @@ class InteractiveAnalyzer:
             }
             if result["terminal"] is None:
                 engine = self._ensure_engine()
-                for line in engine.analyse(board, self.depth, multipv=multipv, max_seconds=self.max_seconds):
+                try:
+                    lines = engine.analyse(board, self.depth, multipv=multipv, max_seconds=self.max_seconds)
+                except chess.engine.EngineError:
+                    # engine morta: fecha e descarta para não reusar um processo quebrado na
+                    # próxima chamada (que vai recriar via _ensure_engine)
+                    engine.close()
+                    self._engine = None
+                    raise
+                for line in lines:
                     b = board.copy()
                     pv_san: list[str] = []
                     for uci in line.pv:

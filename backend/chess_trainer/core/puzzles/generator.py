@@ -249,8 +249,10 @@ def generate_avoid(
     if played_uci is not None and best.move == played_uci:
         return None  # o lance jogado já era o melhor; não há o que evitar
     mate_mode = is_mate_for(best.score)
-    # mate a favor só no melhor lance: a diferença é categórica, não em centipeões
-    gap = 10**6 if mate_mode and not is_mate_for(second.score) else best.score - second.score
+    # mate a favor no melhor lance conta como gap infinito, mesmo se a segunda linha também
+    # mata (mate-in diferente): a diferença categórica é ter mate ou não, não a distância entre
+    # mates -- alternativas de mate próximas ficam por conta de _is_close/_final_alternatives.
+    gap = 10**6 if mate_mode else best.score - second.score
     if gap < cfg.avoid_gap_cp:
         return None
     target = 0

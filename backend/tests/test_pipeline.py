@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import chess
 from sqlalchemy import func, select
 
@@ -211,6 +213,51 @@ def test_regenerate_avoid_keeps_punish_and_its_reviews(db_session):
     assert db_session.scalar(select(func.count(Review.id))) == 1  # revisão do punish preservada
     assert db_session.scalar(select(Puzzle.id).where(Puzzle.kind == "punish")) == punish.id
     assert n == db_session.scalar(select(func.count(Puzzle.id)).where(Puzzle.kind == "avoid")) == 0
+
+
+def test_regenerate_avoid_creates_avoid_for_my_mistake(db_session):
+    # Posição sintética (dama preta pendurada em d5): brancas erraram Ke2 em vez de Nxd5,
+    # que ganha a dama e se sustenta após a única resposta do rei. Monta Game/Position
+    # diretamente (como tests/factories.py::make_puzzle) em vez de depender de um PGN real,
+    # porque script-ar um jogo de verdade posição a posição no FakeEngine é frágil demais.
+    fen = "4k3/8/8/3q4/8/2N5/7P/4K3 w - - 0 1"
+    game = _game(pgn=SCHOLAR, my_color="white")
+    game.analyzed_at = datetime(2026, 8, 1, 12, 30)
+    game.analysis_depth = SETTINGS.analysis_depth
+    db_session.add(game)
+    db_session.flush()
+    pos = Position(
+        game_id=game.id, ply=1, fen=fen, move_played="Ke2", move_uci="e1e2",
+        eval_before=900, eval_after=0, best_move="c3d5", best_eval=900,
+        is_mistake=True, mistake_level="blunder", mistake_by="me",
+    )
+    db_session.add(pos)
+    db_session.commit()
+
+    def _after(*ucis: str) -> chess.Board:
+        b = chess.Board(fen)
+        for u in ucis:
+            b.push_uci(u)
+        return b
+
+    fake = FakeEngine({
+        chess.Board(fen).epd(): [LineEval("c3d5", 900, ("c3d5", "e8d7")), LineEval("e1e2", 0, ("e1e2",))],
+        _after("c3d5").epd(): [LineEval("e8d7", -900, ("e8d7",))],
+    })
+
+    n = regenerate_avoid(db_session, fake, SETTINGS)
+
+    assert n == 1
+    puzzles = db_session.scalars(select(Puzzle).where(Puzzle.kind == "avoid")).all()
+    assert len(puzzles) == 1
+    pz = puzzles[0]
+    assert pz.solver_moves == 1 and pz.fen_start == fen
+
+    # segunda chamada: regenerate_avoid apaga e recria os "avoid", mas continua havendo
+    # exatamente um (nunca duplica por fen_start + kind)
+    n2 = regenerate_avoid(db_session, fake, SETTINGS)
+    assert n2 == 1
+    assert db_session.scalar(select(func.count(Puzzle.id)).where(Puzzle.kind == "avoid")) == 1
 
 
 def test_regenerate_avoid_drops_old_avoid_puzzles_and_their_reviews(db_session):

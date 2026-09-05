@@ -37,9 +37,12 @@ chess.com para entender. Três correções:
 ## 3. "Evitar" como linha completa
 
 - Gerado na posição antes do erro do usuário. Primeira busca multipv 3 com
-  `puzzle_depth`. Condições: `best.move != lance jogado`; gap
-  `best.score − second.score ≥ avoid_gap_cp` (mate a favor conta como gap
-  infinito); `best.score ≥ min_solver_eval_cp` ou mate.
+  `puzzle_depth`; menos de duas linhas (engine não devolve uma segunda opção)
+  não dá para medir o gap, então não gera puzzle. Condições: `best.move !=
+  lance jogado`; gap `best.score − second.score ≥ avoid_gap_cp` (mate a favor
+  **no melhor lance** conta como gap infinito, mesmo que a segunda linha
+  também mate — a diferença é ter mate ou não, não a distância entre mates);
+  `best.score ≥ min_solver_eval_cp` ou mate.
 - Alvo de material: `floor_to_piece(min(clamp(gap), clamp(best.score)) / 100)`;
   modo mate se `best` é mate. A partir daí, **a mesma máquina do "punir"**:
   o solver joga, a engine responde com a melhor defesa, termina quando o ganho

@@ -1,4 +1,5 @@
 import chess
+import chess.engine
 from fastapi.testclient import TestClient
 
 from chess_trainer.api.app import create_app
@@ -47,3 +48,48 @@ def test_analyse_route():
 def test_analyse_route_without_engine_is_503():
     client = TestClient(create_app(db_path=":memory:", analysis_engine_factory=lambda: None))
     assert client.post("/api/analyse", json={"fen": MATE_IN_1}).status_code == 503
+
+
+class _ClosableFakeEngine(FakeEngine):
+    """FakeEngine que registra se `close()` foi chamado, para checar o shutdown do app."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_app_shutdown_closes_interactive_engine():
+    fake = _ClosableFakeEngine({chess.Board(MATE_IN_1).epd(): [LineEval("a1a8", MATE_SCORE - 1, ("a1a8",))]})
+    app = create_app(db_path=":memory:", analysis_engine_factory=lambda: fake)
+    with TestClient(app) as client:
+        r = client.post("/api/analyse", json={"fen": MATE_IN_1})
+        assert r.status_code == 200
+        assert fake.closed is False
+    assert fake.closed is True  # engine fechada no shutdown do lifespan
+
+
+def test_analyzer_recreates_engine_after_engine_error():
+    import pytest
+
+    creations = {"n": 0}
+
+    def factory():
+        creations["n"] += 1
+        fake = _engine()
+        if creations["n"] == 1:
+            fake.fail_next = True  # a primeira engine criada "morre" na primeira análise
+        return fake
+
+    az = InteractiveAnalyzer(factory, depth=8, max_seconds=1.0)
+
+    with pytest.raises(chess.engine.EngineError):
+        az.analyse(MATE_IN_1)
+    assert creations["n"] == 1  # ainda não recriou sozinha
+
+    r = az.analyse(MATE_IN_1)  # próxima chamada: engine morta descartada, cria uma nova
+
+    assert creations["n"] == 2
+    assert r["lines"][0]["move"] == "a1a8"
