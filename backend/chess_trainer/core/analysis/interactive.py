@@ -48,7 +48,11 @@ class InteractiveAnalyzer:
         return None
 
     def analyse(self, fen: str, multipv: int = 3) -> dict:
-        board = chess.Board(fen)  # ValueError se inválido
+        board = chess.Board(fen)  # ValueError se malformado
+        if not board.is_valid():
+            # bem formado mas ilegal (ex.: sem os dois reis) -- chess.Board não recusa
+            # sozinho, então validamos à parte para não mandar isso pra engine
+            raise ValueError("FEN inválido")
         key = (board.fen(), multipv)
         with self._lock:
             if key in self._cache:
@@ -64,9 +68,13 @@ class InteractiveAnalyzer:
                 engine = self._ensure_engine()
                 try:
                     lines = engine.analyse(board, self.depth, multipv=multipv, max_seconds=self.max_seconds)
-                except chess.engine.EngineError:
-                    # engine morta: fecha e descarta para não reusar um processo quebrado na
-                    # próxima chamada (que vai recriar via _ensure_engine)
+                    if not lines:
+                        # posição não-terminal sem nenhuma linha é sinal de engine quebrada;
+                        # não cacheamos um resultado vazio nem confiamos nesse processo de novo
+                        raise RuntimeError("engine sem resposta")
+                except Exception:
+                    # engine morta (ou muda): fecha e descarta para não reusar um processo
+                    # quebrado na próxima chamada (que vai recriar via _ensure_engine)
                     engine.close()
                     self._engine = None
                     raise

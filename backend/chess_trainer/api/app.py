@@ -86,12 +86,17 @@ def create_app(
 
     def _default_analysis_factory():
         # engine interativa separada da engine dos jobs: sessão própria, só
-        # para ler as configurações; a engine em si é criada sob demanda.
+        # para ler as configurações; a engine em si é criada sob demanda. Usa
+        # menos threads/hash que a engine de jobs (que roda sozinha e no fundo)
+        # porque essa fica ociosa a maior parte do tempo, esperando o usuário
+        # mexer no tabuleiro de análise.
         db = app.state.session_factory()
         try:
-            return default_engine_factory(load_settings(db))
+            settings = load_settings(db)
         finally:
             db.close()
+        path = find_stockfish(settings.stockfish_path)
+        return StockfishEngine(path, threads=2, hash_mb=64) if path else None
 
     app.state.analyzer = InteractiveAnalyzer(analysis_engine_factory or _default_analysis_factory)
 

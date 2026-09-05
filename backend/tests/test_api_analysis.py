@@ -71,6 +71,31 @@ def test_app_shutdown_closes_interactive_engine():
     assert fake.closed is True  # engine fechada no shutdown do lifespan
 
 
+def test_analyse_route_empty_lines_is_503_and_recreates_engine():
+    creations = {"n": 0}
+
+    def factory():
+        creations["n"] += 1
+        return FakeEngine(default=lambda board: [])  # engine "viva" mas sem nenhuma linha
+
+    app = create_app(db_path=":memory:", analysis_engine_factory=factory)
+    client = TestClient(app)
+    r = client.post("/api/analyse", json={"fen": MATE_IN_1})
+    assert r.status_code == 503
+    assert creations["n"] == 1
+
+    r = client.post("/api/analyse", json={"fen": MATE_IN_1})
+    assert r.status_code == 503
+    assert creations["n"] == 2  # engine anterior descartada: reinvoca a factory
+
+
+def test_analyse_route_invalid_but_parseable_fen_is_400():
+    app = create_app(db_path=":memory:", analysis_engine_factory=lambda: _engine())
+    client = TestClient(app)
+    r = client.post("/api/analyse", json={"fen": "8/8/8/8/8/8/8/8 w - - 0 1"})  # sem os reis
+    assert r.status_code == 400
+
+
 def test_analyzer_recreates_engine_after_engine_error():
     import pytest
 
