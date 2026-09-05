@@ -22,3 +22,10 @@ test("posição não reseta quando `ucis` é recriado com o mesmo conteúdo (ex.
   );
   expect(screen.getByText("2/3")).toBeTruthy();
 });
+
+test("initialPos abre a linha na posição pedida", () => {
+  render(
+    <LineViewer fenStart="2r3k1/5ppp/8/8/Q7/8/8/4R1K1 w - - 0 1" ucis={["e1e8", "c8e8", "a4e8"]} orientation="white" startPly={1} initialPos={1} keyboard={false} />,
+  );
+  expect(screen.getByText("1/3")).toBeTruthy();
+});

@@ -140,6 +140,21 @@ export interface GameRef {
   my_color: Color;
 }
 
+export interface MistakeRef {
+  ply: number;
+  move_played: string;
+  move_uci: string;
+  eval_before: number;
+  eval_after: number;
+  mistake_level: MistakeLevel | null;
+  mistake_by: "me" | "opponent" | null;
+}
+
+export interface PuzzleSibling {
+  id: string;
+  kind: PuzzleKind;
+}
+
 export interface PuzzleOut {
   id: string;
   kind: PuzzleKind;
@@ -155,6 +170,8 @@ export interface PuzzleOut {
   game: GameRef;
   ply: number;
   move_played: string;
+  mistake: MistakeRef;
+  siblings: PuzzleSibling[];
 }
 
 export interface QueueFilters {

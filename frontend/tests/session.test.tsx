@@ -20,6 +20,8 @@ const puzzle = {
   game: { id: "g1", white: "eu", black: "ele", played_at: "2026-01-01T00:00:00Z", source_id: "s", my_color: "white" },
   ply: 40,
   move_played: "Re2",
+  mistake: { ply: 40, move_played: "Re2", move_uci: "e1e2", eval_before: 30, eval_after: -200, mistake_level: "mistake", mistake_by: "me" },
+  siblings: [],
 };
 
 const bodies: Record<string, unknown> = {

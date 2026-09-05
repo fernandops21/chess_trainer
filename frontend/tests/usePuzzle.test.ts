@@ -4,7 +4,8 @@ import { usePuzzle } from "../src/train/usePuzzle";
 
 const game = { id: "g", white: "a", black: "b", played_at: "2026-09-04T12:00:00", source_id: "https://x", my_color: "white" as const };
 const srs = { ease: 2.5, interval_days: 0, lapses: 0, due_at: null, last_reviewed_at: null };
-const base = { end_reason: "material_gain" as const, theme: "tactic", category: "rapid", is_leech: false, srs, game, ply: 10, move_played: "x" };
+const mistake = { ply: 10, move_played: "x", move_uci: "e2e4", eval_before: 20, eval_after: -150, mistake_level: "mistake" as const, mistake_by: "me" as const };
+const base = { end_reason: "material_gain" as const, theme: "tactic", category: "rapid", is_leech: false, srs, game, ply: 10, move_played: "x", mistake, siblings: [] };
 
 const ONE_MOVE: PuzzleOut = { ...base, id: "p1", kind: "punish", fen_start: "4k3/8/8/3q4/8/2N5/7P/4K3 w - - 0 1", side_to_move: "white", solver_moves: 1,
   solution: { moves: [{ uci: "c3d5", by: "solver", alternatives: ["e1e2"] }], explanation_pv: [] } };

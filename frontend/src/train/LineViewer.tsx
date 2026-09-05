@@ -2,17 +2,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { buildLine } from "../board/line";
 import { Board } from "../board/Board";
 
-export function LineViewer({ fenStart, ucis, orientation, startPly, keyboard = true }: { fenStart: string; ucis: string[]; orientation: "white" | "black"; startPly: number; keyboard?: boolean }) {
+export function LineViewer({ fenStart, ucis, orientation, startPly, keyboard = true, initialPos }: { fenStart: string; ucis: string[]; orientation: "white" | "black"; startPly: number; keyboard?: boolean; initialPos?: number }) {
   // `ucis` is often rebuilt fresh (new array, same contents) by callers that re-render on
   // every tick (e.g. a session clock). Deriving a stable string key from its contents keeps
   // `line`/`pos` from being recomputed/reset unless the moves actually changed.
   const key = ucis.join(" ");
   const line = useMemo(() => buildLine(fenStart, ucis), [fenStart, key]);
-  const [pos, setPos] = useState(line.fens.length - 1);
+  const clamp = (n: number) => Math.max(0, Math.min(line.fens.length - 1, n));
+  const [pos, setPos] = useState(clamp(initialPos ?? line.fens.length - 1));
   const touchX = useRef<number | null>(null);
   const lenRef = useRef(line.fens.length);
   lenRef.current = line.fens.length;
-  useEffect(() => { setPos(line.fens.length - 1); }, [fenStart, key]);
+  useEffect(() => { setPos(clamp(initialPos ?? line.fens.length - 1)); }, [fenStart, key]);
 
   const prev = () => setPos((p) => Math.max(0, p - 1));
   const next = () => setPos((p) => Math.min(lenRef.current - 1, p + 1));
