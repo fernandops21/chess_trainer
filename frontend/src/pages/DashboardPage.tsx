@@ -1,4 +1,4 @@
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useDashboard, useStatus } from "../api/queries";
 import { ErrorBox } from "../components/ErrorBox";
 import { JobCard } from "../components/JobCard";
@@ -30,7 +30,7 @@ export function DashboardPage() {
           <h3 style={{ marginTop: 0 }}>Estado</h3>
           <div>{d.games_analyzed} de {d.games_total} partidas analisadas · {d.puzzles_total} puzzles · {d.leeches} sanguessugas</div>
           <div className="muted">Última importação: {s.last_import_at ? formatDate(s.last_import_at) : "nunca"}</div>
-          <div>Engine: {s.engine.available ? <><span className="msg ok">encontrada</span> <span className="muted" style={{ fontSize: 13 }}>{s.engine.path}</span></> : <span className="msg bad">ausente — <a href="/config" onClick={(e) => { e.preventDefault(); navigate("/config"); }}>configurar</a></span>}</div>
+          <div>Engine: {s.engine.available ? <><span className="msg ok">encontrada</span> <span className="muted" style={{ fontSize: 13 }}>{s.engine.path}</span></> : <span className="msg bad">ausente — <Link to="/config">configurar</Link></span>}</div>
         </div>
       )}
       <JobCard />
