@@ -31,7 +31,7 @@ export function JobCard() {
           <button onClick={() => start.mutate({ kind: "import" })} disabled={start.isPending}>Importar agora</button>
           <button className="primary" onClick={() => start.mutate({ kind: "analyze", limit: n })} disabled={start.isPending || !status.engine.available}>Analisar</button>
           <input type="number" min={1} max={200} value={n} style={{ width: 80 }} aria-label="Quantas partidas"
-            onChange={(e) => { const v = Math.max(1, Number(e.target.value) || 1); setN(v); storage.set("dashboard.analyzeN", v); }} />
+            onChange={(e) => { const v = Math.min(200, Math.max(1, Number(e.target.value) || 1)); setN(v); storage.set("dashboard.analyzeN", v); }} />
           <span className="muted">partidas pendentes: {status.games_pending}</span>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useDashboard, useStatus } from "../api/queries";
 import { ErrorBox } from "../components/ErrorBox";
 import { JobCard } from "../components/JobCard";
@@ -6,6 +6,7 @@ import { StatCard } from "../components/StatCard";
 import { formatDate } from "../lib/format";
 
 export function DashboardPage() {
+  const navigate = useNavigate();
   const dash = useDashboard();
   const status = useStatus();
   const d = dash.data;
@@ -22,14 +23,14 @@ export function DashboardPage() {
         </div>
       )}
       <div className="row" style={{ margin: "6px 0 14px" }}>
-        <Link to="/treinar"><button className="primary">Treinar{d ? ` (${d.due_today + Math.min(d.new_available, d.new_remaining_today)})` : ""}</button></Link>
+        <button className="primary" onClick={() => navigate("/treinar")}>Treinar{d ? ` (${d.due_today + Math.min(d.new_available, d.new_remaining_today)})` : ""}</button>
       </div>
       {s && d && (
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Estado</h3>
           <div>{d.games_analyzed} de {d.games_total} partidas analisadas · {d.puzzles_total} puzzles · {d.leeches} sanguessugas</div>
           <div className="muted">Última importação: {s.last_import_at ? formatDate(s.last_import_at) : "nunca"}</div>
-          <div>Engine: {s.engine.available ? <span className="msg ok">encontrada</span> : <span className="msg bad">ausente — <Link to="/config">configurar</Link></span>}</div>
+          <div>Engine: {s.engine.available ? <><span className="msg ok">encontrada</span> <span className="muted" style={{ fontSize: 13 }}>{s.engine.path}</span></> : <span className="msg bad">ausente — <a href="/config" onClick={(e) => { e.preventDefault(); navigate("/config"); }}>configurar</a></span>}</div>
         </div>
       )}
       <JobCard />
