@@ -38,3 +38,15 @@ test("erro sem corpo JSON usa statusText", async () => {
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 500, statusText: "Boom", json: async () => { throw new Error("no json"); } })));
   await expect(api.status()).rejects.toMatchObject({ status: 500, message: "Boom" });
 });
+
+test("api.analyse faz POST /api/analyse com fen e multipv padrão", async () => {
+  const fn = mockFetch(200, { fen: "f", turn: "white", terminal: null, lines: [] });
+  await api.analyse("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+  const [url, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("/api/analyse");
+  expect(init.method).toBe("POST");
+  expect(JSON.parse(String(init.body))).toEqual({
+    fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    multipv: 3,
+  });
+});

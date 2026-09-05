@@ -245,3 +245,18 @@ export interface MistakesQuery {
   by?: "me" | "opponent" | "all";
   limit?: number;
 }
+
+export interface AnalyseLine {
+  move: string;
+  san: string;
+  score: number;
+  pv: string[];
+  pv_san: string[];
+}
+
+export interface AnalyseOut {
+  fen: string;
+  turn: Color;
+  terminal: string | null;
+  lines: AnalyseLine[];
+}

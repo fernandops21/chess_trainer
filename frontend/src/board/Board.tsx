@@ -16,6 +16,7 @@ export interface BoardProps {
   lastMove?: [Key, Key];
   check?: boolean;
   highlight?: Key[];
+  arrows?: { orig: Key; dest: Key; brush?: string }[];
   onMove?: (orig: Key, dest: Key) => void;
   viewOnly?: boolean;
   coordinates?: boolean;
@@ -32,7 +33,13 @@ function toConfig(p: BoardProps): Config {
     coordinates: p.coordinates ?? true,
     animation: { duration: 200 },
     movable: { free: false, color: p.viewOnly ? undefined : p.movableColor, dests: p.dests ?? new Map(), showDests: true, events: { after: p.onMove } },
-    drawable: { enabled: false, autoShapes: (p.highlight ?? []).map((k) => ({ orig: k, brush: "green" })) },
+    drawable: {
+      enabled: false,
+      autoShapes: [
+        ...(p.highlight ?? []).map((k) => ({ orig: k, brush: "green" })),
+        ...(p.arrows ?? []).map((a) => ({ orig: a.orig, dest: a.dest, brush: a.brush ?? "green" })),
+      ],
+    },
   };
 }
 

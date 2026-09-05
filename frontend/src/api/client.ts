@@ -1,4 +1,5 @@
 import type {
+  AnalyseOut,
   DashboardOut,
   GameDetail,
   GameOut,
@@ -96,4 +97,6 @@ export const api = {
     request<SessionOut>(`/sessions/${id}/end`, post("")),
   review: (body: ReviewIn) =>
     request<ReviewOut>("/reviews", post("", body)),
+  analyse: (fen: string, multipv = 3) =>
+    request<AnalyseOut>("/analyse", post("/analyse", { fen, multipv })),
 };

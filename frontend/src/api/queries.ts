@@ -30,6 +30,14 @@ export const useQueue = (f: QueueFilters, enabled = true) => useQuery({ queryKey
 export const useLeeches = () => useQuery({ queryKey: keys.leeches, queryFn: api.leeches });
 export const usePuzzleQuery = (id: string | null) =>
   useQuery({ queryKey: keys.puzzle(id ?? ""), queryFn: () => api.puzzle(id!), enabled: !!id });
+export const useAnalyse = (fen: string | null) =>
+  useQuery({
+    queryKey: ["analyse", fen],
+    queryFn: () => api.analyse(fen!),
+    enabled: !!fen,
+    staleTime: Infinity,
+    retry: 0,
+  });
 
 /**
  * Invalida os dados derivados de um job quando ele termina.
