@@ -13,7 +13,13 @@ from chess_trainer.core.models import LichessPuzzle, TrainingSession, utcnow
 from chess_trainer.core.stats import theme_stats
 from chess_trainer.core.tactics.convert import to_tactic
 from chess_trainer.core.tactics.importer import DownloadCancelled, ImportFilter, download_file, import_csv_zst
-from chess_trainer.core.tactics.service import pick_next, record_attempt, tactics_status, theme_counts
+from chess_trainer.core.tactics.service import (
+    pick_next,
+    record_attempt,
+    refresh_counts_cache,
+    tactics_status,
+    theme_counts,
+)
 from chess_trainer.core.tactics.themes import THEME_LABELS
 
 router = APIRouter(prefix="/api")
@@ -46,6 +52,8 @@ def post_import(request: Request):
             if not stats.cancelled:
                 set_setting(session, "lichess_imported_at", utcnow().isoformat())
                 set_setting(session, "lichess_source_rows", stats.rows_read)
+                # total e temas ficam em cache: contar 3,9 M linhas a cada tela de status é caro
+                refresh_counts_cache(session)
             progress("import", stats.rows_read, stats.rows_read,
                      f"{stats.imported} táticas novas de {stats.rows_read} linhas" + (" (cancelado)" if stats.cancelled else ""))
         except DownloadCancelled:

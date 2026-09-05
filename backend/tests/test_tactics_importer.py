@@ -116,3 +116,5 @@ def test_download_cancel_raises_download_cancelled(tmp_path: Path):
         download_file("https://example.test/db.zst", dest, lambda *a: None, should_stop=lambda: True,
                       http=httpx.Client(transport=httpx.MockTransport(handler)))
     assert not dest.exists()
+    # o parcial também some: cancelar não pode deixar lixo em disco
+    assert not dest.with_name(dest.name + ".part").exists()

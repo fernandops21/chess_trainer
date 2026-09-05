@@ -1,6 +1,7 @@
+import random
 from datetime import timedelta
 
-from chess_trainer.config import AppSettings, get_setting
+from chess_trainer.config import AppSettings, get_setting, set_setting
 from chess_trainer.core.models import LichessPuzzle, LichessPuzzleTheme, TacticsAttempt, utcnow
 from chess_trainer.core.tactics import service
 from chess_trainer.core.tactics.service import pick_next, record_attempt, tactics_status, theme_counts
@@ -83,3 +84,49 @@ def test_pick_retries_when_sample_is_fully_filtered(db_session, monkeypatch):
     monkeypatch.setattr(service, "MAX_WINDOW", 150)  # uma única janela: só a re-amostragem pode salvar
     s = AppSettings(tactics_rating=1200, tactics_window=150)
     assert {pick_next(db_session, s, now).id for _ in range(10)} == {"aberto"}
+
+
+def test_pick_is_deterministic_with_seeded_rng(db_session, monkeypatch):
+    # o ponto de rating sorteado vem de um RNG do módulo: com a mesma semente e o
+    # mesmo estado do banco, duas chamadas devolvem a mesma tática
+    for rating in range(1195, 1206):
+        add(db_session, f"r{rating}", rating)
+    s = AppSettings(tactics_rating=1200, tactics_window=5)
+    now = utcnow()
+    monkeypatch.setattr(service, "_rng", random.Random(1))
+    first = pick_next(db_session, s, now).id
+    monkeypatch.setattr(service, "_rng", random.Random(1))
+    assert pick_next(db_session, s, now).id == first
+
+
+def test_pick_failed_first_respects_theme_filter(db_session):
+    # a prioridade dos errados antigos não pode furar o filtro de tema
+    add(db_session, "f_fork", 1200, "fork middlegame")
+    add(db_session, "f_pin", 1200, "pin middlegame")
+    add(db_session, "novo", 1200, "fork endgame")
+    now = utcnow()
+    for pid in ("f_fork", "f_pin"):
+        db_session.add(TacticsAttempt(puzzle_id=pid, correct=False, rating_before=1200, rating_after=1184,
+                                      puzzle_rating=1200, attempted_at=now - timedelta(days=2)))
+    db_session.commit()
+    s = AppSettings(tactics_rating=1200, tactics_window=150)
+    assert {pick_next(db_session, s, now, themes=["fork"]).id for _ in range(10)} == {"f_fork"}
+    assert {pick_next(db_session, s, now, themes=["pin"]).id for _ in range(10)} == {"f_pin"}
+
+
+def test_counts_come_from_cache_when_present(db_session):
+    add(db_session, "a", 1200, "fork middlegame"); add(db_session, "b", 1300, "fork endgame")
+    set_setting(db_session, "lichess_count", 3_900_000)
+    set_setting(db_session, "lichess_theme_counts", [["pin", 7], ["fork", 2]])
+    assert theme_counts(db_session) == [("pin", 7), ("fork", 2)]
+    assert tactics_status(db_session, utcnow())["count"] == 3_900_000
+
+
+def test_refresh_counts_cache_stores_query_result(db_session):
+    add(db_session, "a", 1200, "fork middlegame"); add(db_session, "b", 1300, "fork endgame")
+    set_setting(db_session, "lichess_count", 0)
+    set_setting(db_session, "lichess_theme_counts", [["obsoleto", 1]])
+    service.refresh_counts_cache(db_session)
+    assert get_setting(db_session, "lichess_count") == 2
+    assert theme_counts(db_session)[0] == ("fork", 2)
+    assert tactics_status(db_session, utcnow())["count"] == 2

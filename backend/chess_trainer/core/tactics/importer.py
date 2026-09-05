@@ -124,16 +124,20 @@ def download_file(url: str, dest: Path, progress: ProgressFn, should_stop: StopF
         dest.parent.mkdir(parents=True, exist_ok=True)
         part = dest.with_name(dest.name + ".part")
         done = 0
-        with client.stream("GET", url, follow_redirects=True) as resp:
-            resp.raise_for_status()
-            total = int(resp.headers.get("content-length", "0") or 0) or remote_size
-            with open(part, "wb") as out:
-                for chunk in resp.iter_bytes(1 << 20):
-                    out.write(chunk)
-                    done += len(chunk)
-                    progress("download", done, total, f"{done / 2**20:.0f} MB baixados")
-                    if should_stop is not None and should_stop():
-                        raise DownloadCancelled("download cancelado")
+        try:
+            with client.stream("GET", url, follow_redirects=True) as resp:
+                resp.raise_for_status()
+                total = int(resp.headers.get("content-length", "0") or 0) or remote_size
+                with open(part, "wb") as out:
+                    for chunk in resp.iter_bytes(1 << 20):
+                        out.write(chunk)
+                        done += len(chunk)
+                        progress("download", done, total, f"{done / 2**20:.0f} MB baixados")
+                        if should_stop is not None and should_stop():
+                            raise DownloadCancelled("download cancelado")
+        except DownloadCancelled:
+            part.unlink(missing_ok=True)  # cancelar não pode deixar um parcial ocupando disco
+            raise
         part.replace(dest)
         return dest
     finally:

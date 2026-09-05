@@ -36,6 +36,7 @@ def test_next_404_before_import(client):
 def test_import_then_train_flow(client):
     run_import(client)
     st = client.get("/api/tactics/status").json()
+    # count e temas vêm do cache gravado no fim da importação, não de um count(*)
     assert st["imported"] and st["count"] == 2 and st["imported_at"] and st["source_rows"] == 5
     themes = client.get("/api/tactics/themes").json()
     assert {t["theme"] for t in themes} >= {"fork", "mateIn2"} and next(t for t in themes if t["theme"] == "fork")["label"] == "garfo"
