@@ -13,6 +13,9 @@ export const keys = {
   queue: (f: QueueFilters) => ["queue", f] as const,
   leeches: ["leeches"] as const,
   puzzle: (id: string) => ["puzzle", id] as const,
+  tacticsStatus: ["tactics", "status"] as const,
+  tacticThemes: ["tactics", "themes"] as const,
+  themeStats: (days: number) => ["stats", "themes", days] as const,
 };
 
 export const useStatus = () =>
@@ -30,6 +33,12 @@ export const useQueue = (f: QueueFilters, enabled = true) => useQuery({ queryKey
 export const useLeeches = () => useQuery({ queryKey: keys.leeches, queryFn: api.leeches });
 export const usePuzzleQuery = (id: string | null) =>
   useQuery({ queryKey: keys.puzzle(id ?? ""), queryFn: () => api.puzzle(id!), enabled: !!id });
+export const useTacticsStatus = () =>
+  useQuery({ queryKey: keys.tacticsStatus, queryFn: api.tacticsStatus });
+export const useTacticThemes = () =>
+  useQuery({ queryKey: keys.tacticThemes, queryFn: api.tacticThemes });
+export const useThemeStats = (days = 30) =>
+  useQuery({ queryKey: keys.themeStats(days), queryFn: () => api.themeStats(days) });
 export const useAnalyse = (fen: string | null) =>
   useQuery({
     queryKey: ["analyse", fen],
@@ -55,7 +64,7 @@ export function useJobWatcher() {
     const before = prev.current;
     prev.current = state;
     if (before === "running" && state !== undefined && state !== "running") {
-      for (const k of [["status"], ["dashboard"], ["queue"], ["games"], ["game"], ["mistakes"], ["leeches"]]) {
+      for (const k of [["status"], ["dashboard"], ["queue"], ["games"], ["game"], ["mistakes"], ["leeches"], ["tactics"], ["stats"]]) {
         void qc.invalidateQueries({ queryKey: k });
       }
     }
@@ -65,15 +74,18 @@ export function useJobWatcher() {
 function useInvalidate(extra: readonly (readonly unknown[])[] = []) {
   const qc = useQueryClient();
   return () => {
-    for (const k of [keys.status, keys.dashboard, ["queue"], ["game"], ...extra]) void qc.invalidateQueries({ queryKey: k });
+    for (const k of [keys.status, keys.dashboard, ["queue"], ["game"], ["tactics"], ...extra]) void qc.invalidateQueries({ queryKey: k });
   };
 }
 
 export function useStartJob() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (p: { kind: "import" | "analyze" | "regenerate"; limit?: number; game_id?: string; avoidOnly?: boolean }) =>
-      p.kind === "import" ? api.importGames() : p.kind === "analyze" ? api.analyze({ limit: p.limit, game_id: p.game_id }) : api.regenerate(p.avoidOnly ? "avoid" : undefined),
+    mutationFn: (p: { kind: "import" | "analyze" | "regenerate" | "import_lichess"; limit?: number; game_id?: string; avoidOnly?: boolean }) =>
+      p.kind === "import" ? api.importGames()
+        : p.kind === "analyze" ? api.analyze({ limit: p.limit, game_id: p.game_id })
+        : p.kind === "import_lichess" ? api.importTactics()
+        : api.regenerate(p.avoidOnly ? "avoid" : undefined),
     onSettled: invalidate,
   });
 }

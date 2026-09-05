@@ -1,5 +1,7 @@
 import type {
   AnalyseOut,
+  AttemptIn,
+  AttemptOut,
   DashboardOut,
   GameDetail,
   GameOut,
@@ -16,6 +18,10 @@ import type {
   SessionOut,
   Settings,
   StatusOut,
+  TacticOut,
+  TacticsStatus,
+  ThemeCount,
+  ThemeStat,
 } from "./types";
 
 export class ApiError extends Error {
@@ -99,4 +105,16 @@ export const api = {
     request<ReviewOut>("/reviews", post("", body)),
   analyse: (fen: string, multipv = 3) =>
     request<AnalyseOut>("/analyse", post("/analyse", { fen, multipv })),
+  tacticsStatus: () => request<TacticsStatus>("/tactics/status"),
+  importTactics: () =>
+    request<JobQueued>("/tactics/import", post("/tactics/import")),
+  nextTactic: (p: { themes?: string[]; exclude?: string[] } = {}) =>
+    request<TacticOut>(
+      `/tactics/next${qs({ themes: p.themes?.join(","), exclude: p.exclude?.join(",") })}`,
+    ),
+  attempt: (body: AttemptIn) =>
+    request<AttemptOut>("/tactics/attempts", post("", body)),
+  tacticThemes: () => request<ThemeCount[]>("/tactics/themes"),
+  themeStats: (days = 30) =>
+    request<ThemeStat[]>(`/stats/themes${qs({ days })}`),
 };

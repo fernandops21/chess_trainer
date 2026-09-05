@@ -16,6 +16,10 @@ export interface Settings {
   analysis_seconds: number;
   puzzle_search_seconds: number;
   puzzle_reply_seconds: number;
+  tactics_rating: number;
+  tactics_window: number;
+  lichess_min_plays: number;
+  lichess_min_popularity: number;
 }
 
 export interface JobStatus {
@@ -173,6 +177,77 @@ export interface PuzzleOut {
   move_played: string;
   mistake: MistakeRef;
   siblings: PuzzleSibling[];
+}
+
+/** Tática do banco do Lichess: mesmo formato de treino dos puzzles próprios,
+ *  sem SRS/partida e com rating/temas do Lichess. */
+export interface TacticOut {
+  id: string;
+  kind: "tactic";
+  fen_start: string;
+  side_to_move: Color;
+  solution: Solution;
+  end_reason: "mate" | "material_gain";
+  theme: string;
+  themes: string[];
+  category: "lichess";
+  rating: number;
+  solver_moves: number;
+  lichess_url: string;
+  popularity: number;
+  nb_plays: number;
+  opening_tags: string[];
+}
+
+/** O que o motor de treino sabe resolver: puzzle próprio ou tática do Lichess. */
+export type Trainable = PuzzleOut | TacticOut;
+
+export interface AttemptIn {
+  puzzle_id: string;
+  session_id?: string | null;
+  correct: boolean;
+  used_hint?: boolean;
+  duration_ms?: number;
+}
+
+export interface AttemptOut {
+  id: string;
+  puzzle_id: string;
+  correct: boolean;
+  used_hint: boolean;
+  rating_before: number;
+  rating_after: number;
+  delta: number;
+  puzzle_rating: number;
+}
+
+export interface TacticsStatus {
+  imported: boolean;
+  count: number;
+  imported_at: string | null;
+  source_rows: number | null;
+  rating: number;
+  window: number;
+  attempts_total: number;
+  attempts_today: number;
+  attempts_30d: number;
+  correct_30d: number;
+}
+
+export interface ThemeCount {
+  theme: string;
+  label: string;
+  count: number;
+}
+
+export interface ThemeStat {
+  theme: string;
+  label: string;
+  attempts: number;
+  correct: number;
+  accuracy: number;
+  own: number;
+  lichess: number;
 }
 
 export interface QueueFilters {

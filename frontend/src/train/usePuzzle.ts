@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 import type { Key } from "chessground/types";
-import type { PuzzleOut, ReviewIn, ReviewOut } from "../api/types";
+import type { ReviewIn, ReviewOut, Trainable } from "../api/types";
 import { destsFrom } from "../board/dests";
 import { uciToMove } from "../board/line";
+
+/** O mínimo que a máquina de estados precisa: serve tanto para `PuzzleOut` quanto para `TacticOut`. */
+export type PuzzleInput = Pick<Trainable, "id" | "fen_start" | "solution">;
 
 export type Phase = "awaiting_move" | "engine_replying" | "solved" | "submitting" | "result" | "submit_error";
 export type Promotion = "q" | "r" | "b" | "n";
 
-export interface PuzzleState {
+export interface PuzzleState<R = ReviewOut> {
   phase: Phase;
   fen: string;
   turn: "white" | "black";
@@ -20,15 +23,15 @@ export interface PuzzleState {
   check: boolean;
   hint?: Key;
   pendingPromotion?: { orig: Key; dest: Key };
-  review?: ReviewOut;
+  review?: R;
   error?: unknown;
 }
 
-export interface UsePuzzleOptions {
+export interface UsePuzzleOptions<R = ReviewOut> {
   sessionId: string | null;
   presetHint?: boolean;
   engineDelayMs?: number;
-  submit: (body: ReviewIn) => Promise<ReviewOut>;
+  submit: (body: ReviewIn) => Promise<R>;
   now?: () => number;
 }
 
@@ -45,13 +48,13 @@ const turnOf = (c: Chess) => (c.turn() === "w" ? "white" : "black") as "white" |
  * not watch `puzzle` for changes and performs no runtime reset if a new
  * puzzle object is passed into an already-mounted instance.
  */
-export function usePuzzle(puzzle: PuzzleOut, opts: UsePuzzleOptions) {
+export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOptions<R>) {
   const chessRef = useRef(new Chess(puzzle.fen_start));
   const now = opts.now ?? Date.now;
   const startedAt = useRef(now());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [state, setState] = useState<PuzzleState>(() => ({
+  const [state, setState] = useState<PuzzleState<R>>(() => ({
     phase: "awaiting_move",
     fen: puzzle.fen_start,
     turn: turnOf(chessRef.current),
@@ -77,7 +80,7 @@ export function usePuzzle(puzzle: PuzzleOut, opts: UsePuzzleOptions) {
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
-  const snapshot = (partial: Partial<PuzzleState>) => (prev: PuzzleState): PuzzleState => {
+  const snapshot = (partial: Partial<PuzzleState<R>>) => (prev: PuzzleState<R>): PuzzleState<R> => {
     const c = chessRef.current;
     return { ...prev, fen: c.fen(), turn: turnOf(c), check: c.inCheck(), ...partial };
   };
@@ -204,3 +207,6 @@ export function usePuzzle(puzzle: PuzzleOut, opts: UsePuzzleOptions) {
 
   return { state, dests, tryMove, choosePromotion, cancelPromotion, useHint, retrySubmit };
 }
+
+/** Retorno de `usePuzzle`; use `PuzzleCtl<unknown>` para aceitar qualquer resultado de submit. */
+export type PuzzleCtl<R = ReviewOut> = ReturnType<typeof usePuzzle<R>>;

@@ -64,3 +64,20 @@ test("api.analyse faz POST /api/analyse com fen e multipv padrão", async () => 
     multipv: 3,
   });
 });
+
+test("api.nextTactic junta temas e exclusões em CSV e omite os vazios", async () => {
+  const fn = mockFetch(200, {});
+  await api.nextTactic({ themes: ["fork", "pin"], exclude: ["a", "b"] });
+  expect((fn.mock.calls[0] as unknown as [string])[0]).toBe("/api/tactics/next?themes=fork%2Cpin&exclude=a%2Cb");
+  await api.nextTactic({ exclude: [] });
+  expect((fn.mock.calls[1] as unknown as [string])[0]).toBe("/api/tactics/next");
+});
+
+test("api.attempt faz POST /api/tactics/attempts com o corpo", async () => {
+  const fn = mockFetch(201, { id: "a1" });
+  await api.attempt({ puzzle_id: "00sHx", correct: true, used_hint: false, duration_ms: 900 });
+  const [url, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("/api/tactics/attempts");
+  expect(init.method).toBe("POST");
+  expect(JSON.parse(String(init.body))).toEqual({ puzzle_id: "00sHx", correct: true, used_hint: false, duration_ms: 900 });
+});

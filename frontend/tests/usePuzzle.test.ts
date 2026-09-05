@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import type { PuzzleOut, ReviewIn, ReviewOut } from "../src/api/types";
-import { usePuzzle } from "../src/train/usePuzzle";
+import { usePuzzle, type UsePuzzleOptions } from "../src/train/usePuzzle";
 
 const game = { id: "g", white: "a", black: "b", played_at: "2026-09-04T12:00:00", source_id: "https://x", my_color: "white" as const };
 const srs = { ease: 2.5, interval_days: 0, lapses: 0, due_at: null, last_reviewed_at: null };
@@ -28,10 +28,10 @@ function review(over: Partial<ReviewOut> = {}): ReviewOut {
   return { id: "r", puzzle_id: "p", result: "correct", used_hint: false, ease: 2.6, interval_days: 1, due_at: "2026-09-05T12:00:00", lapses: 0, is_leech: false, ...over };
 }
 
-function setup(puzzle: PuzzleOut, extra: Partial<Parameters<typeof usePuzzle>[1]> = {}) {
+function setup(puzzle: PuzzleOut, extra: Partial<UsePuzzleOptions<ReviewOut>> = {}) {
   const submit = vi.fn(async (body: ReviewIn) => review({ used_hint: !!body.used_hint, result: body.correct ? "correct" : "wrong" }));
   let t = 1000;
-  const hook = renderHook(() => usePuzzle(puzzle, { sessionId: "s1", submit, engineDelayMs: 100, now: () => t, ...extra }));
+  const hook = renderHook(() => usePuzzle<ReviewOut>(puzzle, { sessionId: "s1", submit, engineDelayMs: 100, now: () => t, ...extra }));
   return { ...hook, submit, tick: (ms: number) => { t += ms; } };
 }
 
