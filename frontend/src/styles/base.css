@@ -59,3 +59,7 @@ input, select { min-height: var(--tap); padding: 0 10px; border: 1px solid var(-
 
 .gamerow { display: grid; grid-template-columns: 90px 1fr 80px 80px 70px 90px; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); text-decoration: none; color: inherit; align-items: center; min-height: var(--tap); }
 @media (max-width: 899px) { .gamerow { grid-template-columns: 72px 1fr 64px 84px; } .gamerow > :nth-child(3), .gamerow > :nth-child(5) { display: none; } }
+
+.mistakerow { display: flex; gap: 12px; width: 100%; padding: 10px 16px; border: none; border-bottom: 1px solid var(--line); background: transparent; border-radius: 0; text-align: left; min-height: 80px; }
+.tag.blunder { background: #fde0dc; color: var(--bad); }
+.tag.mistake { background: #fff1cc; color: #8a5a00; }
