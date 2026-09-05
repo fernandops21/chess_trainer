@@ -12,6 +12,16 @@ const MATE_IN_2: PuzzleOut = { ...base, id: "p2", kind: "punish", end_reason: "m
   solution: { moves: [{ uci: "e1e8", by: "solver", alternatives: [] }, { uci: "c8e8", by: "engine", alternatives: [] }, { uci: "a4e8", by: "solver", alternatives: [] }], explanation_pv: [] } };
 const PROMO: PuzzleOut = { ...base, id: "p3", kind: "avoid", end_reason: "explanation", fen_start: "8/P6k/8/8/8/8/8/K7 w - - 0 1", side_to_move: "white", solver_moves: 1,
   solution: { moves: [{ uci: "a7a8q", by: "solver", alternatives: [] }], explanation_pv: ["a7a8q", "h7g6"] } };
+// Note: the brief's suggested fixture ("k7/PP6/8/8/8/8/8/K7 w - - 0 1" with
+// b7b8q expected / a7a8q alternative) has no legal a7 move at all -- a8 is
+// occupied by the black king, which blocks the a7-a8 push and isn't a legal
+// diagonal-capture target either. Using a fen where both the expected move
+// and its alternative are actually legal promotions instead: a7 can push to
+// a8 (empty) or capture on b8 (a rook), both promoting.
+const PROMO_ALT: PuzzleOut = { ...base, id: "p4", kind: "avoid", end_reason: "explanation", fen_start: "1r4k1/P7/8/8/8/8/8/K7 w - - 0 1", side_to_move: "white", solver_moves: 1,
+  solution: { moves: [{ uci: "a7b8q", by: "solver", alternatives: ["a7a8q"] }], explanation_pv: [] } };
+const BAD_ALT: PuzzleOut = { ...base, id: "p5", kind: "punish", fen_start: ONE_MOVE.fen_start, side_to_move: "white", solver_moves: 1,
+  solution: { moves: [{ uci: "c3d5", by: "solver", alternatives: ["e1e1"] }], explanation_pv: [] } };
 
 function review(over: Partial<ReviewOut> = {}): ReviewOut {
   return { id: "r", puzzle_id: "p", result: "correct", used_hint: false, ease: 2.6, interval_days: 1, due_at: "2026-09-05T12:00:00", lapses: 0, is_leech: false, ...over };
@@ -40,9 +50,10 @@ test("lance certo conclui, registra e vai para result", async () => {
 });
 
 test("alternativa aceita", async () => {
-  const { result } = setup(ONE_MOVE);
+  const { result, submit } = setup(ONE_MOVE);
   await act(async () => { result.current.tryMove("e1", "e2"); await Promise.resolve(); });
   expect(result.current.state.phase).toBe("result");
+  expect(submit).toHaveBeenCalledWith(expect.objectContaining({ correct: true }));
 });
 
 test("lance errado é desfeito e marca wrong; puzzle continua", async () => {
@@ -105,6 +116,44 @@ test("falha no envio não avança; retry funciona", async () => {
   expect(result.current.state.phase).toBe("result");
   expect(submit).toHaveBeenCalledTimes(2);
   expect(submit.mock.calls[1][0]).toMatchObject({ session_id: null });
+});
+
+test("cancelPromotion limpa a promoção pendente sem enviar", async () => {
+  const { result, submit } = setup(PROMO);
+  act(() => result.current.tryMove("a7", "a8"));
+  expect(result.current.state.pendingPromotion).toEqual({ orig: "a7", dest: "a8" });
+  act(() => result.current.cancelPromotion());
+  expect(result.current.state.pendingPromotion).toBeUndefined();
+  expect(result.current.state.phase).toBe("awaiting_move");
+  expect(submit).not.toHaveBeenCalled();
+});
+
+test("retrySubmit não reenvia fora de submit_error (ex.: em result)", async () => {
+  const { result, submit } = setup(ONE_MOVE);
+  await act(async () => { result.current.tryMove("c3", "d5"); await Promise.resolve(); });
+  expect(result.current.state.phase).toBe("result");
+  expect(submit).toHaveBeenCalledTimes(1);
+  act(() => result.current.retrySubmit());
+  expect(submit).toHaveBeenCalledTimes(1);
+});
+
+test("promoção considera alternativas ao decidir se precisa de peça", async () => {
+  const { result, submit } = setup(PROMO_ALT);
+  act(() => result.current.tryMove("a7", "a8"));
+  expect(result.current.state.pendingPromotion).toEqual({ orig: "a7", dest: "a8" });
+  expect(result.current.state.phase).toBe("awaiting_move");
+  await act(async () => { result.current.choosePromotion("q"); await Promise.resolve(); });
+  expect(result.current.state.phase).toBe("result");
+  expect(submit).toHaveBeenCalledWith(expect.objectContaining({ correct: true }));
+});
+
+test("alternativa textualmente válida mas ilegal no tabuleiro conta como erro, sem crash", async () => {
+  const { result, submit } = setup(BAD_ALT);
+  act(() => result.current.tryMove("e1", "e1"));
+  expect(result.current.state.phase).toBe("awaiting_move");
+  expect(result.current.state.wrong).toBe(true);
+  expect(result.current.state.message).toEqual({ text: "Lance inválido", tone: "bad" });
+  expect(submit).not.toHaveBeenCalled();
 });
 
 test("presetHint começa como dica usada", () => {

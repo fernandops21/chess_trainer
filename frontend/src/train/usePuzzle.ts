@@ -34,6 +34,17 @@ export interface UsePuzzleOptions {
 
 const turnOf = (c: Chess) => (c.turn() === "w" ? "white" : "black") as "white" | "black";
 
+/**
+ * Puzzle state machine.
+ *
+ * Contract: mount one `usePuzzle` instance per puzzle. Consumers MUST render
+ * it with a React `key={puzzle.id}` (or otherwise force a remount when the
+ * puzzle changes), e.g. `<Puzzle key={puzzle.id} puzzle={puzzle} ... />`.
+ * All state (`phase`, `idx`, the underlying `chess.js` position, `startedAt`,
+ * etc.) is initialised once on mount from the `puzzle` prop; this hook does
+ * not watch `puzzle` for changes and performs no runtime reset if a new
+ * puzzle object is passed into an already-mounted instance.
+ */
 export function usePuzzle(puzzle: PuzzleOut, opts: UsePuzzleOptions) {
   const chessRef = useRef(new Chess(puzzle.fen_start));
   const now = opts.now ?? Date.now;
@@ -58,6 +69,11 @@ export function usePuzzle(puzzle: PuzzleOut, opts: UsePuzzleOptions) {
   wrongRef.current = state.wrong;
   const usedHintRef = useRef(state.usedHint);
   usedHintRef.current = state.usedHint;
+  // Guards against double-submit: true for the whole lifetime of a submit
+  // attempt (set synchronously before the first `setState`, cleared in a
+  // `finally`), so a rapid double call to `retrySubmit()` cannot fire a
+  // second request while the first is still in flight.
+  const submittingRef = useRef(false);
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
@@ -67,6 +83,7 @@ export function usePuzzle(puzzle: PuzzleOut, opts: UsePuzzleOptions) {
   };
 
   const doSubmit = useCallback(async (wrong: boolean, usedHint: boolean) => {
+    submittingRef.current = true;
     setState((p) => ({ ...p, phase: "submitting", error: undefined }));
     const body: ReviewIn = {
       puzzle_id: puzzle.id, session_id: opts.sessionId, correct: !wrong, used_hint: usedHint,
@@ -77,6 +94,8 @@ export function usePuzzle(puzzle: PuzzleOut, opts: UsePuzzleOptions) {
       setState((p) => ({ ...p, phase: "result", review }));
     } catch (error) {
       setState((p) => ({ ...p, phase: "submit_error", error }));
+    } finally {
+      submittingRef.current = false;
     }
   }, [puzzle.id, opts.sessionId, opts.submit, now]);
 
@@ -88,7 +107,16 @@ export function usePuzzle(puzzle: PuzzleOut, opts: UsePuzzleOptions) {
 
   const applySolverMove = useCallback((uci: string) => {
     const c = chessRef.current;
-    const mv = c.move(uciToMove(uci));
+    let mv: ReturnType<Chess["move"]>;
+    try {
+      mv = c.move(uciToMove(uci));
+    } catch {
+      // Textually matched an expected uci/alternative but chess.js rejects it
+      // as an illegal move on the current position (e.g. a malformed
+      // alternative). Score it as a wrong attempt instead of crashing.
+      setState((p) => ({ ...p, wrong: true, pendingPromotion: undefined, message: { text: "Lance inválido", tone: "bad" } }));
+      return;
+    }
     const nextIdx = c.history().length;
     const last: [Key, Key] = [mv.from as Key, mv.to as Key];
     const moves = puzzle.solution.moves;
@@ -101,7 +129,15 @@ export function usePuzzle(puzzle: PuzzleOut, opts: UsePuzzleOptions) {
     if (reply.by === "engine") {
       setState(snapshot({ phase: "engine_replying", idx: nextIdx, lastMove: last, hint: undefined, pendingPromotion: undefined, message: { text: "Certo!", tone: "ok" } }));
       timer.current = setTimeout(() => {
-        const r = chessRef.current.move(uciToMove(reply.uci));
+        let r: ReturnType<Chess["move"]>;
+        try {
+          r = chessRef.current.move(uciToMove(reply.uci));
+        } catch {
+          // A malformed uci from the backend for the engine's reply. Surface
+          // it as a submit error instead of throwing out of the timer.
+          setState((p) => ({ ...p, phase: "submit_error", error: new Error("Solução inválida do servidor") }));
+          return;
+        }
         const afterReply = chessRef.current.history().length;
         const replyLast: [Key, Key] = [r.from as Key, r.to as Key];
         if (afterReply >= moves.length) {
@@ -133,7 +169,8 @@ export function usePuzzle(puzzle: PuzzleOut, opts: UsePuzzleOptions) {
   const tryMove = useCallback((orig: Key, dest: Key, promotion?: Promotion) => {
     if (state.phase !== "awaiting_move") return;
     const expected = puzzle.solution.moves[state.idx];
-    const needsPromotion = expected && expected.uci.length === 5 && expected.uci.startsWith(`${orig}${dest}`);
+    const candidates = expected ? [expected.uci, ...expected.alternatives] : [];
+    const needsPromotion = candidates.some((u) => u.length === 5 && u.startsWith(`${orig}${dest}`));
     if (needsPromotion && !promotion) {
       setState((p) => ({ ...p, pendingPromotion: { orig, dest } }));
       return;
@@ -158,7 +195,10 @@ export function usePuzzle(puzzle: PuzzleOut, opts: UsePuzzleOptions) {
     setState((p) => ({ ...p, usedHint: true, hint: expected.uci.slice(0, 2) as Key, message: { text: "Peça destacada (dica conta como erro).", tone: "bad" } }));
   }, [state.phase, state.idx, puzzle.solution.moves]);
 
-  const retrySubmit = useCallback(() => { void doSubmit(wrongRef.current, usedHintRef.current); }, [doSubmit]);
+  const retrySubmit = useCallback(() => {
+    if (state.phase !== "submit_error" || submittingRef.current) return;
+    void doSubmit(wrongRef.current, usedHintRef.current);
+  }, [doSubmit, state.phase]);
 
   const dests = useMemo(() => (state.phase === "awaiting_move" ? destsFrom(chessRef.current) : new Map<Key, Key[]>()), [state.phase, state.fen]);
 
