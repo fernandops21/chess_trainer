@@ -7,6 +7,7 @@ import pytest
 from chess_trainer.core.analysis.engine import (
     LineEval, StockfishEngine, find_stockfish, terminal_score,
 )
+from chess_trainer.core.analysis.interactive import InteractiveAnalyzer
 from chess_trainer.core.evals import MATE_SCORE, is_mate_for
 from tests.fakes import FakeEngine, first_legal_default
 
@@ -122,3 +123,16 @@ def test_real_stockfish_finds_mate_in_one_with_time_cap():
         assert is_mate_for(lines[0].score)
     finally:
         engine.close()
+
+
+@pytest.mark.slow
+def test_real_stockfish_interactive_analyzer_finds_mate_in_one():
+    path = find_stockfish(os.environ.get("STOCKFISH_PATH", ""))
+    if not path:
+        pytest.skip("Stockfish não encontrado")
+    az = InteractiveAnalyzer(lambda: StockfishEngine(path))
+    try:
+        r = az.analyse("6k1/5ppp/8/8/8/8/8/R3K3 w - - 0 1")
+        assert r["lines"][0]["san"] == "Ra8#"
+    finally:
+        az.close()

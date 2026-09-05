@@ -6,9 +6,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
 from chess_trainer.api.jobs import JobRunner
-from chess_trainer.api.routes import games, system, training
-from chess_trainer.config import AppSettings
+from chess_trainer.api.routes import analysis, games, system, training
+from chess_trainer.config import AppSettings, load_settings
 from chess_trainer.core.analysis.engine import EngineLike, StockfishEngine, find_stockfish
+from chess_trainer.core.analysis.interactive import InteractiveAnalyzer
 from chess_trainer.core.db import init_db, make_engine, make_session_factory
 from chess_trainer.core.importers.chesscom import ChessComClient
 
@@ -58,6 +59,7 @@ def create_app(
     engine_factory=None,
     chesscom_factory=None,
     dist_dir: str | Path | None = None,
+    analysis_engine_factory=None,
 ) -> FastAPI:
     if db_path is None:
         db_path = os.environ.get("CHESS_TRAINER_DB", str(BACKEND_DIR / "data" / "chess_trainer.db"))
@@ -73,9 +75,21 @@ def create_app(
         # em testes a disponibilidade da engine é decidida pela factory, não pelo disco
         app.state.engine_probe = _probe_engine_factory(engine_factory)
 
+    def _default_analysis_factory():
+        # engine interativa separada da engine dos jobs: sessão própria, só
+        # para ler as configurações; a engine em si é criada sob demanda.
+        db = app.state.session_factory()
+        try:
+            return default_engine_factory(load_settings(db))
+        finally:
+            db.close()
+
+    app.state.analyzer = InteractiveAnalyzer(analysis_engine_factory or _default_analysis_factory)
+
     app.include_router(system.router)
     app.include_router(games.router)
     app.include_router(training.router)
+    app.include_router(analysis.router)
 
     dist = Path(dist_dir) if dist_dir is not None else BACKEND_DIR.parent / "frontend" / "dist"
     if dist.is_dir():

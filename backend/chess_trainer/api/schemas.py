@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SettingsOut(BaseModel):
@@ -190,6 +190,26 @@ class ReviewOut(BaseModel):
     due_at: datetime
     lapses: int
     is_leech: bool
+
+
+class AnalyseIn(BaseModel):
+    fen: str
+    multipv: int = Field(3, ge=1, le=5)
+
+
+class AnalyseLine(BaseModel):
+    move: str
+    san: str
+    score: int
+    pv: list[str]
+    pv_san: list[str]
+
+
+class AnalyseOut(BaseModel):
+    fen: str
+    turn: str
+    terminal: str | None
+    lines: list[AnalyseLine]
 
 
 class DashboardOut(BaseModel):
