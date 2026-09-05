@@ -55,3 +55,11 @@ rende ~100 puzzles, ou seja, ~10 dias de treino. Não há necessidade de analisa
 as mais recentes em lotes pequenos (limit 5–10) é suficiente. Puzzle "h3 Cxf2 Rxf2" da partida contra ThyEnigma
 deixou de ser gerado em profundidade 20 (a melhor defesa passa a ser Ch6 e o ganho não se materializa): comportamento
 correto pela regra de materialização, não falso positivo dos filtros.
+
+## Perfil da partida de 139 lances (2026-09-05, antes dos limites de tempo por busca)
+
+Análise: 49 s. 12 erros marcados. Fase de puzzles: 2665 s no total, dominada por três posições de final:
+ply 88 (381 s), ply 94 (1832 s), ply 96 (245 s), todas buscas multipv 3 em profundidade 20 que a engine
+não conseguia fechar. Motivou os limites por busca (`analysis_seconds` 15, `puzzle_search_seconds` 20,
+`puzzle_reply_seconds` 10; limite efetivo = valor + 10 s do protocolo do python-chess) e o reinício da
+engine em timeout. Com os limites, o pior caso por erro fica em ~5 min e o típico em segundos.
