@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from chess_trainer.api.deps import get_db
 from chess_trainer.api.schemas import (
-    DashboardOut, GameRef, PuzzleOut, QueueOut, ReviewIn, ReviewOut, SessionIn, SessionOut, SrsOut,
+    DashboardOut, GameRef, MistakeRef, PuzzleOut, PuzzleSibling, QueueOut, ReviewIn, ReviewOut, SessionIn, SessionOut, SrsOut,
 )
 from chess_trainer.config import get_setting, load_settings
 from chess_trainer.core.models import Game, Puzzle, Review, TrainingSession, utcnow
@@ -27,6 +27,10 @@ def _puzzle_out(p: Puzzle) -> PuzzleOut:
         game=GameRef(id=p.game.id, white=p.game.white, black=p.game.black, played_at=p.game.played_at,
                      source_id=p.game.source_id, my_color=p.game.my_color),
         ply=p.position.ply, move_played=p.position.move_played,
+        mistake=MistakeRef(ply=p.position.ply, move_played=p.position.move_played, move_uci=p.position.move_uci,
+                           eval_before=p.position.eval_before, eval_after=p.position.eval_after,
+                           mistake_level=p.position.mistake_level, mistake_by=p.position.mistake_by),
+        siblings=[PuzzleSibling(id=s.id, kind=s.kind) for s in p.position.puzzles if s.id != p.id],
     )
 
 

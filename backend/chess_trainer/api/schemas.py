@@ -78,6 +78,21 @@ class PuzzleRef(BaseModel):
     is_leech: bool
 
 
+class MistakeRef(BaseModel):
+    ply: int
+    move_played: str
+    move_uci: str
+    eval_before: int
+    eval_after: int
+    mistake_level: str | None
+    mistake_by: str | None
+
+
+class PuzzleSibling(BaseModel):
+    id: str
+    kind: str
+
+
 class MistakeOut(BaseModel):
     position_id: str
     game_id: str
@@ -130,6 +145,8 @@ class PuzzleOut(BaseModel):
     game: GameRef
     ply: int
     move_played: str
+    mistake: MistakeRef
+    siblings: list[PuzzleSibling] = []
 
 
 class QueueOut(BaseModel):

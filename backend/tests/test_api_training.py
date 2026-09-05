@@ -98,6 +98,16 @@ def test_leech_and_unleech(ready):
     assert client.get("/api/queue").json()["due_count"] == 1
 
 
+def test_puzzle_out_carries_mistake_and_siblings(ready):
+    _, client = ready
+    puzzle = client.get("/api/queue").json()["items"][0]
+    m = puzzle["mistake"]
+    assert m["ply"] == 6 and m["move_played"] == "Nf6" and m["move_uci"] == "g8f6"
+    assert m["mistake_level"] == "blunder" and m["mistake_by"] == "opponent"
+    assert m["eval_before"] == 0 and m["eval_after"] < -90000
+    assert puzzle["siblings"] == []
+
+
 def test_review_unknown_puzzle_is_404(ready):
     _, client = ready
     assert client.post("/api/reviews", json={"puzzle_id": "nope", "correct": True}).status_code == 404
