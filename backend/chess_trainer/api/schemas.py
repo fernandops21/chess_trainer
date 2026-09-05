@@ -231,3 +231,69 @@ class DashboardOut(BaseModel):
     games_analyzed: int
     puzzles_total: int
     leeches: int
+
+
+class TacticOut(BaseModel):
+    id: str
+    kind: str = "tactic"
+    fen_start: str
+    side_to_move: str
+    solution: dict
+    end_reason: str
+    theme: str
+    themes: list[str]
+    category: str = "lichess"
+    rating: int
+    solver_moves: int
+    lichess_url: str
+    popularity: int
+    nb_plays: int
+    opening_tags: list[str] = []
+
+
+class AttemptIn(BaseModel):
+    puzzle_id: str
+    session_id: str | None = None
+    correct: bool
+    used_hint: bool = False
+    duration_ms: int = 0
+
+
+class AttemptOut(BaseModel):
+    id: str
+    puzzle_id: str
+    correct: bool
+    used_hint: bool
+    rating_before: int
+    rating_after: int
+    delta: int
+    puzzle_rating: int
+
+
+class TacticsStatusOut(BaseModel):
+    imported: bool
+    count: int
+    imported_at: str | None
+    source_rows: int | None
+    rating: int
+    window: int
+    attempts_total: int
+    attempts_today: int
+    attempts_30d: int
+    correct_30d: int
+
+
+class ThemeCountOut(BaseModel):
+    theme: str
+    label: str
+    count: int
+
+
+class ThemeStatOut(BaseModel):
+    theme: str
+    label: str
+    attempts: int
+    correct: int
+    accuracy: float
+    own: int
+    lichess: int

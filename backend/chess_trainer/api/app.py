@@ -7,12 +7,13 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
 from chess_trainer.api.jobs import JobRunner
-from chess_trainer.api.routes import analysis, games, system, training
+from chess_trainer.api.routes import analysis, games, system, tactics, training
 from chess_trainer.config import AppSettings, load_settings
 from chess_trainer.core.analysis.engine import EngineLike, StockfishEngine, find_stockfish
 from chess_trainer.core.analysis.interactive import InteractiveAnalyzer
 from chess_trainer.core.db import init_db, make_engine, make_session_factory
 from chess_trainer.core.importers.chesscom import ChessComClient
+from chess_trainer.core.tactics.importer import LICHESS_PUZZLE_URL
 
 USER_AGENT = "chess-trainer/0.1 (local)"
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -69,6 +70,7 @@ def create_app(
     chesscom_factory=None,
     dist_dir: str | Path | None = None,
     analysis_engine_factory=None,
+    tactics_source: str | Path | None = None,
 ) -> FastAPI:
     if db_path is None:
         db_path = os.environ.get("CHESS_TRAINER_DB", str(BACKEND_DIR / "data" / "chess_trainer.db"))
@@ -99,11 +101,15 @@ def create_app(
         return StockfishEngine(path, threads=2, hash_mb=64) if path else None
 
     app.state.analyzer = InteractiveAnalyzer(analysis_engine_factory or _default_analysis_factory)
+    # caminho local já baixado ou URL do banco do Lichess (nos testes, um arquivo local)
+    app.state.tactics_source = tactics_source or os.environ.get("CHESS_TRAINER_LICHESS_SOURCE", LICHESS_PUZZLE_URL)
+    app.state.tactics_dest = BACKEND_DIR / "data" / "lichess_db_puzzle.csv.zst"
 
     app.include_router(system.router)
     app.include_router(games.router)
     app.include_router(training.router)
     app.include_router(analysis.router)
+    app.include_router(tactics.router)
 
     dist = Path(dist_dir) if dist_dir is not None else BACKEND_DIR.parent / "frontend" / "dist"
     if dist.is_dir():
