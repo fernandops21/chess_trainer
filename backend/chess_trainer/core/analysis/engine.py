@@ -50,6 +50,13 @@ class StockfishEngine:
     def analyse(
         self, board: chess.Board, depth: int, multipv: int = 1, max_seconds: float | None = None,
     ) -> list[LineEval]:
+        """Analisa a posição com um limite de profundidade e, opcionalmente, de tempo.
+
+        O limite efetivo de tempo é ``max_seconds`` + 10s: ``SimpleEngine`` do
+        python-chess aguarda seu próprio timeout interno (10s, tempo de resposta
+        do protocolo UCI) além do ``max_seconds`` configurado antes de desistir
+        e levantar erro.
+        """
         if board.is_game_over() or self._engine is None:
             return []
         limit = chess.engine.Limit(depth=depth, time=max_seconds)
@@ -74,8 +81,13 @@ class StockfishEngine:
         if self._engine is not None:
             try:
                 self._engine.quit()
-            except chess.engine.EngineError:
-                pass
+            except (chess.engine.EngineError, TimeoutError, OSError):
+                transport = getattr(self._engine, "transport", None)
+                if transport is not None:
+                    try:
+                        transport.kill()
+                    except Exception:
+                        pass
             self._engine = None
 
     def restart(self) -> None:

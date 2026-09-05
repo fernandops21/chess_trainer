@@ -59,6 +59,33 @@ def test_stockfish_analyse_restarts_and_raises_engine_error_on_timeout(monkeypat
     assert restart_calls == [True]
 
 
+class _TransportSpy:
+    def __init__(self):
+        self.killed = False
+
+    def kill(self):
+        self.killed = True
+
+
+class _QuitTimeoutStub:
+    def __init__(self):
+        self.transport = _TransportSpy()
+
+    def quit(self):
+        raise TimeoutError("quit sem resposta")
+
+
+def test_close_tolerates_quit_timeout_kills_process_and_restart_reopens(monkeypatch):
+    engine = StockfishEngine.__new__(StockfishEngine)
+    stub = _QuitTimeoutStub()
+    engine._engine = stub
+    open_calls: list[bool] = []
+    monkeypatch.setattr(engine, "_open", lambda: open_calls.append(True))
+    engine.restart()  # close() must not raise despite quit() raising TimeoutError
+    assert stub.transport.killed is True
+    assert open_calls == [True]
+
+
 def test_find_stockfish_prefers_configured(tmp_path):
     exe = tmp_path / "stockfish.exe"
     exe.write_bytes(b"")

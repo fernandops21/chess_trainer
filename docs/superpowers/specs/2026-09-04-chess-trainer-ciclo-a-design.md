@@ -163,7 +163,8 @@ Settings  chave/valor: chesscom_username, categories, stockfish_path,
   15s, `go depth D movetime T`: a engine para no que vier primeiro); se
   a engine não responder dentro do prazo, `StockfishEngine.analyse`
   reinicia o processo e propaga `EngineError`, e a partida volta à fila
-  como no caso de engine morta.
+  como no caso de engine morta. O limite efetivo é o valor configurado
+  + 10 s (tempo de resposta do protocolo do python-chess).
 - Ao concluir a partida: detecção de erros e geração de puzzles rodam
   em sequência, na mesma tarefa.
 
@@ -190,9 +191,10 @@ numa profundidade menor, `reply_depth` (padrão `puzzle_depth − 6`, mínimo
 12, nunca maior que `puzzle_depth`), exceto em modo mate, onde a resposta
 usa a profundidade cheia (`puzzle_depth`): uma defesa mal calculada por
 profundidade rasa quebraria a linha de mate inteira.
-As buscas multipv usam o teto `puzzle_search_seconds` (padrão 20s) e a
-resposta do defensor usa `puzzle_reply_seconds` (padrão 10s), em ambos
-os modos ("punir" e "evitar").
+As buscas multipv usam o teto `puzzle_search_seconds` (padrão 20s) em
+ambos os modos ("punir" e "evitar"). `puzzle_reply_seconds` (padrão 10s)
+se aplica só ao modo "punir", na análise da resposta do defensor; o modo
+"evitar" não analisa resposta de defensor (só a busca multipv acima).
 
 ### 7.1 Puzzle "punir" (todo erro, seu ou do adversário)
 
