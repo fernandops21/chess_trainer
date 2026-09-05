@@ -112,6 +112,21 @@ test("404 logo no começo encerra a sessão com o motivo", async () => {
   expect(screen.getByText("Nova sessão")).toBeTruthy();
 });
 
+test("404 logo no começo usa o rating do status mesmo se ele chegar depois do início da sessão", async () => {
+  // O efeito de início da sessão roda (e chama `nextTactic`) antes do `tacticsStatus` do
+  // react-query resolver. Aqui deixamos o status resolver e re-renderizar primeiro, e só então
+  // rejeitamos `nextTactic` com 404 — o resumo final deve refletir o rating do status (1350),
+  // não o `DEFAULT_RATING` (1200) capturado pelo efeito na primeira renderização.
+  vi.spyOn(api, "tacticsStatus").mockResolvedValue({ ...status, rating: 1350 });
+  let rejectNext!: (e: unknown) => void;
+  vi.spyOn(api, "nextTactic").mockReturnValue(new Promise((_resolve, reject) => { rejectNext = reject; }));
+  renderSession();
+  await new Promise((r) => setTimeout(r, 10));
+  rejectNext(new ApiError(404, "Banco de táticas vazio."));
+  expect(await screen.findByText("Banco de táticas vazio.")).toBeTruthy();
+  expect(screen.getByText("Rating 1350 → 1350")).toBeTruthy();
+});
+
 test("encerrar sessão sai pelo resumo", async () => {
   vi.spyOn(api, "nextTactic").mockResolvedValue(tactic("t1"));
   renderSession();

@@ -8,7 +8,7 @@ export function startPlyFromFen(fen: string): number {
   const parts = fen.split(" ");
   const fullmove = Number(parts[5]);
   const n = Number.isFinite(fullmove) && fullmove > 0 ? Math.floor(fullmove) : 1;
-  return (n - 1) * 2 + (parts[1] === "b" ? 1 : 0);
+  return (n - 1) * 2 + (parts[1] === "b" ? 1 : 0) + 1;
 }
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));

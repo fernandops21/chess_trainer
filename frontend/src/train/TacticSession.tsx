@@ -57,6 +57,14 @@ export function TacticSession({ config, onFinish }: { config: SessionConfig; onF
   const seen = useRef<string[]>([]);
   const sessionRef = useRef<SessionOut | null>(null);
   const finished = useRef(false);
+  // `finish` é chamado a partir de closures async (efeito de início, `goNext`) que podem ter
+  // capturado uma versão antiga de `finish`/`startRating`; o ref garante que ele sempre lê o
+  // rating do status mais recente, mesmo que o status só tenha chegado depois do começo.
+  const startRatingRef = useRef(startRating);
+  startRatingRef.current = startRating;
+  // limite de ids em `exclude` para manter a query string com tamanho previsível
+  const MAX_EXCLUDE = 200;
+  const excludeIds = () => seen.current.slice(-MAX_EXCLUDE);
   // Mesma proteção do treino próprio: sob StrictMode o efeito roda duas vezes
   // e a segunda execução precisa se reinscrever no mesmo request.
   const startP = useRef<Promise<[SessionOut, TacticOut]> | null>(null);
@@ -76,16 +84,16 @@ export function TacticSession({ config, onFinish }: { config: SessionConfig; onF
       done: all,
       elapsedLabel: mmss(clock.elapsedMs),
       reason,
-      ratingStart: all.length ? all[0].attempt.rating_before : startRating,
-      ratingEnd: all.length ? all[all.length - 1].attempt.rating_after : startRating,
+      ratingStart: all.length ? all[0].attempt.rating_before : startRatingRef.current,
+      ratingEnd: all.length ? all[all.length - 1].attempt.rating_after : startRatingRef.current,
     });
-  }, [clock, onFinish, qc, startRating]);
+  }, [clock, onFinish, qc]);
 
   useEffect(() => {
     startP.current ??= (async () => {
       const s = await api.createSession({ planned_minutes: config.plannedMinutes, filters: { source: "tactics", themes: config.themes } });
       sessionRef.current = s;
-      return [s, await api.nextTactic({ themes: config.themes, exclude: [...seen.current] })] as [SessionOut, TacticOut];
+      return [s, await api.nextTactic({ themes: config.themes, exclude: excludeIds() })] as [SessionOut, TacticOut];
     })();
     let alive = true;
     startP.current.then(
@@ -102,7 +110,7 @@ export function TacticSession({ config, onFinish }: { config: SessionConfig; onF
 
   const goNext = async (all: TacticDone[]) => {
     try {
-      arrive(await api.nextTactic({ themes: config.themes, exclude: [...seen.current] }));
+      arrive(await api.nextTactic({ themes: config.themes, exclude: excludeIds() }));
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) await finish(e.message, all);
       else await finish("Não foi possível buscar a próxima tática.", all);
