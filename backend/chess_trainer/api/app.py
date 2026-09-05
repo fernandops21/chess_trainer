@@ -2,7 +2,8 @@ import os
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.staticfiles import StaticFiles
 
 from chess_trainer.api.jobs import JobRunner
 from chess_trainer.api.routes import games, system, training
@@ -13,6 +14,18 @@ from chess_trainer.core.importers.chesscom import ChessComClient
 
 USER_AGENT = "chess-trainer/0.1 (local)"
 BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+
+class SpaStaticFiles(StaticFiles):
+    """Serve os estáticos e devolve index.html para rotas do SPA."""
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404 and not path.startswith("api"):
+                return await super().get_response("index.html", scope)
+            raise
 
 
 def default_engine_factory(settings: AppSettings) -> EngineLike | None:
@@ -35,7 +48,12 @@ def _probe_engine_factory(engine_factory):
     return probe
 
 
-def create_app(db_path: str | None = None, engine_factory=None, chesscom_factory=None) -> FastAPI:
+def create_app(
+    db_path: str | None = None,
+    engine_factory=None,
+    chesscom_factory=None,
+    dist_dir: str | Path | None = None,
+) -> FastAPI:
     if db_path is None:
         db_path = os.environ.get("CHESS_TRAINER_DB", str(BACKEND_DIR / "data" / "chess_trainer.db"))
     db_engine = make_engine(db_path)
@@ -54,7 +72,7 @@ def create_app(db_path: str | None = None, engine_factory=None, chesscom_factory
     app.include_router(games.router)
     app.include_router(training.router)
 
-    dist = BACKEND_DIR.parent / "frontend" / "dist"
+    dist = Path(dist_dir) if dist_dir is not None else BACKEND_DIR.parent / "frontend" / "dist"
     if dist.is_dir():
-        app.mount("/", StaticFiles(directory=str(dist), html=True), name="frontend")
+        app.mount("/", SpaStaticFiles(directory=str(dist), html=True), name="frontend")
     return app

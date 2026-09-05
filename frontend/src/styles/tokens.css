@@ -1,0 +1,17 @@
+:root {
+  --bg: #f4f1ea;
+  --surface: #ffffff;
+  --ink: #221c17;
+  --muted: #6b6259;
+  --line: #e2dbd0;
+  --brand: #2b2118;
+  --brand-ink: #f4f1ea;
+  --ok: #2e7d32;
+  --bad: #c62828;
+  --warn: #f9a825;
+  --accent: #ffe082;
+  --radius: 10px;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --nav-w: 220px;
+  --tap: 44px;
+}
