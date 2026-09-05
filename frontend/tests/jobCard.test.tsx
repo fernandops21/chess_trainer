@@ -29,7 +29,7 @@ vi.mock("../src/api/queries", () => ({
 
 test("mostra o rótulo do job 'evitar' e o botão desabilitado enquanto cancela", () => {
   render(<JobCard />);
-  expect(screen.getByText(/Regeração dos puzzles evitar/)).toBeTruthy();
+  expect(screen.getByText(/Recriação dos puzzles evitar/)).toBeTruthy();
   const button = screen.getByRole("button", { name: /Cancelando/ }) as HTMLButtonElement;
   expect(button.textContent).toMatch(/Cancelando/);
   expect(button.disabled).toBe(true);

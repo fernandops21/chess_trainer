@@ -82,17 +82,17 @@ export function SettingsPage() {
       </div>
       <div className="card">
         <h3 style={{ marginTop: 0, color: "var(--bad)" }}>Perigo</h3>
-        <button className="danger" onClick={() => setConfirm(true)} disabled={status?.job.state === "running"}>Regerar puzzles</button>
-        <button className="danger" onClick={() => setConfirmAvoid(true)} disabled={status?.job.state === "running"}>Regerar só os evitar</button>
+        <button className="danger" onClick={() => setConfirm(true)} disabled={status?.job.state === "running"}>Recriar puzzles</button>
+        <button className="danger" onClick={() => setConfirmAvoid(true)} disabled={status?.job.state === "running"}>Recriar só os evitar</button>
         <ErrorBox error={start.error} />
       </div>
-      <Modal open={confirm} title="Regerar todos os puzzles?" onClose={() => setConfirm(false)}>
+      <Modal open={confirm} title="Recriar todos os puzzles?" onClose={() => setConfirm(false)}>
         <p>Isso apaga todos os puzzles e <b>todo o histórico de treino</b> (revisões, intervalos, sequência) e gera tudo de novo com os limiares atuais. Não pode ser desfeito.</p>
-        <div className="row"><button className="danger" onClick={() => { start.mutate({ kind: "regenerate" }); setConfirm(false); }}>Regerar</button><button onClick={() => setConfirm(false)}>Cancelar</button></div>
+        <div className="row"><button className="danger" onClick={() => { start.mutate({ kind: "regenerate" }); setConfirm(false); }}>Recriar</button><button onClick={() => setConfirm(false)}>Cancelar</button></div>
       </Modal>
-      <Modal open={confirmAvoid} title="Regerar só os puzzles 'evitar'?" onClose={() => setConfirmAvoid(false)}>
+      <Modal open={confirmAvoid} title="Recriar só os puzzles 'evitar'?" onClose={() => setConfirmAvoid(false)}>
         <p>Apaga e regera só os puzzles "evitar" (e o histórico de treino deles). Os "punir" e seu histórico ficam.</p>
-        <div className="row"><button className="danger" onClick={() => { start.mutate({ kind: "regenerate", avoidOnly: true }); setConfirmAvoid(false); }}>Regerar</button><button onClick={() => setConfirmAvoid(false)}>Cancelar</button></div>
+        <div className="row"><button className="danger" onClick={() => { start.mutate({ kind: "regenerate", avoidOnly: true }); setConfirmAvoid(false); }}>Recriar</button><button onClick={() => setConfirmAvoid(false)}>Cancelar</button></div>
       </Modal>
     </>
   );

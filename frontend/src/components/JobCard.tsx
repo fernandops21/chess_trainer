@@ -6,8 +6,8 @@ import { storage } from "../lib/storage";
 const JOB_LABEL: Record<string, string> = {
   import: "Importação",
   analyze: "Análise",
-  regenerate: "Regeração de todos os puzzles",
-  regenerate_avoid: "Regeração dos puzzles evitar",
+  regenerate: "Recriação de todos os puzzles",
+  regenerate_avoid: "Recriação dos puzzles evitar",
 };
 
 const JOB_RUNNING_HINT: Record<string, string> = {
