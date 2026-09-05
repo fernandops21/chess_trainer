@@ -2,6 +2,7 @@ import json
 from datetime import datetime
 
 from chess_trainer.core.models import Game, Position, Puzzle, Review, TrainingSession, utcnow
+from chess_trainer.core.models import LichessPuzzle, LichessPuzzleTheme, TacticsAttempt
 
 
 def _game(**over):
@@ -72,3 +73,24 @@ def test_puzzle_unique_fen_kind(db_session):
                               solution="{}", end_reason="mate", theme="tactic", category="rapid", solver_moves=1))
     with pytest.raises(IntegrityError):
         db_session.commit()
+
+
+def test_lichess_puzzle_roundtrip(db_session):
+    db_session.add(LichessPuzzle(id="00sHx", fen="q3k1nr/1pp1nQpp/3p4/1P2p3/4P3/B1PP1b2/B5PP/5K2 b k - 0 17",
+                                 moves="e8d7 a2e6 d7d8 f7f8", rating=1760, rating_deviation=80,
+                                 popularity=83, nb_plays=72, themes="mate mateIn2 middlegame short",
+                                 opening_tags=""))
+    db_session.add(LichessPuzzleTheme(theme="mateIn2", puzzle_id="00sHx"))
+    db_session.commit()
+    row = db_session.get(LichessPuzzle, "00sHx")
+    assert row.rating == 1760 and row.theme_list == ["mate", "mateIn2", "middlegame", "short"]
+
+
+def test_tactics_attempt_defaults(db_session):
+    db_session.add(LichessPuzzle(id="p1", fen="8/8/8/8/8/8/8/K6k w - - 0 1", moves="a1a2", rating=1000,
+                                 rating_deviation=50, popularity=90, nb_plays=500, themes="endgame", opening_tags=""))
+    a = TacticsAttempt(puzzle_id="p1", correct=True, used_hint=False, duration_ms=1200,
+                       rating_before=1200, rating_after=1210, puzzle_rating=1000)
+    db_session.add(a)
+    db_session.commit()
+    assert a.id and a.attempted_at is not None and a.session_id is None

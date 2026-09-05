@@ -24,6 +24,10 @@ class AppSettings:
     analysis_seconds: int = 15
     puzzle_search_seconds: int = 20
     puzzle_reply_seconds: int = 10
+    tactics_rating: int = 1200
+    tactics_window: int = 150
+    lichess_min_plays: int = 200
+    lichess_min_popularity: int = 60
 
 
 def get_setting(db: Session, key: str, default: Any = None) -> Any:

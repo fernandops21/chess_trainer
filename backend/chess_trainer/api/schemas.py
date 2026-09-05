@@ -17,6 +17,10 @@ class SettingsOut(BaseModel):
     analysis_seconds: int
     puzzle_search_seconds: int
     puzzle_reply_seconds: int
+    tactics_rating: int
+    tactics_window: int
+    lichess_min_plays: int
+    lichess_min_popularity: int
 
 
 class SettingsIn(BaseModel):
@@ -33,6 +37,10 @@ class SettingsIn(BaseModel):
     analysis_seconds: int | None = None
     puzzle_search_seconds: int | None = None
     puzzle_reply_seconds: int | None = None
+    tactics_rating: int | None = None
+    tactics_window: int | None = None
+    lichess_min_plays: int | None = None
+    lichess_min_popularity: int | None = None
 
 
 class GameOut(BaseModel):

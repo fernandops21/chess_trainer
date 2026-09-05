@@ -135,3 +135,49 @@ class Setting(Base):
 
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[str] = mapped_column(Text)  # JSON
+
+
+class LichessPuzzle(Base):
+    """Uma linha do banco aberto de puzzles do Lichess (CC0). `fen` é a posição
+    antes do lance do adversário; `moves` (UCI, separados por espaço) começa
+    com esse lance."""
+
+    __tablename__ = "lichess_puzzles"
+
+    id: Mapped[str] = mapped_column(String(8), primary_key=True)
+    fen: Mapped[str] = mapped_column(String(100))
+    moves: Mapped[str] = mapped_column(Text)
+    rating: Mapped[int] = mapped_column(Integer, index=True)
+    rating_deviation: Mapped[int] = mapped_column(Integer)
+    popularity: Mapped[int] = mapped_column(Integer)
+    nb_plays: Mapped[int] = mapped_column(Integer)
+    themes: Mapped[str] = mapped_column(Text, default="")
+    opening_tags: Mapped[str] = mapped_column(Text, default="")
+
+    @property
+    def theme_list(self) -> list[str]:
+        return self.themes.split()
+
+
+class LichessPuzzleTheme(Base):
+    __tablename__ = "lichess_puzzle_themes"
+
+    theme: Mapped[str] = mapped_column(String(32), primary_key=True)
+    puzzle_id: Mapped[str] = mapped_column(ForeignKey("lichess_puzzles.id", ondelete="CASCADE"), primary_key=True)
+
+
+class TacticsAttempt(Base):
+    __tablename__ = "tactics_attempts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    puzzle_id: Mapped[str] = mapped_column(ForeignKey("lichess_puzzles.id"), index=True)
+    session_id: Mapped[str | None] = mapped_column(ForeignKey("sessions.id"), default=None)
+    attempted_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, index=True)
+    correct: Mapped[bool] = mapped_column(Boolean)
+    used_hint: Mapped[bool] = mapped_column(Boolean, default=False)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    rating_before: Mapped[int] = mapped_column(Integer)
+    rating_after: Mapped[int] = mapped_column(Integer)
+    puzzle_rating: Mapped[int] = mapped_column(Integer)
+
+    puzzle: Mapped[LichessPuzzle] = relationship()

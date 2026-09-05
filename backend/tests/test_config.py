@@ -48,3 +48,8 @@ def test_raw_setting_helpers(db_session):
     assert get_setting(db_session, "last_imported_archive") == "https://x/2026/09"
     set_setting(db_session, "last_imported_archive", "https://x/2026/10")
     assert get_setting(db_session, "last_imported_archive") == "https://x/2026/10"
+
+
+def test_tactics_settings_defaults(db_session):
+    s = load_settings(db_session)
+    assert (s.tactics_rating, s.tactics_window, s.lichess_min_plays, s.lichess_min_popularity) == (1200, 150, 200, 60)
