@@ -54,6 +54,22 @@ def test_import_stops_between_batches(db_session, csv_zst):
     assert stats.cancelled is True and stats.rows_read <= 2
 
 
+def test_cancel_keeps_committed_rows(db_session, csv_zst):
+    # should_stop segue False na 1ª chamada e True nas seguintes: o cancelamento
+    # acontece depois de pelo menos um flush, e esse trabalho já commitado deve
+    # permanecer no banco.
+    calls = {"n": 0}
+
+    def should_stop() -> bool:
+        calls["n"] += 1
+        return calls["n"] > 1
+
+    stats = import_csv_zst(db_session, csv_zst, FLT, lambda *a: None, should_stop=should_stop, batch_size=1)
+    assert stats.cancelled is True
+    ids = set(db_session.scalars(select(LichessPuzzle.id)))
+    assert ids and ids == {"00sHx", "00sJ9"}
+
+
 def test_download_streams_and_reports_progress(tmp_path: Path):
     payload = b"x" * 10_000
     seen = []
