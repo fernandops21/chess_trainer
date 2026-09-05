@@ -6,6 +6,7 @@ export interface SessionConfig { filters: QueueFilters; plannedMinutes: number |
 
 const asKind = (v: string): QueueFilters["kind"] => (v === "punish" || v === "avoid" ? v : undefined);
 const asColor = (v: string): QueueFilters["color"] => (v === "white" || v === "black" ? v : undefined);
+const clampMinutes = (v: number): number => Math.min(180, Math.max(5, v || 25));
 
 export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void }) {
   const [timed, setTimed] = useState<boolean>(storage.get("train.timed", true));
@@ -15,10 +16,11 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
   const [category, setCategory] = useState<string>("");
 
   const start = () => {
-    storage.set("train.timed", timed); storage.set("train.minutes", minutes);
+    const clamped = clampMinutes(minutes);
+    storage.set("train.timed", timed); storage.set("train.minutes", clamped);
     onStart({
       filters: { kind: asKind(kind), color: asColor(color), category: category || undefined },
-      plannedMinutes: timed ? minutes : null,
+      plannedMinutes: timed ? clamped : null,
     });
   };
 
@@ -26,9 +28,10 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
     <div className="card">
       <h2 style={{ marginTop: 0 }}>Nova sessão</h2>
       <div className="row">
-        <label><input type="radio" checked={!timed} onChange={() => setTimed(false)} /> até acabar a fila</label>
-        <label><input type="radio" checked={timed} onChange={() => setTimed(true)} /> por tempo:</label>
-        <input type="number" min={5} max={180} value={minutes} disabled={!timed} onChange={(e) => setMinutes(Number(e.target.value))} style={{ width: 80 }} /> min
+        <label><input type="radio" name="mode" checked={!timed} onChange={() => setTimed(false)} /> até acabar a fila</label>
+        <label><input type="radio" name="mode" checked={timed} onChange={() => setTimed(true)} /> por tempo:</label>
+        <input type="number" min={5} max={180} value={minutes} disabled={!timed} aria-label="Minutos"
+          onChange={(e) => setMinutes(clampMinutes(Number(e.target.value)))} style={{ width: 80 }} /> min
       </div>
       <div className="row" style={{ marginTop: 10 }}>
         <select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Tipo">

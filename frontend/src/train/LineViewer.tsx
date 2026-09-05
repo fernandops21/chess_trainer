@@ -3,20 +3,26 @@ import { buildLine } from "../board/line";
 import { Board } from "../board/Board";
 
 export function LineViewer({ fenStart, ucis, orientation, startPly, keyboard = true }: { fenStart: string; ucis: string[]; orientation: "white" | "black"; startPly: number; keyboard?: boolean }) {
-  const line = useMemo(() => buildLine(fenStart, ucis), [fenStart, ucis]);
+  // `ucis` is often rebuilt fresh (new array, same contents) by callers that re-render on
+  // every tick (e.g. a session clock). Deriving a stable string key from its contents keeps
+  // `line`/`pos` from being recomputed/reset unless the moves actually changed.
+  const key = ucis.join(" ");
+  const line = useMemo(() => buildLine(fenStart, ucis), [fenStart, key]);
   const [pos, setPos] = useState(line.fens.length - 1);
   const touchX = useRef<number | null>(null);
-  useEffect(() => setPos(line.fens.length - 1), [line]);
+  const lenRef = useRef(line.fens.length);
+  lenRef.current = line.fens.length;
+  useEffect(() => { setPos(line.fens.length - 1); }, [fenStart, key]);
 
   const prev = () => setPos((p) => Math.max(0, p - 1));
-  const next = () => setPos((p) => Math.min(line.fens.length - 1, p + 1));
+  const next = () => setPos((p) => Math.min(lenRef.current - 1, p + 1));
 
   useEffect(() => {
     if (!keyboard) return;
     const h = (e: KeyboardEvent) => { if (e.key === "ArrowLeft") prev(); if (e.key === "ArrowRight") next(); };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [keyboard, line]);
+  }, [keyboard, key]);
 
   return (
     <div

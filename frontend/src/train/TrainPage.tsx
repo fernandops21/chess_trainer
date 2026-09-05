@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
@@ -14,14 +14,14 @@ import { usePuzzle } from "./usePuzzle";
 import { mmss, useSessionClock } from "./useSessionClock";
 
 /** Um puzzle da sessão: monta usePuzzle com key = puzzle.id para reiniciar o estado a cada puzzle. */
-function SessionPuzzle({ puzzle, sessionId, clockLabel, orderInfo, onDone, presetHint, nextLabel }:
-  { puzzle: PuzzleOut; sessionId: string | null; clockLabel?: string; orderInfo?: string; onDone: (d: Done) => void; presetHint?: boolean; nextLabel?: string }) {
+function SessionPuzzle({ puzzle, sessionId, clockLabel, orderInfo, onDone, presetHint, nextLabel, nextDisabled }:
+  { puzzle: PuzzleOut; sessionId: string | null; clockLabel?: string; orderInfo?: string; onDone: (d: Done) => void; presetHint?: boolean; nextLabel?: string; nextDisabled?: boolean }) {
   const submit = useCallback((body: ReviewIn) => api.review(body), []);
   const ctl = usePuzzle(puzzle, { sessionId, submit, presetHint });
   const { state } = ctl;
   if (state.phase === "result" || state.phase === "submit_error" || state.phase === "submitting") {
     return <ResultPanel puzzle={puzzle} review={state.review} error={state.error} onRetry={ctl.retrySubmit}
-      onNext={() => state.review && onDone({ puzzle, review: state.review })} nextLabel={nextLabel} />;
+      onNext={() => state.review && onDone({ puzzle, review: state.review })} nextLabel={nextLabel} nextDisabled={nextDisabled} clockLabel={clockLabel} />;
   }
   return <PuzzleView puzzle={puzzle} ctl={ctl} clockLabel={clockLabel} orderInfo={orderInfo} />;
 }
@@ -31,7 +31,7 @@ function SingleTrain({ id, seen }: { id: string; seen: boolean }) {
   const { data, error, isLoading } = usePuzzleQuery(id);
   if (isLoading) return <p className="muted">Carregando…</p>;
   if (error || !data) return <ErrorBox error={error ?? new Error("Puzzle não encontrado")} />;
-  return <SessionPuzzle puzzle={data} sessionId={null} presetHint={seen} nextLabel="Voltar" onDone={() => nav(-1)} />;
+  return <SessionPuzzle key={data.id} puzzle={data} sessionId={null} presetHint={seen} nextLabel="Voltar" onDone={() => nav(-1)} />;
 }
 
 function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done: Done[], elapsedLabel: string, reason: string) => void }) {
@@ -42,9 +42,13 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
   const [done, setDone] = useState<Done[]>([]);
   const [error, setError] = useState<unknown>(null);
   const [askContinue, setAskContinue] = useState(false);
+  const [advancing, setAdvancing] = useState(false);
   const clock = useSessionClock(config.plannedMinutes);
+  const started = useRef(false);
 
   useEffect(() => {
+    if (started.current) return;
+    started.current = true;
     let alive = true;
     (async () => {
       try {
@@ -67,7 +71,12 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
     const all = [...done, d];
     setDone(all);
     if (clock.expired) { setAskContinue(true); return; }
-    await goNext(all);
+    setAdvancing(true);
+    try {
+      await goNext(all);
+    } finally {
+      setAdvancing(false);
+    }
   };
 
   const goNext = async (all: Done[]) => {
@@ -77,7 +86,9 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
       const q = await api.queue(config.filters);
       if (q.items.length === 0) { await finish("Fila vazia por hoje.", all); return; }
       setQueue(q); setI(0);
-    } catch (e) { setError(e); }
+    } catch {
+      await finish("Não foi possível recarregar a fila.", all);
+    }
   };
 
   if (error) return <ErrorBox error={error} />;
@@ -91,7 +102,7 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
   return (
     <>
       <SessionPuzzle key={puzzle.id} puzzle={puzzle} sessionId={session.id} clockLabel={clock.label}
-        orderInfo={`${done.length + 1}º da sessão · ${queue.due_count} vencidos`} onDone={advance} />
+        orderInfo={`${done.length + 1}º da sessão · ${queue.due_count} vencidos`} onDone={advance} nextDisabled={advancing} />
       <Modal open={askContinue} title="Tempo esgotado">
         <p>O tempo planejado acabou. Continuar ou encerrar?</p>
         <div className="row">
