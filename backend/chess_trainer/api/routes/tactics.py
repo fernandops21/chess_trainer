@@ -52,8 +52,9 @@ def post_import(request: Request):
             if not stats.cancelled:
                 set_setting(session, "lichess_imported_at", utcnow().isoformat())
                 set_setting(session, "lichess_source_rows", stats.rows_read)
-                # total e temas ficam em cache: contar 3,9 M linhas a cada tela de status é caro
-                refresh_counts_cache(session)
+            # total e temas ficam em cache: contar milhões de linhas a cada tela de status é caro.
+            # Mesmo cancelada, a importação já gravou lotes, então o cache precisa acompanhar.
+            refresh_counts_cache(session)
             progress("import", stats.rows_read, stats.rows_read,
                      f"{stats.imported} táticas novas de {stats.rows_read} linhas" + (" (cancelado)" if stats.cancelled else ""))
         except DownloadCancelled:
