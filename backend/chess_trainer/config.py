@@ -21,6 +21,9 @@ class AppSettings:
     avoid_gap_cp: int = 150
     new_per_day: int = 10
     leech_lapses: int = 5
+    analysis_seconds: int = 15
+    puzzle_search_seconds: int = 20
+    puzzle_reply_seconds: int = 10
 
 
 def get_setting(db: Session, key: str, default: Any = None) -> Any:
@@ -67,4 +70,6 @@ def puzzle_config_from(settings: AppSettings) -> PuzzleConfig:
         # o piso de 12 poderia ultrapassar a própria profundidade principal.
         reply_depth=min(settings.puzzle_depth, max(12, settings.puzzle_depth - 6)),
         avoid_gap_cp=settings.avoid_gap_cp,
+        search_seconds=settings.puzzle_search_seconds,
+        reply_seconds=settings.puzzle_reply_seconds,
     )

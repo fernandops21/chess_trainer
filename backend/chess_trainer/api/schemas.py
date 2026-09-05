@@ -14,6 +14,9 @@ class SettingsOut(BaseModel):
     avoid_gap_cp: int
     new_per_day: int
     leech_lapses: int
+    analysis_seconds: int
+    puzzle_search_seconds: int
+    puzzle_reply_seconds: int
 
 
 class SettingsIn(BaseModel):
@@ -27,6 +30,9 @@ class SettingsIn(BaseModel):
     avoid_gap_cp: int | None = None
     new_per_day: int | None = None
     leech_lapses: int | None = None
+    analysis_seconds: int | None = None
+    puzzle_search_seconds: int | None = None
+    puzzle_reply_seconds: int | None = None
 
 
 class GameOut(BaseModel):

@@ -38,12 +38,20 @@ def test_status_and_settings_roundtrip(client):
     assert status["engine"]["available"] is True
     assert status["job"]["state"] == "idle" and status["games_total"] == 0
 
-    assert client.get("/api/settings").json()["new_per_day"] == 10
-    r = client.put("/api/settings", json={"chesscom_username": " TheRealZibs ", "new_per_day": 5})
+    initial = client.get("/api/settings").json()
+    assert initial["new_per_day"] == 10
+    assert initial["analysis_seconds"] == 15
+    assert initial["puzzle_search_seconds"] == 20 and initial["puzzle_reply_seconds"] == 10
+    r = client.put("/api/settings", json={
+        "chesscom_username": " TheRealZibs ", "new_per_day": 5,
+        "analysis_seconds": 30, "puzzle_search_seconds": 25, "puzzle_reply_seconds": 8,
+    })
     assert r.status_code == 200
     body = r.json()
     assert body["chesscom_username"] == "therealzibs" and body["new_per_day"] == 5
     assert body["analysis_depth"] == 18  # não enviado, mantido
+    assert body["analysis_seconds"] == 30
+    assert body["puzzle_search_seconds"] == 25 and body["puzzle_reply_seconds"] == 8
 
 
 def test_import_requires_username(client):

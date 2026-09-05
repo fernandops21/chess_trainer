@@ -8,6 +8,8 @@ def test_defaults_when_empty(db_session):
     assert s.analysis_depth == 18 and s.puzzle_depth == 20
     assert s.mistake_threshold_cp == 100 and s.blunder_threshold_cp == 200
     assert s.avoid_gap_cp == 150 and s.new_per_day == 10 and s.leech_lapses == 5
+    assert s.analysis_seconds == 15
+    assert s.puzzle_search_seconds == 20 and s.puzzle_reply_seconds == 10
 
 
 def test_save_normalizes_username_and_roundtrips(db_session):
@@ -33,6 +35,11 @@ def test_puzzle_config_from_clamps_reply_depth_to_depth():
     # profundidade abaixo do mínimo prático (12): reply_depth não pode superar depth.
     cfg = puzzle_config_from(AppSettings(puzzle_depth=10))
     assert cfg.depth == 10 and cfg.reply_depth == 10
+
+
+def test_puzzle_config_from_maps_time_caps():
+    cfg = puzzle_config_from(AppSettings(puzzle_search_seconds=30, puzzle_reply_seconds=12))
+    assert cfg.search_seconds == 30 and cfg.reply_seconds == 12
 
 
 def test_raw_setting_helpers(db_session):

@@ -1,3 +1,4 @@
+import asyncio
 import glob
 import os
 import shutil
@@ -19,7 +20,9 @@ class LineEval:
 
 
 class EngineLike(Protocol):
-    def analyse(self, board: chess.Board, depth: int, multipv: int = 1) -> list[LineEval]: ...
+    def analyse(
+        self, board: chess.Board, depth: int, multipv: int = 1, max_seconds: float | None = None,
+    ) -> list[LineEval]: ...
     def close(self) -> None: ...
     def restart(self) -> None: ...
 
@@ -44,10 +47,17 @@ class StockfishEngine:
         self._engine = chess.engine.SimpleEngine.popen_uci(self._path)
         self._engine.configure({"Threads": self._threads, "Hash": self._hash})
 
-    def analyse(self, board: chess.Board, depth: int, multipv: int = 1) -> list[LineEval]:
+    def analyse(
+        self, board: chess.Board, depth: int, multipv: int = 1, max_seconds: float | None = None,
+    ) -> list[LineEval]:
         if board.is_game_over() or self._engine is None:
             return []
-        infos = self._engine.analyse(board, chess.engine.Limit(depth=depth), multipv=multipv)
+        limit = chess.engine.Limit(depth=depth, time=max_seconds)
+        try:
+            infos = self._engine.analyse(board, limit, multipv=multipv)
+        except (TimeoutError, asyncio.TimeoutError, chess.engine.EngineTerminatedError):
+            self.restart()
+            raise chess.engine.EngineError(f"engine sem resposta em {max_seconds}s")
         if isinstance(infos, dict):
             infos = [infos]
         lines: list[LineEval] = []

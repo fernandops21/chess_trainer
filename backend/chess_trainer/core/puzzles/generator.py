@@ -40,6 +40,8 @@ class PuzzleConfig:
     max_mate_moves: int = 15
     min_solver_eval_cp: int = 100
     avoid_gap_cp: int = 150
+    search_seconds: float = 20.0
+    reply_seconds: float = 10.0
 
 
 def _color_name(color: chess.Color) -> str:
@@ -146,7 +148,7 @@ def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: P
     solver = board.turn
     start_balance = material_balance(board, solver)
 
-    lines: list[LineEval] | None = engine.analyse(board, cfg.depth, multipv=3)
+    lines: list[LineEval] | None = engine.analyse(board, cfg.depth, multipv=3, max_seconds=cfg.search_seconds)
     if not lines:
         return None
     mate_mode = is_mate_for(lines[0].score)
@@ -172,7 +174,7 @@ def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: P
 
     for _ in range(limit):
         if lines is None:
-            lines = engine.analyse(current, cfg.depth, multipv=3)
+            lines = engine.analyse(current, cfg.depth, multipv=3, max_seconds=cfg.search_seconds)
             if not lines:
                 return None
         best = lines[0]
@@ -192,7 +194,7 @@ def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: P
         # modo mate exige profundidade cheia na resposta: uma defesa mal calculada por
         # profundidade rasa (reply_depth) quebra a linha de mate inteira.
         reply_depth = cfg.depth if mate_mode else cfg.reply_depth
-        reply_lines = engine.analyse(after, reply_depth, multipv=1)
+        reply_lines = engine.analyse(after, reply_depth, multipv=1, max_seconds=cfg.reply_seconds)
         if not reply_lines:
             return None
         reply = reply_lines[0]
@@ -225,7 +227,7 @@ def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: P
 def generate_avoid(
     board_before: chess.Board, engine: EngineLike, cfg: PuzzleConfig, played_uci: str | None = None,
 ) -> PuzzleDraft | None:
-    lines = engine.analyse(board_before, cfg.depth, multipv=2)
+    lines = engine.analyse(board_before, cfg.depth, multipv=2, max_seconds=cfg.search_seconds)
     if len(lines) < 2:
         return None
     best, second = lines[0], lines[1]

@@ -20,17 +20,21 @@ class PositionData:
     best_eval: int
 
 
-def _evaluate(board: chess.Board, engine: EngineLike, depth: int) -> tuple[int, str | None]:
+def _evaluate(
+    board: chess.Board, engine: EngineLike, depth: int, max_seconds: float | None,
+) -> tuple[int, str | None]:
     term = terminal_score(board)
     if term is not None:
         return term, None
-    lines = engine.analyse(board, depth, multipv=1)
+    lines = engine.analyse(board, depth, multipv=1, max_seconds=max_seconds)
     if not lines:
         raise chess.engine.EngineError("engine não devolveu linhas para uma posição não terminal")
     return lines[0].score, lines[0].move
 
 
-def analyze_game(pgn: str, engine: EngineLike, depth: int) -> list[PositionData]:
+def analyze_game(
+    pgn: str, engine: EngineLike, depth: int, max_seconds: float | None = 15.0,
+) -> list[PositionData]:
     game = chess.pgn.read_game(io.StringIO(pgn))
     if game is None:
         raise ValueError("PGN inválido")
@@ -44,13 +48,13 @@ def analyze_game(pgn: str, engine: EngineLike, depth: int) -> list[PositionData]
     fens: list[str] = []
     sans: list[str] = []
     for move in moves:
-        score, best = _evaluate(board, engine, depth)
+        score, best = _evaluate(board, engine, depth, max_seconds)
         scores.append(score)
         bests.append(best)
         fens.append(board.fen())
         sans.append(board.san(move))
         board.push(move)
-    final_score, _ = _evaluate(board, engine, depth)
+    final_score, _ = _evaluate(board, engine, depth, max_seconds)
     scores.append(final_score)
 
     return [

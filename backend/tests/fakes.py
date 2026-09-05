@@ -23,9 +23,12 @@ class FakeEngine:
         self.default = default
         self.calls: list[str] = []
         self.depths: list[int] = []
+        self.max_seconds: list[float | None] = []
         self.fail_next = False  # simula engine morta na próxima chamada
 
-    def analyse(self, board: chess.Board, depth: int, multipv: int = 1) -> list[LineEval]:
+    def analyse(
+        self, board: chess.Board, depth: int, multipv: int = 1, max_seconds: float | None = None,
+    ) -> list[LineEval]:
         if self.fail_next:
             self.fail_next = False
             import chess.engine
@@ -33,6 +36,7 @@ class FakeEngine:
         key = board.epd()
         self.calls.append(key)
         self.depths.append(depth)
+        self.max_seconds.append(max_seconds)
         if key in self.script:
             return self.script[key][:multipv]
         if self.default is not None:

@@ -107,7 +107,9 @@ Session   id, started_at, ended_at (nullable), planned_minutes (nullable),
 Settings  chave/valor: chesscom_username, categories, stockfish_path,
           analysis_depth (18), puzzle_depth (20),
           mistake_threshold_cp (100), blunder_threshold_cp (200),
-          avoid_gap_cp (150), new_per_day (10), leech_lapses (5)
+          avoid_gap_cp (150), new_per_day (10), leech_lapses (5),
+          analysis_seconds (15), puzzle_search_seconds (20),
+          puzzle_reply_seconds (10)
 ```
 
 - `Position` guarda a análise inteira da partida, não só os erros.
@@ -157,6 +159,11 @@ Settings  chave/valor: chesscom_username, categories, stockfish_path,
 - Uma partida por vez, uma instância de engine reutilizada. Se a engine
   morrer, a partida fica sem `analyzed_at` e volta à fila; a engine é
   reiniciada.
+- Cada busca também carrega um teto de tempo (`analysis_seconds`, padrão
+  15s, `go depth D movetime T`: a engine para no que vier primeiro); se
+  a engine não responder dentro do prazo, `StockfishEngine.analyse`
+  reinicia o processo e propaga `EngineError`, e a partida volta à fila
+  como no caso de engine morta.
 - Ao concluir a partida: detecção de erros e geração de puzzles rodam
   em sequência, na mesma tarefa.
 
@@ -183,6 +190,9 @@ numa profundidade menor, `reply_depth` (padrão `puzzle_depth − 6`, mínimo
 12, nunca maior que `puzzle_depth`), exceto em modo mate, onde a resposta
 usa a profundidade cheia (`puzzle_depth`): uma defesa mal calculada por
 profundidade rasa quebraria a linha de mate inteira.
+As buscas multipv usam o teto `puzzle_search_seconds` (padrão 20s) e a
+resposta do defensor usa `puzzle_reply_seconds` (padrão 10s), em ambos
+os modos ("punir" e "evitar").
 
 ### 7.1 Puzzle "punir" (todo erro, seu ou do adversário)
 

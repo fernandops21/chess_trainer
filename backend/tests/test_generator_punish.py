@@ -156,6 +156,18 @@ def test_reply_analysis_uses_reply_depth_in_material_mode():
     assert fake.depths == [22, 16]
 
 
+def test_search_and_reply_seconds_are_passed_to_engine():
+    fake = FakeEngine({
+        chess.Board(HANGING_QUEEN).epd(): [LineEval("c3d5", 900, ("c3d5", "e8d7"))],
+        _after(HANGING_QUEEN, "c3d5").epd(): [LineEval("e8d7", -900, ("e8d7",))],
+    })
+    cfg = PuzzleConfig(depth=22, reply_depth=16, search_seconds=20.0, reply_seconds=10.0)
+    draft = generate_punish(chess.Board(HANGING_QUEEN), drop_cp=900, engine=fake, cfg=cfg)
+    assert draft is not None
+    # busca principal (multipv) usa search_seconds; a resposta do defensor usa reply_seconds.
+    assert fake.max_seconds == [20.0, 10.0]
+
+
 def test_draft_json_shape():
     fake = FakeEngine({chess.Board(MATE_IN_1).epd(): [LineEval("a1a8", M - 1, ("a1a8",))]})
     draft = generate_punish(chess.Board(MATE_IN_1), drop_cp=5000, engine=fake, cfg=CFG)

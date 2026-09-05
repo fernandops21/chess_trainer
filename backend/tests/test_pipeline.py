@@ -132,8 +132,8 @@ class _CountingEngine(FakeEngine):
         super().__init__(*args, **kwargs)
         self.multipv3_calls = 0
 
-    def analyse(self, board, depth, multipv=1):
-        lines = super().analyse(board, depth, multipv)
+    def analyse(self, board, depth, multipv=1, max_seconds=None):
+        lines = super().analyse(board, depth, multipv, max_seconds)
         if multipv == 3:
             self.multipv3_calls += 1
         return lines

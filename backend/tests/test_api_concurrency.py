@@ -28,11 +28,13 @@ class SlowPuzzleEngine(FakeEngine):
         super().__init__(*args, **kwargs)
         self.thinking = threading.Event()
 
-    def analyse(self, board: chess.Board, depth: int, multipv: int = 1) -> list[LineEval]:
+    def analyse(
+        self, board: chess.Board, depth: int, multipv: int = 1, max_seconds: float | None = None,
+    ) -> list[LineEval]:
         if multipv == 3:
             self.thinking.set()
             time.sleep(PUZZLE_SLEEP)
-        return super().analyse(board, depth, multipv)
+        return super().analyse(board, depth, multipv, max_seconds)
 
 
 def test_settings_write_is_not_blocked_by_running_analysis(tmp_path):

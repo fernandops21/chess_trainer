@@ -46,7 +46,9 @@ def analyze_pending(
         # Fase de engine: nada é escrito no banco enquanto o Stockfish pensa, para que
         # o SQLite não fique travado por minutos e outras requisições possam gravar.
         try:
-            data = analyze_game(game.pgn, engine, settings.analysis_depth)
+            data = analyze_game(
+                game.pgn, engine, settings.analysis_depth, max_seconds=settings.analysis_seconds,
+            )
         except ValueError:
             game.analyzed_at = utcnow()
             game.analysis_depth = 0
