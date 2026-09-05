@@ -16,7 +16,7 @@ export function GamesPage() {
       <h1>Partidas</h1>
       <div className="row card">
         <select value={q.category ?? ""} onChange={(e) => set({ category: e.target.value || undefined })} aria-label="Categoria">
-          <option value="">categoria</option><option value="rapid">rapid</option><option value="daily">daily</option><option value="blitz">blitz</option><option value="bullet">bullet</option>
+          <option value="">categoria</option><option value="rapid">rapid</option><option value="daily">daily</option><option value="classical">classical</option><option value="blitz">blitz</option><option value="bullet">bullet</option>
         </select>
         <select value={q.color ?? ""} onChange={(e) => set({ color: (e.target.value || undefined) as Color | undefined })} aria-label="Cor">
           <option value="">cor</option><option value="white">brancas</option><option value="black">pretas</option>

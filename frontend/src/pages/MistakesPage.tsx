@@ -71,7 +71,7 @@ export function MistakesPage() {
           <option value="">mistake e blunder</option><option value="mistake">só mistake</option><option value="blunder">só blunder</option>
         </select>
         <select value={q.category ?? ""} onChange={(e) => setQ({ ...q, category: e.target.value || undefined, limit: 50 })} aria-label="Categoria">
-          <option value="">categoria</option><option value="rapid">rapid</option><option value="daily">daily</option><option value="blitz">blitz</option><option value="bullet">bullet</option>
+          <option value="">categoria</option><option value="rapid">rapid</option><option value="daily">daily</option><option value="classical">classical</option><option value="blitz">blitz</option><option value="bullet">bullet</option>
         </select>
         <label><input type="checkbox" checked={q.by === "all"} onChange={(e) => setQ({ ...q, by: e.target.checked ? "all" : "me", limit: 50 })} /> incluir erros do adversário</label>
       </div>

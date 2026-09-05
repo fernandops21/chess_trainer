@@ -1,4 +1,5 @@
 import { Routes, Route } from "react-router-dom";
+import { useJobWatcher } from "./api/queries";
 import { Nav } from "./components/Nav";
 import { DashboardPage } from "./pages/DashboardPage";
 import { GamesPage } from "./pages/GamesPage";
@@ -8,6 +9,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import { TrainPage } from "./train/TrainPage";
 
 export function App() {
+  useJobWatcher();
   return (
     <div className="app">
       <Nav />

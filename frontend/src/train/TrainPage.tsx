@@ -16,7 +16,14 @@ import { mmss, useSessionClock } from "./useSessionClock";
 /** Um puzzle da sessão: monta usePuzzle com key = puzzle.id para reiniciar o estado a cada puzzle. */
 function SessionPuzzle({ puzzle, sessionId, clockLabel, orderInfo, onDone, presetHint, nextLabel, nextDisabled }:
   { puzzle: PuzzleOut; sessionId: string | null; clockLabel?: string; orderInfo?: string; onDone: (d: Done) => void; presetHint?: boolean; nextLabel?: string; nextDisabled?: boolean }) {
-  const submit = useCallback((body: ReviewIn) => api.review(body), []);
+  const qc = useQueryClient();
+  const submit = useCallback(async (body: ReviewIn) => {
+    const out = await api.review(body);
+    // a revisão muda o SRS: painel e fila precisam refletir isso
+    void qc.invalidateQueries({ queryKey: ["dashboard"] });
+    void qc.invalidateQueries({ queryKey: ["queue"] });
+    return out;
+  }, [qc]);
   const ctl = usePuzzle(puzzle, { sessionId, submit, presetHint });
   const { state } = ctl;
   if (state.phase === "result" || state.phase === "submit_error" || state.phase === "submitting") {
@@ -28,10 +35,12 @@ function SessionPuzzle({ puzzle, sessionId, clockLabel, orderInfo, onDone, prese
 
 function SingleTrain({ id, seen }: { id: string; seen: boolean }) {
   const nav = useNavigate();
+  // aberto direto pela URL não tem histórico para voltar: cai na tela de treino
+  const back = () => (window.history.length > 1 ? nav(-1) : nav("/treinar"));
   const { data, error, isLoading } = usePuzzleQuery(id);
   if (isLoading) return <p className="muted">Carregando…</p>;
   if (error || !data) return <ErrorBox error={error ?? new Error("Puzzle não encontrado")} />;
-  return <SessionPuzzle key={data.id} puzzle={data} sessionId={null} presetHint={seen} nextLabel="Voltar" onDone={() => nav(-1)} />;
+  return <SessionPuzzle key={data.id} puzzle={data} sessionId={null} presetHint={seen} nextLabel="Voltar" onDone={back} />;
 }
 
 function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done: Done[], elapsedLabel: string, reason: string) => void }) {
@@ -44,19 +53,21 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
   const [askContinue, setAskContinue] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const clock = useSessionClock(config.plannedMinutes);
-  const started = useRef(false);
+  // Guarda a promessa em andamento (não um booleano): sob StrictMode o efeito
+  // roda duas vezes e a segunda execução precisa se reinscrever no mesmo
+  // request, senão o resultado cai numa closure já morta.
+  const startP = useRef<Promise<[SessionOut, QueueOut]> | null>(null);
 
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    let alive = true;
-    (async () => {
-      try {
-        const s = await api.createSession({ planned_minutes: config.plannedMinutes, filters: config.filters as Record<string, unknown> });
-        const q = await api.queue(config.filters);
-        if (alive) { setSession(s); setQueue(q); }
-      } catch (e) { if (alive) setError(e); }
+    startP.current ??= (async () => {
+      const s = await api.createSession({ planned_minutes: config.plannedMinutes, filters: config.filters as Record<string, unknown> });
+      return [s, await api.queue(config.filters)] as [SessionOut, QueueOut];
     })();
+    let alive = true;
+    startP.current.then(
+      ([s, q]) => { if (alive) { setSession(s); setQueue(q); } },
+      (e) => { if (alive) setError(e); },
+    );
     return () => { alive = false; };
   }, [config]);
 

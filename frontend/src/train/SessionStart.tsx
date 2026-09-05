@@ -41,7 +41,7 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
           <option value="">qualquer cor</option><option value="white">brancas</option><option value="black">pretas</option>
         </select>
         <select value={category} onChange={(e) => setCategory(e.target.value)} aria-label="Categoria">
-          <option value="">qualquer categoria</option><option value="rapid">rapid</option><option value="daily">daily</option><option value="blitz">blitz</option><option value="bullet">bullet</option>
+          <option value="">qualquer categoria</option><option value="rapid">rapid</option><option value="daily">daily</option><option value="classical">classical</option><option value="blitz">blitz</option><option value="bullet">bullet</option>
         </select>
       </div>
       <div className="row" style={{ marginTop: 14 }}><button className="primary" onClick={start}>Começar</button></div>
