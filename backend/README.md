@@ -8,6 +8,10 @@
 
 API em http://127.0.0.1:8000, documentação interativa em /docs.
 
+Por padrão o servidor escuta em `0.0.0.0:8000` (acessível de outros dispositivos na mesma rede,
+como o celular); defina `CHESS_TRAINER_HOST=127.0.0.1` para restringir ao próprio computador.
+Se existir `frontend/dist` (gerado por `npm run build`), ele é servido em `/`.
+
 ## Stockfish
 
 Baixe o binário em https://stockfishchess.org/download/ (Windows: `stockfish-windows-x86-64-avx2.zip`)
