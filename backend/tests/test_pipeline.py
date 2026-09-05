@@ -6,7 +6,7 @@ from chess_trainer.core.analysis.engine import LineEval
 from chess_trainer.core.evals import MATE_SCORE
 from chess_trainer.core.models import Game, Position, Puzzle, Review
 from chess_trainer.core.pipeline import analyze_pending
-from chess_trainer.core.puzzles.service import regenerate_all
+from chess_trainer.core.puzzles.service import regenerate_all, regenerate_avoid
 from tests.fakes import FakeEngine, first_legal_default
 from tests.test_models import _game
 
@@ -190,3 +190,52 @@ def test_analyze_pending_stops_when_asked(db_session):
 
     assert analyze_pending(db_session, _engine(), SETTINGS, should_stop=should_stop) == 1
     assert db_session.scalar(select(func.count(Game.id)).where(Game.analyzed_at.is_not(None))) == 1
+
+
+def test_regenerate_avoid_keeps_punish_and_its_reviews(db_session):
+    # my_color="black": o erro do ply 6 (3...Nf6??) é MEU, então a posição antes dele é candidata a
+    # "evitar" e a posição depois dele gera o "punir" (Qxf7#). Com o FakeEngine padrão a posição
+    # antes de Nf6 devolve uma linha só, então nenhum "evitar" materializa (n == 0) -- o que este
+    # teste garante é que a regeração dos "evitar" não toca no "punir" nem nas revisões dele.
+    game = _game(pgn=SCHOLAR, my_color="black")
+    db_session.add(game)
+    db_session.commit()
+    analyze_pending(db_session, _engine(), SETTINGS)
+    punish = db_session.scalars(select(Puzzle).where(Puzzle.kind == "punish")).one()
+    db_session.add(Review(puzzle_id=punish.id, result="correct", ease=2.5, interval_days=1,
+                          due_at=punish.created_at, lapses=0))
+    db_session.commit()
+
+    n = regenerate_avoid(db_session, _engine(), SETTINGS)
+
+    assert db_session.scalar(select(func.count(Review.id))) == 1  # revisão do punish preservada
+    assert db_session.scalar(select(Puzzle.id).where(Puzzle.kind == "punish")) == punish.id
+    assert n == db_session.scalar(select(func.count(Puzzle.id)).where(Puzzle.kind == "avoid")) == 0
+
+
+def test_regenerate_avoid_drops_old_avoid_puzzles_and_their_reviews(db_session):
+    game = _game(pgn=SCHOLAR, my_color="black")
+    db_session.add(game)
+    db_session.commit()
+    analyze_pending(db_session, _engine(), SETTINGS)
+    punish = db_session.scalars(select(Puzzle).where(Puzzle.kind == "punish")).one()
+    stale = Puzzle(position_id=punish.position_id, game_id=game.id, kind="avoid",
+                   fen_start=_before_mate().fen(), side_to_move="black",
+                   solution='{"moves": [{"uci": "g8e7", "by": "solver", "alternatives": []}],'
+                            ' "explanation_pv": []}',
+                   end_reason="explanation", theme="tactic", category="rapid", solver_moves=1)
+    db_session.add(stale)
+    db_session.flush()
+    db_session.add_all([
+        Review(puzzle_id=punish.id, result="correct", ease=2.5, interval_days=1,
+               due_at=punish.created_at, lapses=0),
+        Review(puzzle_id=stale.id, result="wrong", ease=2.5, interval_days=1,
+               due_at=stale.created_at, lapses=1),
+    ])
+    db_session.commit()
+
+    regenerate_avoid(db_session, _engine(), SETTINGS)
+
+    assert db_session.get(Puzzle, stale.id) is None
+    reviews = db_session.scalars(select(Review)).all()
+    assert [r.puzzle_id for r in reviews] == [punish.id]

@@ -123,6 +123,22 @@ def persist_draft(db: Session, pos: Position, game: Game, kind: str, draft: Puzz
     return puzzle
 
 
+def draft_avoids(
+    positions: Iterable[Position], engine: EngineLike, cfg: PuzzleConfig, should_stop: StopFn | None = None,
+) -> list[Draft] | None:
+    """Como `draft_puzzles`, mas só o "evitar" dos erros do usuário (regeração parcial)."""
+    drafts: list[Draft] = []
+    for pos in positions:
+        if not pos.is_mistake or pos.mistake_by != "me":
+            continue
+        draft = generate_avoid(chess.Board(pos.fen), engine, cfg, played_uci=pos.move_uci)
+        if draft is not None:
+            drafts.append((pos, "avoid", draft))
+        if should_stop is not None and should_stop():
+            return None
+    return drafts
+
+
 def persist_drafts(db: Session, game: Game, drafts: Iterable[Draft]) -> int:
     """Fase curta de escrita: assume que a engine já terminou."""
     created = 0
@@ -132,16 +148,18 @@ def persist_drafts(db: Session, game: Game, drafts: Iterable[Draft]) -> int:
     return created
 
 
-def regenerate_all(
+DraftFn = Callable[[list[Position], EngineLike, PuzzleConfig, StopFn | None], list[Draft] | None]
+
+
+def _regenerate(
     db: Session,
     engine: EngineLike,
     settings: AppSettings,
+    drafts_fn: DraftFn,
     progress: ProgressFn | None = None,
     should_stop: StopFn | None = None,
 ) -> int:
-    db.execute(delete(Review))
-    db.execute(delete(Puzzle))
-    db.commit()
+    """Laço comum das regerações: assume que a fase de exclusão já foi commitada."""
     thresholds = thresholds_from(settings)
     cfg = puzzle_config_from(settings)
     games = db.scalars(select(Game).where(Game.analyzed_at.is_not(None)).order_by(Game.played_at.desc())).all()
@@ -159,7 +177,7 @@ def regenerate_all(
             with db.no_autoflush:
                 positions = list(game.positions)
                 classify_positions(positions, game.my_color, thresholds)
-                drafts = draft_puzzles(positions, engine, cfg, should_stop=should_stop)
+                drafts = drafts_fn(positions, engine, cfg, should_stop)
             if drafts is None:
                 db.rollback()
                 if progress:
@@ -174,3 +192,31 @@ def regenerate_all(
     if progress:
         progress("regenerate", len(games), len(games), "concluído")
     return total
+
+
+def regenerate_all(
+    db: Session,
+    engine: EngineLike,
+    settings: AppSettings,
+    progress: ProgressFn | None = None,
+    should_stop: StopFn | None = None,
+) -> int:
+    db.execute(delete(Review))
+    db.execute(delete(Puzzle))
+    db.commit()
+    return _regenerate(db, engine, settings, draft_puzzles, progress, should_stop)
+
+
+def regenerate_avoid(
+    db: Session,
+    engine: EngineLike,
+    settings: AppSettings,
+    progress: ProgressFn | None = None,
+    should_stop: StopFn | None = None,
+) -> int:
+    """Regera só os puzzles "evitar": o histórico de treino dos "punir" fica intacto."""
+    avoid_ids = select(Puzzle.id).where(Puzzle.kind == "avoid")
+    db.execute(delete(Review).where(Review.puzzle_id.in_(avoid_ids)))
+    db.execute(delete(Puzzle).where(Puzzle.kind == "avoid"))
+    db.commit()
+    return _regenerate(db, engine, settings, draft_avoids, progress, should_stop)

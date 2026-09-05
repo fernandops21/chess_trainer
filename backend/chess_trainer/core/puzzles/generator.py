@@ -23,9 +23,9 @@ class PuzzleDraft:
     fen_start: str
     side_to_move: str
     moves: list[SolutionMove]
-    end_reason: str  # "mate" | "material_gain" | "explanation"
+    end_reason: str  # "mate" | "material_gain" ("explanation": puzzles antigos de "evitar")
     solver_moves: int
-    explanation_pv: list[str] = field(default_factory=list)
+    explanation_pv: list[str] = field(default_factory=list)  # legado; hoje sempre vazio
 
     def to_json(self) -> str:
         return json.dumps({"moves": [m.to_dict() for m in self.moves], "explanation_pv": self.explanation_pv})
@@ -144,30 +144,17 @@ def _draft(board: chess.Board, moves: list[SolutionMove], end_reason: str) -> Pu
     )
 
 
-def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: PuzzleConfig) -> PuzzleDraft | None:
+def _materializing_line(
+    board: chess.Board, engine: EngineLike, cfg: PuzzleConfig,
+    first_lines: list[LineEval], mate_mode: bool, target: int,
+) -> PuzzleDraft | None:
+    """Joga a linha da engine a partir de `board` (com a primeira análise já feita em
+    `first_lines`) até o ganho se materializar: mate, ou captura que atinge `target` e
+    sobrevive à melhor resposta. Descarta em empate, ambiguidade intermediária ou limite
+    de lances. Compartilhado pelos puzzles "punir" e "evitar"."""
     solver = board.turn
     start_balance = material_balance(board, solver)
-
-    lines: list[LineEval] | None = engine.analyse(board, cfg.depth, multipv=3, max_seconds=cfg.search_seconds)
-    if not lines:
-        return None
-    mate_mode = is_mate_for(lines[0].score)
-    target = 0
-    if not mate_mode:
-        if lines[0].score < cfg.min_solver_eval_cp:
-            return None
-        # o alvo é o menor entre a queda e a avaliação do solver: uma queda enorme
-        # (mate perdido) não pode exigir ganho de dama se a posição só vale +3
-        target = floor_to_piece(min(clamp(drop_cp), lines[0].score) / 100)
-        if target <= 0:
-            return None
-        # Pré-checagem barata: pode descartar puzzles que o laço completo abaixo teria encontrado,
-        # quando a resposta rasa (reply_depth) do laço se desvia da PV usada aqui. Isso é aceito:
-        # a linha profunda (multipv=3, depth cheio) já disse que o ganho não se sustenta ao longo
-        # dessa PV, então vale a pena economizar as chamadas de engine do laço nesse caso.
-        if _pv_never_materializes(board, lines[0].pv, target, start_balance, solver, cfg.max_solver_moves):
-            return None
-
+    lines: list[LineEval] | None = first_lines
     limit = cfg.max_mate_moves if mate_mode else cfg.max_solver_moves
     moves: list[SolutionMove] = []
     current = board.copy()
@@ -224,22 +211,57 @@ def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: P
     return None
 
 
+def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: PuzzleConfig) -> PuzzleDraft | None:
+    solver = board.turn
+    lines = engine.analyse(board, cfg.depth, multipv=3, max_seconds=cfg.search_seconds)
+    if not lines:
+        return None
+    mate_mode = is_mate_for(lines[0].score)
+    target = 0
+    if not mate_mode:
+        if lines[0].score < cfg.min_solver_eval_cp:
+            return None
+        # o alvo é o menor entre a queda e a avaliação do solver: uma queda enorme
+        # (mate perdido) não pode exigir ganho de dama se a posição só vale +3
+        target = floor_to_piece(min(clamp(drop_cp), lines[0].score) / 100)
+        if target <= 0:
+            return None
+        # Pré-checagem barata: pode descartar puzzles que o laço completo abaixo teria encontrado,
+        # quando a resposta rasa (reply_depth) do laço se desvia da PV usada aqui. Isso é aceito:
+        # a linha profunda (multipv=3, depth cheio) já disse que o ganho não se sustenta ao longo
+        # dessa PV, então vale a pena economizar as chamadas de engine do laço nesse caso.
+        if _pv_never_materializes(board, lines[0].pv, target, material_balance(board, solver),
+                                  solver, cfg.max_solver_moves):
+            return None
+    return _materializing_line(board, engine, cfg, lines, mate_mode, target)
+
+
 def generate_avoid(
     board_before: chess.Board, engine: EngineLike, cfg: PuzzleConfig, played_uci: str | None = None,
 ) -> PuzzleDraft | None:
-    lines = engine.analyse(board_before, cfg.depth, multipv=2, max_seconds=cfg.search_seconds)
+    """O "evitar" é a linha que o usuário deixou de jogar, levada até o ganho se materializar
+    (mesma máquina do "punir"): o lance certo tem de ser único o bastante (gap) e concreto."""
+    solver = board_before.turn
+    lines = engine.analyse(board_before, cfg.depth, multipv=3, max_seconds=cfg.search_seconds)
     if len(lines) < 2:
-        return None
+        return None  # sem segunda linha não dá para medir o gap
     best, second = lines[0], lines[1]
     if played_uci is not None and best.move == played_uci:
         return None  # o lance jogado já era o melhor; não há o que evitar
-    if best.score - second.score < cfg.avoid_gap_cp:
+    mate_mode = is_mate_for(best.score)
+    # mate a favor só no melhor lance: a diferença é categórica, não em centipeões
+    gap = 10**6 if mate_mode and not is_mate_for(second.score) else best.score - second.score
+    if gap < cfg.avoid_gap_cp:
         return None
-    return PuzzleDraft(
-        fen_start=board_before.fen(),
-        side_to_move=_color_name(board_before.turn),
-        moves=[SolutionMove(best.move, "solver")],
-        end_reason="explanation",
-        solver_moves=1,
-        explanation_pv=list(best.pv[:6]),
-    )
+    target = 0
+    if not mate_mode:
+        if best.score < cfg.min_solver_eval_cp:
+            return None
+        # o alvo é o menor entre o gap e a avaliação do lance certo, como no "punir"
+        target = floor_to_piece(min(clamp(gap), clamp(best.score)) / 100)
+        if target <= 0:
+            return None
+        if _pv_never_materializes(board_before, best.pv, target, material_balance(board_before, solver),
+                                  solver, cfg.max_solver_moves):
+            return None
+    return _materializing_line(board_before, engine, cfg, lines, mate_mode, target)

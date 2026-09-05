@@ -83,6 +83,16 @@ def test_analyze_job_and_regenerate(client, app):
     assert client.get("/api/status").json()["job"]["state"] == "idle"
 
 
+def test_regenerate_kind_avoid_route(client, app):
+    client.put("/api/settings", json={"chesscom_username": "therealzibs", "analysis_depth": 4})
+    client.post("/api/import"); app.state.jobs.wait()
+    r = client.post("/api/puzzles/regenerate", params={"kind": "avoid"})
+    assert r.status_code == 202 and r.json()["job"] == "regenerate"
+    app.state.jobs.wait()
+    assert app.state.jobs.snapshot()["state"] == "idle"
+    assert client.post("/api/puzzles/regenerate", params={"kind": "xyz"}).status_code == 422
+
+
 def test_analyze_without_engine_is_503():
     app = create_app(db_path=":memory:", engine_factory=lambda s: None, chesscom_factory=chesscom_factory)
     client = TestClient(app)

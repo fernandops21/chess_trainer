@@ -191,10 +191,10 @@ numa profundidade menor, `reply_depth` (padrão `puzzle_depth − 6`, mínimo
 12, nunca maior que `puzzle_depth`), exceto em modo mate, onde a resposta
 usa a profundidade cheia (`puzzle_depth`): uma defesa mal calculada por
 profundidade rasa quebraria a linha de mate inteira.
-As buscas multipv usam o teto `puzzle_search_seconds` (padrão 20s) em
-ambos os modos ("punir" e "evitar"). `puzzle_reply_seconds` (padrão 10s)
-se aplica só ao modo "punir", na análise da resposta do defensor; o modo
-"evitar" não analisa resposta de defensor (só a busca multipv acima).
+As buscas multipv usam o teto `puzzle_search_seconds` (padrão 20s) e as
+análises de resposta do defensor usam `puzzle_reply_seconds` (padrão 10s),
+em ambos os modos ("punir" e "evitar"): os dois percorrem a linha até a
+materialização com a mesma máquina.
 
 ### 7.1 Puzzle "punir" (todo erro, seu ou do adversário)
 
@@ -241,11 +241,32 @@ se aplica só ao modo "punir", na análise da resposta do defensor; o modo
 
 ### 7.2 Puzzle "evitar" (só nos seus erros)
 
-- Início: posição **antes** do seu lance errado, com as suas peças.
-- Gerado só se `best_eval - segundo_melhor_eval ≥ avoid_gap_cp`.
-- Solução: um lance (o melhor). `end_reason = explanation`: ao resolver,
-  mostra a continuação da engine (linha principal, até 6 lances) como
-  explicação. Sem regra de materialização.
+- Início: posição **antes** do seu lance errado, com as suas peças; o
+  solver é você. Primeira busca multipv = 3 na posição inicial.
+- Não gera se o melhor lance da engine é justamente o que você jogou: não
+  há o que evitar.
+- Não gera se `gap = best_eval − segundo_melhor_eval < avoid_gap_cp`: com
+  duas boas opções, o lance certo não é único o bastante para virar
+  puzzle. Mate a favor só no melhor lance conta como gap infinito (a
+  diferença é categórica, não em centipeões).
+- Fora do modo mate, não gera se `best_eval < min_solver_eval_cp`: sem
+  vantagem concreta para o solver não há linha a jogar.
+- Ganho esperado: o **menor** entre o gap e a avaliação do melhor lance,
+  convertido em peões e arredondado para baixo para o valor de peça mais
+  próximo (1, 3, 5, 9); alvo 0 descarta o puzzle. Modo mate se o melhor
+  lance é mate a favor.
+- A partir daí, **a mesma máquina do "punir"** (§7.1): o solver joga, a
+  engine responde com a melhor defesa, a solução termina no lance do
+  solver após o qual o ganho se materializa (mate, ou captura que atinge
+  o alvo e sobrevive à resposta). Valem as mesmas regras de unicidade
+  (alternativas só no lance final), de descarte por empate/fim de jogo
+  que não é mate/limite de lances, e a mesma pré-checagem da linha
+  principal que descarta cedo o que nunca materializa.
+- `end_reason` é `mate` ou `material_gain`, como no "punir";
+  `explanation_pv` fica **vazio** (o campo continua no JSON da solução só
+  por compatibilidade com os puzzles antigos).
+- Posição de erro seu que não gera nem "punir" nem "evitar" é
+  "posicional": não entra na fila de treino.
 
 ### 7.3 Tema
 
@@ -266,6 +287,11 @@ Inferido por regras sobre a solução; primeira que bater:
 "Regerar puzzles" nas configurações apaga `Puzzle` (e `Review`) e roda a
 detecção e geração de novo sobre as `Position` existentes. Aviso na
 interface de que o histórico de treino se perde.
+
+`POST /api/puzzles/regenerate?kind=avoid` regera **só** os "evitar":
+apaga apenas os puzzles `kind = avoid` e as revisões deles e os gera de
+novo nas posições com `mistake_by = me`; os "punir" e o histórico deles
+ficam intactos.
 
 ## 8. Repetição espaçada (SRS)
 

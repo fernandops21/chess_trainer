@@ -2,6 +2,7 @@ import os
 import socket
 from dataclasses import asdict
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, select
@@ -14,7 +15,7 @@ from chess_trainer.core.analysis.engine import find_stockfish
 from chess_trainer.core.importers.service import import_games
 from chess_trainer.core.models import Game, utcnow
 from chess_trainer.core.pipeline import analyze_pending
-from chess_trainer.core.puzzles.service import regenerate_all
+from chess_trainer.core.puzzles.service import regenerate_all, regenerate_avoid
 
 router = APIRouter(prefix="/api")
 
@@ -147,10 +148,12 @@ def post_analyze(request: Request, limit: int | None = None, game_id: str | None
 
 
 @router.post("/puzzles/regenerate", status_code=202)
-def post_regenerate(request: Request):
+def post_regenerate(request: Request, kind: Literal["avoid"] | None = None):
+    """Sem `kind`, regera tudo (apaga o histórico); `kind=avoid` regera só os "evitar"."""
     stop = request.app.state.jobs.should_stop
+    regenerate = regenerate_avoid if kind == "avoid" else regenerate_all
     return _engine_job(request, "regenerate",
-                       lambda db, engine, s, progress: regenerate_all(db, engine, s, progress, should_stop=stop))
+                       lambda db, engine, s, progress: regenerate(db, engine, s, progress, should_stop=stop))
 
 
 @router.post("/jobs/cancel", status_code=202)
