@@ -21,6 +21,15 @@ def test_spa_fallback_serves_index_for_unknown_routes(tmp_path):
     assert client.get("/assets/app.js").text == "console.log(1)"
 
 
+def test_missing_asset_is_404_and_not_index_html(tmp_path):
+    # um index.html em cache apontando para um bundle antigo não pode receber HTML
+    # no lugar do módulo: o navegador falharia com um erro de MIME confuso.
+    client = TestClient(create_app(db_path=":memory:", dist_dir=_dist(tmp_path)))
+    r = client.get("/assets/missing.js")
+    assert r.status_code == 404
+    assert "<!doctype html>" not in r.text.lower()
+
+
 def test_api_404_is_not_masked_by_fallback(tmp_path):
     client = TestClient(create_app(db_path=":memory:", dist_dir=_dist(tmp_path)))
     r = client.get("/api/nao-existe")

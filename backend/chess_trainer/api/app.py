@@ -23,7 +23,12 @@ class SpaStaticFiles(StaticFiles):
         try:
             return await super().get_response(path, scope)
         except StarletteHTTPException as exc:
-            if exc.status_code == 404 and not path.startswith("api"):
+            # `path` já vem normalizado pelo StaticFiles com o separador do SO
+            # (no Windows, "assets\app.js"), então comparamos com "/".
+            url_path = path.replace(os.sep, "/")
+            # `assets/` fica de fora: um index.html em cache pode pedir um bundle
+            # antigo e receber HTML no lugar do módulo JS.
+            if exc.status_code == 404 and not url_path.startswith(("api", "assets/")):
                 return await super().get_response("index.html", scope)
             raise
 

@@ -29,7 +29,12 @@ def local_ip() -> str:
 
 
 def local_url() -> str:
-    return f"http://{local_ip()}:{os.environ.get('CHESS_TRAINER_PORT', '8000')}"
+    port = os.environ.get("CHESS_TRAINER_PORT", "8000")
+    # servindo só em loopback, a URL de LAN não abriria em nenhum outro aparelho
+    host = os.environ.get("CHESS_TRAINER_HOST", "")
+    if host in {"127.0.0.1", "localhost", "::1"}:
+        return f"http://127.0.0.1:{port}"
+    return f"http://{local_ip()}:{port}"
 
 
 def _engine_available(request: Request, settings: AppSettings) -> tuple[bool, str | None]:

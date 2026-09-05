@@ -161,3 +161,18 @@ def test_analyze_single_game(client, app):
 def test_status_has_local_url(client):
     url = client.get("/api/status").json()["local_url"]
     assert url.startswith("http://") and url.endswith(":8000")
+
+
+def test_local_url_respects_loopback_host(client, monkeypatch):
+    # servindo só em loopback, a URL de LAN não abriria em lugar nenhum
+    monkeypatch.setenv("CHESS_TRAINER_HOST", "127.0.0.1")
+    monkeypatch.setenv("CHESS_TRAINER_PORT", "8123")
+    assert client.get("/api/status").json()["local_url"] == "http://127.0.0.1:8123"
+    monkeypatch.setenv("CHESS_TRAINER_HOST", "localhost")
+    assert client.get("/api/status").json()["local_url"] == "http://127.0.0.1:8123"
+
+
+def test_local_url_is_lan_when_host_is_wildcard(client, monkeypatch):
+    monkeypatch.setenv("CHESS_TRAINER_HOST", "0.0.0.0")
+    monkeypatch.setattr("chess_trainer.api.routes.system.local_ip", lambda: "192.168.0.7")
+    assert client.get("/api/status").json()["local_url"] == "http://192.168.0.7:8000"
