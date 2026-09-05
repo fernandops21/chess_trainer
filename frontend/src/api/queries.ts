@@ -72,8 +72,8 @@ function useInvalidate(extra: readonly (readonly unknown[])[] = []) {
 export function useStartJob() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (p: { kind: "import" | "analyze" | "regenerate"; limit?: number; game_id?: string }) =>
-      p.kind === "import" ? api.importGames() : p.kind === "analyze" ? api.analyze({ limit: p.limit, game_id: p.game_id }) : api.regenerate(),
+    mutationFn: (p: { kind: "import" | "analyze" | "regenerate"; limit?: number; game_id?: string; avoidOnly?: boolean }) =>
+      p.kind === "import" ? api.importGames() : p.kind === "analyze" ? api.analyze({ limit: p.limit, game_id: p.game_id }) : api.regenerate(p.avoidOnly ? "avoid" : undefined),
     onSettled: invalidate,
   });
 }

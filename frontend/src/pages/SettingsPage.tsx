@@ -30,6 +30,7 @@ export function SettingsPage() {
   const start = useStartJob();
   const [form, setForm] = useState<Settings | null>(null);
   const [confirm, setConfirm] = useState(false);
+  const [confirmAvoid, setConfirmAvoid] = useState(false);
   const [saved, setSaved] = useState(false);
   useEffect(() => { if (data && !form) setForm(data); }, [data, form]);
   if (error) return <ErrorBox error={error} />;
@@ -82,11 +83,16 @@ export function SettingsPage() {
       <div className="card">
         <h3 style={{ marginTop: 0, color: "var(--bad)" }}>Perigo</h3>
         <button className="danger" onClick={() => setConfirm(true)} disabled={status?.job.state === "running"}>Regerar puzzles</button>
+        <button className="danger" onClick={() => setConfirmAvoid(true)} disabled={status?.job.state === "running"}>Regerar só os evitar</button>
         <ErrorBox error={start.error} />
       </div>
       <Modal open={confirm} title="Regerar todos os puzzles?" onClose={() => setConfirm(false)}>
         <p>Isso apaga todos os puzzles e <b>todo o histórico de treino</b> (revisões, intervalos, sequência) e gera tudo de novo com os limiares atuais. Não pode ser desfeito.</p>
         <div className="row"><button className="danger" onClick={() => { start.mutate({ kind: "regenerate" }); setConfirm(false); }}>Regerar</button><button onClick={() => setConfirm(false)}>Cancelar</button></div>
+      </Modal>
+      <Modal open={confirmAvoid} title="Regerar só os puzzles 'evitar'?" onClose={() => setConfirmAvoid(false)}>
+        <p>Apaga e regera só os puzzles "evitar" (e o histórico de treino deles). Os "punir" e seu histórico ficam.</p>
+        <div className="row"><button className="danger" onClick={() => { start.mutate({ kind: "regenerate", avoidOnly: true }); setConfirmAvoid(false); }}>Regerar</button><button onClick={() => setConfirmAvoid(false)}>Cancelar</button></div>
       </Modal>
     </>
   );

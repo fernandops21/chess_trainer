@@ -76,8 +76,8 @@ export const api = {
     request<JobQueued>("/import", post("/import")),
   analyze: (p: { limit?: number; game_id?: string } = {}) =>
     request<JobQueued>(`/analyze${qs(p as Params)}`, post("/analyze")),
-  regenerate: () =>
-    request<JobQueued>("/puzzles/regenerate", post("/puzzles/regenerate")),
+  regenerate: (kind?: "avoid") =>
+    request<JobQueued>(`/puzzles/regenerate${qs({ kind })}`, post("/puzzles/regenerate")),
   cancelJob: () =>
     request<{ cancelled: boolean }>("/jobs/cancel", post("/jobs/cancel")),
   games: (p: GamesQuery = {}) =>

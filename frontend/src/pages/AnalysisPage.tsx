@@ -34,7 +34,7 @@ export function AnalysisPage() {
   return (
     <>
       <h1>Análise</h1>
-      <AnalysisBoard fenStart={fen!} orientation={orientation} backTo={back} />
+      <AnalysisBoard key={fen} fenStart={fen!} orientation={orientation} backTo={back} />
     </>
   );
 }

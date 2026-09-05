@@ -43,7 +43,7 @@ export function ResultPanel({ puzzle, review, error, onRetry, onNext, nextLabel 
         <div className="row" style={{ marginTop: 10 }}>
           <a href={puzzle.game.source_id} target="_blank" rel="noopener">partida no chess.com</a>
           <Link to={`/partidas/${puzzle.game.id}?ply=${puzzle.ply}`}>partida no app</Link>
-          <Link to={exploreHref}>Explorar</Link>
+          <a href={exploreHref} target="_blank" rel="noopener noreferrer">Explorar</a>
           {review && <button className="primary" style={{ marginLeft: "auto" }} disabled={nextDisabled} onClick={onNext}>{nextDisabled ? "Carregando…" : nextLabel}</button>}
         </div>
       </div>

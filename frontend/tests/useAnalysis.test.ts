@@ -32,6 +32,19 @@ test("playLine aplica os lances em sequência", () => {
   vi.useRealTimers();
 });
 
+test("undo cancela o timer do playLine em andamento", () => {
+  vi.useFakeTimers();
+  const { result } = renderHook(() => useAnalysis(START, { stepMs: 10 }));
+  act(() => result.current.playLine(["e2e4", "e7e5", "g1f3"]));
+  act(() => { vi.advanceTimersByTime(10); });
+  expect(result.current.sans).toEqual(["e4", "e5"]);
+  act(() => result.current.undo());
+  expect(result.current.sans).toEqual(["e4"]);
+  act(() => { vi.advanceTimersByTime(1000); });
+  expect(result.current.sans).toEqual(["e4"]);  // Nf3 nunca chegou a ser jogado
+  vi.useRealTimers();
+});
+
 test("playLine cancela o timer ao desmontar (sem erro nem estado após o unmount)", () => {
   vi.useFakeTimers();
   const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});

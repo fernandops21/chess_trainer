@@ -59,6 +59,7 @@ export function useAnalysis(fenStart: string, opts: UseAnalysisOptions = {}) {
   }, []);
 
   const undo = useCallback(() => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
     const s = stackRef.current;
     if (s.index === 0) return;
     stackRef.current = {
@@ -77,6 +78,7 @@ export function useAnalysis(fenStart: string, opts: UseAnalysisOptions = {}) {
   }, [fenStart]);
 
   const goTo = useCallback((i: number) => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
     const s = stackRef.current;
     const index = Math.max(0, Math.min(i, s.fens.length - 1));
     stackRef.current = { ...s, index };

@@ -11,8 +11,9 @@ gera puzzles dos erros (seus e do adversário) e agenda com repetição espaçad
 Abra http://127.0.0.1:8000 (ou, no celular na mesma rede, o endereço mostrado em Configurações).
 Stockfish: ver backend/README.md.
 
-Tabuleiro de análise livre (`/analise`, com avaliação do Stockfish no backend): acessível pelos botões
-"Explorar" no resultado do treino, na partida e na revisão de erros.
+Tabuleiro de análise livre (`/analise`, com avaliação do Stockfish no backend): acessível pelo link
+"Explorar" no resultado do treino (abre em nova aba, para não perder a sessão em andamento), pelo botão
+"Explorar daqui" na partida e pelo botão "Explorar" na revisão de erros.
 
 ## Desenvolvimento
 

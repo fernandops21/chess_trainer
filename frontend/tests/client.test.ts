@@ -39,6 +39,20 @@ test("erro sem corpo JSON usa statusText", async () => {
   await expect(api.status()).rejects.toMatchObject({ status: 500, message: "Boom" });
 });
 
+test("api.regenerate sem kind não manda query string", async () => {
+  const fn = mockFetch(202, { queued: true, job: "regenerate" });
+  await api.regenerate();
+  const [url] = fn.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("/api/puzzles/regenerate");
+});
+
+test("api.regenerate('avoid') manda kind=avoid na query string", async () => {
+  const fn = mockFetch(202, { queued: true, job: "regenerate" });
+  await api.regenerate("avoid");
+  const [url] = fn.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("/api/puzzles/regenerate?kind=avoid");
+});
+
 test("api.analyse faz POST /api/analyse com fen e multipv padrão", async () => {
   const fn = mockFetch(200, { fen: "f", turn: "white", terminal: null, lines: [] });
   await api.analyse("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
