@@ -20,16 +20,27 @@ THEME_LABELS: dict[str, str] = {
     "knightEndgame": "final de cavalos", "queenEndgame": "final de damas", "queenRookEndgame": "final de dama e torre",
     "oneMove": "um lance", "short": "curto", "long": "longo", "veryLong": "muito longo",
     "master": "partida de mestre", "masterVsMaster": "mestre contra mestre", "superGM": "super GM",
+    "discoveredCheck": "xeque descoberto",
+    "operaMate": "mate da ópera",
+    "pillsburysMate": "mate de Pillsbury",
+    "epauletteMate": "mate de dragonas",
+    "cornerMate": "mate no canto",
+    "triangleMate": "mate do triângulo",
+    "collinearMove": "lance na mesma linha",
+    "morphysMate": "mate de Morphy",
+    "swallowstailMate": "mate cauda de andorinha (torre)",
+    "blindSwineMate": "mate dos porcos cegos",
+    "balestraMate": "mate da balestra",
     "tactic": "tática",
 }
 
 # ordem de preferência para o tema principal: motivos táticos antes de mates
 # nomeados, mates antes de fase/duração. Tudo que está aqui tem rótulo.
 THEME_PRIORITY: list[str] = [
-    "fork", "pin", "skewer", "discoveredAttack", "doubleCheck", "hangingPiece", "trappedPiece",
-    "deflection", "attraction", "clearance", "interference", "intermezzo", "sacrifice", "xRayAttack",
+    "fork", "pin", "skewer", "discoveredAttack", "doubleCheck", "discoveredCheck", "hangingPiece", "trappedPiece",
+    "deflection", "attraction", "clearance", "interference", "intermezzo", "sacrifice", "xRayAttack", "collinearMove",
     "capturingDefender", "backRankMate", "smotheredMate", "anastasiaMate", "arabianMate", "bodenMate",
-    "doubleBishopMate", "dovetailMate", "hookMate", "killBoxMate", "vukovicMate", "promotion", "underPromotion",
+    "doubleBishopMate", "dovetailMate", "hookMate", "killBoxMate", "vukovicMate", "operaMate", "pillsburysMate", "epauletteMate", "cornerMate", "triangleMate", "morphysMate", "swallowstailMate", "blindSwineMate", "balestraMate", "promotion", "underPromotion",
     "advancedPawn", "exposedKing", "kingsideAttack", "queensideAttack", "attackingF2F7", "quietMove",
     "defensiveMove", "zugzwang", "enPassant", "castling", "mateIn1", "mateIn2", "mateIn3", "mateIn4", "mateIn5",
     "mate", "pawnEndgame", "rookEndgame", "bishopEndgame", "knightEndgame", "queenEndgame", "queenRookEndgame",

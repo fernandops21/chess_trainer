@@ -58,6 +58,17 @@ export const LICHESS_THEMES: Record<string, string> = {
   oneMove: "um lance", short: "curto", long: "longo", veryLong: "muito longo",
   master: "partida de mestre", masterVsMaster: "mestre contra mestre", superGM: "super GM",
   tactic: "tática",
+  discoveredCheck: "xeque descoberto",
+  operaMate: "mate da ópera",
+  pillsburysMate: "mate de Pillsbury",
+  epauletteMate: "mate de dragonas",
+  cornerMate: "mate no canto",
+  triangleMate: "mate do triângulo",
+  collinearMove: "lance na mesma linha",
+  morphysMate: "mate de Morphy",
+  swallowstailMate: "mate cauda de andorinha (torre)",
+  blindSwineMate: "mate dos porcos cegos",
+  balestraMate: "mate da balestra",
 };
 
 export function themeLabel(theme: string): string {
