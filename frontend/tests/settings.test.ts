@@ -11,3 +11,15 @@ test("validate", () => {
   expect(validate({ ...ok, blunder_threshold_cp: 90 })).toContain("blunder deve ser ≥ mistake");
   expect(validate({ ...ok, chesscom_username: " " })).toContain("informe o usuário do chess.com");
 });
+
+test("validate: campos das táticas", () => {
+  expect(validate({ ...ok, tactics_window: 49 })).toContain("janela de rating mínima é 50");
+  expect(validate({ ...ok, tactics_window: 50 })).toEqual([]);
+  expect(validate({ ...ok, tactics_rating: 399 })).toContain("rating de táticas entre 400 e 3200");
+  expect(validate({ ...ok, tactics_rating: 3201 })).toContain("rating de táticas entre 400 e 3200");
+  expect(validate({ ...ok, lichess_min_popularity: -101 })).toContain("popularidade entre -100 e 100");
+  expect(validate({ ...ok, lichess_min_popularity: 101 })).toContain("popularidade entre -100 e 100");
+  expect(validate({ ...ok, lichess_min_popularity: -100 })).toEqual([]);
+  expect(validate({ ...ok, lichess_min_plays: -1 })).toContain("mínimo de partidas não pode ser negativo");
+  expect(validate({ ...ok, lichess_min_plays: 0 })).toEqual([]);
+});

@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
-import { useSaveSettings, useSettings, useStartJob, useStatus } from "../api/queries";
+import { useSaveSettings, useSettings, useStartJob, useStatus, useTacticsStatus } from "../api/queries";
 import type { Settings } from "../api/types";
 import { ErrorBox } from "../components/ErrorBox";
 import { Modal } from "../components/Modal";
+import { formatDate } from "../lib/format";
+
+const nf = new Intl.NumberFormat("pt-BR");
 
 const CATEGORIES = ["rapid", "daily", "classical", "blitz", "bullet"];
 const RANGES: Record<string, [number, number]> = {
@@ -20,12 +23,17 @@ export function validate(s: Settings): string[] {
   }
   if (s.blunder_threshold_cp < s.mistake_threshold_cp) errs.push("blunder deve ser ≥ mistake");
   if (!s.chesscom_username.trim()) errs.push("informe o usuário do chess.com");
+  if (s.tactics_window < 50) errs.push("janela de rating mínima é 50");
+  if (s.tactics_rating < 400 || s.tactics_rating > 3200) errs.push("rating de táticas entre 400 e 3200");
+  if (s.lichess_min_popularity < -100 || s.lichess_min_popularity > 100) errs.push("popularidade entre -100 e 100");
+  if (s.lichess_min_plays < 0) errs.push("mínimo de partidas não pode ser negativo");
   return errs;
 }
 
 export function SettingsPage() {
   const { data, error } = useSettings();
   const { data: status } = useStatus();
+  const { data: tactics } = useTacticsStatus();
   const save = useSaveSettings();
   const start = useStartJob();
   const [form, setForm] = useState<Settings | null>(null);
@@ -69,6 +77,33 @@ export function SettingsPage() {
         {field("gap mínimo do puzzle evitar (cp)", "avoid_gap_cp")}
         {field("puzzles novos por dia", "new_per_day")}
         {field("sanguessuga após N erros", "leech_lapses")}
+      </div>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Banco de táticas (Lichess)</h3>
+        <div>
+          Estado: {tactics?.imported
+            ? `${nf.format(tactics.count)} táticas · importado em ${tactics.imported_at ? formatDate(tactics.imported_at) : "data desconhecida"}`
+            : "não importado"}
+          {tactics && <span className="muted"> · {nf.format(tactics.attempts_total)} tentativas</span>}
+        </div>
+        <div className="row" style={{ marginTop: 8 }}>
+          <button onClick={() => start.mutate({ kind: "import_lichess" })} disabled={status?.job.state === "running" || start.isPending}>
+            Baixar e importar
+          </button>
+        </div>
+        <div className="muted" style={{ marginTop: 6 }}>
+          Download de ~300 MB de database.lichess.org; o arquivo fica em backend/data/ e a importação leva uns 5 minutos.
+          Acompanhe o andamento no Painel; dá para cancelar (para no fim do lote atual).
+        </div>
+        {field("Rating inicial de táticas", "tactics_rating")}
+        {field("Janela de rating (±)", "tactics_window")}
+        {field("Mínimo de partidas jogadas", "lichess_min_plays")}
+        {field("Popularidade mínima (−100 a 100)", "lichess_min_popularity")}
+        <div className="muted">
+          O rating é ajustado sozinho a cada tática resolvida; a janela define quão perto do seu rating as táticas são sorteadas.
+          Mudar o filtro (partidas jogadas e popularidade) só afeta a próxima importação — o padrão (2000 e 90) guarda cerca de
+          1 milhão de táticas.
+        </div>
       </div>
       {errs.length > 0 && <div className="msg bad">{errs.join(" · ")}</div>}
       <div className="row">

@@ -18,6 +18,27 @@ Baixe o binário em https://stockfishchess.org/download/ (Windows: `stockfish-wi
 e extraia em `backend/engines/`. O app encontra `engines/**/stockfish*.exe` sozinho; ou informe o
 caminho em `PUT /api/settings {"stockfish_path": "..."}`.
 
+## Táticas do Lichess
+
+Banco público de táticas (https://database.lichess.org/#puzzles, CC0). Rotas:
+
+    GET  /api/tactics/status          # importado?, contagem, data, rating atual, tentativas
+    POST /api/tactics/import          # 202: enfileira o job "import_lichess" (baixa + importa)
+    GET  /api/tactics/next            # próxima tática; ?themes=fork,pin&exclude=id1,id2
+    POST /api/tactics/attempts        # registra a tentativa e atualiza o rating (Elo)
+    GET  /api/tactics/themes          # temas disponíveis com a contagem (em cache)
+    GET  /api/stats/themes?days=30    # acerto por tema no período (táticas + puzzles próprios)
+
+O job baixa `lichess_db_puzzle.csv.zst` (~300 MB) para `backend/data/`, filtra por
+`lichess_min_plays`/`lichess_min_popularity` (configurações) e grava em lotes; o cancelamento é
+respeitado entre os lotes e no download. Se o arquivo já estiver em `backend/data/` com o mesmo tamanho
+do remoto, o download é pulado; importar de novo não duplica (INSERT OR IGNORE), então dá para retomar
+uma importação cancelada.
+
+`CHESS_TRAINER_LICHESS_SOURCE` define a origem: um **caminho local** para um `.csv.zst` já baixado
+(útil em testes e para reimportar sem rede) ou uma **URL**. O padrão é
+`https://database.lichess.org/lichess_db_puzzle.csv.zst`.
+
 ## Testes
 
     uv run pytest -q            # rápidos
