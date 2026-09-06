@@ -48,3 +48,6 @@ Executado em janela de autonomia (usuário ausente, 2026-09-05/06) com subagente
 15. Os limites de `tactics_rating` (400–3200), `tactics_window` (≥ 50),
     `lichess_min_plays` (≥ 0) e `lichess_min_popularity` (−100 a 100) passaram a
     ser validados também no servidor (`SettingsIn`), não só no formulário.
+16. `TrainPage.tsx` (sessão dos próprios erros): o "Continuar" do modal de tempo esgotado chama `goNext` sem travar `advancing`; um segundo clique em Próximo durante a recarga da fila duplica o resultado no resumo (mesmo bug corrigido na sessão de táticas).
+17. Durante a primeira importação, o seletor de temas mostra "Nenhum tema disponível." (cache ausente) em vez de "importando…".
+18. O botão "Nova sessão sem temas" pode aparecer sem tema selecionado (janela de rating esgotada devolve a mesma mensagem 404).

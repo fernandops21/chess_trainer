@@ -31,7 +31,10 @@ def to_tactic(row: LichessPuzzle) -> Tactic:
     """Aplica o lance do adversário e monta a solução no formato dos puzzles próprios.
 
     Levanta ValueError se algum lance for ilegal (linha corrompida)."""
-    board = chess.Board(row.fen)
+    try:
+        board = chess.Board(row.fen)
+    except ValueError as exc:
+        raise ValueError(f"puzzle {row.id}: FEN inválido") from exc
     ucis = row.moves.split()
     if len(ucis) < 2:
         raise ValueError(f"puzzle {row.id}: menos de dois lances")
