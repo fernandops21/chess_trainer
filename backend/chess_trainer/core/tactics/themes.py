@@ -34,6 +34,14 @@ THEME_LABELS: dict[str, str] = {
     "tactic": "tática",
 }
 
+# temas que descrevem duração, fase da partida, avaliação ou origem do jogo: são
+# metadados do banco do Lichess e não servem como filtro de treino (quase toda tática
+# tem um deles, então escolher "meio-jogo" não estreita nada).
+THEME_FILTER_EXCLUDE: set[str] = {
+    "short", "long", "veryLong", "oneMove", "master", "masterVsMaster", "superGM",
+    "crushing", "advantage", "equality", "opening", "middlegame", "endgame",
+}
+
 # ordem de preferência para o tema principal: motivos táticos antes de mates
 # nomeados, mates antes de fase/duração. Tudo que está aqui tem rótulo.
 THEME_PRIORITY: list[str] = [

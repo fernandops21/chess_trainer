@@ -40,6 +40,8 @@ def test_import_then_train_flow(client):
     assert st["imported"] and st["count"] == 2 and st["imported_at"] and st["source_rows"] == 5
     themes = client.get("/api/tactics/themes").json()
     assert {t["theme"] for t in themes} >= {"fork", "mateIn2"} and next(t for t in themes if t["theme"] == "fork")["label"] == "garfo"
+    # fase/duração/avaliação são metadados do Lichess, não servem de filtro de treino
+    assert {t["theme"] for t in themes}.isdisjoint({"short", "middlegame", "veryLong", "advantage"})
     r = client.put("/api/settings", json={"tactics_rating": 1760, "tactics_window": 50})
     assert r.status_code == 200 and r.json()["tactics_rating"] == 1760
     t = client.get("/api/tactics/next").json()
@@ -82,3 +84,53 @@ def test_attempt_unknown_session_404(client):
     run_import(client)
     r = client.post("/api/tactics/attempts", json={"puzzle_id": "00sHx", "correct": True, "session_id": "nada"})
     assert r.status_code == 404 and r.json()["detail"] == "sessão não encontrada"
+
+
+# uma linha corrompida (lance ilegal) e uma boa no mesmo ponto de rating: o sorteio
+# cai em qualquer uma das duas, e a rota precisa devolver sempre a boa
+CORRUPT_ROWS = [
+    {"PuzzleId": "bad01", "FEN": "r3r1k1/p4ppp/2p2n2/1p6/3P1qb1/2NQR3/PPB2PP1/R1B3K1 w - - 5 18", "Moves": "e8e1 a2e6",
+     "Rating": "1500", "RatingDeviation": "80", "Popularity": "90", "NbPlays": "900", "Themes": "fork",
+     "GameUrl": "", "OpeningTags": ""},
+    {"PuzzleId": "good1", "FEN": "q3k1nr/1pp1nQpp/3p4/1P2p3/4P3/B1PP1b2/B5PP/5K2 b k - 0 17", "Moves": "e8d7 a2e6 d7d8 f7f8",
+     "Rating": "1500", "RatingDeviation": "80", "Popularity": "90", "NbPlays": "900", "Themes": "mate mateIn2",
+     "GameUrl": "", "OpeningTags": ""},
+]
+
+
+@pytest.fixture
+def corrupt_client(tmp_path: Path):
+    src = tmp_path / "corrupt.csv.zst"
+    write_csv_zst(src, CORRUPT_ROWS)
+    app = create_app(db_path=":memory:", engine_factory=lambda s: FakeEngine(default=first_legal_default(0)), tactics_source=src)
+    with TestClient(app) as c:
+        yield c
+
+
+def test_next_skips_corrupt_row_and_sorts_again(corrupt_client):
+    run_import(corrupt_client)
+    assert corrupt_client.put("/api/settings", json={"tactics_rating": 1500, "tactics_window": 50}).status_code == 200
+    for _ in range(10):
+        r = corrupt_client.get("/api/tactics/next")
+        assert r.status_code == 200, r.json()
+        assert r.json()["id"] == "good1"
+
+
+def test_settings_rejects_window_below_minimum(client):
+    assert client.put("/api/settings", json={"tactics_window": -50}).status_code == 422
+    assert client.put("/api/settings", json={"tactics_rating": 90}).status_code == 422
+    assert client.put("/api/settings", json={"lichess_min_plays": -1}).status_code == 422
+    assert client.put("/api/settings", json={"lichess_min_popularity": 500}).status_code == 422
+
+
+def test_themes_empty_while_importing_without_cache(client):
+    # sem cache e com a importação rodando, a rota não pode disparar o GROUP BY
+    # numa tabela que ainda está crescendo
+    import threading
+    gate = threading.Event()
+    client.app.state.jobs.submit("import_lichess", lambda progress: gate.wait(5))
+    try:
+        assert client.get("/api/tactics/themes").json() == []
+    finally:
+        gate.set()
+        client.app.state.jobs.wait()

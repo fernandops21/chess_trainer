@@ -37,10 +37,12 @@ class SettingsIn(BaseModel):
     analysis_seconds: int | None = None
     puzzle_search_seconds: int | None = None
     puzzle_reply_seconds: int | None = None
-    tactics_rating: int | None = None
-    tactics_window: int | None = None
-    lichess_min_plays: int | None = None
-    lichess_min_popularity: int | None = None
+    # mesmos limites validados no formulário de Configurações: o servidor não pode
+    # confiar só no cliente (a API também é chamada direto)
+    tactics_rating: int | None = Field(None, ge=400, le=3200)
+    tactics_window: int | None = Field(None, ge=50)
+    lichess_min_plays: int | None = Field(None, ge=0)
+    lichess_min_popularity: int | None = Field(None, ge=-100, le=100)
 
 
 class GameOut(BaseModel):

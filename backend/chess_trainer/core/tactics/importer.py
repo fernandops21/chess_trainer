@@ -47,7 +47,17 @@ def parse_rows(lines: Iterable[str], on_malformed: Callable[[], None] | None = N
     """Linhas de texto do CSV → dicts com os tipos certos. A primeira linha é o cabeçalho.
     `on_malformed`, se dado, é chamado para cada linha corrompida (que é descartada)."""
     reader = csv.DictReader(lines)
-    for raw in reader:
+    while True:
+        try:
+            raw = next(reader)
+        except StopIteration:
+            break
+        except csv.Error:
+            # o próprio leitor recusou a linha (aspas abertas que estouram o limite de
+            # campo, byte NUL): descarta e continua — o leitor retoma na linha seguinte
+            if on_malformed is not None:
+                on_malformed()
+            continue
         try:
             yield {
                 "id": raw["PuzzleId"], "fen": raw["FEN"], "moves": raw["Moves"],
@@ -135,8 +145,10 @@ def download_file(url: str, dest: Path, progress: ProgressFn, should_stop: StopF
                         progress("download", done, total, f"{done / 2**20:.0f} MB baixados")
                         if should_stop is not None and should_stop():
                             raise DownloadCancelled("download cancelado")
-        except DownloadCancelled:
-            part.unlink(missing_ok=True)  # cancelar não pode deixar um parcial ocupando disco
+        except BaseException:
+            # cancelamento, erro de rede ou disco cheio: nada disso pode deixar um
+            # parcial ocupando espaço nem ser confundido com um arquivo completo
+            part.unlink(missing_ok=True)
             raise
         part.replace(dest)
         return dest

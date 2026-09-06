@@ -1,11 +1,15 @@
+import csv
+import io
 from pathlib import Path
 
 import httpx
 import pytest
+import zstandard
 from sqlalchemy import func, select
 
 from chess_trainer.core.models import LichessPuzzle, LichessPuzzleTheme
 from chess_trainer.core.tactics.importer import (
+    COLUMNS,
     DownloadCancelled,
     ImportFilter,
     download_file,
@@ -118,3 +122,22 @@ def test_download_cancel_raises_download_cancelled(tmp_path: Path):
     assert not dest.exists()
     # o parcial também some: cancelar não pode deixar lixo em disco
     assert not dest.with_name(dest.name + ".part").exists()
+
+
+def test_import_survives_csv_error_in_the_middle(db_session, tmp_path: Path):
+    # aspas abertas e nunca fechadas: o leitor engole o resto da linha até estourar o
+    # limite de tamanho de campo e levanta csv.Error. Escrito na mão porque o
+    # write_csv_zst escaparia as aspas. As linhas seguintes têm de continuar entrando.
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=COLUMNS)
+    writer.writeheader()
+    writer.writerow(ROWS[0])
+    buf.write('quebrada,8/8/8/8/8/8/8/K6k w - - 0 1,a1a2 h1h2,1500,80,95,900,"' + "x" * 200_000 + "\n")
+    writer.writerow(ROWS[1])
+    path = tmp_path / "quebrado.csv.zst"
+    path.write_bytes(zstandard.ZstdCompressor().compress(buf.getvalue().encode("utf-8")))
+
+    stats = import_csv_zst(db_session, path, FLT, lambda *a: None)
+    assert stats.malformed >= 1
+    # a linha depois da corrompida continua sendo importada
+    assert set(db_session.scalars(select(LichessPuzzle.id))) == {"00sHx", "00sJ9"}

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from chess_trainer.api.deps import get_db
 from chess_trainer.api.schemas import AttemptIn, AttemptOut, TacticOut, TacticsStatusOut, ThemeCountOut, ThemeStatOut
-from chess_trainer.config import load_settings, set_setting
+from chess_trainer.config import get_setting, load_settings, set_setting
 from chess_trainer.core.models import LichessPuzzle, TrainingSession, utcnow
 from chess_trainer.core.stats import theme_stats
 from chess_trainer.core.tactics.convert import to_tactic
@@ -20,7 +20,7 @@ from chess_trainer.core.tactics.service import (
     tactics_status,
     theme_counts,
 )
-from chess_trainer.core.tactics.themes import THEME_LABELS
+from chess_trainer.core.tactics.themes import THEME_FILTER_EXCLUDE, THEME_LABELS
 
 router = APIRouter(prefix="/api")
 
@@ -42,19 +42,18 @@ def post_import(request: Request):
 
     def job(progress):
         session = app.state.session_factory()
+        started = False  # a importação chegou a gravar lotes? só então o cache precisa mudar
         try:
             s = load_settings(session)
             path = Path(source)
             if not path.is_file():
                 path = download_file(str(source), Path(dest), progress, should_stop=app.state.jobs.should_stop)
             flt = ImportFilter(min_plays=s.lichess_min_plays, min_popularity=s.lichess_min_popularity)
+            started = True
             stats = import_csv_zst(session, path, flt, progress, should_stop=app.state.jobs.should_stop)
             if not stats.cancelled:
                 set_setting(session, "lichess_imported_at", utcnow().isoformat())
                 set_setting(session, "lichess_source_rows", stats.rows_read)
-            # total e temas ficam em cache: contar milhões de linhas a cada tela de status é caro.
-            # Mesmo cancelada, a importação já gravou lotes, então o cache precisa acompanhar.
-            refresh_counts_cache(session)
             progress("import", stats.rows_read, stats.rows_read,
                      f"{stats.imported} táticas novas de {stats.rows_read} linhas" + (" (cancelado)" if stats.cancelled else ""))
         except DownloadCancelled:
@@ -62,6 +61,15 @@ def post_import(request: Request):
             progress("download", 0, 0, "download cancelado")
             return
         finally:
+            # total e temas ficam em cache: contar milhões de linhas a cada tela de status é caro.
+            # Cancelada ou interrompida por erro, a importação já gravou lotes: o cache tem de
+            # acompanhar, senão o status fica mentindo até a próxima importação completa.
+            if started:
+                try:
+                    session.rollback()  # descarta o lote pela metade se a importação caiu no meio
+                    refresh_counts_cache(session)
+                except Exception:  # noqa: BLE001 - não mascarar o erro original da importação
+                    pass
             session.close()
 
     if not app.state.jobs.submit("import_lichess", job):
@@ -75,13 +83,20 @@ def get_next(themes: str | None = None, exclude: str | None = None, db: Session 
     if db.scalar(select(LichessPuzzle.id).limit(1)) is None:
         raise HTTPException(404, "banco de táticas não importado; baixe em Configurações")
     settings = load_settings(db)
-    row = pick_next(db, settings, utcnow(), themes=_csv(themes), exclude=_csv(exclude))
-    if row is None:
-        raise HTTPException(404, "nenhuma tática disponível com esses filtros")
-    try:
-        return asdict(to_tactic(row))
-    except ValueError as exc:
-        raise HTTPException(500, str(exc)) from exc
+    skip = _csv(exclude)
+    last: ValueError | None = None
+    # uma linha corrompida no banco do Lichess (lance ilegal) não pode derrubar a sessão:
+    # exclui a que veio e sorteia de novo, poucas vezes, antes de desistir
+    for _ in range(3):
+        row = pick_next(db, settings, utcnow(), themes=_csv(themes), exclude=skip)
+        if row is None:
+            raise HTTPException(404, "nenhuma tática disponível com esses filtros")
+        try:
+            return asdict(to_tactic(row))
+        except ValueError as exc:
+            last = exc
+            skip = [*skip, row.id]
+    raise HTTPException(500, str(last)) from last
 
 
 @router.post("/tactics/attempts", response_model=AttemptOut, status_code=201)
@@ -99,8 +114,14 @@ def post_attempt(body: AttemptIn, db: Session = Depends(get_db)):
 
 
 @router.get("/tactics/themes", response_model=list[ThemeCountOut])
-def get_themes(db: Session = Depends(get_db)):
-    return [ThemeCountOut(theme=t, label=THEME_LABELS.get(t, t), count=n) for t, n in theme_counts(db)]
+def get_themes(request: Request, db: Session = Depends(get_db)):
+    jobs = request.app.state.jobs
+    # sem cache e com a importação em curso, o GROUP BY varreria uma tabela de milhões de
+    # linhas que ainda está crescendo; a lista chega quando a importação termina
+    if get_setting(db, "lichess_theme_counts") is None and jobs.is_busy and jobs.status.job == "import_lichess":
+        return []
+    return [ThemeCountOut(theme=t, label=THEME_LABELS.get(t, t), count=n)
+            for t, n in theme_counts(db) if t not in THEME_FILTER_EXCLUDE]
 
 
 @router.get("/stats/themes", response_model=list[ThemeStatOut])
