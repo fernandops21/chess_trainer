@@ -140,7 +140,13 @@ export function TacticSession({ config, onFinish }: { config: SessionConfig; onF
       <Modal open={askContinue} title="Tempo esgotado">
         <p>O tempo planejado acabou. Continuar ou encerrar?</p>
         <div className="row">
-          <button className="primary" onClick={() => { clock.continueSession(); setAskContinue(false); void goNext(done); }}>Continuar</button>
+          <button className="primary" onClick={() => {
+            clock.continueSession(); setAskContinue(false);
+            // mesmo bloqueio do avanço normal: sem ele o Próximo segue clicável durante a
+            // busca e um segundo clique registraria o mesmo resultado duas vezes
+            setAdvancing(true);
+            void goNext(done).finally(() => setAdvancing(false));
+          }}>Continuar</button>
           <button onClick={() => { setAskContinue(false); void finish("Tempo esgotado.", done); }}>Encerrar</button>
         </div>
       </Modal>

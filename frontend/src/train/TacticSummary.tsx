@@ -1,5 +1,6 @@
 import type { AttemptOut, TacticOut } from "../api/types";
 import { themeLabel } from "../lib/format";
+import { storage } from "../lib/storage";
 
 export interface TacticDone { tactic: TacticOut; attempt: AttemptOut }
 
@@ -8,6 +9,8 @@ export function TacticSummary({ done, elapsedLabel, reason, ratingStart, ratingE
   const clean = (d: TacticDone) => d.attempt.correct && !d.attempt.used_hint;
   const ok = done.filter(clean);
   const failed = done.filter((d) => !clean(d));
+  // a sessão acabou porque nenhum candidato bateu com os temas: oferecer recomeçar sem eles
+  const noCandidates = reason.toLowerCase().includes("nenhuma tática disponível");
   return (
     <div className="card">
       <h2 style={{ marginTop: 0 }}>Sessão encerrada</h2>
@@ -30,7 +33,10 @@ export function TacticSummary({ done, elapsedLabel, reason, ratingStart, ratingE
           </ul>
         </>
       )}
-      <button className="primary" onClick={onNew}>Nova sessão</button>
+      <div className="row">
+        <button className="primary" onClick={onNew}>Nova sessão</button>
+        {noCandidates && <button onClick={() => { storage.set("train.themes", []); onNew(); }}>Nova sessão sem temas</button>}
+      </div>
     </div>
   );
 }

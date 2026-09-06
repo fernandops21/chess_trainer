@@ -58,7 +58,7 @@ test("com banco importado mostra a contagem, a data e as tentativas", async () =
 
 test("os campos do filtro e do rating aparecem no formulário", async () => {
   renderPage();
-  const rating = (await screen.findByLabelText("Rating inicial de táticas")) as HTMLInputElement;
+  const rating = (await screen.findByLabelText("Rating de táticas (ajustado automaticamente)")) as HTMLInputElement;
   expect(rating.value).toBe("1200");
   expect((screen.getByLabelText("Janela de rating (±)") as HTMLInputElement).value).toBe("150");
   expect((screen.getByLabelText("Mínimo de partidas jogadas") as HTMLInputElement).value).toBe("2000");

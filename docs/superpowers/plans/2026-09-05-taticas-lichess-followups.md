@@ -34,4 +34,17 @@ Executado em janela de autonomia (usuário ausente, 2026-09-05/06) com subagente
 8. Teste `tacticSession.test.tsx` usa um `setTimeout` real de 10 ms para o status resolver; se ficar instável, trocar por `waitFor`.
 9. `test_analyze_single_game` (backend) oscilou uma vez por tempo durante a execução; passou nas outras 10+ rodadas.
 10. Temas de abertura (`OpeningTags`) ficam guardados mas sem filtro na interface (fora de escopo).
-11. Spec §5 previa botão "limpar temas" na mensagem "sem candidatos"; a sessão encerra com a mensagem do backend e o botão Limpar existe na tela de início.
+11. ~~Spec §5 previa botão "limpar temas" na mensagem "sem candidatos"~~ — resolvido: o resumo mostra "Nova sessão sem temas" quando o motivo do fim é "nenhuma tática disponível".
+12. O mapa de rótulos dos temas existe duas vezes (`core/tactics/themes.py` e
+    `frontend/src/lib/format.ts`); `/api/tactics/themes` já devolve o `label`,
+    então a tela poderia usar só ele (ou o backend poderia servir o mapa) em vez
+    de manter as duas listas em sincronia na mão.
+13. Não há como remover o banco de táticas importado (~430 MB no SQLite): sugerido
+    um botão "remover banco de táticas" em Configurações, apagando
+    `lichess_puzzles`/`lichess_puzzle_themes` e o cache de contagens (as tentativas
+    e o rating ficam).
+14. O download não retoma de onde parou: cancelar ou cair a rede apaga o `.part` e
+    a próxima tentativa recomeça os ~300 MB do zero (falta `Range`/`If-Range`).
+15. Os limites de `tactics_rating` (400–3200), `tactics_window` (≥ 50),
+    `lichess_min_plays` (≥ 0) e `lichess_min_popularity` (−100 a 100) passaram a
+    ser validados também no servidor (`SettingsIn`), não só no formulário.

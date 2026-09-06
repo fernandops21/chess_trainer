@@ -54,7 +54,15 @@ primeiro item das "fases futuras" do spec do ciclo A.
   3. Exclui puzzles com tentativa correta; puzzles errados há mais de 1 dia
      têm prioridade (“errados primeiro”) sobre nunca vistos; os da lista
      `exclude` (já servidos na sessão) ficam de fora.
-  4. Sorteio uniforme dentro do conjunto (LIMIT 50 aleatório por `random()`).
+  4. Sorteio (implementado): escolhe um valor inteiro de rating dentro da
+     janela e amostra só aquele ponto com `ORDER BY random() LIMIT 50`, até 8
+     tentativas — em vez de ordenar por `random()` a janela inteira, que tem
+     centenas de milhares de linhas. O filtro de temas entra como `EXISTS`
+     correlacionado sobre o índice `(theme, puzzle_id)`. Se os pontos
+     sorteados vierem vazios, recorre à janela inteira (com tema, guiada pelo
+     índice de temas). Os errados há mais de um dia são sorteados antes,
+     partindo da tabela de tentativas (poucas linhas), não da tabela de
+     táticas.
 - Conversão para o formato de treino: aplica `Moves[0]` ao `FEN` para obter
   `fen_start`; `side_to_move` = lado a jogar; solução = `Moves[1:]` alternando
   `solver`/`engine`; `end_reason` = `mate` se o último lance dá mate, senão
@@ -83,7 +91,10 @@ primeiro item das "fases futuras" do spec do ciclo A.
 
 - **Treinar** ganha a escolha da fonte no painel de início: "Meus erros"
   (fluxo atual) ou "Táticas do Lichess" (novo), mais o filtro de temas (chips
-  com os 20 temas mais comuns, traduzidos) e o relógio como hoje.
+  com os 20 temas mais comuns, traduzidos) e o relógio como hoje. Os chips
+  deixam de fora os temas de fase, duração, avaliação e origem da partida
+  (`middlegame`, `short`, `crushing`, `master`…): são metadados do banco do
+  Lichess, presentes em quase toda tática, e não estreitam o treino.
 - Sessão de táticas: cabeçalho com o rating atual e o rating do puzzle;
   puzzle resolvido no mesmo `PuzzleView`/`usePuzzle`; resultado mostra
   acerto/erro, `±delta` de rating, tema(s), link "ver no Lichess", botão

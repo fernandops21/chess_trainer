@@ -95,7 +95,7 @@ export function SettingsPage() {
           Download de ~300 MB de database.lichess.org; o arquivo fica em backend/data/ e a importação leva uns 5 minutos.
           Acompanhe o andamento no Painel; dá para cancelar (para no fim do lote atual).
         </div>
-        {field("Rating inicial de táticas", "tactics_rating")}
+        {field("Rating de táticas (ajustado automaticamente)", "tactics_rating")}
         {field("Janela de rating (±)", "tactics_window")}
         {field("Mínimo de partidas jogadas", "lichess_min_plays")}
         {field("Popularidade mínima (−100 a 100)", "lichess_min_popularity")}

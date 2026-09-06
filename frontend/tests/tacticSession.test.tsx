@@ -10,6 +10,21 @@ import { TacticSession, type TacticSummaryData } from "../src/train/TacticSessio
 import { TacticSummary } from "../src/train/TacticSummary";
 import type { SessionConfig } from "../src/train/SessionStart";
 
+// O relógio real só expira depois dos minutos planejados; este flag deixa o teste
+// pedir "tempo esgotado" sem mexer em temporizadores (o resto do relógio é o de verdade,
+// inclusive `continueSession`, que liga `overtime` e desliga `expired`).
+const expired = { on: false };
+vi.mock("../src/train/useSessionClock", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/train/useSessionClock")>();
+  return {
+    ...actual,
+    useSessionClock: (planned: number | null) => {
+      const real = actual.useSessionClock(planned);
+      return { ...real, expired: expired.on ? !real.overtime && !real.stopped : real.expired };
+    },
+  };
+});
+
 // A view real usa chessground (arrastar peça não é reproduzível no jsdom);
 // aqui basta um botão que joga o lance da solução pelo mesmo `ctl`.
 vi.mock("../src/train/PuzzleView", () => ({
@@ -72,7 +87,7 @@ beforeEach(() => {
   vi.spyOn(api, "endSession").mockResolvedValue({ ...session, ended_at: "2026-01-01T00:25:00Z" });
   vi.spyOn(api, "attempt").mockResolvedValue(attempt());
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { vi.restoreAllMocks(); expired.on = false; localStorage.clear(); });
 
 test("cria a sessão de táticas e busca a primeira com os temas", async () => {
   const next = vi.spyOn(api, "nextTactic").mockResolvedValue(tactic("t1"));
@@ -133,4 +148,45 @@ test("encerrar sessão sai pelo resumo", async () => {
   fireEvent.click(await screen.findByText("Encerrar sessão"));
   expect(await screen.findByText("Sessão encerrada.")).toBeTruthy();
   expect(api.endSession).toHaveBeenCalledWith("s1");
+});
+
+
+test("Continuar do tempo esgotado bloqueia o Próximo até a próxima tática chegar", async () => {
+  expired.on = true;
+  let resolveNext!: (t: TacticOut) => void;
+  const next = vi.spyOn(api, "nextTactic")
+    .mockResolvedValueOnce(tactic("t1"))
+    .mockImplementationOnce(() => new Promise<TacticOut>((res) => { resolveNext = res; }));
+  renderSession();
+  fireEvent.click(await screen.findByText("resolver"));
+  fireEvent.click(await screen.findByText("Próximo"));
+  // com o tempo esgotado o avanço vira o modal; Continuar é que busca a próxima
+  fireEvent.click(await screen.findByText("Continuar"));
+  const loading = await screen.findByText("Carregando…");
+  expect((loading as HTMLButtonElement).disabled).toBe(true);
+  // segundo clique durante a busca não pode disparar outra tentativa nem duplicar o resultado
+  fireEvent.click(loading);
+  expect(next).toHaveBeenCalledTimes(2);
+  resolveNext(tactic("t2"));
+  expect(await screen.findByText("2ª tática · rating 1216")).toBeTruthy();
+});
+
+test("sem candidatos, o resumo oferece uma nova sessão sem temas", () => {
+  localStorage.setItem("train.themes", JSON.stringify(["fork"]));
+  const onNew = vi.fn();
+  render(
+    <TacticSummary done={[]} elapsedLabel="00:10" reason="nenhuma tática disponível com esses filtros"
+      ratingStart={1200} ratingEnd={1200} onNew={onNew} />,
+  );
+  fireEvent.click(screen.getByText("Nova sessão sem temas"));
+  expect(localStorage.getItem("train.themes")).toBe("[]");
+  expect(onNew).toHaveBeenCalledTimes(1);
+});
+
+test("resumo com outro motivo não oferece a nova sessão sem temas", () => {
+  render(
+    <TacticSummary done={[]} elapsedLabel="00:10" reason="Sessão encerrada."
+      ratingStart={1200} ratingEnd={1200} onNew={() => {}} />,
+  );
+  expect(screen.queryByText("Nova sessão sem temas")).toBeNull();
 });
