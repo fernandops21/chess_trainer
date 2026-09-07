@@ -92,12 +92,11 @@ export function SaveChapterModal({ tree, onClose, newStudy = false }: SaveChapte
   /** Apaga o capítulo (e o estudo, se ele nasceu aqui) criados nesta tentativa. */
   async function desfazer(estudoNovo: string, capituloNovo: string) {
     const alvoEstudo = estudoNovo || escolhido;
-    try {
-      if (capituloNovo) await api.deleteChapter(alvoEstudo, capituloNovo);
-      if (estudoNovo) await api.deleteStudy(estudoNovo);
-    } catch {
-      // desfazer é o melhor esforço: o erro que interessa é o do salvamento
-    }
+    // cada passo do desfazer é independente: se apagar o capítulo falhar, o
+    // estudo vazio ainda deve ser apagado. Melhor esforço: o erro que
+    // interessa é o do salvamento.
+    if (capituloNovo) { try { await api.deleteChapter(alvoEstudo, capituloNovo); } catch { /* segue */ } }
+    if (estudoNovo) { try { await api.deleteStudy(estudoNovo); } catch { /* segue */ } }
     if (estudoNovo || capituloNovo) void qc.invalidateQueries({ queryKey: keys.studies });
   }
 

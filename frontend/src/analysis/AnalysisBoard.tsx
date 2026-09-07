@@ -227,7 +227,7 @@ export function AnalysisBoard({
         <div className="card">
           {/* cheia, a árvore não aceita lance novo: dizer isso aqui evita o
               tabuleiro que "não obedece" quando o lance simplesmente não entra */}
-          {mt.cheia && (
+          {editable && mt.cheia && (
             <div className="msg">
               Limite de {MAX_NODES} lances por capítulo: apague alguma variação para entrar com outro lance.
             </div>
