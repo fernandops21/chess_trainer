@@ -17,7 +17,7 @@ export interface MoveTreeViewProps {
   /** Nós que aparecem no livro de aberturas: ganham o símbolo do livro. */
   bookIds?: Set<string>;
   /** Classificação de cada lance do caminho atual (`useMoveClassification`). */
-  classes?: Map<string, Classification>;
+  classes?: ReadonlyMap<string, Classification>;
 }
 
 /** Símbolo do lance que está no livro de aberturas. */
@@ -123,7 +123,7 @@ interface Ctx {
   num: Numbering;
   currentId: string | null;
   bookIds?: Set<string>;
-  classes?: Map<string, Classification>;
+  classes?: ReadonlyMap<string, Classification>;
   onGoTo: (id: string) => void;
   onContextMenu?: (id: string, pos: MenuPos) => void;
 }
