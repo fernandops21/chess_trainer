@@ -172,40 +172,44 @@ test("árvore diferente com os mesmos ids recalcula o mapa", async () => {
 // 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7
 const RUY = ["e2e4", "e7e5", "g1f3", "b8c6", "f1b5", "a7a6", "b5a4", "g8f6", "e1g1", "f8e7"];
 
-test("no máximo 6 posições sem resposta em voo, começando pela atual", async () => {
+test("poucas posições sem resposta em voo, começando pela atual", async () => {
   const espia = vi.spyOn(api, "analyse").mockImplementation(() => new Promise<AnalyseOut>(() => {}));
   const arvore = arvoreLinear(RUY);
   const fens = fensDe(arvore);
   const { result } = montarArvore(arvore, `n${RUY.length}`);
   await waitFor(() => expect(espia).toHaveBeenCalledTimes(MAX_EM_VOO));
-  // as seis últimas posições do caminho, da atual para trás
+  // as últimas posições do caminho, da atual para trás
   expect(espia.mock.calls.map((c) => c[0])).toEqual(fens.slice(-MAX_EM_VOO).reverse());
   expect(result.current.size).toBe(0);
 });
 
-// Nf3 Nf6 Ng1 Ng8 repetidos: 65 meios-lances legais, todos com FEN diferente.
-const CAVALOS = Array.from({ length: 65 }, (_, i) => ["g1f3", "g8f6", "f3g1", "f6g8"][i % 4]);
+// Nf3 Nf6 Ng1 Ng8 repetidos: 70 meios-lances legais, todos com FEN diferente.
+const CAVALOS = Array.from({ length: 70 }, (_, i) => ["g1f3", "g8f6", "f3g1", "f6g8"][i % 4]);
 
-test("classifica no máximo 60 meios-lances", async () => {
+test("classifica os 60 últimos meios-lances do caminho", async () => {
   const espia = vi.spyOn(api, "analyse").mockImplementation(async (fen: string) =>
     analise(fen, fen.split(" ")[1] === "w" ? "white" : "black", "a2a3", 0),
   );
   const arvore = arvoreLinear(CAVALOS);
   const { result } = montarArvore(arvore, `n${CAVALOS.length}`);
-  await waitFor(() => expect(result.current.size).toBe(MAX_LANCES), { timeout: 5000 });
-  expect(result.current.get(`n${MAX_LANCES}`)).toBeDefined();
-  expect(result.current.get(`n${MAX_LANCES + 1}`)).toBeUndefined();
-  // uma consulta por posição: os 60 lances mais a inicial
+  await waitFor(() => expect(result.current.size).toBe(MAX_LANCES), { timeout: 20000 });
+  // o teto corta a cabeça do caminho: o lance na tela é sempre classificado
+  expect(result.current.get(`n${CAVALOS.length}`)).toBeDefined();
+  expect(result.current.get(`n${CAVALOS.length - MAX_LANCES + 1}`)).toBeDefined();
+  expect(result.current.get(`n${CAVALOS.length - MAX_LANCES}`)).toBeUndefined();
+  expect(result.current.get("n1")).toBeUndefined();
+  // uma consulta por posição: os 60 lances mais a de onde o primeiro deles parte
   expect(espia).toHaveBeenCalledTimes(MAX_LANCES + 1);
-});
+}, 30000);
 
 test("estado parcial: só entram os lances cujas análises já chegaram", async () => {
   vi.spyOn(api, "analyse").mockImplementation((fen: string) =>
-    fen === FEN0 || fen === FEN1 ? Promise.resolve(RESPOSTAS[fen]) : new Promise<AnalyseOut>(() => {}),
+    fen === FEN2 || fen === FEN3 ? Promise.resolve(RESPOSTAS[fen]) : new Promise<AnalyseOut>(() => {}),
   );
   const { result } = montar("n3", true);
   await waitFor(() => expect(result.current.size).toBe(1));
-  expect(result.current.get("n1")?.kind).toBe("melhor");
+  // as consultas saem da posição atual para trás: o lance na tela é o primeiro
+  expect(result.current.get("n3")?.kind).toBe("imprecisao");
   expect(result.current.get("n2")).toBeUndefined();
-  expect(result.current.get("n3")).toBeUndefined();
+  expect(result.current.get("n1")).toBeUndefined();
 });

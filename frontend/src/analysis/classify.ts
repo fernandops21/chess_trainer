@@ -162,18 +162,22 @@ export function classifyMove({
 
   // Sacrifício: a vantagem material de quem jogou cai de verdade, já contada a
   // melhor resposta do adversário. Uma troca simples não mexe na diferença.
-  if (
-    (eOMelhor || deuMate) &&
-    child !== null &&
-    linhaFilho !== null &&
-    depois !== null &&
-    depois >= NAO_PERDIDO_CP &&
-    materialDiff(parent.fen, parent.turn) -
-      materialDiff(fenAfterReply(child.fen, linhaFilho.pv[0]), parent.turn) >=
-      SACRIFICIO_CP
-  ) {
-    return classe("brilhante", loss);
-  }
+  //
+  // O mate é o fim da linha: não há resposta a contar, e nenhum lance faz o
+  // próprio material cair. O que sobra para medir é a diferença na própria
+  // posição do mate — quem mata com menos material do que o adversário entregou
+  // o que faltava nos lances de antes, e o mate fecha o sacrifício.
+  const sacrificio =
+    child === null || depois === null || depois < NAO_PERDIDO_CP
+      ? false
+      : deuMate
+        ? materialDiff(child.fen, parent.turn) <= -SACRIFICIO_CP
+        : linhaFilho !== null &&
+          materialDiff(parent.fen, parent.turn) -
+            materialDiff(fenAfterReply(child.fen, linhaFilho.pv[0]), parent.turn) >=
+            SACRIFICIO_CP;
+
+  if ((eOMelhor || deuMate) && sacrificio) return classe("brilhante", loss);
 
   // "ótimo" só sai com o filho em mãos: enquanto ele não chega o lance fica
   // em "melhor", que é a única categoria que não pode mudar depois. A conta vai

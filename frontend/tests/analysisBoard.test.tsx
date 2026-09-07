@@ -424,7 +424,8 @@ test("com a classificação ligada, os lances ganham selo na árvore e no tabule
   const lances = container.querySelectorAll(".tree .move");
   expect(lances[0].querySelector(".book")).toBeTruthy();
   expect(lances[0].querySelector(".class")).toBeNull();
-  expect(container.textContent).toMatch(/lance: melhor/);
+  // a perda vai negada na linha do cabeçalho
+  expect(container.textContent).toMatch(/lance: melhor \(-0\.60\)/);
 });
 
 test("com a classificação desligada, a engine só é consultada para a posição na tela", async () => {

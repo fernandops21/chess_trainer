@@ -4,6 +4,8 @@ test("formatEval", () => {
   expect(formatEval(125)).toBe("+1.25");
   expect(formatEval(-40)).toBe("-0.40");
   expect(formatEval(0)).toBe("0.00");
+  // perda zero na linha "lance: …" chega negada e não pode virar "-0.00"
+  expect(formatEval(-0)).toBe("0.00");
   expect(formatEval(99997)).toBe("#3");
   expect(formatEval(-99998)).toBe("#-2");
 });

@@ -208,6 +208,30 @@ test("sem a posição filha só o melhor lance é classificado", () => {
   expect(classificar(pai(30), semLinhas, "d2d4")).toBeNull();
 });
 
+// Mate sufocado: as brancas entregaram a dama antes e dão mate com o cavalo.
+// A posição do mate é o fim da linha — não há resposta do adversário a contar.
+const MATE_SUFOCADO = "6rk/6pp/8/6N1/8/8/1q6/6K1 w - - 0 1";
+const DEPOIS_DO_MATE = "6rk/5Npp/8/8/8/8/1q6/6K1 b - - 1 1";
+
+test("brilhante: mate dado com menos material do que o adversário", () => {
+  const parent = posicao(MATE_SUFOCADO, "white", [linha("g5f7", 99999)]);
+  const mate = posicao(DEPOIS_DO_MATE, "black", [], "checkmate");
+  const c = classificar(parent, mate, "g5f7");
+  expect(c?.kind).toBe("brilhante");
+  expect(c?.symbol).toBe("!!");
+  expect(c?.loss).toBe(0);
+});
+
+// Mate na última fileira com as brancas por cima no material.
+const MATE_TRANQUILO = "6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1";
+const DEPOIS_DO_MATE_TRANQUILO = "R5k1/5ppp/8/8/8/8/5PPP/6K1 b - - 1 1";
+
+test("mate sem material entregue é só o melhor lance", () => {
+  const parent = posicao(MATE_TRANQUILO, "white", [linha("a1a8", 99999)]);
+  const mate = posicao(DEPOIS_DO_MATE_TRANQUILO, "black", [], "checkmate");
+  expect(classificar(parent, mate, "a1a8")?.kind).toBe("melhor");
+});
+
 test("lance que dá mate conta como o melhor", () => {
   const mate = posicao(APOS_E4, "black", [], "checkmate");
   const c = classificar(pai(30), mate, "d1h5");

@@ -8,6 +8,8 @@ export function formatEval(cp: number): string {
     const n = MATE_SCORE - Math.abs(cp);
     return cp > 0 ? `#${n}` : `#-${n}`;
   }
+  // pega também o −0 (a perda zero da classificação chega negada), que sairia
+  // como "-0.00"
   if (cp === 0) return "0.00";
   const v = (cp / 100).toFixed(2);
   return cp > 0 ? `+${v}` : v;

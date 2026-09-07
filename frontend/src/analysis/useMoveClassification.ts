@@ -8,11 +8,15 @@ import { classifyMove } from "./classify";
 import type { Classification } from "./classify";
 import type { Tree, TreeNode } from "./moveTree";
 
-/** Teto de meios-lances classificados por caminho. */
+/** Teto de meios-lances classificados por caminho (os últimos do caminho). */
 export const MAX_LANCES = 60;
 
-/** Quantas posições sem resposta podem estar sendo consultadas ao mesmo tempo. */
-export const MAX_EM_VOO = 6;
+/**
+ * Quantas posições sem resposta podem estar sendo consultadas ao mesmo tempo.
+ * A engine do servidor tem lock e resolve uma consulta por vez, então uma fila
+ * maior só ocuparia as conexões do navegador sem adiantar nada.
+ */
+export const MAX_EM_VOO = 2;
 
 const NENHUMA: ReadonlyMap<string, Classification> = new Map();
 
@@ -25,40 +29,50 @@ export interface MoveClassificationOptions {
 }
 
 /**
- * Classificação de cada lance do caminho atual (raiz → nó atual).
+ * Classificação de cada lance do caminho atual (os `MAX_LANCES` últimos, até
+ * o nó atual).
  *
- * Cada posição do caminho é analisada uma vez: a inicial e a de depois de
- * cada lance. A análise de um lance usa a posição de onde ele parte e a
- * posição a que ele leva, então uma consulta serve a dois lances.
+ * Cada posição do caminho é analisada uma vez: a de onde parte o primeiro
+ * lance classificado e a de depois de cada lance. A análise de um lance usa a
+ * posição de onde ele parte e a posição a que ele leva, então uma consulta
+ * serve a dois lances.
  *
- * As consultas são as mesmas de `useAnalyse` (mesma chave e mesmo cache,
- * guardado para sempre), então navegar pela árvore não repete trabalho. Elas
- * saem da posição atual para trás, algumas por vez (`MAX_EM_VOO`): a engine do
- * servidor tem lock e serializa tudo, então quem sai antes é resolvido antes —
- * e o que interessa primeiro é o lance que está na tela. Os lances vão sendo
- * classificados conforme as respostas chegam.
+ * As consultas são as mesmas de `useAnalyse` (mesma chave e mesmo cache: a
+ * resposta não envelhece e fica guardada enquanto a posição estiver em uso,
+ * mais os 5 minutos de `gcTime` do React Query), então navegar pela árvore não
+ * repete trabalho. Elas saem da posição atual para trás, poucas por vez
+ * (`MAX_EM_VOO`): a engine do servidor tem lock e serializa tudo, então quem
+ * sai antes é resolvido antes — e o que interessa primeiro é o lance que está
+ * na tela. Os lances vão sendo classificados conforme as respostas chegam.
  */
 export function useMoveClassification(
   tree: Tree,
   path: TreeNode[],
   { enabled, thresholds, bookIds }: MoveClassificationOptions,
 ): ReadonlyMap<string, Classification> {
-  const nos = useMemo(() => path.slice(0, MAX_LANCES), [path]);
-  // uma caminhada só pelo caminho: a posição inicial e a de depois de cada lance
+  // O teto corta a cabeça do caminho, não a cauda: o que interessa é o lance
+  // na tela e os que vieram logo antes dele.
+  const inicio = Math.max(0, path.length - MAX_LANCES);
+  const nos = useMemo(() => path.slice(inicio), [path, inicio]);
+  // uma caminhada só, desde a raiz: a posição de onde parte o primeiro lance
+  // classificado e a de depois de cada um deles
   const fens = useMemo(() => {
     if (nos.length === 0) return [];
     const chess = new Chess(tree.fen);
-    const out = [tree.fen];
-    for (const n of nos) {
+    const out: string[] = [];
+    for (const [k, n] of path.entries()) {
+      // na raiz vale a FEN da árvore, como em `fenAt`: a normalização do
+      // chess.js daria outra chave de cache para a mesma posição
+      if (k === inicio) out.push(inicio === 0 ? tree.fen : chess.fen());
       try {
         chess.move(uciToMove(n.uci));
       } catch {
         break;
       }
-      out.push(chess.fen());
+      if (k >= inicio) out.push(chess.fen());
     }
     return out;
-  }, [tree, nos]);
+  }, [tree, path, nos, inicio]);
 
   // Da posição atual para trás: é esta a ordem em que as consultas saem.
   const ordem = useMemo(() => fens.map((_, i) => fens.length - 1 - i), [fens]);
