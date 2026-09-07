@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import type { AttemptOut, PuzzleOut, TacticOut } from "../src/api/types";
 import { PuzzleView } from "../src/train/PuzzleView";
 import { usePuzzle } from "../src/train/usePuzzle";
@@ -133,4 +133,30 @@ test("dica em dois estágios: rótulo muda e o botão segue habilitado", () => {
   expect(btn.textContent).toBe("Jogar o lance");
   expect(btn.disabled).toBe(false);
   expect(screen.getByText(/Clique de novo para jogar o lance/)).toBeTruthy();
+});
+
+test("o botão Pular só aparece quando onSkip é passado", () => {
+  const { unmount } = render(<Host puzzle={own} />);
+  expect(screen.queryByRole("button", { name: "Pular" })).toBeNull();
+  unmount();
+
+  const onSkip = vi.fn();
+  function SkipHost() {
+    const ctl = usePuzzle(own, { sessionId: null, submit: async () => ({}) as never });
+    return <PuzzleView puzzle={own} ctl={ctl} onSkip={onSkip} />;
+  }
+  render(<SkipHost />);
+  const btn = screen.getByRole("button", { name: "Pular" }) as HTMLButtonElement;
+  expect(btn.disabled).toBe(false);
+  fireEvent.click(btn);
+  expect(onSkip).toHaveBeenCalledTimes(1);
+});
+
+test("o botão Pular pode vir desabilitado", () => {
+  function SkipHost() {
+    const ctl = usePuzzle(own, { sessionId: null, submit: async () => ({}) as never });
+    return <PuzzleView puzzle={own} ctl={ctl} onSkip={() => {}} skipDisabled />;
+  }
+  render(<SkipHost />);
+  expect((screen.getByRole("button", { name: "Pular" }) as HTMLButtonElement).disabled).toBe(true);
 });

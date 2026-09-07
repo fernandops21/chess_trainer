@@ -59,7 +59,8 @@ function PuzzleInfo({ puzzle, orderInfo }: { puzzle: PuzzleOut; orderInfo?: stri
   );
 }
 
-export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo }: { puzzle: Trainable; ctl: Ctl; clockLabel?: string; orderInfo?: string }) {
+export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDisabled }:
+  { puzzle: Trainable; ctl: Ctl; clockLabel?: string; orderInfo?: string; onSkip?: () => void; skipDisabled?: boolean }) {
   const tactic = puzzle.kind === "tactic";
   const { state, dests } = ctl;
   const playable = state.phase === "awaiting_move";
@@ -103,6 +104,7 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo }: { puzzle: Tra
           <button onClick={ctl.useHint} disabled={!playable} aria-label="Dica">
             {state.hintStage === 1 ? "Jogar o lance" : "Mostrar peça"}
           </button>
+          {onSkip && <button onClick={onSkip} disabled={skipDisabled} aria-label="Pular">Pular</button>}
           {clockLabel && <span className="muted" aria-label="relógio">{clockLabel}</span>}
         </div>
       </div>

@@ -29,6 +29,8 @@ const puzzle = {
   siblings: [],
 };
 
+const outro = { ...puzzle, id: "p2", game: { ...puzzle.game, id: "g2", white: "outro" } };
+
 const bodies: Record<string, unknown> = {
   "/api/sessions": { id: "s1", started_at: "2026-01-01T00:00:00Z", ended_at: null, planned_minutes: 25, filters: {}, reviews: 0, correct: 0, total_duration_ms: 0 },
   "/api/queue": { due_count: 1, new_available: 0, new_remaining_today: 0, items: [puzzle] },
@@ -39,6 +41,7 @@ const bodies: Record<string, unknown> = {
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  bodies["/api/queue"] = { due_count: 1, new_available: 0, new_remaining_today: 0, items: [puzzle] };
   fetchMock = vi.fn(async (url: string) => {
     const path = String(url).split("?")[0];
     const body = bodies[path];
@@ -65,4 +68,51 @@ test("a sessão inicia sob StrictMode e cria apenas uma sessão", async () => {
   expect(await screen.findByText(/jogam/)).toBeTruthy();
   const sessionCalls = fetchMock.mock.calls.filter((c) => String(c[0]) === "/api/sessions");
   expect(sessionCalls.length).toBe(1);
+});
+
+function renderPage() {
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter>
+        <TrainPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+test("pular manda o puzzle para o fim da lista e mostra o próximo", async () => {
+  bodies["/api/queue"] = { due_count: 2, new_available: 0, new_remaining_today: 0, items: [puzzle, outro] };
+  renderPage();
+  fireEvent.click(screen.getByText("Começar"));
+
+  expect(await screen.findByText(/eu × ele/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Pular" }));
+  expect(await screen.findByText(/outro × ele/)).toBeTruthy();
+  expect(screen.getByText(/1 pulado\(s\)/)).toBeTruthy();
+  // o pulado não conta como resolvido: a ordem da sessão continua no 1º
+  expect(screen.getByText(/1º da sessão/)).toBeTruthy();
+
+  // pulando o último, o que foi para o fim volta a aparecer
+  fireEvent.click(screen.getByRole("button", { name: "Pular" }));
+  expect(await screen.findByText(/eu × ele/)).toBeTruthy();
+  expect(screen.getByText(/2 pulado\(s\)/)).toBeTruthy();
+});
+
+test("pular não registra revisão", async () => {
+  bodies["/api/queue"] = { due_count: 2, new_available: 0, new_remaining_today: 0, items: [puzzle, outro] };
+  renderPage();
+  fireEvent.click(screen.getByText("Começar"));
+
+  expect(await screen.findByText(/eu × ele/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Pular" }));
+  await screen.findByText(/outro × ele/);
+  expect(fetchMock.mock.calls.some((c) => String(c[0]).startsWith("/api/reviews"))).toBe(false);
+});
+
+test("com um único puzzle na lista o botão Pular fica desabilitado", async () => {
+  renderPage();
+  fireEvent.click(screen.getByText("Começar"));
+
+  await screen.findByText(/jogam/);
+  expect((screen.getByRole("button", { name: "Pular" }) as HTMLButtonElement).disabled).toBe(true);
 });

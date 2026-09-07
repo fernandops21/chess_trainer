@@ -16,8 +16,8 @@ import { usePuzzle } from "./usePuzzle";
 import { mmss, useSessionClock } from "./useSessionClock";
 
 /** Um puzzle da sessão: monta usePuzzle com key = puzzle.id para reiniciar o estado a cada puzzle. */
-function SessionPuzzle({ puzzle, sessionId, clockLabel, orderInfo, onDone, presetHint, nextLabel, nextDisabled }:
-  { puzzle: PuzzleOut; sessionId: string | null; clockLabel?: string; orderInfo?: string; onDone: (d: Done) => void; presetHint?: boolean; nextLabel?: string; nextDisabled?: boolean }) {
+function SessionPuzzle({ puzzle, sessionId, clockLabel, orderInfo, onDone, presetHint, nextLabel, nextDisabled, onSkip, skipDisabled }:
+  { puzzle: PuzzleOut; sessionId: string | null; clockLabel?: string; orderInfo?: string; onDone: (d: Done) => void; presetHint?: boolean; nextLabel?: string; nextDisabled?: boolean; onSkip?: () => void; skipDisabled?: boolean }) {
   const qc = useQueryClient();
   const submit = useCallback(async (body: ReviewIn) => {
     const out = await api.review(body);
@@ -32,7 +32,7 @@ function SessionPuzzle({ puzzle, sessionId, clockLabel, orderInfo, onDone, prese
     return <ResultPanel puzzle={puzzle} review={state.review} error={state.error} onRetry={ctl.retrySubmit}
       onNext={() => state.review && onDone({ puzzle, review: state.review })} nextLabel={nextLabel} nextDisabled={nextDisabled} clockLabel={clockLabel} />;
   }
-  return <PuzzleView puzzle={puzzle} ctl={ctl} clockLabel={clockLabel} orderInfo={orderInfo} />;
+  return <PuzzleView puzzle={puzzle} ctl={ctl} clockLabel={clockLabel} orderInfo={orderInfo} onSkip={onSkip} skipDisabled={skipDisabled} />;
 }
 
 function SingleTrain({ id, seen }: { id: string; seen: boolean }) {
@@ -49,7 +49,10 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
   const qc = useQueryClient();
   const [session, setSession] = useState<SessionOut | null>(null);
   const [queue, setQueue] = useState<QueueOut | null>(null);
+  // a lista fica no estado: pular reordena os itens sem tocar na fila do servidor
+  const [items, setItems] = useState<PuzzleOut[]>([]);
   const [i, setI] = useState(0);
+  const [skipped, setSkipped] = useState(0);
   const [done, setDone] = useState<Done[]>([]);
   const [error, setError] = useState<unknown>(null);
   const [askContinue, setAskContinue] = useState(false);
@@ -67,7 +70,7 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
     })();
     let alive = true;
     startP.current.then(
-      ([s, q]) => { if (alive) { setSession(s); setQueue(q); } },
+      ([s, q]) => { if (alive) { setSession(s); setQueue(q); setItems(q.items); } },
       (e) => { if (alive) setError(e); },
     );
     return () => { alive = false; };
@@ -94,28 +97,41 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
 
   const goNext = async (all: Done[]) => {
     if (!queue) return;
-    if (i + 1 < queue.items.length) { setI(i + 1); return; }
+    if (i + 1 < items.length) { setI(i + 1); return; }
     try {
       const q = await api.queue(config.filters);
       if (q.items.length === 0) { await finish("Fila vazia por hoje.", all); return; }
-      setQueue(q); setI(0);
+      setQueue(q); setItems(q.items); setI(0);
     } catch {
       await finish("Não foi possível recarregar a fila.", all);
     }
   };
 
+  // pular não registra revisão: manda o puzzle para o fim da lista e segue para o próximo
+  const skip = () => {
+    if (items.length < 2) return;
+    const rest = [...items.slice(0, i), ...items.slice(i + 1)];
+    setItems([...rest, items[i]]);
+    // o próximo já ocupa a posição `i`; se o pulado era o último, volta ao começo
+    if (i >= rest.length) setI(0);
+    setSkipped(skipped + 1);
+  };
+
   if (error) return <ErrorBox error={error} />;
   if (!queue || !session) return <p className="muted">Preparando a sessão…</p>;
-  if (queue.items.length === 0) {
+  if (items.length === 0) {
     const reason = queue.new_available > 0 && queue.new_remaining_today === 0
       ? `Limite diário de novos atingido; há ${queue.new_available} esperando amanhã.` : "Nada vencido e nenhum puzzle novo disponível.";
     return <div className="card"><p>{reason}</p><Link to="/">Analisar mais partidas</Link></div>;
   }
-  const puzzle = queue.items[i];
+  const puzzle = items[i];
+  const orderInfo = `${done.length + 1}º da sessão · ${queue.due_count} vencidos`
+    + (skipped > 0 ? ` · ${skipped} pulado(s)` : "");
   return (
     <>
       <SessionPuzzle key={puzzle.id} puzzle={puzzle} sessionId={session.id} clockLabel={clock.label}
-        orderInfo={`${done.length + 1}º da sessão · ${queue.due_count} vencidos`} onDone={advance} nextDisabled={advancing} />
+        orderInfo={orderInfo} onDone={advance} nextDisabled={advancing}
+        onSkip={skip} skipDisabled={items.length < 2} />
       <Modal open={askContinue} title="Tempo esgotado">
         <p>O tempo planejado acabou. Continuar ou encerrar?</p>
         <div className="row">
