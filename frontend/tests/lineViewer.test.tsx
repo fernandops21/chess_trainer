@@ -104,12 +104,12 @@ test("avançar na linha toca o som do lance alcançado", () => {
 
   fireEvent.click(screen.getByLabelText("próximo"));   // Re8+
   fireEvent.click(screen.getByLabelText("próximo"));   // Rxe8
-  expect(sons()).toEqual(["move", "capture"]);
+  expect(sons()).toEqual(["check", "capture"]); // xeque tem prioridade, como no puzzle
 
   // voltar não toca nada
   fireEvent.click(screen.getByLabelText("anterior"));
   fireEvent.click(screen.getByLabelText("anterior"));
-  expect(sons()).toEqual(["move", "capture"]);
+  expect(sons()).toEqual(["check", "capture"]); // xeque tem prioridade, como no puzzle
 
   // pular direto para um lance à frente também toca
   fireEvent.click(screen.getByText(/Qxe8#$/));

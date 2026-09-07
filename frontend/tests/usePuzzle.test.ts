@@ -317,14 +317,14 @@ test("sem `last_move` não há introdução", () => {
 test("lance certo com captura toca 'capture' e resolver toca 'solved'", async () => {
   const { result } = setup(ONE_MOVE);
   await act(async () => { result.current.tryMove("c3", "d5"); await Promise.resolve(); });
-  expect(sons()).toEqual(["capture", "solved"]);
+  expect(sons()).toEqual(["solved"]); // no lance final só a conclusão soa
 });
 
 test("lance certo sem captura nem xeque toca 'move'", async () => {
   const { result } = setup(PROMO);
   act(() => result.current.tryMove("a7", "a8"));
   await act(async () => { result.current.choosePromotion("q"); await Promise.resolve(); });
-  expect(sons()).toEqual(["move", "solved"]);
+  expect(sons()).toEqual(["solved"]);
 });
 
 test("xeque tem prioridade sobre captura, e a resposta da engine também soa", async () => {
@@ -334,7 +334,7 @@ test("xeque tem prioridade sobre captura, e a resposta da engine também soa", a
   await act(async () => { vi.advanceTimersByTime(100); });
   expect(sons()).toEqual(["check", "capture"]);
   await act(async () => { result.current.tryMove("a4", "e8"); await Promise.resolve(); });
-  expect(sons()).toEqual(["check", "capture", "check", "solved"]);
+  expect(sons()).toEqual(["check", "capture", "solved"]);
 });
 
 test("lance errado toca 'wrong'", () => {

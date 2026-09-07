@@ -167,15 +167,17 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
       setState((p) => ({ ...p, wrong: true, hintStage: 0, pendingPromotion: undefined, message: { text: "Lance inválido", tone: "bad" } }));
       return;
     }
-    play(sanSound(mv.san));
+    // no lance final só toca o som de conclusão (tocado em `finish`)
     const nextIdx = c.history().length;
     const last: [Key, Key] = [mv.from as Key, mv.to as Key];
     const moves = puzzle.solution.moves;
     if (nextIdx >= moves.length) {
+      // (sem som de lance aqui)
       setState(snapshot({ idx: nextIdx, lastMove: last, hintStage: 0, hint: undefined, pendingPromotion: undefined }));
       finish(wrongRef.current, usedHintRef.current, okMessage(nextIdx - 1));
       return;
     }
+    play(sanSound(mv.san));
     const reply = moves[nextIdx];
     if (reply.by === "engine") {
       setState(snapshot({ phase: "engine_replying", idx: nextIdx, lastMove: last, hintStage: 0, hint: undefined, pendingPromotion: undefined, message: { text: okMessage(nextIdx - 1), tone: "ok" } }));
@@ -189,13 +191,14 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
           setState((p) => ({ ...p, phase: "submit_error", error: new Error("Solução inválida do servidor") }));
           return;
         }
-        play(sanSound(r.san));
+        // som só se o puzzle continua (no fim toca a conclusão)
         const afterReply = chessRef.current.history().length;
         const replyLast: [Key, Key] = [r.from as Key, r.to as Key];
         if (afterReply >= moves.length) {
           setState(snapshot({ idx: afterReply, lastMove: replyLast }));
           finish(wrongRef.current, usedHintRef.current, okMessage(afterReply - 1));
         } else {
+          play(sanSound(r.san));
           setState(snapshot({ phase: "awaiting_move", idx: afterReply, lastMove: replyLast }));
         }
       }, opts.engineDelayMs ?? 350);

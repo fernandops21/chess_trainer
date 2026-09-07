@@ -3,7 +3,7 @@ import type { Key } from "chessground/types";
 import type { Shape } from "../api/types";
 import { buildLine } from "../board/line";
 import { Board } from "../board/Board";
-import { play } from "../lib/sound";
+import { play, sanSound } from "../lib/sound";
 
 interface LineViewerProps {
   fenStart: string;
@@ -68,7 +68,7 @@ export function LineViewer({ fenStart, ucis, orientation, startPly, keyboard = t
     if (n === posRef.current) return;
     if (soundRef.current && n > posRef.current) {
       const san = line.sans[n - 1];
-      if (san) play(san.includes("x") ? "capture" : "move");
+      if (san) play(sanSound(san));
     }
     posRef.current = n;
     setPos(n);
