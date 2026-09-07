@@ -133,7 +133,7 @@ export function PositionEditor({
         fen={fen}
         orientation={orient}
         turnColor={turn}
-        editor={{ onSquareClick: clicarCasa, onChange: mudouNoTabuleiro }}
+        editor={{ onSquareClick: clicarCasa, onChange: mudouNoTabuleiro, placing: escolha !== null }}
       />
 
       <div className="pos-palette" style={{ marginTop: 8 }}>

@@ -51,7 +51,7 @@ export function SettingsPage() {
     save.mutate(body, {
       onSuccess: (s) => {
         // "Remover" só mexe no token: não descarta edições em andamento no resto do formulário
-        setForm(opts.soToken ? { ...form, lichess_token_set: s.lichess_token_set } : s);
+        setForm((f) => (opts.soToken && f ? { ...f, lichess_token_set: s.lichess_token_set } : s));
         setTokenDraft("");
         if (!opts.soToken) {
           setSaved(true);

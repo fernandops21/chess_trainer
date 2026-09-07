@@ -358,3 +358,18 @@ test("a aba escolhida volta na próxima abertura do tabuleiro", async () => {
   expect(screen.getByRole("tab", { name: "Aberturas" }).getAttribute("aria-selected")).toBe("true");
   expect(await screen.findByText("A00 · Posição inicial")).toBeTruthy();
 });
+
+test("com o editor de posição aberto, as setas não navegam a árvore escondida", () => {
+  const { onTreeChange } = renderBoard();
+  play("e2e4");
+  play("e7e5");
+  const antes = onTreeChange.mock.calls.length;
+  fireEvent.click(screen.getByRole("button", { name: "Montar posição" }));
+  fireEvent.keyDown(window, { key: "ArrowLeft" });
+  fireEvent.keyDown(window, { key: "Home" });
+  // nenhuma mutação/navegação chega ao pai enquanto o editor está aberto
+  expect(onTreeChange.mock.calls.length).toBe(antes);
+  fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+  // voltou no mesmo lance em que estava (e5 continua o lance atual)
+  expect(screen.getByText("e5").closest("[aria-current]")?.getAttribute("aria-current")).toBe("true");
+});

@@ -120,7 +120,7 @@ Resposta normalizada (os campos das duas bases são diferentes; aqui saem iguais
                 "white": 60, "draws": 30, "black": 10, "avg_rating": 2481}]}
 
 Os lances vêm do mais jogado para o menos. `masters` consulta as partidas de mestres;
-`lichess`, as de jogadores em rapid/classical nas faixas 1600–2500 (xadrez rápido demais
+`lichess`, as de jogadores em rapid/classical com rating a partir de 1600 (faixas 1600, 1800, 2000, 2200 e 2500+) (xadrez rápido demais
 ou de rating muito distante não ajudaria a estudar aberturas).
 
 O explorador exige um token pessoal do Lichess (crie um em

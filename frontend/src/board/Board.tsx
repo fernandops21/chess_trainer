@@ -45,6 +45,9 @@ export interface BoardEditor {
   onSquareClick: (key: Key) => void;
   /** Peças mudaram no tabuleiro; vem só a parte das peças da FEN. */
   onChange: (fen: string) => void;
+  /** Uma peça da paleta está escolhida: o clique coloca, então arrastar fica desligado
+   *  (o chessground avisa a seleção no início do arrasto e a origem seria sobrescrita). */
+  placing?: boolean;
 }
 
 const toShape = (s: DrawShape): Shape => ({ orig: s.orig, dest: s.dest, brush: s.brush ?? "green" });
@@ -100,7 +103,7 @@ function editorConfig(p: BoardProps, editor: BoardEditor): Config {
     coordinates: p.coordinates ?? true,
     animation: { duration: 200 },
     movable: { free: true, color: "both", dests: new Map(), showDests: false, events: {} },
-    draggable: { enabled: true, deleteOnDropOff: true },
+    draggable: { enabled: !editor.placing, deleteOnDropOff: true },
     // clicar é da paleta: sem isto o chessground moveria a peça selecionada
     selectable: { enabled: false },
     premovable: { enabled: false },

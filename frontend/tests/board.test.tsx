@@ -317,3 +317,11 @@ test("no modo montagem a posição do pai volta ao tabuleiro quando muda", () =>
   rerender(<Board fen={F2} orientation="white" editor={editor} />);
   expect(api.set.mock.calls.at(-1)?.[0]?.fen).toBe(F2);
 });
+
+
+test("editor com peça da paleta escolhida desliga o arrasto", () => {
+  const cfg = toConfig({ fen: F1, orientation: "white", editor: { onSquareClick: vi.fn(), onChange: vi.fn(), placing: true } });
+  expect(cfg.draggable?.enabled).toBe(false);
+  const solto = toConfig({ fen: F1, orientation: "white", editor: { onSquareClick: vi.fn(), onChange: vi.fn(), placing: false } });
+  expect(solto.draggable?.enabled).toBe(true);
+});
