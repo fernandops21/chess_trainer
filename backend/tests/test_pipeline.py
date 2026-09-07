@@ -198,7 +198,7 @@ def test_regenerate_avoid_keeps_punish_and_its_reviews(db_session):
     # my_color="black": o erro do ply 6 (3...Nf6??) é MEU, então a posição antes dele é candidata a
     # "evitar" e a posição depois dele gera o "punir" (Qxf7#). Com o FakeEngine padrão a posição
     # antes de Nf6 devolve uma linha só, então nenhum "evitar" materializa (n == 0) -- o que este
-    # teste garante é que a regeração dos "evitar" não toca no "punir" nem nas revisões dele.
+    # teste garante é que a recriação dos "evitar" não toca no "punir" nem nas revisões dele.
     game = _game(pgn=SCHOLAR, my_color="black")
     db_session.add(game)
     db_session.commit()

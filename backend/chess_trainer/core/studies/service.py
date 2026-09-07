@@ -60,7 +60,7 @@ class ImportReport:
 
     def message(self) -> str:
         texto = f"{self.chapters} capítulos, {self.puzzles} exercícios, {len(self.skipped)} pulados"
-        if self.chapters and not self.puzzles:
+        if self.chapters and not self.puzzles and not self.skipped:
             # sem isto o usuário lê "0 exercícios" e acha que a importação falhou
             texto += " (só capítulos de leitura; nenhum exercício)"
         if not self.skipped:
