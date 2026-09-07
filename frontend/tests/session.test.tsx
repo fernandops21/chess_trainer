@@ -33,6 +33,7 @@ const outro = { ...puzzle, id: "p2", game: { ...puzzle.game, id: "g2", white: "o
 
 const bodies: Record<string, unknown> = {
   "/api/sessions": { id: "s1", started_at: "2026-01-01T00:00:00Z", ended_at: null, planned_minutes: 25, filters: {}, reviews: 0, correct: 0, total_duration_ms: 0 },
+  "/api/reviews": { id: "r1", puzzle_id: "p1", result: "correct", used_hint: true, ease: 2.5, interval_days: 1, due_at: "2026-01-02T00:00:00Z", lapses: 0, is_leech: false },
   "/api/queue": { due_count: 1, new_available: 0, new_remaining_today: 0, items: [puzzle] },
   "/api/dashboard": { due_today: 1, new_available: 0, new_remaining_today: 0, streak_days: 0, reviews_today: 0, last_import_at: null, games_total: 0, games_analyzed: 0, puzzles_total: 0, leeches: 0 },
   "/api/status": { engine: { available: true, path: null }, job: { state: "idle", job: null, stage: "", done: 0, total: 0, message: "", error: null, finished_at: null }, games_total: 0, games_pending: 0, last_import_at: null, local_url: "" },
@@ -88,14 +89,61 @@ test("pular manda o puzzle para o fim da lista e mostra o próximo", async () =>
   expect(await screen.findByText(/eu × ele/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Pular" }));
   expect(await screen.findByText(/outro × ele/)).toBeTruthy();
-  expect(screen.getByText(/1 pulado\(s\)/)).toBeTruthy();
+  expect(screen.getByText(/1 pulado\b/)).toBeTruthy();
   // o pulado não conta como resolvido: a ordem da sessão continua no 1º
   expect(screen.getByText(/1º da sessão/)).toBeTruthy();
 
   // pulando o último, o que foi para o fim volta a aparecer
   fireEvent.click(screen.getByRole("button", { name: "Pular" }));
   expect(await screen.findByText(/eu × ele/)).toBeTruthy();
-  expect(screen.getByText(/2 pulado\(s\)/)).toBeTruthy();
+  expect(screen.getByText(/2 pulados/)).toBeTruthy();
+});
+
+/** Resolve o puzzle na tela pela dica (dois cliques) e clica em Próximo. */
+async function resolverEAvancar() {
+  fireEvent.click(screen.getByRole("button", { name: "Dica" }));
+  fireEvent.click(screen.getByRole("button", { name: "Dica" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Próximo puzzle" }));
+}
+
+test("pular o último não devolve um puzzle já resolvido", async () => {
+  bodies["/api/queue"] = { due_count: 2, new_available: 0, new_remaining_today: 0, items: [puzzle, outro] };
+  renderPage();
+  fireEvent.click(screen.getByText("Começar"));
+
+  expect(await screen.findByText(/eu × ele/)).toBeTruthy();
+  await resolverEAvancar();
+  expect(await screen.findByText(/outro × ele/)).toBeTruthy();
+
+  // só resta um por resolver: pular não teria para onde ir sem repetir o resolvido
+  const pular = screen.getByRole("button", { name: "Pular" }) as HTMLButtonElement;
+  expect(pular.disabled).toBe(true);
+  fireEvent.click(pular);
+  expect(screen.queryByText(/eu × ele/)).toBeNull();
+  expect(screen.getByText(/outro × ele/)).toBeTruthy();
+  expect(fetchMock.mock.calls.filter((c) => String(c[0]) === "/api/reviews").length).toBe(1);
+});
+
+test("pular pula quem já foi resolvido e devolve o pulado depois", async () => {
+  const terceiro = { ...puzzle, id: "p3", game: { ...puzzle.game, id: "g3", white: "terceiro" } };
+  bodies["/api/queue"] = { due_count: 3, new_available: 0, new_remaining_today: 0, items: [puzzle, outro, terceiro] };
+  renderPage();
+  fireEvent.click(screen.getByText("Começar"));
+
+  expect(await screen.findByText(/eu × ele/)).toBeTruthy();
+  await resolverEAvancar();
+
+  // pula o segundo: vai para o terceiro, nunca de volta ao resolvido
+  expect(await screen.findByText(/outro × ele/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Pular" }));
+  expect(await screen.findByText(/terceiro × ele/)).toBeTruthy();
+  expect(screen.queryByText(/eu × ele/)).toBeNull();
+
+  // resolvido o terceiro, o pulado volta — e aí não há mais o que pular
+  await resolverEAvancar();
+  expect(await screen.findByText(/outro × ele/)).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Pular" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(fetchMock.mock.calls.filter((c) => String(c[0]) === "/api/reviews").length).toBe(2);
 });
 
 test("pular não registra revisão", async () => {

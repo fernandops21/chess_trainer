@@ -107,13 +107,24 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
     }
   };
 
+  // Quem já foi respondido continua na lista (o resumo e a ordem da sessão
+  // saem de `done`), então pular só pode andar entre os que ainda faltam:
+  // voltar a um resolvido registraria uma segunda revisão do mesmo puzzle.
+  const resolvidos = new Set(done.map((d) => d.puzzle.id));
+  const pendentes = items.filter((p) => !resolvidos.has(p.id)).length;
+
   // pular não registra revisão: manda o puzzle para o fim da lista e segue para o próximo
   const skip = () => {
-    if (items.length < 2) return;
+    if (pendentes < 2) return;
     const rest = [...items.slice(0, i), ...items.slice(i + 1)];
-    setItems([...rest, items[i]]);
-    // o próximo já ocupa a posição `i`; se o pulado era o último, volta ao começo
-    if (i >= rest.length) setI(0);
+    const novos = [...rest, items[i]];
+    // o próximo já ocupa a posição `i`; se o pulado era o último, volta ao
+    // começo — e, de um jeito ou de outro, passa por cima dos já resolvidos
+    // (o pulado espera no fim, então a volta sempre termina)
+    let j = i >= rest.length ? 0 : i;
+    while (resolvidos.has(novos[j].id)) j = (j + 1) % novos.length;
+    setItems(novos);
+    setI(j);
     setSkipped(skipped + 1);
   };
 
@@ -126,12 +137,12 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
   }
   const puzzle = items[i];
   const orderInfo = `${done.length + 1}º da sessão · ${queue.due_count} vencidos`
-    + (skipped > 0 ? ` · ${skipped} pulado(s)` : "");
+    + (skipped > 0 ? ` · ${skipped} ${skipped === 1 ? "pulado" : "pulados"}` : "");
   return (
     <>
       <SessionPuzzle key={puzzle.id} puzzle={puzzle} sessionId={session.id} clockLabel={clock.label}
         orderInfo={orderInfo} onDone={advance} nextDisabled={advancing}
-        onSkip={skip} skipDisabled={items.length < 2} />
+        onSkip={skip} skipDisabled={pendentes < 2} />
       <Modal open={askContinue} title="Tempo esgotado">
         <p>O tempo planejado acabou. Continuar ou encerrar?</p>
         <div className="row">
