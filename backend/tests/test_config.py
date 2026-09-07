@@ -8,6 +8,7 @@ def test_defaults_when_empty(db_session):
     assert s.analysis_depth == 18 and s.puzzle_depth == 20
     assert s.mistake_threshold_cp == 100 and s.blunder_threshold_cp == 200
     assert s.avoid_gap_cp == 150 and s.new_per_day == 10 and s.leech_lapses == 5
+    assert s.new_order == "random"
     assert s.analysis_seconds == 15
     assert s.puzzle_search_seconds == 20 and s.puzzle_reply_seconds == 10
     assert s.classify_moves is True
@@ -22,6 +23,11 @@ def test_save_normalizes_username_and_roundtrips(db_session):
     assert again.categories == ["rapid"]
     assert again.analysis_depth == 12
     assert again.puzzle_depth == 20  # default preservado
+
+
+def test_new_order_roundtrips(db_session):
+    save_settings(db_session, AppSettings(new_order="recent"))
+    assert load_settings(db_session).new_order == "recent"
 
 
 def test_puzzle_config_from_derives_reply_depth():

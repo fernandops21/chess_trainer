@@ -11,10 +11,11 @@ from sqlalchemy.orm import Session
 from chess_trainer.api.deps import get_db
 from chess_trainer.api.routes.training import _puzzle_out
 from chess_trainer.api.schemas import (
-    AttemptIn, AttemptOut, PuzzleOut, TacticOut, TacticsStatusOut, ThemeCountOut, ThemeStatOut,
+    AttemptIn, AttemptOut, PuzzleOut, SaveTacticIn, TacticOut, TacticsStatusOut, ThemeCountOut, ThemeStatOut,
 )
 from chess_trainer.config import get_setting, load_settings, set_setting
 from chess_trainer.core.models import LichessPuzzle, Puzzle, TrainingSession, utcnow
+from chess_trainer.core.srs.reviews import record_review
 from chess_trainer.core.stats import theme_stats
 from chess_trainer.core.tactics.convert import to_tactic
 from chess_trainer.core.tactics.importer import DownloadCancelled, ImportFilter, download_file, import_csv_zst
@@ -122,17 +123,23 @@ def _is_saved(db: Session, lichess_id: str, fen_start: str) -> bool:
 
 
 @router.post("/tactics/{lichess_id}/save", response_model=PuzzleOut)
-def post_save_tactic(lichess_id: str, response: Response, db: Session = Depends(get_db)):
+def post_save_tactic(lichess_id: str, response: Response, body: SaveTacticIn | None = None,
+                     db: Session = Depends(get_db)):
     """Guarda a tática do Lichess como exercício da repetição espaçada.
+
+    Com o resultado da tentativa no corpo, a tática já sai agendada: resolvê-la
+    é a primeira revisão dela.
 
     Idempotente: se já foi guardada devolve a mesma (200), trazendo-a de volta
     à fila se estava fora; nada é apagado nem recriado."""
     row = db.get(LichessPuzzle, lichess_id)
     if row is None:
         raise HTTPException(404, "tática não encontrada")
+    if body is not None and body.session_id is not None and db.get(TrainingSession, body.session_id) is None:
+        raise HTTPException(404, "sessão não encontrada")
     existing = db.scalar(select(Puzzle).where(Puzzle.external_id == lichess_id))
     if existing is not None:
-        return _back_to_queue(db, existing)
+        return _back_to_queue(db, existing, body)
     try:
         t = to_tactic(row)
     except ValueError as exc:
@@ -156,16 +163,30 @@ def post_save_tactic(lichess_id: str, response: Response, db: Session = Depends(
                                               Puzzle.source == "lichess"))
         if twin is None:
             raise
-        return _back_to_queue(db, twin)
+        return _back_to_queue(db, twin, body)
+    _agendar_primeira_revisao(db, puzzle, body)
     response.status_code = 201
     return _puzzle_out(db, puzzle)
 
 
-def _back_to_queue(db: Session, puzzle: Puzzle) -> PuzzleOut:
+def _back_to_queue(db: Session, puzzle: Puzzle, body: SaveTacticIn | None = None) -> PuzzleOut:
     if not puzzle.in_queue:
         puzzle.in_queue = True
         db.commit()
+    _agendar_primeira_revisao(db, puzzle, body)
     return _puzzle_out(db, puzzle)
+
+
+def _agendar_primeira_revisao(db: Session, puzzle: Puzzle, body: SaveTacticIn | None) -> None:
+    """Grava o resultado da tentativa como a primeira revisão do exercício.
+
+    Só na primeira vez: um exercício que já tem revisão (`srs_due_at` definido)
+    continua com o agendamento dele, e guardar de novo não inventa uma revisão."""
+    if body is None or body.correct is None or puzzle.srs_due_at is not None:
+        return
+    record_review(db, puzzle, session_id=body.session_id, correct=body.correct,
+                  used_hint=body.used_hint, duration_ms=body.duration_ms,
+                  now=utcnow(), settings=load_settings(db))
 
 
 @router.post("/tactics/attempts", response_model=AttemptOut, status_code=201)

@@ -59,8 +59,13 @@ def test_mistakes_listing(ready):
 
 def test_queue_review_and_dashboard_flow(ready):
     _, client = ready
-    q = client.get("/api/queue").json()
-    assert q["due_count"] == 0 and q["new_available"] == 1 and len(q["items"]) == 1
+    # a repetição espaçada não serve quem nunca foi feito: a primeira vez é em "Novos"
+    vazia = client.get("/api/queue").json()
+    assert vazia["mode"] == "review" and vazia["items"] == [] and vazia["due_count"] == 0
+    assert vazia["new_available"] == 1
+
+    q = client.get("/api/queue", params={"mode": "new"}).json()
+    assert q["mode"] == "new" and q["due_count"] == 0 and q["new_available"] == 1 and len(q["items"]) == 1
     puzzle = q["items"][0]
     assert puzzle["theme"] == "mate_in_1" and puzzle["solution"]["moves"][0]["uci"] == "h5f7"
     assert puzzle["srs"]["due_at"] is None and puzzle["game"]["white"] == "therealzibs"
@@ -75,6 +80,7 @@ def test_queue_review_and_dashboard_flow(ready):
 
     q2 = client.get("/api/queue").json()
     assert q2["due_count"] == 0 and q2["items"] == [] and q2["new_available"] == 0
+    assert client.get("/api/queue", params={"mode": "new"}).json()["items"] == []
 
     ended = client.post(f"/api/sessions/{session['id']}/end").json()
     assert ended["reviews"] == 1 and ended["correct"] == 1 and ended["total_duration_ms"] == 4000
@@ -88,7 +94,7 @@ def test_queue_review_and_dashboard_flow(ready):
 
 def test_leech_and_unleech(ready):
     _, client = ready
-    puzzle = client.get("/api/queue").json()["items"][0]
+    puzzle = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]
     for _ in range(2):
         r = client.post("/api/reviews", json={"puzzle_id": puzzle["id"], "correct": False})
     assert r.json()["is_leech"] is True
@@ -102,7 +108,7 @@ def test_leech_and_unleech(ready):
 
 def test_puzzle_out_carries_mistake_and_siblings(ready):
     _, client = ready
-    puzzle = client.get("/api/queue").json()["items"][0]
+    puzzle = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]
     m = puzzle["mistake"]
     assert m["ply"] == 6 and m["move_played"] == "Nf6" and m["move_uci"] == "g8f6"
     assert m["mistake_level"] == "blunder" and m["mistake_by"] == "opponent"
@@ -117,7 +123,7 @@ def test_review_unknown_puzzle_is_404(ready):
 
 def test_review_unknown_session_is_404(ready):
     _, client = ready
-    puzzle = client.get("/api/queue").json()["items"][0]
+    puzzle = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]
     r = client.post("/api/reviews", json={"puzzle_id": puzzle["id"], "session_id": "nope", "correct": True})
     assert r.status_code == 404 and "sessão" in r.json()["detail"]
 
@@ -150,7 +156,7 @@ def _make_avoid(app, pos: dict) -> str:
 def test_puzzle_out_last_move_for_own_punish_and_avoid(ready):
     app, client = ready
     positions = _positions(app)
-    punish = client.get("/api/queue").json()["items"][0]
+    punish = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]
     # punir: o último lance é o próprio erro do adversário, a partir da posição anterior a ele
     assert punish["source"] == "own" and punish["kind"] == "punish" and punish["in_queue"] is True
     assert punish["last_move"] == "g8f6" and punish["fen_before"] == positions[5]["fen"]
@@ -169,14 +175,14 @@ def test_puzzle_out_last_move_for_own_punish_and_avoid(ready):
 
 def test_queue_toggle_removes_from_queue_and_dashboard(ready):
     _, client = ready
-    puzzle = client.get("/api/queue").json()["items"][0]
+    puzzle = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]
     by_source = client.get("/api/dashboard").json()["by_source"]
     assert by_source["own"] == {"in_queue": 1, "due": 0}
     assert by_source["lichess"] == {"in_queue": 0, "due": 0} and by_source["study"]["in_queue"] == 0
 
     out = client.post(f"/api/puzzles/{puzzle['id']}/queue", json={"in_queue": False})
     assert out.status_code == 200 and out.json()["in_queue"] is False
-    q = client.get("/api/queue").json()
+    q = client.get("/api/queue", params={"mode": "new"}).json()
     assert q["items"] == [] and q["new_available"] == 0
     assert client.get("/api/dashboard").json()["by_source"]["own"]["in_queue"] == 0
     # o puzzle e seu histórico continuam: a revisão de erros ainda o lista, fora da repetição
@@ -185,7 +191,7 @@ def test_queue_toggle_removes_from_queue_and_dashboard(ready):
 
     back = client.post(f"/api/puzzles/{puzzle['id']}/queue", json={"in_queue": True})
     assert back.status_code == 200 and back.json()["in_queue"] is True
-    assert len(client.get("/api/queue").json()["items"]) == 1
+    assert len(client.get("/api/queue", params={"mode": "new"}).json()["items"]) == 1
     assert client.get("/api/dashboard").json()["by_source"]["own"]["in_queue"] == 1
     assert client.post("/api/puzzles/nope/queue", json={"in_queue": True}).status_code == 404
 
@@ -196,7 +202,7 @@ def test_dashboard_counts_due_by_source(ready):
     from chess_trainer.core.models import Puzzle
 
     app, client = ready
-    puzzle_id = client.get("/api/queue").json()["items"][0]["id"]
+    puzzle_id = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]["id"]
     db = app.state.session_factory()
     try:
         db.get(Puzzle, puzzle_id).srs_due_at = datetime(2020, 1, 1)
@@ -212,6 +218,27 @@ def test_dashboard_counts_due_by_source(ready):
 
 def test_queue_filters_by_source(ready):
     _, client = ready
-    assert client.get("/api/queue", params={"sources": "lichess"}).json()["items"] == []
-    assert len(client.get("/api/queue", params={"sources": "own, lichess"}).json()["items"]) == 1
-    assert client.get("/api/queue", params={"study_id": "nenhum"}).json()["items"] == []
+    assert client.get("/api/queue", params={"mode": "new", "sources": "lichess"}).json()["items"] == []
+    assert len(client.get("/api/queue", params={"mode": "new", "sources": "own, lichess"}).json()["items"]) == 1
+    assert client.get("/api/queue", params={"mode": "new", "study_id": "nenhum"}).json()["items"] == []
+
+
+def test_modo_invalido_e_estudo_sem_id_sao_recusados(ready):
+    _, client = ready
+    assert client.get("/api/queue", params={"mode": "qualquer"}).status_code == 422
+    r = client.get("/api/queue", params={"mode": "study"})
+    assert r.status_code == 400 and "estudo" in r.json()["detail"]
+
+
+def test_painel_conta_vencidos_e_novos_dos_meus_erros(ready):
+    """O painel separa o que está vencido (repetição) do que nunca foi feito
+    (novos), para os dois botões da tela inicial."""
+    app, client = ready
+    dash = client.get("/api/dashboard").json()
+    assert dash["due_today"] == 0 and dash["new_available"] == 1 and dash["new_remaining_today"] == 10
+
+    puzzle_id = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]["id"]
+    assert client.post("/api/reviews", json={"puzzle_id": puzzle_id, "correct": False}).status_code == 201
+    dash = client.get("/api/dashboard").json()
+    # a revisão de hoje já não conta como novo e desconta do limite diário
+    assert dash["new_available"] == 0 and dash["new_remaining_today"] == 9

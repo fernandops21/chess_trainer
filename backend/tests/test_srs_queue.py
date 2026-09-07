@@ -1,3 +1,4 @@
+import random
 from datetime import datetime, timedelta
 
 from chess_trainer.config import AppSettings
@@ -7,6 +8,7 @@ from tests.factories import make_puzzle
 
 NOW = datetime(2026, 9, 4, 15, 0)
 S = AppSettings(new_per_day=2)
+S_RECENTES = AppSettings(new_per_day=2, new_order="recent")
 
 
 def test_local_day_start_is_within_last_24h():
@@ -30,12 +32,13 @@ def test_due_puzzles_first_most_overdue_first(db_session):
     assert q.due_count == 2 and q.new == [] and q.new_available == 1
 
 
-def test_new_only_when_nothing_due_recent_games_first_limited(db_session):
-    old = make_puzzle(db_session, fen="f1", played_at=datetime(2026, 1, 1))
-    mid = make_puzzle(db_session, fen="f2", played_at=datetime(2026, 5, 1))
-    new = make_puzzle(db_session, fen="f3", played_at=datetime(2026, 8, 1))
-    q = build_queue(db_session, QueueFilters(), S, NOW)
-    assert q.due == [] and [p.id for p in q.new] == [new.id, mid.id]
+def test_modo_novos_com_ordem_recente_traz_as_partidas_mais_novas_primeiro(db_session):
+    make_puzzle(db_session, fen="f1", played_at=datetime(2026, 1, 1))
+    meio = make_puzzle(db_session, fen="f2", played_at=datetime(2026, 5, 1))
+    recente = make_puzzle(db_session, fen="f3", played_at=datetime(2026, 8, 1))
+    q = build_queue(db_session, QueueFilters(mode="new"), S_RECENTES, NOW)
+    assert q.due == [] and [p.id for p in q.new] == [recente.id, meio.id]
+    assert [p.id for p in q.items] == [recente.id, meio.id]
     assert q.new_available == 3 and q.new_remaining_today == 2
 
 
@@ -46,7 +49,7 @@ def test_new_limit_discounts_new_reviewed_today(db_session):
     db_session.commit()
     make_puzzle(db_session, fen="f1"); make_puzzle(db_session, fen="f2")
     assert count_new_reviewed_today(db_session, NOW) == 1
-    q = build_queue(db_session, QueueFilters(), S, NOW)
+    q = build_queue(db_session, QueueFilters(mode="new"), S, NOW)
     assert len(q.new) == 1 and q.new_remaining_today == 1
 
 
@@ -62,8 +65,6 @@ def test_filters_and_leeches(db_session):
 
 
 # --- fontes de exercício (own / lichess / study) ---
-
-S10 = AppSettings(new_per_day=10)
 
 
 def _puzzle_externo(db, *, fen, source="lichess", chapter_id=None, created_at=datetime(2026, 5, 1),
@@ -130,10 +131,107 @@ def test_filtro_por_estudo(db_session):
     assert [p.id for p in q.due] == [do_a.id] and q.due_count == 1
 
 
-def test_novos_de_fontes_diferentes_ordenados_por_data(db_session):
+def test_novos_sao_so_os_dos_meus_erros(db_session):
+    """"Novos" serve a primeira vez dos erros do usuário; táticas e estudos
+    entram na repetição pela tela deles, não por aqui."""
     antigo = make_puzzle(db_session, fen="f1", played_at=datetime(2026, 1, 1))
-    do_meio = _puzzle_externo(db_session, fen="f2", created_at=datetime(2026, 5, 1))
     recente = make_puzzle(db_session, fen="f3", played_at=datetime(2026, 8, 1))
-    q = build_queue(db_session, QueueFilters(), S10, NOW)
-    assert [p.id for p in q.new] == [recente.id, do_meio.id, antigo.id]
-    assert q.new_available == 3
+    _puzzle_externo(db_session, fen="f2", created_at=datetime(2026, 5, 1))
+    capitulo = _estudo_com_capitulo(db_session, titulo="estudo-a")
+    _puzzle_externo(db_session, fen="f4", source="study", chapter_id=capitulo.id)
+
+    q = build_queue(db_session, QueueFilters(mode="new"), AppSettings(new_per_day=10, new_order="recent"), NOW)
+    assert [p.id for p in q.new] == [recente.id, antigo.id]
+    assert q.new_available == 2
+
+
+# --- modos de treino (repetição / novos / estudo) ---
+
+
+def _estudo_com_capitulos(db, *, titulo: str, quantos: int) -> list[StudyChapter]:
+    estudo = Study(title=titulo, source_url=f"https://lichess.org/study/{titulo}")
+    db.add(estudo)
+    db.flush()
+    capitulos = [StudyChapter(study_id=estudo.id, order=i, name=f"{titulo} cap {i}",
+                              fen=f"fen-cap-{i}", orientation="white", mode="gamebook", pgn="1. e4 *")
+                 for i in range(1, quantos + 1)]
+    db.add_all(capitulos)
+    db.commit()
+    return capitulos
+
+
+def test_modo_repeticao_so_serve_exercicios_ja_revisados(db_session):
+    vencido = make_puzzle(db_session, fen="f1", due_at=NOW - timedelta(days=1))
+    make_puzzle(db_session, fen="f2")                                  # nunca revisado
+    make_puzzle(db_session, fen="f3", due_at=NOW + timedelta(days=1))  # revisado, mas não venceu
+
+    q = build_queue(db_session, QueueFilters(), S, NOW)
+    assert [p.id for p in q.items] == [vencido.id]
+    assert q.due_count == 1 and q.new == [] and q.new_available == 1
+
+
+def _venc(minutos: int) -> datetime:
+    """Instante dentro do dia local de NOW (para agrupar vencidos por dia)."""
+    return local_day_start(NOW) + timedelta(minutes=minutos)
+
+
+def test_modo_repeticao_agrupa_por_dia_e_embaralha_dentro_do_dia(db_session):
+    ontem = make_puzzle(db_session, fen="f0", due_at=_venc(-60))
+    hoje = [make_puzzle(db_session, fen=f"f{i}", due_at=_venc(i)) for i in range(1, 6)]
+    na_ordem = [p.id for p in hoje]
+
+    q = build_queue(db_session, QueueFilters(), S, NOW, rng=random.Random(3))
+    assert q.items[0].id == ontem.id, "o dia mais atrasado vem primeiro"
+    servidos = [p.id for p in q.items[1:]]
+    assert sorted(servidos) == sorted(na_ordem), "o dia de hoje vem inteiro, sem repetir nem perder"
+    assert servidos != na_ordem, "dentro do dia a ordem é sorteada"
+
+    de_novo = build_queue(db_session, QueueFilters(), S, NOW, rng=random.Random(3))
+    assert [p.id for p in de_novo.items] == [p.id for p in q.items], "mesma semente, mesma ordem"
+
+
+def test_modo_novos_aleatorio_ignora_a_data_da_partida(db_session):
+    ids = [make_puzzle(db_session, fen=f"f{i}", played_at=datetime(2026, i, 1)).id for i in range(1, 7)]
+    por_data = list(reversed(ids))
+
+    q = build_queue(db_session, QueueFilters(mode="new"), AppSettings(new_per_day=6), NOW,
+                    rng=random.Random(3))
+    servidos = [p.id for p in q.items]
+    assert sorted(servidos) == sorted(ids) and servidos != por_data
+    assert q.new_available == 6 and q.new_remaining_today == 6
+
+
+def test_modo_novos_respeita_o_limite_diario_no_sorteio(db_session):
+    for i in range(1, 6):
+        make_puzzle(db_session, fen=f"f{i}")
+    q = build_queue(db_session, QueueFilters(mode="new"), S, NOW, rng=random.Random(1))
+    assert len(q.items) == 2 and len(set(p.id for p in q.items)) == 2
+    assert q.new_available == 5 and q.new_remaining_today == 2
+
+
+def test_modo_estudo_traz_tudo_na_ordem_dos_capitulos_sem_limite(db_session):
+    caps = _estudo_com_capitulos(db_session, titulo="estudo-a", quantos=3)
+    terceiro = _puzzle_externo(db_session, fen="f3", source="study", chapter_id=caps[2].id)
+    primeiro = _puzzle_externo(db_session, fen="f1", source="study", chapter_id=caps[0].id,
+                               due_at=NOW - timedelta(days=1))
+    segundo = _puzzle_externo(db_session, fen="f2", source="study", chapter_id=caps[1].id,
+                              due_at=NOW + timedelta(days=5))
+    outro = _estudo_com_capitulo(db_session, titulo="estudo-b")
+    _puzzle_externo(db_session, fen="f9", source="study", chapter_id=outro.id)
+
+    q = build_queue(db_session, QueueFilters(mode="study", study_id=caps[0].study_id),
+                    AppSettings(new_per_day=1), NOW)
+    assert [p.id for p in q.items] == [primeiro.id, segundo.id, terceiro.id]
+    assert q.due_count == 1 and q.new_available == 1
+
+
+def test_modo_estudo_ignora_fora_da_fila_e_sanguessuga(db_session):
+    caps = _estudo_com_capitulos(db_session, titulo="estudo-a", quantos=3)
+    fica = _puzzle_externo(db_session, fen="f1", source="study", chapter_id=caps[0].id)
+    _puzzle_externo(db_session, fen="f2", source="study", chapter_id=caps[1].id, in_queue=False)
+    sanguessuga = _puzzle_externo(db_session, fen="f3", source="study", chapter_id=caps[2].id)
+    sanguessuga.is_leech = True
+    db_session.commit()
+
+    q = build_queue(db_session, QueueFilters(mode="study", study_id=caps[0].study_id), S, NOW)
+    assert [p.id for p in q.items] == [fica.id]

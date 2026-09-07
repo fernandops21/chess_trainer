@@ -20,6 +20,8 @@ class AppSettings:
     blunder_threshold_cp: int = 200
     avoid_gap_cp: int = 150
     new_per_day: int = 10
+    # ordem dos exercícios novos: "random" (sorteada) ou "recent" (partida mais recente primeiro)
+    new_order: str = "random"
     leech_lapses: int = 5
     analysis_seconds: int = 15
     puzzle_search_seconds: int = 20

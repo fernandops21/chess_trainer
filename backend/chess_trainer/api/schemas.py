@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -13,6 +14,8 @@ class SettingsOut(BaseModel):
     blunder_threshold_cp: int
     avoid_gap_cp: int
     new_per_day: int
+    # "random" (sorteada) ou "recent" (partida mais recente primeiro)
+    new_order: str
     leech_lapses: int
     analysis_seconds: int
     puzzle_search_seconds: int
@@ -36,6 +39,7 @@ class SettingsIn(BaseModel):
     blunder_threshold_cp: int | None = None
     avoid_gap_cp: int | None = None
     new_per_day: int | None = None
+    new_order: Literal["random", "recent"] | None = None
     leech_lapses: int | None = None
     analysis_seconds: int | None = None
     puzzle_search_seconds: int | None = None
@@ -187,10 +191,22 @@ class QueueIn(BaseModel):
 
 
 class QueueOut(BaseModel):
+    # o modo que respondeu: "review" (repetição), "new" (novos) ou "study" (um estudo)
+    mode: str
     due_count: int
     new_available: int
     new_remaining_today: int
     items: list[PuzzleOut]
+
+
+class SaveTacticIn(BaseModel):
+    """Resultado da tentativa ao guardar a tática: com `correct`, a tática já
+    entra agendada (resolver é a primeira revisão dela). Sem corpo, só guarda."""
+
+    correct: bool | None = None
+    used_hint: bool = False
+    duration_ms: int = 0
+    session_id: str | None = None
 
 
 class SessionIn(BaseModel):

@@ -129,8 +129,9 @@ def test_fila_filtrada_pelo_estudo(client):
     importar(client)
     estudo_id = client.get("/api/studies").json()[0]["id"]
 
-    fila = client.get("/api/queue", params={"study_id": estudo_id}).json()
-    assert fila["new_available"] == 16 and fila["items"]
+    fila = client.get("/api/queue", params={"mode": "study", "study_id": estudo_id}).json()
+    # o estudo inteiro, feito ou não, sem o limite diário dos novos
+    assert fila["mode"] == "study" and fila["new_available"] == 16 and len(fila["items"]) == 16
     assert all(item["source"] == "study" for item in fila["items"])
     assert fila["items"][0]["study"]["id"] == estudo_id
     assert fila["items"][0]["study"]["chapter_name"]
@@ -260,11 +261,11 @@ def test_tirar_e_devolver_o_estudo_da_repeticao(client):
 
     fora = client.post(f"/api/studies/{estudo_id}/queue", json={"in_queue": False})
     assert fora.status_code == 200 and fora.json()["in_queue"] == 0
-    assert client.get("/api/queue", params={"study_id": estudo_id}).json()["items"] == []
+    assert client.get("/api/queue", params={"mode": "study", "study_id": estudo_id}).json()["items"] == []
 
     dentro = client.post(f"/api/studies/{estudo_id}/queue", json={"in_queue": True})
     assert dentro.status_code == 200 and dentro.json()["in_queue"] == 16
-    assert client.get("/api/queue", params={"study_id": estudo_id}).json()["items"]
+    assert client.get("/api/queue", params={"mode": "study", "study_id": estudo_id}).json()["items"]
 
 
 def test_remover_o_estudo_apaga_os_exercicios(client):
@@ -387,7 +388,7 @@ def test_salvar_o_capitulo_cria_o_exercicio(client):
     assert salvo["tree"] == ARVORE_MATE and "[%cal Ga1a8]" in salvo["pgn"]
     resumo = client.get(f"/api/studies/{estudo['id']}").json()
     assert resumo["exercise_count"] == 1 and resumo["in_queue"] == 1
-    fila = client.get("/api/queue", params={"study_id": estudo["id"]}).json()
+    fila = client.get("/api/queue", params={"mode": "study", "study_id": estudo["id"]}).json()
     assert [item["id"] for item in fila["items"]] == [salvo["puzzle_id"]]
 
 

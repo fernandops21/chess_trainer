@@ -165,8 +165,9 @@ def test_saved_tactic_enters_the_queue_and_accepts_reviews(client):
     t = client.get("/api/tactics/next").json()
     assert t["id"] == "00sHx" and t["saved"] is True
 
+    # guardada sem resultado, a tática só entra na repetição depois da primeira revisão
     q = client.get("/api/queue", params={"sources": "lichess"}).json()
-    assert [i["id"] for i in q["items"]] == [p["id"]] and q["new_available"] == 1
+    assert q["items"] == []
     r = client.post("/api/reviews", json={"puzzle_id": p["id"], "correct": True, "duration_ms": 3000})
     assert r.status_code == 201 and r.json()["interval_days"] == 1
     dash = client.get("/api/dashboard").json()
@@ -179,6 +180,55 @@ def test_saved_tactic_enters_the_queue_and_accepts_reviews(client):
     # guardar de novo devolve o mesmo puzzle, de volta à fila
     again = client.post("/api/tactics/00sHx/save")
     assert again.status_code == 200 and again.json()["id"] == p["id"] and again.json()["in_queue"] is True
+
+
+def test_guardar_a_tatica_com_o_resultado_ja_a_agenda(client):
+    """Resolver a tática é a primeira vez dela: guardar com o resultado grava a
+    revisão, e o exercício já sai agendado (sem passar por "Novos")."""
+    run_import(client)
+    r = client.post("/api/tactics/00sHx/save", json={"correct": True, "used_hint": False, "duration_ms": 4200})
+    assert r.status_code == 201, r.json()
+    p = r.json()
+    assert p["srs"]["due_at"] is not None and p["srs"]["interval_days"] == 1
+    assert p["srs"]["last_reviewed_at"] is not None
+
+    revisoes = _reviews(client, p["id"])
+    assert [(rev["result"], rev["duration_ms"]) for rev in revisoes] == [("correct", 4200)]
+
+    # guardar de novo não inventa uma segunda revisão
+    again = client.post("/api/tactics/00sHx/save", json={"correct": False})
+    assert again.status_code == 200 and again.json()["id"] == p["id"]
+    assert len(_reviews(client, p["id"])) == 1
+
+
+def test_guardar_com_erro_agenda_como_erro_e_aceita_a_sessao(client):
+    run_import(client)
+    sessao = client.post("/api/sessions", json={"planned_minutes": 10}).json()
+    r = client.post("/api/tactics/00sHx/save",
+                    json={"correct": False, "used_hint": True, "duration_ms": 900, "session_id": sessao["id"]})
+    assert r.status_code == 201
+    assert r.json()["srs"]["due_at"] is not None
+    revisoes = _reviews(client, r.json()["id"])
+    assert [(rev["result"], rev["used_hint"], rev["session_id"]) for rev in revisoes] == [("wrong", True, sessao["id"])]
+    assert client.post(f"/api/sessions/{sessao['id']}/end").json()["reviews"] == 1
+
+    # sessão inexistente não passa
+    assert client.post("/api/tactics/00sJ9/save",
+                       json={"correct": True, "session_id": "nada"}).status_code == 404
+
+
+def _reviews(client, puzzle_id: str) -> list[dict]:
+    from sqlalchemy import select
+
+    from chess_trainer.core.models import Review
+
+    db = client.app.state.session_factory()
+    try:
+        rows = db.scalars(select(Review).where(Review.puzzle_id == puzzle_id)).all()
+        return [{"result": r.result, "used_hint": r.used_hint, "duration_ms": r.duration_ms,
+                 "session_id": r.session_id} for r in rows]
+    finally:
+        db.close()
 
 
 # Duas táticas que transpõem para a mesma posição depois do lance do adversário

@@ -43,6 +43,7 @@ def test_status_and_settings_roundtrip(client):
     assert initial["analysis_seconds"] == 15
     assert initial["puzzle_search_seconds"] == 20 and initial["puzzle_reply_seconds"] == 10
     assert initial["classify_moves"] is True
+    assert initial["new_order"] == "random"
     r = client.put("/api/settings", json={
         "chesscom_username": " TheRealZibs ", "new_per_day": 5,
         "analysis_seconds": 30, "puzzle_search_seconds": 25, "puzzle_reply_seconds": 8,
@@ -214,6 +215,14 @@ def test_local_url_is_lan_when_host_is_wildcard(client, monkeypatch):
     monkeypatch.setenv("CHESS_TRAINER_HOST", "0.0.0.0")
     monkeypatch.setattr("chess_trainer.api.routes.system.local_ip", lambda: "192.168.0.7")
     assert client.get("/api/status").json()["local_url"] == "http://192.168.0.7:8000"
+
+
+def test_ordem_dos_novos_so_aceita_os_valores_conhecidos(client):
+    body = client.put("/api/settings", json={"new_order": "recent"}).json()
+    assert body["new_order"] == "recent"
+    assert client.get("/api/settings").json()["new_order"] == "recent"
+    assert client.put("/api/settings", json={"new_order": "qualquer"}).status_code == 422
+    assert client.get("/api/settings").json()["new_order"] == "recent"
 
 
 def test_token_do_lichess_nunca_volta_nas_respostas(client):
