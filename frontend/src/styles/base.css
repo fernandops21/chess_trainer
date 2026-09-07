@@ -97,3 +97,20 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 .mistakerow { display: flex; gap: 12px; width: 100%; padding: 10px 16px; border: none; border-bottom: 1px solid var(--line); background: transparent; border-radius: 0; text-align: left; min-height: 80px; }
 .tag.blunder { background: #fde0dc; color: var(--bad); }
 .tag.mistake { background: #fff1cc; color: #8a5a00; }
+
+/* painel lateral da análise: abas Engine / Aberturas */
+.tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.tabs button { background: transparent; border: 1px solid var(--line); }
+.tabs button[aria-selected="true"] { background: var(--accent); border-color: var(--accent); font-weight: 700; }
+
+/* livro de aberturas: lance, partidas, barra de resultado e rating médio */
+.openings { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.openings th { text-align: left; font-weight: 400; color: var(--muted); font-size: 12px; padding: 0 6px 4px 0; }
+.openings td { padding: 2px 6px 2px 0; border-top: 1px solid var(--line); vertical-align: middle; }
+.openings td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.openings .opening-san { min-height: 32px; padding: 2px 8px; font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; }
+.wdl { display: flex; width: 100%; min-width: 90px; height: 16px; border-radius: 4px; overflow: hidden; border: 1px solid var(--line); }
+.wdl span { display: block; height: 100%; }
+.wdl .wdl-w { background: #f5f2ea; }
+.wdl .wdl-d { background: var(--muted); }
+.wdl .wdl-b { background: var(--ink); }

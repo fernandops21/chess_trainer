@@ -10,6 +10,7 @@ const SETTINGS: Settings = {
   mistake_threshold_cp: 100, blunder_threshold_cp: 200, avoid_gap_cp: 150, new_per_day: 10, leech_lapses: 5,
   analysis_seconds: 15, puzzle_search_seconds: 20, puzzle_reply_seconds: 10,
   tactics_rating: 1200, tactics_window: 150, lichess_min_plays: 2000, lichess_min_popularity: 90,
+  lichess_token_set: false,
 };
 
 const STATUS: StatusOut = {
@@ -36,6 +37,7 @@ beforeEach(() => {
   vi.spyOn(api, "status").mockResolvedValue(STATUS);
   vi.spyOn(api, "tacticsStatus").mockResolvedValue(tactics());
   vi.spyOn(api, "importTactics").mockResolvedValue({ queued: true, job: "import_lichess" });
+  vi.spyOn(api, "saveSettings").mockImplementation(async (body) => ({ ...SETTINGS, ...body }) as Settings);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -63,4 +65,53 @@ test("os campos do filtro e do rating aparecem no formulário", async () => {
   expect((screen.getByLabelText("Janela de rating (±)") as HTMLInputElement).value).toBe("150");
   expect((screen.getByLabelText("Mínimo de partidas jogadas") as HTMLInputElement).value).toBe("2000");
   expect((screen.getByLabelText("Popularidade mínima (−100 a 100)") as HTMLInputElement).value).toBe("90");
+});
+
+// --- token do Lichess ---------------------------------------------------
+
+test("o campo do token vem vazio e é de senha, com a ajuda de onde criar", async () => {
+  renderPage();
+  const campo = (await screen.findByLabelText("Token do Lichess")) as HTMLInputElement;
+  expect(campo.type).toBe("password");
+  expect(campo.value).toBe("");
+  expect(screen.getByText(/Necessário só para o livro de aberturas/).textContent).toContain(
+    "https://lichess.org/account/oauth/token",
+  );
+  expect(screen.getByText(/Fica só no seu banco/)).toBeTruthy();
+  // sem token guardado não há aviso nem botão de remover
+  expect(screen.queryByText("token configurado")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Remover" })).toBeNull();
+});
+
+test("com token guardado o campo continua vazio e aparece o aviso", async () => {
+  vi.spyOn(api, "settings").mockResolvedValue({ ...SETTINGS, lichess_token_set: true });
+  renderPage();
+  expect(await screen.findByText("token configurado")).toBeTruthy();
+  expect((screen.getByLabelText("Token do Lichess") as HTMLInputElement).value).toBe("");
+});
+
+test("salvar sem digitar o token não manda o campo (não apagaria o guardado)", async () => {
+  vi.spyOn(api, "settings").mockResolvedValue({ ...SETTINGS, lichess_token_set: true });
+  renderPage();
+  fireEvent.click(await screen.findByRole("button", { name: "Salvar" }));
+  await waitFor(() => expect(api.saveSettings).toHaveBeenCalled());
+  const body = vi.mocked(api.saveSettings).mock.calls[0][0];
+  expect("lichess_token" in body).toBe(false);
+});
+
+test("salvar com o token digitado manda o valor e limpa o campo", async () => {
+  renderPage();
+  const campo = await screen.findByLabelText("Token do Lichess");
+  fireEvent.change(campo, { target: { value: "lip_abc123" } });
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+  await waitFor(() => expect(api.saveSettings).toHaveBeenCalled());
+  expect(vi.mocked(api.saveSettings).mock.calls[0][0].lichess_token).toBe("lip_abc123");
+  await waitFor(() => expect((campo as HTMLInputElement).value).toBe(""));
+});
+
+test("Remover apaga o token guardado mandando string vazia", async () => {
+  vi.spyOn(api, "settings").mockResolvedValue({ ...SETTINGS, lichess_token_set: true });
+  renderPage();
+  fireEvent.click(await screen.findByRole("button", { name: "Remover" }));
+  await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ lichess_token: "" }));
 });

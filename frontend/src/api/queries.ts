@@ -6,8 +6,9 @@ import type {
   ChapterSaveIn,
   GamesQuery,
   MistakesQuery,
+  OpeningsDb,
   QueueFilters,
-  Settings,
+  SettingsIn,
   StudyImportIn,
   StudyIn,
   StudyUpdateIn,
@@ -62,6 +63,19 @@ export const useTacticThemes = () =>
   useQuery({ queryKey: keys.tacticThemes, queryFn: api.tacticThemes });
 export const useThemeStats = (days = 30) =>
   useQuery({ queryKey: keys.themeStats(days), queryFn: () => api.themeStats(days) });
+/**
+ * Livro de aberturas da posição. O explorador do Lichess é limitado por IP e a
+ * resposta de uma FEN não muda: guardamos para sempre e não reintentamos.
+ */
+export const useOpenings = (fen: string | null, db: OpeningsDb) =>
+  useQuery({
+    queryKey: ["openings", db, fen],
+    queryFn: () => api.openings(fen!, db),
+    enabled: !!fen,
+    staleTime: Infinity,
+    retry: 0,
+  });
+
 export const useAnalyse = (fen: string | null) =>
   useQuery({
     queryKey: ["analyse", fen],
@@ -119,7 +133,7 @@ export function useCancelJob() {
 }
 export function useSaveSettings() {
   const invalidate = useInvalidate([keys.settings]);
-  return useMutation({ mutationFn: (body: Partial<Settings>) => api.saveSettings(body), onSettled: invalidate });
+  return useMutation({ mutationFn: (body: SettingsIn) => api.saveSettings(body), onSettled: invalidate });
 }
 export function useUnleech() {
   const invalidate = useInvalidate([keys.leeches, ["mistakes"]]);

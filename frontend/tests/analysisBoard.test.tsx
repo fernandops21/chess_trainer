@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { Key } from "chessground/types";
 import type { BoardProps } from "../src/board/Board";
 import { api } from "../src/api/client";
-import type { AnalyseOut } from "../src/api/types";
+import type { AnalyseOut, OpeningsOut } from "../src/api/types";
 
 // O chessground não é reproduzível no jsdom: o dublê guarda o que o
 // AnalysisBoard manda e devolve o `onMove` para o teste jogar um lance.
@@ -51,9 +51,17 @@ function renderBoard(props: Partial<Parameters<typeof AnalysisBoard>[0]> = {}) {
 /** Última árvore que o componente devolveu. */
 const lastTree = (spy: ReturnType<typeof vi.fn>): Tree => spy.mock.calls.at(-1)![0] as Tree;
 
+const aberturas: OpeningsOut = {
+  opening: { eco: "A00", name: "Posição inicial" },
+  total: 3000, white: 1200, draws: 900, black: 900,
+  moves: [{ uci: "e2e4", san: "e4", games: 2000, white: 800, draws: 600, black: 600, avg_rating: 2400 }],
+};
+
 beforeEach(() => {
   boardProps.length = 0;
+  localStorage.clear();
   vi.spyOn(api, "analyse").mockResolvedValue(analyse);
+  vi.spyOn(api, "openings").mockResolvedValue(aberturas);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -316,4 +324,37 @@ test("cancelar a montagem não mexe na análise", () => {
   fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
   expect(screen.getByRole("button", { name: "Montar posição" })).toBeTruthy();
   expect(lastTree(onTreeChange)).toBe(antes);
+});
+
+// --- abas do painel lateral --------------------------------------------
+
+test("o painel abre na aba Engine e a aba Aberturas mostra o livro", async () => {
+  renderBoard();
+  const engine = screen.getByRole("tab", { name: "Engine" });
+  const abertura = screen.getByRole("tab", { name: "Aberturas" });
+  expect(engine.getAttribute("aria-selected")).toBe("true");
+  expect(abertura.getAttribute("aria-selected")).toBe("false");
+  // a engine continua como era: avaliação e linhas
+  expect(await screen.findByRole("button", { name: /\+0\.30 e4 e5 Nf3/ })).toBeTruthy();
+
+  fireEvent.click(abertura);
+  expect(abertura.getAttribute("aria-selected")).toBe("true");
+  expect(await screen.findByText("A00 · Posição inicial")).toBeTruthy();
+  // sem a engine na tela, mas a árvore de lances continua
+  expect(screen.queryByText("adicionar como variação")).toBeNull();
+  expect(localStorage.getItem("analysis.sidePanel")).toBe('"aberturas"');
+});
+
+test("clicar num lance do livro joga ele na árvore", async () => {
+  const { onTreeChange } = renderBoard();
+  fireEvent.click(screen.getByRole("tab", { name: "Aberturas" }));
+  fireEvent.click(await screen.findByRole("button", { name: "e4" }));
+  expect(lastTree(onTreeChange).root.children[0].san).toBe("e4");
+});
+
+test("a aba escolhida volta na próxima abertura do tabuleiro", async () => {
+  localStorage.setItem("analysis.sidePanel", '"aberturas"');
+  renderBoard();
+  expect(screen.getByRole("tab", { name: "Aberturas" }).getAttribute("aria-selected")).toBe("true");
+  expect(await screen.findByText("A00 · Posição inicial")).toBeTruthy();
 });

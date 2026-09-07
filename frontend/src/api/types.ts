@@ -28,7 +28,15 @@ export interface Settings {
   tactics_window: number;
   lichess_min_plays: number;
   lichess_min_popularity: number;
+  /** Só diz se há um token do Lichess guardado: o valor nunca sai da API. */
+  lichess_token_set: boolean;
 }
+
+/**
+ * Corpo do `PUT /api/settings`. O token viaja à parte porque ele não volta no
+ * `GET`: mandar o campo ausente mantém o que está guardado, `""` apaga.
+ */
+export type SettingsIn = Partial<Settings> & { lichess_token?: string };
 
 export interface JobStatus {
   state: "idle" | "running" | "error";
@@ -464,4 +472,26 @@ export interface AnalyseOut {
   turn: Color;
   terminal: string | null;
   lines: AnalyseLine[];
+}
+
+/** Base do livro de aberturas: partidas de mestres ou de jogadores do Lichess. */
+export type OpeningsDb = "masters" | "lichess";
+
+export interface OpeningMove {
+  uci: string;
+  san: string;
+  games: number;
+  white: number;
+  draws: number;
+  black: number;
+  avg_rating: number | null;
+}
+
+export interface OpeningsOut {
+  opening: { eco: string; name: string } | null;
+  total: number;
+  white: number;
+  draws: number;
+  black: number;
+  moves: OpeningMove[];
 }

@@ -12,6 +12,8 @@ import type {
   JobQueued,
   MistakeOut,
   MistakesQuery,
+  OpeningsDb,
+  OpeningsOut,
   PuzzleOut,
   QueueFilters,
   QueueOut,
@@ -20,6 +22,7 @@ import type {
   SessionIn,
   SessionOut,
   Settings,
+  SettingsIn,
   StatusOut,
   StudyDetail,
   StudyImportIn,
@@ -98,7 +101,7 @@ export const api = {
   status: () => request<StatusOut>("/status"),
   dashboard: () => request<DashboardOut>("/dashboard"),
   settings: () => request<Settings>("/settings"),
-  saveSettings: (body: Partial<Settings>) =>
+  saveSettings: (body: SettingsIn) =>
     request<Settings>("/settings", {
       method: "PUT",
       body: JSON.stringify(body),
@@ -135,6 +138,9 @@ export const api = {
     request<ReviewOut>("/reviews", post("", body)),
   analyse: (fen: string, multipv = 3) =>
     request<AnalyseOut>("/analyse", post("/analyse", { fen, multipv })),
+  /** Livro de aberturas da posição (proxy do explorador do Lichess). */
+  openings: (fen: string, db: OpeningsDb = "masters") =>
+    request<OpeningsOut>(`/openings${qs({ fen, db })}`),
   tacticsStatus: () => request<TacticsStatus>("/tactics/status"),
   importTactics: () =>
     request<JobQueued>("/tactics/import", post("/tactics/import")),

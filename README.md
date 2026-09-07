@@ -125,6 +125,30 @@ Limites por capítulo: **2 000 lances** na árvore e **4 000 caracteres** por co
 confere ainda a FEN e a legalidade de cada lance; o que não passar volta como uma lista de mensagens
 em português, em cima da tela do editor.
 
+## Livro de aberturas
+
+No tabuleiro de análise, o painel da direita tem duas abas: **Engine** e **Aberturas**. A aba
+Aberturas mostra, para a posição na tela, o que já foi jogado dali: cada lance com o número de
+partidas, uma barra com a fatia de vitórias das brancas, empates e vitórias das pretas, e o rating
+médio quando a base informa. Clicar num lance joga ele no tabuleiro, como as linhas do motor. Quando
+a posição tem nome, ele aparece em cima ("C50 · Italian Game"); quando ninguém jogou dali, o painel
+diz "Sem partidas nesta posição."
+
+Há duas bases, no seletor do painel (a escolha fica guardada):
+
+- **Mestres** — partidas de torneio de jogadores titulados.
+- **Jogadores (Lichess)** — partidas de rapid e clássico do Lichess, entre 1600 e 2500 de rating.
+
+Os dados vêm do explorador do Lichess, que pede um **token pessoal**. Crie um em
+<https://lichess.org/account/oauth/token> **sem marcar nenhuma permissão** e cole em
+**Configurações → Livro de aberturas (Lichess)**. O token fica só no banco local desta instalação:
+ele nunca aparece de volta na tela nem nas respostas da API (Configurações só mostra "token
+configurado", com um botão "Remover"). Sem token, a aba Aberturas mostra o aviso com o atalho para
+Configurações.
+
+As consultas ficam em cache por 24 horas, então voltar a uma posição já vista não chama o Lichess de
+novo. Se o limite do serviço estourar, o painel avisa para tentar em instantes.
+
 ## Fontes de exercício
 
 A repetição espaçada mistura três fontes: **seus erros** (das partidas importadas do chess.com),

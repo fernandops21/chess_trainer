@@ -9,9 +9,11 @@ import { ErrorBox } from "../components/ErrorBox";
 import { formatEval } from "../lib/format";
 import { MoveTreeView } from "./MoveTreeView";
 import { NodeMenu } from "./NodeMenu";
+import { OpeningsPanel } from "./OpeningsPanel";
 import { PositionEditor } from "./PositionEditor";
 import { SaveChapterModal } from "./SaveChapterModal";
 import { useMoveTree } from "./useMoveTree";
+import { storage } from "../lib/storage";
 import { MAX_NODES, countNodes, emptyTree } from "./moveTree";
 import type { Tree } from "./moveTree";
 
@@ -28,6 +30,9 @@ export interface AnalysisBoardProps {
   backTo?: string;
   showSaveAsChapter?: boolean;
 }
+
+/** Abas do painel lateral: o motor ou o livro de aberturas. */
+type Aba = "engine" | "aberturas";
 
 /** Lista fixa: sem ela, um `[]` novo a cada render repõe as marcações do tabuleiro à toa. */
 const SEM_MARCACOES: Shape[] = [];
@@ -58,6 +63,9 @@ export function AnalysisBoard({
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [salvarComo, setSalvarComo] = useState(false);
   const [montando, setMontando] = useState(false);
+  const [aba, setAba] = useState<Aba>(() =>
+    storage.get<Aba>("analysis.sidePanel", "engine") === "aberturas" ? "aberturas" : "engine",
+  );
   const { data, error, isFetching } = useAnalyse(mt.fen);
 
   // Vaivém com o pai: a árvore que chega de fora reinicia o hook e a que nasce
@@ -149,6 +157,11 @@ export function AnalysisBoard({
       ? "Enunciado (posição inicial)"
       : "Enunciado";
 
+  const trocarAba = (nova: Aba) => {
+    setAba(nova);
+    storage.set("analysis.sidePanel", nova);
+  };
+
   const onMove = (orig: Key, dest: Key) => {
     if (!mt.play(`${orig}${dest}`)) mt.play(`${orig}${dest}q`);
   };
@@ -224,6 +237,13 @@ export function AnalysisBoard({
         )}
       </div>
       <div>
+        <div className="tabs" role="tablist" aria-label="Painel de análise">
+          <button role="tab" aria-selected={aba === "engine"} onClick={() => trocarAba("engine")}>Engine</button>
+          <button role="tab" aria-selected={aba === "aberturas"} onClick={() => trocarAba("aberturas")}>Aberturas</button>
+        </div>
+        {aba === "aberturas" ? (
+          <OpeningsPanel fen={mt.fen} onPlay={(uci) => mt.play(uci)} />
+        ) : (
         <div className="card">
           {data?.terminal ? (
             <div className="eval-big">{terminalLabel(data.terminal)}</div>
@@ -248,6 +268,7 @@ export function AnalysisBoard({
             </div>
           )}
         </div>
+        )}
         <div className="card">
           {/* cheia, a árvore não aceita lance novo: dizer isso aqui evita o
               tabuleiro que "não obedece" quando o lance simplesmente não entra */}

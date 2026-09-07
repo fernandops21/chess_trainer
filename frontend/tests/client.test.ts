@@ -135,3 +135,21 @@ test("detail que não é texto nem lista de textos vira JSON", async () => {
     details: undefined,
   });
 });
+
+test("api.openings manda a fen e a base na query string", async () => {
+  const fn = mockFetch(200, { opening: null, total: 0, white: 0, draws: 0, black: 0, moves: [] });
+  const fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+  await api.openings(fen, "lichess");
+  const [url] = fn.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url.startsWith("/api/openings?")).toBe(true);
+  const q = new URLSearchParams(url.slice(url.indexOf("?") + 1));
+  expect(q.get("fen")).toBe(fen);
+  expect(q.get("db")).toBe("lichess");
+});
+
+test("api.openings sem base usa a de mestres", async () => {
+  const fn = mockFetch(200, { opening: null, total: 0, white: 0, draws: 0, black: 0, moves: [] });
+  await api.openings("8/8/8/8/8/5k2/8/7K b - - 0 1");
+  const [url] = fn.mock.calls[0] as unknown as [string, RequestInit];
+  expect(new URLSearchParams(url.slice(url.indexOf("?") + 1)).get("db")).toBe("masters");
+});

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
 import { useSaveSettings, useSettings, useStartJob, useStatus, useTacticsStatus } from "../api/queries";
-import type { Settings } from "../api/types";
+import type { Settings, SettingsIn } from "../api/types";
 import { ErrorBox } from "../components/ErrorBox";
 import { Modal } from "../components/Modal";
 import { formatDate } from "../lib/format";
@@ -40,10 +40,22 @@ export function SettingsPage() {
   const [confirm, setConfirm] = useState(false);
   const [confirmAvoid, setConfirmAvoid] = useState(false);
   const [saved, setSaved] = useState(false);
+  // O token nunca volta do servidor: o campo é um rascunho à parte do formulário
+  // e só entra no PUT quando o usuário digita algo (vazio manteria o guardado).
+  const [tokenDraft, setTokenDraft] = useState("");
   useEffect(() => { if (data && !form) setForm(data); }, [data, form]);
   if (error) return <ErrorBox error={error} />;
   if (!form) return <p className="muted">Carregando…</p>;
   const errs = validate(form);
+  const salvar = (body: SettingsIn) =>
+    save.mutate(body, {
+      onSuccess: (s) => {
+        setForm(s);
+        setTokenDraft("");
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2500);
+      },
+    });
   const num = (k: keyof Settings) => (e: ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: Number(e.target.value) });
   const field = (label: string, k: keyof Settings) => (
     <label className="row" style={{ justifyContent: "space-between" }}>{label}<input type="number" value={form[k] as number} onChange={num(k)} style={{ width: 100 }} /></label>
@@ -105,9 +117,36 @@ export function SettingsPage() {
           1 milhão de táticas.
         </div>
       </div>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Livro de aberturas (Lichess)</h3>
+        <label className="row" style={{ justifyContent: "space-between" }}>
+          Token do Lichess
+          <input
+            type="password"
+            autoComplete="off"
+            value={tokenDraft}
+            placeholder={form.lichess_token_set ? "guardado; digite para trocar" : "cole o token aqui"}
+            onChange={(e) => setTokenDraft(e.target.value)}
+            style={{ flex: 1 }}
+          />
+        </label>
+        <div className="muted">
+          Necessário só para o livro de aberturas. Crie em{" "}
+          <a href="https://lichess.org/account/oauth/token" target="_blank" rel="noreferrer">
+            https://lichess.org/account/oauth/token
+          </a>{" "}
+          (sem permissões). Fica só no seu banco.
+        </div>
+        {form.lichess_token_set && (
+          <div className="row" style={{ marginTop: 8 }}>
+            <span className="msg ok">token configurado</span>
+            <button onClick={() => salvar({ lichess_token: "" })} disabled={save.isPending}>Remover</button>
+          </div>
+        )}
+      </div>
       {errs.length > 0 && <div className="msg bad">{errs.join(" · ")}</div>}
       <div className="row">
-        <button className="primary" disabled={errs.length > 0 || save.isPending} onClick={() => save.mutate(form, { onSuccess: (s) => { setForm(s); setSaved(true); setTimeout(() => setSaved(false), 2500); } })}>Salvar</button>
+        <button className="primary" disabled={errs.length > 0 || save.isPending} onClick={() => salvar(tokenDraft === "" ? form : { ...form, lichess_token: tokenDraft })}>Salvar</button>
         {saved && <span className="msg ok">Salvo.</span>}
         <ErrorBox error={save.error} />
       </div>
