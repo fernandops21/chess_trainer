@@ -366,6 +366,33 @@ def test_validate_tree_acusa_enunciado_com_chave_de_fechamento():
     assert erros and "enunciado" in erros[0] and "}" in erros[0]
 
 
+def test_validate_tree_acusa_comentario_com_comando_do_pgn():
+    # `[%cal …]` no texto viraria marcação na volta do PGN: o comentário deixaria
+    # de ser o que o usuário escreveu
+    tree = arvore_de_sans(["e4"])
+    tree["root"]["children"][0]["comment"] = "olhe [%cal Ge2e4] isso"
+    erros = validate_tree(tree)
+    assert erros and "n1" in erros[0] and "[%" in erros[0]
+
+
+def test_validate_tree_acusa_enunciado_com_comando_do_pgn():
+    tree = empty_tree(chess.STARTING_FEN, "white")
+    tree["intro"] = "olhe [%csl Rd5] isso"
+    erros = validate_tree(tree)
+    assert erros and "enunciado" in erros[0] and "[%" in erros[0]
+
+
+def test_validate_tree_para_de_conferir_a_arvore_grande_demais():
+    # passou do limite, nem adianta percorrer: a resposta é uma mensagem só
+    tree = empty_tree(chess.STARTING_FEN, "white")
+    tree["root"]["children"] = [
+        {"id": f"n{i}", "uci": "e2e9", "san": "", "comment": "", "shapes": [], "nags": [], "children": []}
+        for i in range(MAX_NOS + 1)
+    ]
+    erros = validate_tree(tree)
+    assert len(erros) == 1 and str(MAX_NOS) in erros[0]
+
+
 # --- PGN do capítulo e do estudo -----------------------------------------
 
 

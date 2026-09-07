@@ -338,7 +338,8 @@ class ChapterSaveIn(BaseModel):
     name: str = ""
     mode: str = "read"
     orientation: str = "white"
-    tree: dict = {}
+    # obrigatória: salvar sem árvore apagaria o capítulo inteiro sem querer
+    tree: dict
 
 
 class TacticOut(BaseModel):

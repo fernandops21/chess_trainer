@@ -36,7 +36,8 @@ export function ChapterViewPage() {
       {data && tree && (
         <>
           <div className="row" style={{ marginBottom: 10 }}>
-            {data.puzzle_id && data.in_queue && (
+            {/* só gamebook tem exercício: virar leitura tira o dele da repetição */}
+            {data.mode === "gamebook" && data.puzzle_id && data.in_queue && (
               <button className="primary" onClick={() => navigate(`/treinar?puzzle=${data.puzzle_id}`)}>
                 Treinar este
               </button>

@@ -11,6 +11,7 @@ import { MoveTreeView } from "./MoveTreeView";
 import { NodeMenu } from "./NodeMenu";
 import { SaveChapterModal } from "./SaveChapterModal";
 import { useMoveTree } from "./useMoveTree";
+import { MAX_NODES } from "./moveTree";
 import type { Tree } from "./moveTree";
 
 export interface AnalysisBoardProps {
@@ -224,6 +225,13 @@ export function AnalysisBoard({
           )}
         </div>
         <div className="card">
+          {/* cheia, a árvore não aceita lance novo: dizer isso aqui evita o
+              tabuleiro que "não obedece" quando o lance simplesmente não entra */}
+          {mt.cheia && (
+            <div className="msg">
+              Limite de {MAX_NODES} lances por capítulo: apague alguma variação para entrar com outro lance.
+            </div>
+          )}
           <MoveTreeView
             tree={mt.tree}
             currentId={mt.currentId}

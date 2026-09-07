@@ -7,6 +7,9 @@ import type { ChapterOut, Tree } from "../api/types";
 import { ErrorBox } from "../components/ErrorBox";
 import { Modal } from "../components/Modal";
 
+/** Nome do capítulo quando o campo fica vazio (e o que aparece nele em cinza). */
+const NOME_PADRAO = "Capítulo 1";
+
 export interface SaveChapterModalProps {
   tree: Tree;
   onClose: () => void;
@@ -17,6 +20,10 @@ export interface SaveChapterModalProps {
 /**
  * Guarda a análise atual como capítulo: cria o estudo (se for novo), cria o
  * capítulo e manda a árvore no `PUT`. No fim abre o editor do capítulo.
+ *
+ * São três requisições e só a última pode ser recusada (a árvore): se ela
+ * falhar, o que esta tentativa criou é apagado, para não deixar pelo caminho um
+ * capítulo (ou um estudo) vazio que o usuário nunca pediu.
  */
 export function SaveChapterModal({ tree, onClose, newStudy = false }: SaveChapterModalProps) {
   const navigate = useNavigate();
@@ -27,7 +34,9 @@ export function SaveChapterModal({ tree, onClose, newStudy = false }: SaveChapte
   const [studyId, setStudyId] = useState("");
   const [titulo, setTitulo] = useState("");
   const [autor, setAutor] = useState<string | null>(null);
-  const [nome, setNome] = useState("Capítulo 1");
+  // vazio de propósito: com o padrão dentro do campo, quem digita acaba com
+  // "Capítulo 1Francesa" — o padrão fica no `placeholder` e vale se ficar vazio
+  const [nome, setNome] = useState("");
   const [modo, setModo] = useState<ChapterOut["mode"]>("gamebook");
   const [erro, setErro] = useState<unknown>(null);
   const [salvando, setSalvando] = useState(false);
@@ -39,23 +48,28 @@ export function SaveChapterModal({ tree, onClose, newStudy = false }: SaveChapte
   const escolhido = studyId || estudos?.[0]?.id || "";
   // o autor vem do nome configurado até o usuário digitar outro
   const nomeAutor = autor ?? settings?.chesscom_username ?? "";
-  const nomeCapitulo = nome.trim() || "Capítulo 1";
+  const nomeCapitulo = nome.trim() || NOME_PADRAO;
   const impedido = salvando || (alvo === "novo" ? titulo.trim() === "" : escolhido === "");
 
   async function salvar() {
     setErro(null);
     setSalvando(true);
+    // o que já foi criado nesta tentativa, para desfazer se o `PUT` falhar
+    let estudoNovo = "";
+    let capituloNovo = "";
     try {
       const id =
         alvo === "novo"
           ? (await api.createStudy({ title: titulo.trim(), author: nomeAutor.trim() })).id
           : escolhido;
+      if (alvo === "novo") estudoNovo = id;
       const cap = await api.createChapter(id, {
         name: nomeCapitulo,
         fen: tree.fen,
         orientation: tree.orientation,
         mode: modo,
       });
+      capituloNovo = cap.id;
       await api.saveChapter(id, cap.id, {
         name: nomeCapitulo,
         mode: modo,
@@ -67,9 +81,24 @@ export function SaveChapterModal({ tree, onClose, newStudy = false }: SaveChapte
       onClose();
       navigate(`/estudos/${id}/capitulos/${cap.id}/editar`);
     } catch (e) {
+      // a árvore recusada deixaria para trás um capítulo vazio (e às vezes um
+      // estudo vazio): desfaz o que esta tentativa criou e mostra o erro
+      await desfazer(estudoNovo, capituloNovo);
       setErro(e);
       setSalvando(false);
     }
+  }
+
+  /** Apaga o capítulo (e o estudo, se ele nasceu aqui) criados nesta tentativa. */
+  async function desfazer(estudoNovo: string, capituloNovo: string) {
+    const alvoEstudo = estudoNovo || escolhido;
+    try {
+      if (capituloNovo) await api.deleteChapter(alvoEstudo, capituloNovo);
+      if (estudoNovo) await api.deleteStudy(estudoNovo);
+    } catch {
+      // desfazer é o melhor esforço: o erro que interessa é o do salvamento
+    }
+    if (estudoNovo || capituloNovo) void qc.invalidateQueries({ queryKey: keys.studies });
   }
 
   return (
@@ -132,6 +161,7 @@ export function SaveChapterModal({ tree, onClose, newStudy = false }: SaveChapte
         <input
           aria-label="Nome do capítulo"
           style={{ width: "100%" }}
+          placeholder={NOME_PADRAO}
           value={nome}
           onChange={(e) => setNome(e.target.value)}
         />

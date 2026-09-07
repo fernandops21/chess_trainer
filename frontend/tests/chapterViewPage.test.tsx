@@ -92,6 +92,15 @@ test("sem exercício na repetição não oferece treinar", async () => {
   expect(screen.queryByRole("button", { name: "Treinar este" })).toBeNull();
 });
 
+test("capítulo de leitura não oferece treinar, mesmo com exercício guardado", async () => {
+  // virar leitura tira o exercício da repetição sem apagá-lo: o botão levaria a
+  // um exercício que não está mais na fila
+  vi.spyOn(api, "chapter").mockResolvedValue(capitulo({ mode: "read", puzzle_id: "p1", in_queue: true }));
+  renderPage();
+  await screen.findByText("Torre atrás do peão");
+  expect(screen.queryByRole("button", { name: "Treinar este" })).toBeNull();
+});
+
 test("tem os links de editar e voltar ao estudo", async () => {
   renderPage();
   await screen.findByText("Torre atrás do peão");

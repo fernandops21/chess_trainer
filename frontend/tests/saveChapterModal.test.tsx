@@ -96,3 +96,53 @@ test("mostra o erro do servidor sem fechar", async () => {
   expect(await screen.findByText("lance ilegal")).toBeTruthy();
   expect(onClose).not.toHaveBeenCalled();
 });
+
+test("o campo do nome começa vazio e o padrão vem do placeholder", async () => {
+  renderModal();
+  const nome = screen.getByLabelText("Nome do capítulo") as HTMLInputElement;
+  expect(nome.value).toBe("");
+  expect(nome.placeholder).toBe("Capítulo 1");
+  await screen.findByText("Finais de torre");
+  fireEvent.change(nome, { target: { value: "Francesa" } });
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+  await waitFor(() => expect(api.createChapter).toHaveBeenCalledWith("s1", {
+    name: "Francesa", fen: START, orientation: "white", mode: "gamebook",
+  }));
+});
+
+test("nome em branco vira o padrão", async () => {
+  renderModal();
+  await screen.findByText("Finais de torre");
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+  await waitFor(() => expect(api.createChapter).toHaveBeenCalledWith("s1", {
+    name: "Capítulo 1", fen: START, orientation: "white", mode: "gamebook",
+  }));
+});
+
+test("erro ao salvar a árvore desfaz o capítulo e o estudo recém-criados", async () => {
+  vi.spyOn(api, "saveChapter").mockRejectedValue(new Error("lance ilegal"));
+  const apagarCapitulo = vi.spyOn(api, "deleteChapter").mockResolvedValue(undefined as never);
+  const apagarEstudo = vi.spyOn(api, "deleteStudy").mockResolvedValue(undefined as never);
+  renderModal();
+  fireEvent.click(screen.getByLabelText("novo estudo"));
+  fireEvent.change(screen.getByLabelText("Título do estudo"), { target: { value: "Aberturas" } });
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+  await waitFor(() => expect(apagarCapitulo).toHaveBeenCalledWith("s9", "c9"));
+  await waitFor(() => expect(apagarEstudo).toHaveBeenCalledWith("s9"));
+  expect(await screen.findByText("lance ilegal")).toBeTruthy();
+});
+
+test("em estudo existente o rollback apaga só o capítulo", async () => {
+  vi.spyOn(api, "saveChapter").mockRejectedValue(new Error("lance ilegal"));
+  const apagarCapitulo = vi.spyOn(api, "deleteChapter").mockResolvedValue(undefined as never);
+  const apagarEstudo = vi.spyOn(api, "deleteStudy").mockResolvedValue(undefined as never);
+  renderModal();
+  await screen.findByText("Finais de torre");
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+  await waitFor(() => expect(apagarCapitulo).toHaveBeenCalledWith("s1", "c9"));
+  expect(apagarEstudo).not.toHaveBeenCalled();
+});

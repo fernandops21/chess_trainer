@@ -245,6 +245,17 @@ test("capítulo fora da repetição não oferece treinar, mesmo tendo exercício
   expect(screen.queryByRole("button", { name: "Treinar este" })).toBeNull();
 });
 
+test("capítulo de leitura não oferece treinar, mesmo com exercício guardado", async () => {
+  // virar leitura tira o exercício da repetição sem apagá-lo: o botão levaria a
+  // um exercício que não está mais na fila
+  vi.spyOn(api, "study").mockResolvedValue(
+    detail({ chapters: [chapter({ id: "c4", name: "Virou leitura", mode: "read", puzzle_id: "p4" })] }),
+  );
+  renderPage();
+  await screen.findByText("Virou leitura");
+  expect(screen.queryByRole("button", { name: "Treinar este" })).toBeNull();
+});
+
 test("reordenar de novo só libera depois de a lista voltar do servidor", async () => {
   let liberar!: () => void;
   let vezes = 0;

@@ -294,12 +294,17 @@ def validate_tree(tree: dict) -> list[str]:
         erros.append(f"enunciado com mais de {MAX_COMENTARIO} caracteres")
     if "}" in intro:
         erros.append("o enunciado não pode conter '}'")
+    if "[%" in intro:
+        erros.append("o enunciado não pode conter '[%'")
 
     erros.extend(_validar_marcacoes(root.get("shapes"), "na posição inicial"))
 
     total = count_nodes(tree)
     if total > MAX_NOS:
+        # árvore grande demais não vai ser salva de jeito nenhum: percorrer os
+        # milhares de nós só para juntar mais mensagens não ajuda ninguém
         erros.append(f"a árvore tem {total} lances; o máximo é {MAX_NOS}")
+        return erros[:MAX_ERROS]
 
     pilha = [(node, board) for node in reversed(_children(root))]
     while pilha and len(erros) < MAX_ERROS:
@@ -320,6 +325,10 @@ def validate_tree(tree: dict) -> list[str]:
             )
         if "}" in comentario:
             erros.append(f"comentário do nó {node_id} não pode conter '}}'")
+        if "[%" in comentario:
+            # `[%cal …]` no texto viraria marcação ao reler o PGN: o comentário
+            # deixaria de ser o que o usuário escreveu
+            erros.append(f"comentário do nó {node_id} não pode conter '[%'")
 
         erros.extend(_validar_marcacoes(node.get("shapes"), f"no nó {node_id}"))
 

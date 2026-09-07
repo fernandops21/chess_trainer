@@ -455,6 +455,56 @@ def test_salvar_com_modo_ou_orientacao_invalidos_422(client):
     assert orientacao.json()["detail"] == ["orientação inválida"]
 
 
+def test_salvar_sem_a_arvore_422(client):
+    estudo = criar_estudo(client)
+    capitulo = criar_capitulo(client, estudo["id"], name="Um", fen=FEN_MATE)
+
+    r = client.put(f"/api/studies/{estudo['id']}/chapters/{capitulo['id']}",
+                   json={"name": "Um", "mode": "read", "orientation": "white"})
+
+    assert r.status_code == 422, r.text
+
+
+def test_salvar_arvore_sem_root_422_e_nao_mexe_no_capitulo(client):
+    estudo = criar_estudo(client)
+    capitulo = criar_capitulo(client, estudo["id"], name="Um", fen=FEN_MATE, mode="gamebook")
+    antes = salvar_capitulo(client, estudo["id"], capitulo["id"], ARVORE_MATE, name="Um").json()
+
+    r = salvar_capitulo(client, estudo["id"], capitulo["id"], {}, name="Outro")
+
+    assert r.status_code == 422, r.text
+    assert any('"root"' in erro for erro in r.json()["detail"])
+    # árvore vazia não vira capítulo vazio: nada do que estava lá foi tocado
+    atual = client.get(f"/api/studies/{estudo['id']}/chapters/{capitulo['id']}").json()
+    assert atual["tree"] == ARVORE_MATE and atual["intro_comment"] == "Mate em um."
+    assert atual["name"] == "Um" and atual["puzzle_id"] == antes["puzzle_id"]
+    with client.app.state.session_factory() as db:
+        assert db.get(Puzzle, antes["puzzle_id"]).in_queue is True
+
+
+def test_salvar_capitulo_com_a_posicao_inicial_de_outro_422(client):
+    estudo = criar_estudo(client)
+    um = criar_capitulo(client, estudo["id"], name="Um", fen=FEN_MATE, mode="gamebook")
+    salvar_capitulo(client, estudo["id"], um["id"], ARVORE_MATE, name="Um")
+    dois = criar_capitulo(client, estudo["id"], name="Dois", fen=FEN_MATE, mode="gamebook")
+
+    r = salvar_capitulo(client, estudo["id"], dois["id"], ARVORE_MATE, name="Dois")
+
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"] == [
+        "posição inicial já usada por outro capítulo; use outra posição inicial ou o modo leitura"
+    ]
+    # o capítulo não foi salvo pela metade: continua sem lances e sem exercício
+    atual = client.get(f"/api/studies/{estudo['id']}/chapters/{dois['id']}").json()
+    assert atual["tree"]["root"]["children"] == [] and atual["puzzle_id"] is None
+
+    # em leitura não há exercício, e a mesma posição inicial passa
+    leitura = salvar_capitulo(client, estudo["id"], dois["id"], ARVORE_MATE, name="Dois", mode="read")
+
+    assert leitura.status_code == 200, leitura.text
+    assert leitura.json()["puzzle_id"] is None and leitura.json()["tree"] == ARVORE_MATE
+
+
 def test_atualizar_o_estudo_sem_campo_algum_nao_mexe_no_updated_at(client):
     estudo = criar_estudo(client, "Antigo", "alguém")
 

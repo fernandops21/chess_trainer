@@ -92,7 +92,10 @@ export interface NewChapterModalProps {
 
 /** "Novo capítulo": nome, posição inicial (padrão ou FEN colada) e modo. */
 export function NewChapterModal({ count, saving, error, onCreate, onClose }: NewChapterModalProps) {
-  const [nome, setNome] = useState(`Capítulo ${count + 1}`);
+  // vazio de propósito: com o padrão dentro do campo, quem digita acaba com
+  // "Capítulo 2Francesa" — o padrão fica no `placeholder` e vale se ficar vazio
+  const nomePadrao = `Capítulo ${count + 1}`;
+  const [nome, setNome] = useState("");
   const [origem, setOrigem] = useState<"padrao" | "fen">("padrao");
   const [fen, setFen] = useState("");
   const [modo, setModo] = useState<ChapterOut["mode"]>("gamebook");
@@ -109,10 +112,10 @@ export function NewChapterModal({ count, saving, error, onCreate, onClose }: New
     }
   }, [origem, fenLimpa]);
 
-  const impedido = saving || nome.trim() === "" || !fenValida;
+  const impedido = saving || !fenValida;
 
   const criar = () => {
-    const body: ChapterIn = { name: nome.trim(), mode: modo, orientation: "white" };
+    const body: ChapterIn = { name: nome.trim() || nomePadrao, mode: modo, orientation: "white" };
     if (origem === "fen") {
       body.fen = fenLimpa;
       body.orientation = orientationOf(fenLimpa);
@@ -127,6 +130,7 @@ export function NewChapterModal({ count, saving, error, onCreate, onClose }: New
         <input
           aria-label="Nome do capítulo"
           style={{ width: "100%" }}
+          placeholder={nomePadrao}
           value={nome}
           onChange={(e) => setNome(e.target.value)}
         />

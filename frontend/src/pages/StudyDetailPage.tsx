@@ -77,7 +77,8 @@ export function StudyDetailPage() {
                 <div className="row" style={{ marginTop: 6 }}>
                   <Link to={`/estudos/${id}/capitulos/${c.id}`} aria-label={`ver "${c.name}"`}>Ver</Link>
                   <Link to={`/estudos/${id}/capitulos/${c.id}/editar`} aria-label={`editar "${c.name}"`}>Editar</Link>
-                  {c.puzzle_id && c.in_queue && (
+                  {/* só gamebook tem exercício: virar leitura tira o dele da repetição */}
+                  {c.mode === "gamebook" && c.puzzle_id && c.in_queue && (
                     <button onClick={() => navigate(`/treinar?puzzle=${c.puzzle_id}`)}>Treinar este</button>
                   )}
                   <button

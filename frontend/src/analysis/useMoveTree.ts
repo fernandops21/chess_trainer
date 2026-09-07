@@ -4,7 +4,9 @@ import type { Key } from "chessground/types";
 import { destsFrom } from "../board/dests";
 import { uciToMove } from "../board/line";
 import {
+  MAX_NODES,
   addMove,
+  countNodes,
   deleteFrom as deleteFromTree,
   fenAt,
   findNode,
@@ -185,6 +187,8 @@ export function useMoveTree(initial: Tree) {
   }, [commit]);
 
   const { tree, currentId, dirty } = ref.current;
+  // árvore no limite: `play` e `insertLine` param de criar lances novos
+  const cheia = useMemo(() => countNodes(tree) >= MAX_NODES, [tree]);
   const node = findNode(tree, currentId);
   const path = useMemo(() => pathTo(tree, currentId), [tree, currentId]);
   const fen = fenOf(tree, currentId);
@@ -197,7 +201,7 @@ export function useMoveTree(initial: Tree) {
   }, [node]);
 
   return {
-    tree, currentId, node, path, fen, turn, dests, lastMove, dirty,
+    tree, currentId, node, path, fen, turn, dests, lastMove, dirty, cheia,
     play, goTo, goStart, prev, next, up, down,
     promote, deleteFrom, setComment, setShapes, toggleNag, insertLine, setTree, markSaved,
   };

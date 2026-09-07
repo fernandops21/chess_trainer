@@ -18,7 +18,7 @@ vi.mock("../src/board/Board", () => ({
   },
 }));
 
-import { emptyTree, findNode, insertLine, setComment } from "../src/analysis/moveTree";
+import { MAX_NODES, emptyTree, findNode, insertLine, setComment } from "../src/analysis/moveTree";
 import type { Tree } from "../src/analysis/moveTree";
 import { AnalysisBoard } from "../src/analysis/AnalysisBoard";
 
@@ -256,4 +256,23 @@ test("no modo edição o cartão de leitura não aparece junto da caixa de ediç
   expect(screen.getAllByText("Brancas jogam e ganham.").length).toBe(1);
   expect(screen.queryByText("Enunciado")).toBeNull();
   expect(screen.getByText("Enunciado (posição inicial)")).toBeTruthy();
+});
+
+test("com a árvore no limite, avisa em vez de deixar o lance sumir", () => {
+  // árvore sintética larga: para o limite só a contagem de nós importa
+  const cheia: Tree = {
+    ...emptyTree(START),
+    root: {
+      children: Array.from({ length: MAX_NODES }, (_, i) => ({
+        id: `n${i + 1}`, uci: "e2e4", san: "e4", comment: "", shapes: [], nags: [], children: [],
+      })),
+    },
+  };
+  comProvedores(<AnalysisBoard editable tree={cheia} />);
+  expect(screen.getByText(/Limite de 2000 lances por capítulo/)).toBeTruthy();
+});
+
+test("árvore dentro do limite não mostra o aviso", () => {
+  comProvedores(<AnalysisBoard editable tree={emptyTree(START)} />);
+  expect(screen.queryByText(/Limite de 2000 lances/)).toBeNull();
 });

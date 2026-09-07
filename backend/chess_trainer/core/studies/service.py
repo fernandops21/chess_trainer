@@ -229,9 +229,14 @@ def _upsert_chapter(db: Session, study: Study, chapter: StudyChapter | None,
 
 
 def _upsert_puzzle(db: Session, chapter: StudyChapter, fen: str, solution: dict,
-                   report: ImportReport) -> None:
+                   report: ImportReport, editor: bool = False) -> None:
     """Cria ou atualiza o exercício do capítulo. Serve tanto à importação quanto
-    ao editor: o que muda entre eles é só de onde vêm a FEN e a solução."""
+    ao editor: o que muda entre eles é só de onde vêm a FEN e a solução — e o
+    que fazer quando outro capítulo já usa esta posição inicial. Na importação
+    (`editor=False`) o capítulo fica sem exercício e a colisão vai para o
+    relatório, porque um estudo grande não pode parar por causa de um capítulo;
+    no editor o salvamento é recusado com `TreeInvalid`, para o usuário não sair
+    da tela achando que gravou um exercício que não existe."""
     dados = _puzzle_fields(fen, solution)
     puzzle = db.get(Puzzle, chapter.puzzle_id) if chapter.puzzle_id else None
     if puzzle is not None:
@@ -267,8 +272,15 @@ def _upsert_puzzle(db: Session, chapter: StudyChapter, fen: str, solution: dict,
             raise
         if gemeo.chapter_id not in (None, chapter.id):
             # o gêmeo é de outro capítulo (deste ou de outro estudo): mexer nele
-            # roubaria o exercício e o histórico de quem já é dono, então este
-            # capítulo fica sem exercício e a colisão vai para o relatório
+            # roubaria o exercício e o histórico de quem já é dono
+            if editor:
+                # no editor a edição inteira é recusada: um capítulo salvo em
+                # silêncio sem o exercício que o usuário pediu é pior que o 422
+                raise TreeInvalid([
+                    "posição inicial já usada por outro capítulo; "
+                    "use outra posição inicial ou o modo leitura"
+                ])
+            # na importação o capítulo fica sem exercício e a colisão vai para o relatório
             chapter.puzzle_id = None
             db.flush()
             report.skipped.append(f"{chapter.order}. {chapter.name}: posição inicial já usada por outro capítulo")
@@ -524,9 +536,10 @@ def _normalized_tree(tree: dict, orientation: str) -> dict:
     """Cópia rasa da árvore com os campos do topo saneados. A orientação que o
     editor manda vale sobre a que veio dentro da árvore: é a que está na tela.
 
-    FEN e enunciado que não são texto ficam como vieram: quem os recusa é
-    `validate_tree`, com mensagem em português; trocá-los aqui pela posição
-    inicial padrão salvaria outro capítulo, não o que o usuário editou."""
+    FEN, enunciado e `root` que não são o que deveriam ficam como vieram: quem
+    os recusa é `validate_tree`, com mensagem em português. Pôr aqui a posição
+    inicial padrão ou uma raiz vazia salvaria outro capítulo, não o que o
+    usuário editou — uma árvore que chegou quebrada apagaria os lances dele."""
     novo = dict(tree or {})
     fen = novo.get("fen")
     if fen is None or isinstance(fen, str):
@@ -535,8 +548,6 @@ def _normalized_tree(tree: dict, orientation: str) -> dict:
     intro = novo.get("intro")
     if intro is None or isinstance(intro, str):
         novo["intro"] = (intro or "").strip()
-    if not isinstance(novo.get("root"), dict):
-        novo["root"] = {"shapes": [], "children": []}
     return novo
 
 
@@ -568,9 +579,9 @@ def _recreate_exercise(db: Session, chapter: StudyChapter, tree: dict, modo_ante
     salvamento, para que um exercício tirado da repetição na tela de treino
     continue fora depois de uma edição qualquer do capítulo.
 
-    Se outro capítulo já usa esta posição inicial, o exercício não é criado (a
-    única (fen_start, kind, source)): o capítulo novo fica com `puzzle_id` nulo
-    e mudar a posição de um que já tem exercício é recusado com `TreeInvalid`.
+    Se outro capítulo já usa esta posição inicial, o salvamento é recusado com
+    `TreeInvalid` (a única (fen_start, kind, source)) — tanto ao criar quanto ao
+    mudar a posição de um capítulo que já tem exercício.
     """
     solution = solution_from_tree(tree) if chapter.mode == "gamebook" else None
     if solution is None:
@@ -579,7 +590,7 @@ def _recreate_exercise(db: Session, chapter: StudyChapter, tree: dict, modo_ante
     antes = db.get(Puzzle, chapter.puzzle_id) if chapter.puzzle_id else None
     estava_fora = antes is not None and not antes.in_queue
     voltou_da_leitura = modo_antes != "gamebook"
-    _upsert_puzzle(db, chapter, chapter.fen, solution, ImportReport())
+    _upsert_puzzle(db, chapter, chapter.fen, solution, ImportReport(), editor=True)
     if estava_fora and voltou_da_leitura and chapter.in_queue and chapter.puzzle_id:
         puzzle = db.get(Puzzle, chapter.puzzle_id)
         if puzzle is not None:

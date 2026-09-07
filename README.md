@@ -103,7 +103,9 @@ Lichess — linha principal corrida e variações recuadas entre parênteses. No
 
 Atalhos: **←** e **→** andam na linha, **↑** e **↓** trocam de variação, **Home** volta à posição
 inicial e **Ctrl+S** salva (o botão "Salvar" fica embaixo do tabuleiro). O cabeçalho mostra o estado
-("alterações não salvas" / "salvo às HH:MM"), e sair da tela com pendências pede confirmação.
+("alterações não salvas" / "salvo às HH:MM"). Com pendências, os links da própria tela ("Voltar ao
+estudo" e "Ver como leitura") pedem confirmação, e fechar ou recarregar a aba também — o menu lateral
+não pergunta nada, então salve antes de sair por ele.
 
 Capítulo no modo **exercício** vira um puzzle da repetição espaçada, com a linha principal como
 solução; no modo **leitura** ele fica só para ler, sem exercício. Trocar o modo e salvar de novo tira

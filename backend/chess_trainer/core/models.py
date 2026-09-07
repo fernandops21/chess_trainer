@@ -143,7 +143,8 @@ class Study(Base):
     origin: Mapped[str] = mapped_column(String(8), default="lichess")
     imported_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+    # nulo nos estudos importados antes do editor (a migração só acrescenta a coluna)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
     chapters: Mapped[list["StudyChapter"]] = relationship(
         back_populates="study", cascade="all, delete-orphan", order_by="StudyChapter.order"

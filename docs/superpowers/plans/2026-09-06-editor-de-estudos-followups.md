@@ -34,13 +34,19 @@ valem uma olhada depois. Nada disso é bloqueio de merge.
   duplicou precisa mudar a posição (ou a linha) e escolher "exercício" ao
   salvar. Uma chave que incluísse o capítulo — ou uma solução como parte da
   identidade do exercício — tiraria essa amarra.
-- **Colisão de FEN num capítulo ainda sem exercício salva calado**: quando o
-  capítulo não tem `puzzle_id` e a posição inicial já é de outro capítulo, o
-  `save_chapter` deixa o capítulo sem exercício e registra a colisão no
-  relatório interno — mas a resposta do `PUT` é 200 e o editor não avisa nada.
-  O capítulo que **já** tem exercício, esse sim, leva 422 ("posição inicial já
-  usada por outro capítulo"). Convinha o mesmo aviso nos dois caminhos (nem que
-  seja um campo no corpo da resposta).
+- **Dois capítulos não podem partir da mesma posição inicial**: no editor os
+  dois caminhos de colisão agora recusam o salvamento com 422 (o capítulo que já
+  tem exercício e o que ainda não tem), o que ao menos avisa em vez de gravar um
+  capítulo sem exercício calado. Mas a recusa é uma amarra do esquema, não uma
+  regra do domínio: dois capítulos com a mesma posição inicial e linhas
+  diferentes são dois exercícios legítimos. A correção de verdade é a chave do
+  exercício incluir o capítulo — trocar a única `(fen_start, kind, source)` de
+  `puzzles` por algo como `(fen_start, kind, source, chapter_id)` —, o que exige
+  mexer no índice em `core/db.py` (`uq_puzzle_fen_kind_source`, criado à mão nos
+  bancos antigos) e conferir quem depende dele: o upsert da importação
+  (`_upsert_puzzle`, que hoje procura o "gêmeo" por essa chave) e a adoção de
+  exercícios órfãos. Feito isso, caem juntas esta recusa e a cópia de leitura
+  obrigatória do `duplicate_chapter`.
 - **Ids de nó reaproveitados** (`nextId` em `frontend/src/analysis/moveTree.ts`): o
   próximo id é `n<maior + 1>`, então apagar o nó de maior número e criar outro
   devolve o mesmo `n<k>`. Hoje nada persistente é indexado por id (o menu do nó
@@ -64,6 +70,16 @@ valem uma olhada depois. Nada disso é bloqueio de merge.
   local cria um estudo novo, com exercícios novos e sem o histórico do original.
   Só vale a pena resolver se a ida-e-volta pelo arquivo virar um caminho comum
   (uma chave própria no cabeçalho resolveria).
+
+## Verificação manual pendente
+
+- **Importar um estudo de verdade do Lichess**: os testes cobrem a importação
+  com PGN de fixture e HTTP dublado (`tests/fixtures/study_4JKVAfaE.pgn`), e a
+  conferência na tela foi feita com estudos locais. Falta o caminho completo com
+  a rede: colar a URL de um estudo público, ver o job andar, abrir os capítulos
+  importados no editor e no modo leitura (comentários, setas e casas do autor) e
+  exportar o PGN de volta. É o único ponto do ciclo sem verificação de ponta a
+  ponta.
 
 ## Configurações
 
