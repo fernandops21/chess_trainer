@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useImportStudy, useStatus, useStudies, useStudyActions } from "../api/queries";
+import { useImportStudy, useStatus, useStudies, useStudyActions, useStudyEditor } from "../api/queries";
 import type { StudyOut } from "../api/types";
 import { ErrorBox } from "../components/ErrorBox";
 import { JobCard } from "../components/JobCard";
 import { Modal } from "../components/Modal";
+import { NewStudyModal } from "../studies/StudyEditor";
 import { formatDate } from "../lib/format";
 
 const plural = (n: number, um: string, muitos: string) => `${n} ${n === 1 ? um : muitos}`;
@@ -23,6 +24,8 @@ export function StudiesPage() {
   const { data, error, isLoading } = useStudies();
   const importStudy = useImportStudy();
   const { reimport, setQueue, remove } = useStudyActions();
+  const { create } = useStudyEditor();
+  const [novo, setNovo] = useState(false);
   const [url, setUrl] = useState("");
   const [pgn, setPgn] = useState("");
   const [showPgn, setShowPgn] = useState(false);
@@ -34,7 +37,10 @@ export function StudiesPage() {
 
   return (
     <>
-      <h1>Estudos</h1>
+      <div className="row" style={{ alignItems: "baseline" }}>
+        <h1 style={{ marginBottom: 0 }}>Estudos</h1>
+        <button className="primary" onClick={() => setNovo(true)}>Novo estudo</button>
+      </div>
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Importar do Lichess</h3>
         <div className="row">
@@ -119,6 +125,18 @@ export function StudiesPage() {
           </div>
         </div>
       ))}
+      {novo && (
+        <NewStudyModal
+          saving={create.isPending}
+          error={create.error}
+          onClose={() => setNovo(false)}
+          onCreate={(body) =>
+            create.mutate(body, {
+              onSuccess: (s) => { setNovo(false); navigate(`/estudos/${s.id}`); },
+            })
+          }
+        />
+      )}
       <Modal open={confirm !== null} title={`Remover "${confirm?.title ?? ""}"?`} onClose={() => setConfirm(null)}>
         <p>Apaga o estudo, os capítulos, os exercícios e o histórico deles. Não pode ser desfeito.</p>
         <div className="row">

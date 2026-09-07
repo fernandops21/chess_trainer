@@ -1,9 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "../src/api/client";
-import type { ChapterOut, StudyDetail } from "../src/api/types";
+import type { ChapterDetail, ChapterOut, StudyDetail } from "../src/api/types";
 import { StudyDetailPage } from "../src/pages/StudyDetailPage";
 
 const chapter = (over: Partial<ChapterOut> = {}): ChapterOut => ({
@@ -102,4 +102,135 @@ test("capítulo sem link no Lichess não mostra o link", async () => {
   renderPage();
   await screen.findByText("Torre atrás do peão");
   expect(screen.queryByRole("link", { name: "ver no Lichess" })).toBeNull();
+});
+
+// --- edição do estudo (ciclo B2) ---
+
+const detalheCapitulo = (over: Partial<ChapterDetail> = {}): ChapterDetail => ({
+  ...chapter(),
+  id: "c9",
+  name: "Capítulo 3",
+  fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  orientation: "white",
+  tree: { fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", orientation: "white", intro: "", root: { children: [] } },
+  pgn: "",
+  updated_at: null,
+  ...over,
+});
+
+test("editar título e autor manda o PUT do estudo", async () => {
+  vi.spyOn(api, "updateStudy").mockResolvedValue({ ...detail(), title: "Torres" });
+  renderPage();
+  await screen.findByText("Finais de torre");
+  fireEvent.click(screen.getByRole("button", { name: "Editar título" }));
+  fireEvent.change(screen.getByLabelText("Título"), { target: { value: "Torres" } });
+  fireEvent.change(screen.getByLabelText("Autor"), { target: { value: "Mestre Y" } });
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+  await waitFor(() =>
+    expect(api.updateStudy).toHaveBeenCalledWith("s1", { title: "Torres", author: "Mestre Y" }),
+  );
+});
+
+test("novo capítulo cria e abre o editor", async () => {
+  vi.spyOn(api, "createChapter").mockResolvedValue(detalheCapitulo());
+  renderPage();
+  await screen.findByText("Finais de torre");
+  fireEvent.click(screen.getByRole("button", { name: "Novo capítulo" }));
+  fireEvent.change(screen.getByLabelText("Nome do capítulo"), { target: { value: "Capítulo 3" } });
+  fireEvent.click(screen.getByRole("button", { name: "Criar capítulo" }));
+  await waitFor(() =>
+    expect(api.createChapter).toHaveBeenCalledWith("s1", {
+      name: "Capítulo 3",
+      orientation: "white",
+      mode: "gamebook",
+    }),
+  );
+  await waitFor(() =>
+    expect(screen.getByTestId("where").textContent).toBe("/estudos/s1/capitulos/c9/editar"),
+  );
+});
+
+test("novo capítulo com FEN colada manda a FEN e recusa uma inválida", async () => {
+  vi.spyOn(api, "createChapter").mockResolvedValue(detalheCapitulo());
+  renderPage();
+  await screen.findByText("Finais de torre");
+  fireEvent.click(screen.getByRole("button", { name: "Novo capítulo" }));
+  fireEvent.click(screen.getByLabelText("FEN colada"));
+  fireEvent.change(screen.getByLabelText("FEN"), { target: { value: "posição inventada" } });
+  expect((screen.getByRole("button", { name: "Criar capítulo" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(screen.getByText("FEN inválido.")).toBeTruthy();
+
+  fireEvent.change(screen.getByLabelText("FEN"), { target: { value: "8/8/8/8/8/5k2/8/7K b - - 0 1" } });
+  fireEvent.click(screen.getByRole("button", { name: "Criar capítulo" }));
+  await waitFor(() =>
+    expect(api.createChapter).toHaveBeenCalledWith("s1", {
+      name: "Capítulo 3",
+      fen: "8/8/8/8/8/5k2/8/7K b - - 0 1",
+      orientation: "black",
+      mode: "gamebook",
+    }),
+  );
+});
+
+test("reordenar manda a nova ordem dos capítulos", async () => {
+  vi.spyOn(api, "updateStudy").mockResolvedValue(detail());
+  renderPage();
+  await screen.findByText("Ponte de Lucena");
+  fireEvent.click(screen.getByRole("button", { name: 'mover "Ponte de Lucena" para cima' }));
+  await waitFor(() => expect(api.updateStudy).toHaveBeenCalledWith("s1", { chapter_order: ["c2", "c1"] }));
+});
+
+test("o primeiro capítulo não sobe e o último não desce", async () => {
+  renderPage();
+  await screen.findByText("Ponte de Lucena");
+  expect((screen.getByRole("button", { name: 'mover "Torre atrás do peão" para cima' }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByRole("button", { name: 'mover "Ponte de Lucena" para baixo' }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+test("duplicar chama a API do capítulo", async () => {
+  vi.spyOn(api, "duplicateChapter").mockResolvedValue(detalheCapitulo());
+  renderPage();
+  await screen.findByText("Torre atrás do peão");
+  fireEvent.click(screen.getByRole("button", { name: 'duplicar "Torre atrás do peão"' }));
+  await waitFor(() => expect(api.duplicateChapter).toHaveBeenCalledWith("s1", "c1"));
+});
+
+test("apagar pede confirmação antes de remover o capítulo", async () => {
+  vi.spyOn(api, "deleteChapter").mockResolvedValue(undefined);
+  renderPage();
+  await screen.findByText("Torre atrás do peão");
+  fireEvent.click(screen.getByRole("button", { name: 'apagar "Torre atrás do peão"' }));
+  expect(screen.getByText("Apaga o capítulo, o exercício e o histórico dele.")).toBeTruthy();
+  expect(api.deleteChapter).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Apagar mesmo assim" }));
+  await waitFor(() => expect(api.deleteChapter).toHaveBeenCalledWith("s1", "c1"));
+});
+
+test("links de edição, leitura e exportação de PGN", async () => {
+  renderPage();
+  await screen.findByText("Torre atrás do peão");
+  expect(screen.getByRole("link", { name: 'ver "Torre atrás do peão"' }).getAttribute("href")).toBe(
+    "/estudos/s1/capitulos/c1",
+  );
+  expect(screen.getByRole("link", { name: 'editar "Torre atrás do peão"' }).getAttribute("href")).toBe(
+    "/estudos/s1/capitulos/c1/editar",
+  );
+  expect(screen.getByRole("link", { name: 'PGN de "Torre atrás do peão"' }).getAttribute("href")).toBe(
+    "/api/studies/s1/chapters/c1/pgn",
+  );
+  expect(screen.getByRole("link", { name: "Exportar PGN" }).getAttribute("href")).toBe("/api/studies/s1/pgn");
+});
+
+test("estudo importado avisa que reimportar sobrescreve as edições", async () => {
+  vi.spyOn(api, "study").mockResolvedValue(detail({ origin: "lichess" }));
+  renderPage();
+  await screen.findByText("Finais de torre");
+  expect(screen.getByText("Estudo importado: reimportar sobrescreve as edições feitas aqui.")).toBeTruthy();
+});
+
+test("estudo local não mostra o aviso de reimportação", async () => {
+  vi.spyOn(api, "study").mockResolvedValue(detail({ origin: "local", lichess_id: null, source_url: "" }));
+  renderPage();
+  await screen.findByText("Finais de torre");
+  expect(screen.queryByText(/reimportar sobrescreve/)).toBeNull();
 });

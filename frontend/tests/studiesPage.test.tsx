@@ -154,3 +154,21 @@ test("com uma tarefa em andamento, importar e reimportar ficam desligados", asyn
   });
   expect((screen.getByRole("button", { name: "Importar" }) as HTMLButtonElement).disabled).toBe(true);
 });
+
+test("novo estudo cria e abre o detalhe", async () => {
+  vi.spyOn(api, "createStudy").mockResolvedValue(study({ id: "s9", title: "Meu estudo", origin: "local" }));
+  renderPage();
+  await screen.findByText("Finais de torre");
+  fireEvent.click(screen.getByRole("button", { name: "Novo estudo" }));
+  fireEvent.change(screen.getByLabelText("Título do estudo"), { target: { value: "Meu estudo" } });
+  fireEvent.click(screen.getByRole("button", { name: "Criar estudo" }));
+  await waitFor(() => expect(api.createStudy).toHaveBeenCalledWith({ title: "Meu estudo", author: "" }));
+  await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/estudos/s9"));
+});
+
+test("novo estudo sem título não deixa criar", async () => {
+  renderPage();
+  await screen.findByText("Finais de torre");
+  fireEvent.click(screen.getByRole("button", { name: "Novo estudo" }));
+  expect((screen.getByRole("button", { name: "Criar estudo" }) as HTMLButtonElement).disabled).toBe(true);
+});

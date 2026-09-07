@@ -1,0 +1,102 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { api } from "../src/api/client";
+import type { AnalyseOut, ChapterDetail } from "../src/api/types";
+
+const { boardProps } = vi.hoisted(() => ({ boardProps: [] as Record<string, unknown>[] }));
+vi.mock("../src/board/Board", () => ({
+  Board: (p: Record<string, unknown>) => {
+    boardProps.push(p);
+    return <div data-testid="board" />;
+  },
+}));
+
+import { emptyTree, insertLine } from "../src/analysis/moveTree";
+import { ChapterViewPage } from "../src/pages/ChapterViewPage";
+
+const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+const arvore = insertLine(emptyTree(START), null, ["e2e4", "e7e5"]).tree;
+
+const analyse: AnalyseOut = { fen: START, turn: "white", terminal: null, lines: [] };
+
+const capitulo = (over: Partial<ChapterDetail> = {}): ChapterDetail => ({
+  id: "c1",
+  order: 1,
+  name: "Torre atrás do peão",
+  lichess_url: null,
+  mode: "gamebook",
+  in_queue: true,
+  puzzle_id: "p1",
+  intro_comment: "Brancas jogam e ganham.",
+  fen: START,
+  orientation: "white",
+  tree: { ...arvore, intro: "Brancas jogam e ganham." },
+  pgn: "",
+  updated_at: null,
+  ...over,
+});
+
+function Where() {
+  const loc = useLocation();
+  return <div data-testid="where">{loc.pathname + loc.search}</div>;
+}
+
+function renderPage() {
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={["/estudos/s1/capitulos/c1"]}>
+        <Routes>
+          <Route path="/estudos/:id/capitulos/:cid" element={<ChapterViewPage />} />
+          <Route path="*" element={null} />
+        </Routes>
+        <Where />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  boardProps.length = 0;
+  vi.spyOn(api, "analyse").mockResolvedValue(analyse);
+  vi.spyOn(api, "chapter").mockResolvedValue(capitulo());
+});
+afterEach(() => vi.restoreAllMocks());
+
+test("mostra nome, enunciado e a árvore do capítulo", async () => {
+  renderPage();
+  expect(await screen.findByText("Torre atrás do peão")).toBeTruthy();
+  expect(screen.getByText("Brancas jogam e ganham.")).toBeTruthy();
+  expect(screen.getByText(/^1\. e4$/)).toBeTruthy();
+});
+
+test("é só leitura: sem caixa de comentário e sem botão Salvar", async () => {
+  renderPage();
+  await screen.findByText("Torre atrás do peão");
+  expect(screen.queryByLabelText("Comentário")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Salvar" })).toBeNull();
+});
+
+test("Treinar este abre o exercício do capítulo", async () => {
+  renderPage();
+  await screen.findByText("Torre atrás do peão");
+  fireEvent.click(screen.getByRole("button", { name: "Treinar este" }));
+  expect(screen.getByTestId("where").textContent).toBe("/treinar?puzzle=p1");
+});
+
+test("sem exercício na repetição não oferece treinar", async () => {
+  vi.spyOn(api, "chapter").mockResolvedValue(capitulo({ mode: "read", puzzle_id: null, in_queue: false }));
+  renderPage();
+  await screen.findByText("Torre atrás do peão");
+  expect(screen.queryByRole("button", { name: "Treinar este" })).toBeNull();
+});
+
+test("tem os links de editar e voltar ao estudo", async () => {
+  renderPage();
+  await screen.findByText("Torre atrás do peão");
+  expect(screen.getByRole("link", { name: "Editar" }).getAttribute("href")).toBe(
+    "/estudos/s1/capitulos/c1/editar",
+  );
+  expect(screen.getByRole("link", { name: "Voltar ao estudo" }).getAttribute("href")).toBe("/estudos/s1");
+});

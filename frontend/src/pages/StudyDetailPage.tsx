@@ -1,18 +1,50 @@
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useStudy } from "../api/queries";
+import { chapterPgnUrl, studyPgnUrl } from "../api/client";
+import { useChapterActions, useStudy, useStudyEditor } from "../api/queries";
+import type { ChapterOut, StudyDetail } from "../api/types";
 import { ErrorBox } from "../components/ErrorBox";
+import { Modal } from "../components/Modal";
+import { NewChapterModal, StudyHeader } from "../studies/StudyEditor";
+
+/** Importado do Lichess (respostas antigas não trazem `origin`). */
+function importado(s: StudyDetail): boolean {
+  return s.origin ? s.origin === "lichess" : s.lichess_id !== null;
+}
+
+/** A ordem dos capítulos com `at` trocado com o vizinho. */
+function reordenar(chapters: ChapterOut[], at: number, delta: number): string[] {
+  const ids = chapters.map((c) => c.id);
+  const to = at + delta;
+  [ids[at], ids[to]] = [ids[to], ids[at]];
+  return ids;
+}
 
 export function StudyDetailPage() {
-  const { id } = useParams();
+  const { id = "" } = useParams();
   const navigate = useNavigate();
-  const { data, error, isLoading } = useStudy(id ?? null);
+  const { data, error, isLoading } = useStudy(id);
+  const { update } = useStudyEditor();
+  const { create, duplicate, remove } = useChapterActions(id);
+  const [novo, setNovo] = useState(false);
+  const [apagar, setApagar] = useState<ChapterOut | null>(null);
+
+  const mexendo = update.isPending || duplicate.isPending || remove.isPending;
+
   return (
     <>
-      <div className="row" style={{ alignItems: "baseline" }}>
-        <h1 style={{ marginBottom: 0 }}>{data?.title ?? "Estudo"}</h1>
-        <Link to="/estudos" className="muted">← todos os estudos</Link>
-      </div>
+      {data ? (
+        <StudyHeader
+          study={data}
+          saving={update.isPending}
+          error={update.error}
+          onSave={(body) => update.mutate({ id, body })}
+        />
+      ) : (
+        <h1>Estudo</h1>
+      )}
       <ErrorBox error={error} />
+      <ErrorBox error={create.error ?? duplicate.error ?? remove.error} />
       {isLoading && <p className="muted">Carregando…</p>}
       {data && (
         <>
@@ -22,8 +54,16 @@ export function StudyDetailPage() {
               <> · <a href={data.source_url} target="_blank" rel="noreferrer">ver no Lichess</a></>
             )}
           </div>
+          {importado(data) && (
+            <div className="msg">Estudo importado: reimportar sobrescreve as edições feitas aqui.</div>
+          )}
+          <div className="row" style={{ marginBottom: 12 }}>
+            <button className="primary" onClick={() => setNovo(true)}>Novo capítulo</button>
+            <a href={studyPgnUrl(id)} download>Exportar PGN</a>
+            <Link to="/estudos" className="muted">← todos os estudos</Link>
+          </div>
           <div className="card" style={{ padding: 0 }}>
-            {data.chapters.map((c) => (
+            {data.chapters.map((c, i) => (
               <div key={c.id} style={{ padding: "10px 16px", borderBottom: "1px solid var(--line)" }}>
                 <div className="row" style={{ alignItems: "baseline" }}>
                   <span className="muted">{c.order}.</span>
@@ -33,19 +73,84 @@ export function StudyDetailPage() {
                 </div>
                 {c.intro_comment && <div className="muted">{c.intro_comment}</div>}
                 <div className="row" style={{ marginTop: 6 }}>
+                  <Link to={`/estudos/${id}/capitulos/${c.id}`} aria-label={`ver "${c.name}"`}>Ver</Link>
+                  <Link to={`/estudos/${id}/capitulos/${c.id}/editar`} aria-label={`editar "${c.name}"`}>Editar</Link>
                   {c.puzzle_id && (
                     <button onClick={() => navigate(`/treinar?puzzle=${c.puzzle_id}`)}>Treinar este</button>
                   )}
+                  <button
+                    aria-label={`duplicar "${c.name}"`}
+                    disabled={mexendo}
+                    onClick={() => duplicate.mutate(c.id)}
+                  >
+                    Duplicar
+                  </button>
+                  <button
+                    className="danger"
+                    aria-label={`apagar "${c.name}"`}
+                    onClick={() => setApagar(c)}
+                  >
+                    Apagar
+                  </button>
+                  <button
+                    aria-label={`mover "${c.name}" para cima`}
+                    disabled={mexendo || i === 0}
+                    onClick={() => update.mutate({ id, body: { chapter_order: reordenar(data.chapters, i, -1) } })}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    aria-label={`mover "${c.name}" para baixo`}
+                    disabled={mexendo || i === data.chapters.length - 1}
+                    onClick={() => update.mutate({ id, body: { chapter_order: reordenar(data.chapters, i, 1) } })}
+                  >
+                    ↓
+                  </button>
+                  <a href={chapterPgnUrl(id, c.id)} download aria-label={`PGN de "${c.name}"`}>PGN</a>
                   {c.lichess_url && (
                     <a href={c.lichess_url} target="_blank" rel="noreferrer">ver no Lichess</a>
                   )}
                 </div>
               </div>
             ))}
-            {data.chapters.length === 0 && <p className="muted" style={{ padding: 16 }}>Estudo sem capítulos.</p>}
+            {data.chapters.length === 0 && (
+              <p className="muted" style={{ padding: 16 }}>
+                Estudo sem capítulos: use "Novo capítulo" para começar.
+              </p>
+            )}
           </div>
         </>
       )}
+
+      {novo && data && (
+        <NewChapterModal
+          count={data.chapters.length}
+          saving={create.isPending}
+          error={create.error}
+          onClose={() => setNovo(false)}
+          onCreate={(body) =>
+            create.mutate(body, {
+              onSuccess: (cap) => {
+                setNovo(false);
+                navigate(`/estudos/${id}/capitulos/${cap.id}/editar`);
+              },
+            })
+          }
+        />
+      )}
+
+      <Modal open={apagar !== null} title={`Apagar "${apagar?.name ?? ""}"?`} onClose={() => setApagar(null)}>
+        <p>Apaga o capítulo, o exercício e o histórico dele.</p>
+        <div className="row">
+          <button
+            className="danger"
+            onClick={() => { if (apagar) remove.mutate(apagar.id); setApagar(null); }}
+          >
+            Apagar mesmo assim
+          </button>
+          <button onClick={() => setApagar(null)}>Cancelar</button>
+        </div>
+      </Modal>
     </>
   );
 }
