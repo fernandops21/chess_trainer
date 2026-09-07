@@ -1,0 +1,4 @@
+Sons Move, Capture, Error, Confirmation e Select: conjunto "standard" do Lichess
+(https://github.com/lichess-org/lila/tree/master/public/sound/standard),
+distribuído com o código do Lichess sob a licença AGPL-3.0.
+Uso pessoal/local; confirmar a licença ou trocar por um pacote próprio antes de distribuir o produto.
