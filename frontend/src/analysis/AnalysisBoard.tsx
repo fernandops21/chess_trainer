@@ -32,7 +32,7 @@ export function AnalysisBoard({ fenStart, orientation, backTo }: { fenStart: str
       <div>
         <Board
           fen={an.fen} orientation={orient} turnColor={an.turn} movableColor={an.turn}
-          dests={an.dests} lastMove={an.lastMove} check={inCheck} arrows={arrows}
+          dests={an.dests} lastMove={an.lastMove} check={inCheck} arrows={arrows} drawable
           onMove={onMove}
         />
         <div className="row" style={{ marginTop: 8 }}>

@@ -5,10 +5,15 @@ import type { ReviewIn, ReviewOut, Trainable } from "../api/types";
 import { destsFrom } from "../board/dests";
 import { uciToMove } from "../board/line";
 
-/** O mínimo que a máquina de estados precisa: serve tanto para `PuzzleOut` quanto para `TacticOut`. */
-export type PuzzleInput = Pick<Trainable, "id" | "fen_start" | "solution">;
+/** O mínimo que a máquina de estados precisa: serve tanto para `PuzzleOut` quanto para `TacticOut`.
+ *  `fen_before`/`last_move` (só os próprios/estudo/Lichess guardado têm) ligam a
+ *  introdução: a posição de antes do lance do adversário, animada antes de jogar. */
+export type PuzzleInput = Pick<Trainable, "id" | "fen_start" | "solution"> & {
+  fen_before?: string | null;
+  last_move?: string | null;
+};
 
-export type Phase = "awaiting_move" | "engine_replying" | "solved" | "submitting" | "result" | "submit_error";
+export type Phase = "intro" | "awaiting_move" | "engine_replying" | "solved" | "submitting" | "result" | "submit_error";
 export type Promotion = "q" | "r" | "b" | "n";
 
 export interface PuzzleState<R = ReviewOut> {
@@ -31,11 +36,15 @@ export interface UsePuzzleOptions<R = ReviewOut> {
   sessionId: string | null;
   presetHint?: boolean;
   engineDelayMs?: number;
+  /** Quanto a posição de antes do lance do adversário fica na tela (padrão 400 ms). */
+  introDelayMs?: number;
   submit: (body: ReviewIn) => Promise<R>;
   now?: () => number;
 }
 
 const turnOf = (c: Chess) => (c.turn() === "w" ? "white" : "black") as "white" | "black";
+const turnOfFen = (fen: string) => (fen.split(" ")[1] === "b" ? "black" : "white") as "white" | "black";
+const inCheckAt = (fen: string) => { try { return new Chess(fen).inCheck(); } catch { return false; } };
 
 /**
  * Puzzle state machine.
@@ -54,15 +63,23 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
   const startedAt = useRef(now());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Introdução: quando a fonte guarda a posição de antes do lance do adversário,
+  // o puzzle abre nela e o chessground anima o lance ao trocar para `fen_start`.
+  const introRef = useRef<{ fen: string; lastMove: [Key, Key] } | null>(
+    puzzle.fen_before && puzzle.last_move
+      ? { fen: puzzle.fen_before, lastMove: [puzzle.last_move.slice(0, 2) as Key, puzzle.last_move.slice(2, 4) as Key] }
+      : null,
+  );
+
   const [state, setState] = useState<PuzzleState<R>>(() => ({
-    phase: "awaiting_move",
-    fen: puzzle.fen_start,
-    turn: turnOf(chessRef.current),
+    phase: introRef.current ? "intro" : "awaiting_move",
+    fen: introRef.current?.fen ?? puzzle.fen_start,
+    turn: introRef.current ? turnOfFen(introRef.current.fen) : turnOf(chessRef.current),
     idx: 0,
     wrong: false,
     usedHint: !!opts.presetHint,
     message: opts.presetHint ? { text: "Solução já vista: conta como dica.", tone: "bad" } : { text: "", tone: "" },
-    check: chessRef.current.inCheck(),
+    check: introRef.current ? inCheckAt(introRef.current.fen) : chessRef.current.inCheck(),
   }));
 
   // Mutable bits read from within the engine-reply setTimeout callback, which
@@ -79,6 +96,19 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
   const submittingRef = useRef(false);
 
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  // O relógio do puzzle (`startedAt`) só começa depois da introdução: o tempo
+  // de ver o lance do adversário não conta como tempo de resolução.
+  useEffect(() => {
+    const intro = introRef.current;
+    if (!intro) return;
+    const t = setTimeout(() => {
+      startedAt.current = now();
+      setState((p) => ({ ...p, phase: "awaiting_move", fen: puzzle.fen_start, turn: turnOf(chessRef.current), check: chessRef.current.inCheck(), lastMove: intro.lastMove }));
+    }, opts.introDelayMs ?? 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const snapshot = (partial: Partial<PuzzleState<R>>) => (prev: PuzzleState<R>): PuzzleState<R> => {
     const c = chessRef.current;

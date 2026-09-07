@@ -65,6 +65,10 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo }: { puzzle: Tra
   const playable = state.phase === "awaiting_move";
   // enunciado do capítulo do estudo (comentário do autor antes do primeiro lance)
   const intro = !tactic && puzzle.source === "study" ? puzzle.solution.intro : undefined;
+  // setas e casas do autor do estudo: só na posição inicial, como dica visual dele
+  const authored = (state.idx === 0 ? puzzle.solution.shapes?.["start"] : undefined) ?? [];
+  const arrows = authored.filter((s) => s.dest).map((s) => ({ orig: s.orig as Key, dest: s.dest as Key, brush: s.brush }));
+  const squares = authored.filter((s) => !s.dest).map((s) => ({ orig: s.orig as Key, brush: s.brush }));
   const what = tactic ? "tática" : puzzle.source === "own" ? kindLabel(puzzle.kind) : puzzle.source === "study" ? "exercício do estudo" : "tática guardada";
   return (
     <div className="two-col">
@@ -73,6 +77,7 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo }: { puzzle: Tra
           fen={state.fen} orientation={puzzle.side_to_move} turnColor={state.turn}
           movableColor={playable ? puzzle.side_to_move : undefined} dests={dests}
           lastMove={state.lastMove} check={state.check} highlight={state.hint ? [state.hint] : []}
+          arrows={arrows} squares={squares} drawable
           onMove={(o: Key, d: Key) => ctl.tryMove(o, d)}
         />
         {state.pendingPromotion && (

@@ -26,7 +26,8 @@ export function ResultPanel({ puzzle, review, error, onRetry, onNext, nextLabel 
   return (
     <div className="two-col">
       <div>
-        <LineViewer fenStart={puzzle.fen_start} ucis={ucis} orientation={puzzle.side_to_move} startPly={startPly} initialPos={puzzle.solution.moves.length} onPos={setPos} />
+        <LineViewer fenStart={puzzle.fen_start} ucis={ucis} orientation={puzzle.side_to_move} startPly={startPly} initialPos={puzzle.solution.moves.length} onPos={setPos}
+          fenBefore={puzzle.fen_before ?? undefined} lastMoveUci={puzzle.last_move ?? undefined} shapes={puzzle.solution.shapes} />
         {comment && <p style={{ marginTop: 8 }}>{comment}</p>}
         {isAvoid && refutation && puzzle.mistake && (
           <div className="card" style={{ marginTop: 12 }}>

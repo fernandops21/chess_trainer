@@ -204,3 +204,51 @@ test("sem comentários a mensagem de acerto continua 'Certo!'", async () => {
   await act(async () => { result.current.tryMove("c3", "d5"); await Promise.resolve(); });
   expect(result.current.state.message).toEqual({ text: "Certo!", tone: "ok" });
 });
+
+// --- último lance do adversário (fase "intro") ---------------------------
+
+const ONE_MOVE_INTRO: PuzzleOut = { ...ONE_MOVE, id: "p6",
+  fen_before: "4k3/8/8/8/3q4/2N5/7P/4K3 b - - 0 1", last_move: "d4d5" };
+const MATE_IN_2_INTRO: PuzzleOut = { ...MATE_IN_2, id: "p7",
+  fen_before: "6k1/2r2ppp/8/8/Q7/8/8/4R1K1 b - - 0 1", last_move: "c7c8" };
+
+test("com último lance do adversário o puzzle abre em `intro`, sem peças liberadas", () => {
+  const { result } = setup(MATE_IN_2_INTRO);
+  expect(result.current.state.phase).toBe("intro");
+  expect(result.current.state.fen).toBe(MATE_IN_2_INTRO.fen_before);
+  expect(result.current.state.turn).toBe("black");
+  expect(result.current.state.lastMove).toBeUndefined();
+  expect(result.current.dests.size).toBe(0);
+
+  // nada do usuário conta durante a introdução
+  act(() => result.current.tryMove("e1", "e8"));
+  act(() => result.current.useHint());
+  expect(result.current.state.phase).toBe("intro");
+  expect(result.current.state.idx).toBe(0);
+  expect(result.current.state.usedHint).toBe(false);
+});
+
+test("passada a introdução, a posição vira a do puzzle com o lance destacado", () => {
+  const { result } = setup(MATE_IN_2_INTRO);
+  act(() => { vi.advanceTimersByTime(400); });
+  expect(result.current.state.phase).toBe("awaiting_move");
+  expect(result.current.state.fen).toBe(MATE_IN_2_INTRO.fen_start);
+  expect(result.current.state.turn).toBe("white");
+  expect(result.current.state.lastMove).toEqual(["c7", "c8"]);
+  expect(result.current.dests.get("e1")).toContain("e8");
+});
+
+test("a duração enviada não conta a introdução", async () => {
+  const { result, submit, tick } = setup(ONE_MOVE_INTRO);
+  tick(400);
+  act(() => { vi.advanceTimersByTime(400); });
+  tick(4000);
+  await act(async () => { result.current.tryMove("c3", "d5"); await Promise.resolve(); });
+  expect(submit).toHaveBeenCalledWith(expect.objectContaining({ duration_ms: 4000 }));
+});
+
+test("sem `last_move` não há introdução", () => {
+  const { result } = setup({ ...ONE_MOVE, fen_before: "4k3/8/8/8/3q4/2N5/7P/4K3 b - - 0 1", last_move: null });
+  expect(result.current.state.phase).toBe("awaiting_move");
+  expect(result.current.state.fen).toBe(ONE_MOVE.fen_start);
+});

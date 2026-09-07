@@ -29,3 +29,45 @@ test("initialPos abre a linha na posição pedida", () => {
   );
   expect(screen.getByText("1/3")).toBeTruthy();
 });
+
+// Último lance do adversário na linha do resultado: a posição 0 passa a ser a
+// FEN de antes dele, e a numeração recua um meio-lance.
+const fenBefore = "2r3k1/5ppp/8/8/Q7/8/8/4R1K1 w - - 0 24";
+const fenAfter = "2r1R1k1/5ppp/8/8/Q7/8/8/6K1 b - - 1 24";
+const startPly48 = 48; // pretas jogam o lance 24
+
+test("sem `fenBefore` a linha começa no lance das pretas", () => {
+  render(
+    <LineViewer fenStart={fenAfter} ucis={["c8e8", "a4e8"]} orientation="white" startPly={startPly48} keyboard={false} />,
+  );
+  expect(screen.getByText(/^24… Rxe8$/)).toBeTruthy();
+  expect(screen.getByText("2/2")).toBeTruthy();
+});
+
+test("com `fenBefore` o último lance do adversário abre a linha e a numeração recua", () => {
+  render(
+    <LineViewer fenStart={fenAfter} ucis={["c8e8", "a4e8"]} orientation="white" startPly={startPly48}
+      fenBefore={fenBefore} lastMoveUci="e1e8" initialPos={2} keyboard={false} />,
+  );
+  // três lances mostrados: o do adversário (24. Re8+) e os dois da solução
+  expect(screen.getByText(/^24\. Re8\+$/)).toBeTruthy();
+  expect(screen.getByText("Rxe8")).toBeTruthy();
+  expect(screen.getByText(/^25\. Qxe8#$/)).toBeTruthy();
+  // initialPos vem relativo a `fenStart` (2 lances da solução) e é deslocado em +1
+  expect(screen.getByText("3/3")).toBeTruthy();
+});
+
+test("`onPos` continua contando a partir de `fenStart` mesmo com `fenBefore`", () => {
+  const seen: number[] = [];
+  render(
+    <LineViewer fenStart={fenAfter} ucis={["c8e8", "a4e8"]} orientation="white" startPly={startPly48}
+      fenBefore={fenBefore} lastMoveUci="e1e8" initialPos={2} keyboard={false} onPos={(p) => seen.push(p)} />,
+  );
+  expect(seen.at(-1)).toBe(2);
+  fireEvent.click(screen.getByLabelText("anterior"));
+  expect(seen.at(-1)).toBe(1);
+  fireEvent.click(screen.getByLabelText("anterior"));
+  expect(seen.at(-1)).toBe(0); // posição de `fenStart`
+  fireEvent.click(screen.getByLabelText("anterior"));
+  expect(seen.at(-1)).toBe(-1); // posição de `fenBefore`, antes do lance do adversário
+});
