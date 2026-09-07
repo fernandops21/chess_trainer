@@ -12,6 +12,7 @@ def test_defaults_when_empty(db_session):
     assert s.analysis_seconds == 15
     assert s.puzzle_search_seconds == 20 and s.puzzle_reply_seconds == 10
     assert s.classify_moves is True
+    assert s.refute_wrong_moves is True
 
 
 def test_save_normalizes_username_and_roundtrips(db_session):

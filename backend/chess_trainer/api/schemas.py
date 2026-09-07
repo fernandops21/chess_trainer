@@ -27,6 +27,7 @@ class SettingsOut(BaseModel):
     # o valor do token nunca sai daqui: só se há um configurado
     lichess_token_set: bool
     classify_moves: bool
+    refute_wrong_moves: bool
 
 
 class SettingsIn(BaseModel):
@@ -53,6 +54,7 @@ class SettingsIn(BaseModel):
     # ausente mantém o token guardado; string vazia apaga
     lichess_token: str | None = None
     classify_moves: bool | None = None
+    refute_wrong_moves: bool | None = None
 
 
 class GameOut(BaseModel):

@@ -34,6 +34,8 @@ class AppSettings:
     lichess_token: str = ""
     # classifica os lances (brilhante, erro, imprecisão etc.) durante a análise
     classify_moves: bool = True
+    # ao errar, mostra a réplica da engine e a queda de avaliação
+    refute_wrong_moves: bool = True
 
 
 def get_setting(db: Session, key: str, default: Any = None) -> Any:

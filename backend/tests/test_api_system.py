@@ -43,11 +43,12 @@ def test_status_and_settings_roundtrip(client):
     assert initial["analysis_seconds"] == 15
     assert initial["puzzle_search_seconds"] == 20 and initial["puzzle_reply_seconds"] == 10
     assert initial["classify_moves"] is True
+    assert initial["refute_wrong_moves"] is True
     assert initial["new_order"] == "random"
     r = client.put("/api/settings", json={
         "chesscom_username": " TheRealZibs ", "new_per_day": 5,
         "analysis_seconds": 30, "puzzle_search_seconds": 25, "puzzle_reply_seconds": 8,
-        "classify_moves": False,
+        "classify_moves": False, "refute_wrong_moves": False,
     })
     assert r.status_code == 200
     body = r.json()
@@ -56,7 +57,9 @@ def test_status_and_settings_roundtrip(client):
     assert body["analysis_seconds"] == 30
     assert body["puzzle_search_seconds"] == 25 and body["puzzle_reply_seconds"] == 8
     assert body["classify_moves"] is False
+    assert body["refute_wrong_moves"] is False
     assert client.get("/api/settings").json()["classify_moves"] is False
+    assert client.get("/api/settings").json()["refute_wrong_moves"] is False
 
 
 def test_import_requires_username(client):
