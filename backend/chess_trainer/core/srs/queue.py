@@ -5,7 +5,7 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from chess_trainer.config import AppSettings
-from chess_trainer.core.models import Game, Puzzle, Review
+from chess_trainer.core.models import Game, Puzzle, Review, StudyChapter
 
 
 def local_day_start(now_utc: datetime) -> datetime:
@@ -22,6 +22,8 @@ class QueueFilters:
     theme: str | None = None
     kind: str | None = None
     color: str | None = None
+    sources: tuple[str, ...] = ()   # vazio = todas as fontes
+    study_id: str | None = None
 
 
 @dataclass
@@ -42,6 +44,12 @@ def _apply_filters(stmt: Select, f: QueueFilters) -> Select:
         stmt = stmt.where(Puzzle.kind == f.kind)
     if f.color:
         stmt = stmt.where(Puzzle.side_to_move == f.color)
+    if f.sources:
+        stmt = stmt.where(Puzzle.source.in_(f.sources))
+    if f.study_id:
+        stmt = stmt.where(
+            Puzzle.chapter_id.in_(select(StudyChapter.id).where(StudyChapter.study_id == f.study_id))
+        )
     return stmt
 
 
@@ -56,13 +64,19 @@ def count_new_reviewed_today(db: Session, now: datetime) -> int:
 
 
 def build_queue(db: Session, filters: QueueFilters, settings: AppSettings, now: datetime) -> QueueResult:
-    base = _apply_filters(select(Puzzle).where(Puzzle.is_leech.is_(False)), filters)
+    # fora da fila (in_queue = false) o puzzle e seu histórico ficam, mas ele não é servido nem contado
+    base = _apply_filters(select(Puzzle).where(Puzzle.is_leech.is_(False), Puzzle.in_queue.is_(True)), filters)
 
     due = db.scalars(
         base.where(Puzzle.srs_due_at.is_not(None), Puzzle.srs_due_at <= now).order_by(Puzzle.srs_due_at)
     ).all()
 
-    new_stmt = base.where(Puzzle.srs_due_at.is_(None)).join(Game, Game.id == Puzzle.game_id).order_by(Game.played_at.desc())
+    # puzzles de fora das partidas do usuário não têm `game`: a data deles é a de criação
+    new_stmt = (
+        base.where(Puzzle.srs_due_at.is_(None))
+        .outerjoin(Game, Game.id == Puzzle.game_id)
+        .order_by(func.coalesce(Game.played_at, Puzzle.created_at).desc())
+    )
     new_available = int(db.scalar(select(func.count()).select_from(new_stmt.subquery())) or 0)
     remaining = max(0, settings.new_per_day - count_new_reviewed_today(db, now))
 

@@ -2,7 +2,17 @@ import json
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -65,12 +75,31 @@ class Position(Base):
 
 
 class Puzzle(Base):
+    """Exercício da repetição espaçada, venha de onde vier: dos erros do próprio
+    usuário (`own`, com posição e partida), de uma tática guardada do Lichess
+    (`lichess`) ou de um capítulo de estudo (`study`)."""
+
     __tablename__ = "puzzles"
-    __table_args__ = (UniqueConstraint("fen_start", "kind", name="uq_puzzle_fen_kind"),)
+    __table_args__ = (
+        UniqueConstraint("fen_start", "kind", "source", name="uq_puzzle_fen_kind_source"),
+        # índice nomeado (e não `unique=True` na coluna) para que o banco novo
+        # e o migrado tenham o mesmo índice; no SQLite vários NULL convivem
+        Index("uq_puzzle_external_id", "external_id", unique=True),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    position_id: Mapped[str] = mapped_column(ForeignKey("positions.id"), index=True)
-    game_id: Mapped[str] = mapped_column(ForeignKey("games.id"), index=True)
+    # fora de `own` não há partida nem posição de origem
+    position_id: Mapped[str | None] = mapped_column(ForeignKey("positions.id"), index=True, default=None)
+    game_id: Mapped[str | None] = mapped_column(ForeignKey("games.id"), index=True, default=None)
+    source: Mapped[str] = mapped_column(String(8), default="own", index=True)
+    in_queue: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    external_id: Mapped[str | None] = mapped_column(String(16), default=None)
+    chapter_id: Mapped[str | None] = mapped_column(
+        # use_alter desfaz o ciclo puzzles ↔ study_chapters na ordenação das tabelas
+        ForeignKey("study_chapters.id", ondelete="SET NULL", use_alter=True), index=True, default=None
+    )
+    fen_before: Mapped[str | None] = mapped_column(String(100), default=None)
+    last_move: Mapped[str | None] = mapped_column(String(6), default=None)
     kind: Mapped[str] = mapped_column(String(8))
     fen_start: Mapped[str] = mapped_column(String(100))
     side_to_move: Mapped[str] = mapped_column(String(5))
@@ -88,8 +117,9 @@ class Puzzle(Base):
     srs_due_at: Mapped[datetime | None] = mapped_column(DateTime, default=None, index=True)
     srs_last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
 
-    position: Mapped[Position] = relationship(back_populates="puzzles")
-    game: Mapped[Game] = relationship(back_populates="puzzles")
+    position: Mapped[Position | None] = relationship(back_populates="puzzles")
+    game: Mapped[Game | None] = relationship(back_populates="puzzles")
+    chapter: Mapped["StudyChapter | None"] = relationship(foreign_keys=[chapter_id])
     reviews: Mapped[list["Review"]] = relationship(
         back_populates="puzzle", cascade="all, delete-orphan", order_by="Review.reviewed_at"
     )
@@ -97,6 +127,49 @@ class Puzzle(Base):
     @property
     def solution_data(self) -> dict:
         return json.loads(self.solution)
+
+
+class Study(Base):
+    """Estudo do Lichess importado (ou colado como PGN)."""
+
+    __tablename__ = "studies"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    title: Mapped[str] = mapped_column(String(255))
+    author: Mapped[str] = mapped_column(String(64), default="")
+    source_url: Mapped[str] = mapped_column(String(255), default="")
+    lichess_id: Mapped[str | None] = mapped_column(String(16), unique=True, default=None)
+    imported_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
+
+    chapters: Mapped[list["StudyChapter"]] = relationship(
+        back_populates="study", cascade="all, delete-orphan", order_by="StudyChapter.order"
+    )
+
+
+class StudyChapter(Base):
+    """Capítulo de um estudo. Em modo `gamebook` vira um puzzle; em modo `read`
+    fica só como leitura (o puzzle é opcional)."""
+
+    __tablename__ = "study_chapters"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    study_id: Mapped[str] = mapped_column(ForeignKey("studies.id"), index=True)
+    # `order` é palavra reservada em SQL: o atributo é `order`, a coluna é `chapter_order`
+    order: Mapped[int] = mapped_column("chapter_order", Integer)
+    name: Mapped[str] = mapped_column(String(255))
+    lichess_url: Mapped[str | None] = mapped_column(String(255), unique=True, default=None)
+    fen: Mapped[str] = mapped_column(String(100), default="")
+    orientation: Mapped[str] = mapped_column(String(5), default="white")
+    mode: Mapped[str] = mapped_column(String(8), default="read")
+    pgn: Mapped[str] = mapped_column(Text, default="")
+    intro_comment: Mapped[str] = mapped_column(Text, default="")
+    puzzle_id: Mapped[str | None] = mapped_column(ForeignKey("puzzles.id"), default=None)
+    in_queue: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    study: Mapped[Study] = relationship(back_populates="chapters")
+    puzzle: Mapped[Puzzle | None] = relationship(foreign_keys=[puzzle_id])
 
 
 class TrainingSession(Base):

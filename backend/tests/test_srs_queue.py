@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 
 from chess_trainer.config import AppSettings
-from chess_trainer.core.models import Review
+from chess_trainer.core.models import Puzzle, Review, Study, StudyChapter
 from chess_trainer.core.srs.queue import QueueFilters, build_queue, count_new_reviewed_today, local_day_start
 from tests.factories import make_puzzle
 
@@ -59,3 +59,81 @@ def test_filters_and_leeches(db_session):
     assert build_queue(db_session, QueueFilters(theme="fork", kind="avoid"), S, NOW).due_count == 1
     assert build_queue(db_session, QueueFilters(color="white"), S, NOW).due_count == 1
     assert build_queue(db_session, QueueFilters(theme="pin"), S, NOW).due_count == 0
+
+
+# --- fontes de exercício (own / lichess / study) ---
+
+S10 = AppSettings(new_per_day=10)
+
+
+def _puzzle_externo(db, *, fen, source="lichess", chapter_id=None, created_at=datetime(2026, 5, 1),
+                    due_at=None, external_id=None, in_queue=True) -> Puzzle:
+    """Puzzle sem partida nem posição (Lichess ou estudo)."""
+    puzzle = Puzzle(source=source, chapter_id=chapter_id, external_id=external_id, in_queue=in_queue,
+                    kind="punish", fen_start=fen, side_to_move="white",
+                    solution='{"moves": [{"uci": "a2a4", "by": "solver", "alternatives": []}]}',
+                    end_reason="material_gain", theme="tactic", category="lichess", solver_moves=1,
+                    created_at=created_at, srs_due_at=due_at)
+    db.add(puzzle)
+    db.commit()
+    return puzzle
+
+
+def _estudo_com_capitulo(db, *, titulo: str, ordem: int = 1) -> StudyChapter:
+    estudo = Study(title=titulo, source_url=f"https://lichess.org/study/{titulo}")
+    db.add(estudo)
+    db.flush()
+    capitulo = StudyChapter(study_id=estudo.id, order=ordem, name=f"{titulo} cap {ordem}",
+                            fen="fen-cap", orientation="white", mode="gamebook", pgn="1. e4 *")
+    db.add(capitulo)
+    db.commit()
+    return capitulo
+
+
+def test_fora_da_fila_nao_e_servido_nem_contado(db_session):
+    vencido = make_puzzle(db_session, fen="f1", due_at=NOW - timedelta(days=1))
+    vencido.in_queue = False
+    novo = make_puzzle(db_session, fen="f2")
+    novo.in_queue = False
+    db_session.commit()
+    q = build_queue(db_session, QueueFilters(), S, NOW)
+    assert q.due == [] and q.due_count == 0
+    assert q.new == [] and q.new_available == 0
+
+
+def test_filtro_por_fonte(db_session):
+    proprio = make_puzzle(db_session, fen="f1", due_at=NOW - timedelta(days=1))
+    lichess = _puzzle_externo(db_session, fen="f2", due_at=NOW - timedelta(days=1))
+    capitulo = _estudo_com_capitulo(db_session, titulo="estudo-a")
+    estudo = _puzzle_externo(db_session, fen="f3", source="study", chapter_id=capitulo.id,
+                             due_at=NOW - timedelta(days=1))
+
+    todos = build_queue(db_session, QueueFilters(), S, NOW)
+    assert {p.id for p in todos.due} == {proprio.id, lichess.id, estudo.id}
+
+    so_lichess = build_queue(db_session, QueueFilters(sources=("lichess",)), S, NOW)
+    assert [p.id for p in so_lichess.due] == [lichess.id] and so_lichess.due_count == 1
+
+    dois = build_queue(db_session, QueueFilters(sources=("own", "study")), S, NOW)
+    assert {p.id for p in dois.due} == {proprio.id, estudo.id}
+
+
+def test_filtro_por_estudo(db_session):
+    cap_a = _estudo_com_capitulo(db_session, titulo="estudo-a")
+    cap_b = _estudo_com_capitulo(db_session, titulo="estudo-b")
+    do_a = _puzzle_externo(db_session, fen="f1", source="study", chapter_id=cap_a.id,
+                           due_at=NOW - timedelta(days=1))
+    _puzzle_externo(db_session, fen="f2", source="study", chapter_id=cap_b.id, due_at=NOW - timedelta(days=1))
+    make_puzzle(db_session, fen="f3", due_at=NOW - timedelta(days=1))
+
+    q = build_queue(db_session, QueueFilters(study_id=cap_a.study_id), S, NOW)
+    assert [p.id for p in q.due] == [do_a.id] and q.due_count == 1
+
+
+def test_novos_de_fontes_diferentes_ordenados_por_data(db_session):
+    antigo = make_puzzle(db_session, fen="f1", played_at=datetime(2026, 1, 1))
+    do_meio = _puzzle_externo(db_session, fen="f2", created_at=datetime(2026, 5, 1))
+    recente = make_puzzle(db_session, fen="f3", played_at=datetime(2026, 8, 1))
+    q = build_queue(db_session, QueueFilters(), S10, NOW)
+    assert [p.id for p in q.new] == [recente.id, do_meio.id, antigo.id]
+    assert q.new_available == 3
