@@ -1,4 +1,4 @@
-import { colorName, formatEval, kindLabel, resultLabel } from "../src/lib/format";
+import { categoryLabel, colorName, formatEval, kindLabel, resultLabel, themeLabel } from "../src/lib/format";
 
 test("formatEval", () => {
   expect(formatEval(125)).toBe("+1.25");
@@ -15,4 +15,13 @@ test("rótulos", () => {
   expect(resultLabel("1-0", "white")).toBe("vitória");
   expect(resultLabel("1-0", "black")).toBe("derrota");
   expect(resultLabel("1/2-1/2", "white")).toBe("empate");
+});
+
+test("as outras fontes têm tema e categoria em português", () => {
+  expect(themeLabel("study")).toBe("estudo");
+  expect(themeLabel("lichess")).toBe("tática do Lichess");
+  expect(themeLabel("mate_in_2")).toBe("mate em 2");
+  expect(categoryLabel("study")).toBe("estudo");
+  expect(categoryLabel("lichess")).toBe("Lichess");
+  expect(categoryLabel("rapid")).toBe("rapid");
 });

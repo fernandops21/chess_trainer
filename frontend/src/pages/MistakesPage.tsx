@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import type { Key } from "chessground/types";
 import { useLeeches, useMistakes, usePuzzleQuery, useUnleech } from "../api/queries";
-import type { MistakeOut, MistakesQuery, PuzzleOut } from "../api/types";
+import type { MistakeOut, MistakesQuery, PuzzleOut, PuzzleRef } from "../api/types";
 import { Board } from "../board/Board";
 import { MiniBoard } from "../board/MiniBoard";
 import { uciToMove } from "../board/line";
@@ -41,6 +41,23 @@ function MistakeDetail({ m, onClose }: { m: MistakeOut; onClose: () => void }) {
         <button onClick={onClose} style={{ marginLeft: "auto" }}>Fechar</button>
       </div>
     </Modal>
+  );
+}
+
+/** Etiqueta "fora da repetição", uma por exercício.
+ *
+ * Basta um estar fora para o erro merecer o aviso — antes só aparecia quando
+ * todos estavam, e o "evitar" fora da fila passava despercebido. Quando o erro
+ * tem punir e evitar, cada etiqueta diz qual dos dois saiu. */
+function OutOfQueueTags({ puzzles }: { puzzles: PuzzleRef[] }) {
+  return (
+    <>
+      {puzzles.filter((p) => p.in_queue === false).map((p) => (
+        <span key={p.id} className="tag">
+          fora da repetição{puzzles.length > 1 ? ` (${p.kind === "punish" ? "punir" : "evitar"})` : ""}
+        </span>
+      ))}
+    </>
   );
 }
 
@@ -86,7 +103,7 @@ export function MistakesPage() {
           <button key={m.position_id} className="mistakerow" onClick={() => setOpen(m)}>
             <MiniBoard fen={m.fen} orientation={m.my_color} />
             <div style={{ flex: 1, textAlign: "left" }}>
-              <div><b>{m.move_played}</b> <span className={`tag ${m.mistake_level}`}>{levelLabel(m.mistake_level)}</span>{m.mistake_by === "opponent" && <span className="tag">adversário</span>}{m.puzzles.length === 0 && m.mistake_by === "me" && <span className="tag">posicional</span>}{m.puzzles.length > 0 && m.puzzles.every((p) => p.in_queue === false) && <span className="tag">fora da repetição</span>}</div>
+              <div><b>{m.move_played}</b> <span className={`tag ${m.mistake_level}`}>{levelLabel(m.mistake_level)}</span>{m.mistake_by === "opponent" && <span className="tag">adversário</span>}{m.puzzles.length === 0 && m.mistake_by === "me" && <span className="tag">posicional</span>}<OutOfQueueTags puzzles={m.puzzles} /></div>
               <div className="muted">{formatEval(m.eval_before)} → {formatEval(m.eval_after)} · melhor {m.best_move} {m.puzzles[0] && `· ${themeLabel(m.puzzles[0].theme)}`}</div>
               <div className="muted">{m.white} × {m.black} · {formatDate(m.played_at)} · {m.category}</div>
             </div>

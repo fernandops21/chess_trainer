@@ -20,6 +20,7 @@ const study = (over: Partial<StudyOut> = {}): StudyOut => ({
   lichess_id: "abc12345",
   imported_at: "2026-09-01T10:00:00",
   chapter_count: 3,
+  exercise_count: 2,
   in_queue: 2,
   due_today: 1,
   ...over,
@@ -130,4 +131,26 @@ test("o título leva ao detalhe do estudo", async () => {
   renderPage();
   const link = await screen.findByRole("link", { name: "Finais de torre" });
   expect(link.getAttribute("href")).toBe("/estudos/s1");
+});
+
+test("estudo só de leitura não oferece o botão da repetição", async () => {
+  vi.spyOn(api, "studies").mockResolvedValue([study({ exercise_count: 0, in_queue: 0, due_today: 0 })]);
+  renderPage();
+  await screen.findByText("Finais de torre");
+  expect(screen.queryByRole("button", { name: /repetição/ })).toBeNull();
+  expect(screen.getByText("sem exercícios: só capítulos de leitura")).toBeTruthy();
+});
+
+test("com uma tarefa em andamento, importar e reimportar ficam desligados", async () => {
+  vi.spyOn(api, "status").mockResolvedValue({
+    ...STATUS,
+    job: { ...STATUS.job, state: "running", job: "import_study", message: "2/5 capítulos" },
+  });
+  renderPage();
+  await screen.findByText("Finais de torre");
+  await waitFor(() => expect((screen.getByRole("button", { name: "Reimportar" }) as HTMLButtonElement).disabled).toBe(true));
+  fireEvent.change(screen.getByLabelText("URL do estudo no Lichess"), {
+    target: { value: "https://lichess.org/study/abc12345" },
+  });
+  expect((screen.getByRole("button", { name: "Importar" }) as HTMLButtonElement).disabled).toBe(true);
 });

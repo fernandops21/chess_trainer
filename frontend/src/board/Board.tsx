@@ -61,7 +61,7 @@ function boardMode(p: BoardProps) {
 }
 
 export function toConfig(p: BoardProps): Config {
-  const { readOnly, frozen, viewOnly } = boardMode(p);
+  const { readOnly, frozen, viewOnly, longPress } = boardMode(p);
   return {
     fen: p.fen,
     orientation: p.orientation,
@@ -78,7 +78,11 @@ export function toConfig(p: BoardProps): Config {
     drawable: {
       enabled: p.drawable ?? false,
       visible: true,
-      eraseOnClick: true,
+      // No celular quem desenha é o nosso toque longo, e o `eraseOnClick` do chessground
+      // roda já no `touchstart` — antes dos 350 ms —, apagando tudo a cada gesto: só daria
+      // para ter uma marcação por vez e repetir o gesto nunca apagaria. Desligado, as
+      // marcações ficam até a posição mudar. No computador o clique esquerdo continua limpando.
+      eraseOnClick: !longPress,
       autoShapes: [
         ...(p.highlight ?? []).map((k) => ({ orig: k, brush: "green" })),
         ...(p.arrows ?? []).map((a) => ({ orig: a.orig, dest: a.dest, brush: a.brush ?? "green" })),

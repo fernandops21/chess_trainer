@@ -93,10 +93,13 @@ casas com o botão direito.
   tabuleiro de análise. Marcações não são salvas e somem ao trocar de
   puzzle/posição.
 - Setas e casas do autor (`[%cal …]`/`[%csl …]` nos comentários do estudo):
-  extraídas na importação para `solution.shapes: {índice: [{orig, dest?,
+  extraídas na importação para `solution.shapes: {chave: [{orig, dest?,
   brush}]}`; mostradas na linha do resultado no lance correspondente e no
-  tabuleiro do puzzle apenas na posição inicial (índice 0), como dica visual
-  do autor.
+  tabuleiro do puzzle apenas na posição inicial, como dica visual do autor.
+  As chaves: `"start"` são as marcações da **posição inicial** (comentário do
+  nó raiz, antes de qualquer lance) e `"<i>"` é o índice do lance dentro de
+  `moves` — ou seja, `"0"` é o estado **depois** do primeiro lance, não a
+  posição inicial.
 
 ## 5. Importar estudos do Lichess
 
@@ -120,8 +123,15 @@ casas com o botão direito.
     → `wrong_moves`; comentários da linha principal → `comments`;
     `%cal`/`%csl` → `shapes`; comentário antes do primeiro lance →
     `intro_comment` (mostrado no cabeçalho do puzzle como enunciado).
-  - Capítulo sem lances → `read`. Lance ilegal → capítulo pulado e listado na
+  - Capítulo sem lances → `read`. Lance ilegal ou FEN inválida → capítulo
+    pulado, `mode = read` (sem lances legíveis não há exercício) e listado na
     mensagem final do job.
+  - PGN só com capítulos de leitura (nenhum `gamebook`) importa normalmente,
+    com um aviso na mensagem final — "(só capítulos de leitura; nenhum
+    exercício)" —, e a tela Estudos mostra "sem exercícios: só capítulos de
+    leitura" no lugar do botão da repetição.
+  - Cancelar o job durante a importação descarta o estudo inteiro: a checagem
+    acontece capítulo a capítulo, ainda dentro da transação, antes do commit.
 - Idempotência: chave do capítulo = `lichess_url`. Reimportar atualiza
   título/nomes/linhas; linha principal alterada atualiza `solution` e
   `fen_start` do puzzle mantendo id e histórico; capítulos ausentes na nova

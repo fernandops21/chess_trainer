@@ -13,11 +13,23 @@ const JOB_LABEL: Record<string, string> = {
 };
 
 const JOB_RUNNING_HINT: Record<string, string> = {
-  regenerate: "apaga os puzzles e gera de novo com as regras atuais",
-  regenerate_avoid: "apaga só os puzzles evitar e gera de novo; os punir e o histórico ficam",
+  regenerate: "apaga os exercícios das suas partidas e gera de novo com as regras atuais; táticas e estudos ficam",
+  regenerate_avoid: "apaga só os puzzles evitar das suas partidas e gera de novo; os punir e o histórico ficam",
   import_lichess: "baixa o banco (~300 MB) e importa as táticas filtradas; leva uns 5 minutos",
   import_study: "baixa o PGN do estudo e cria um exercício por capítulo",
 };
+
+/** Até onde o cancelamento deixa a tarefa chegar: cada job para num ponto diferente. */
+const CANCEL_LABEL: Record<string, [string, string]> = {
+  import_lichess: ["Cancelar (após o lote atual)", "Cancelando… termina o lote atual e para"],
+  // o estudo é gravado de uma vez no fim: cancelar antes disso não deixa nada pela metade
+  import_study: ["Cancelar (antes de gravar)", "Cancelando… o estudo não será gravado"],
+  import: ["Cancelar (após a partida atual)", "Cancelando… termina a partida atual e para"],
+  analyze: ["Cancelar (após a partida atual)", "Cancelando… termina a partida atual e para"],
+  regenerate: ["Cancelar (após a partida atual)", "Cancelando… termina a partida atual e para"],
+  regenerate_avoid: ["Cancelar (após a partida atual)", "Cancelando… termina a partida atual e para"],
+};
+const CANCEL_FALLBACK: [string, string] = ["Cancelar", "Cancelando…"];
 
 export function JobCard() {
   const { data: status } = useStatus();
@@ -44,9 +56,7 @@ export function JobCard() {
             ? <progress style={{ width: "100%" }} aria-label="em andamento" />
             : <progress value={job.done} max={Math.max(job.total, 1)} style={{ width: "100%" }} aria-label={`${pct}%`} />}
           <button className="danger" onClick={() => cancel.mutate()} disabled={cancel.isPending || job.cancel_requested}>
-            {job.job === "import_lichess"
-              ? (job.cancel_requested ? "Cancelando… termina o lote atual e para" : "Cancelar (após o lote atual)")
-              : (job.cancel_requested ? "Cancelando… termina a partida atual e para" : "Cancelar (após a partida atual)")}
+            {(CANCEL_LABEL[job.job ?? ""] ?? CANCEL_FALLBACK)[job.cancel_requested ? 1 : 0]}
           </button>
         </>
       )}

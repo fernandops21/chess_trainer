@@ -7,7 +7,11 @@ import type { Key } from "chessground/types";
 const { api } = vi.hoisted(() => ({
   api: {
     set: vi.fn(),
-    setShapes: vi.fn(),
+    // o chessground de verdade guarda o que recebe: o dublê precisa fazer o mesmo,
+    // senão o toggle do toque longo nunca enxerga a marcação anterior
+    setShapes: vi.fn((shapes: { orig: string; dest?: string; brush?: string }[]) => {
+      api.state.drawable.shapes = shapes;
+    }),
     destroy: vi.fn(),
     cancelMove: vi.fn(),
     getKeyAtDomPos: vi.fn(),
@@ -67,6 +71,16 @@ test("com `drawable` o botão direito desenha e o clique esquerdo apaga", () => 
   expect(cfg.drawable?.enabled).toBe(true);
   expect(cfg.drawable?.visible).toBe(true);
   expect(cfg.drawable?.eraseOnClick).toBe(true);
+});
+
+test("no celular o clique não apaga as marcações (lá quem desenha é o toque longo)", () => {
+  setPointer(true);
+  const coarse = toConfig({ fen: F1, orientation: "white", drawable: true });
+  // o `eraseOnClick` do chessground roda no `touchstart`, antes dos 350 ms do toque
+  // longo: ligado, ele apagaria a marcação anterior a cada gesto e nada se acumularia
+  expect(coarse.drawable?.eraseOnClick).toBe(false);
+  setPointer(false);
+  expect(toConfig({ fen: F1, orientation: "white", drawable: true }).drawable?.eraseOnClick).toBe(true);
 });
 
 test("dica, setas e casas do autor viram autoShapes", () => {
@@ -189,4 +203,31 @@ test("no celular o tabuleiro congelado não desenha com toque longo (a página r
   el.dispatchEvent(touch("touchend", [at(90)]));
 
   expect(api.setShapes).not.toHaveBeenCalled();
+});
+
+test("no celular as marcações se acumulam e o mesmo gesto apaga só a sua", () => {
+  setPointer(true);
+  vi.useFakeTimers();
+  const { container } = render(<Board fen={F1} orientation="white" drawable />);
+  const el = boardOf(container);
+
+  const marcar = (x: number) => {
+    el.dispatchEvent(touch("touchstart", [at(x)]));
+    vi.advanceTimersByTime(350);
+    el.dispatchEvent(touch("touchend", [at(x)]));
+  };
+
+  marcar(10);
+  expect(api.setShapes).toHaveBeenLastCalledWith([{ orig: "e2", brush: "green" }]);
+
+  // segunda marcação: a primeira continua lá
+  marcar(90);
+  expect(api.setShapes).toHaveBeenLastCalledWith([
+    { orig: "e2", brush: "green" },
+    { orig: "e4", brush: "green" },
+  ]);
+
+  // repetir o gesto apaga só a marcação dele
+  marcar(90);
+  expect(api.setShapes).toHaveBeenLastCalledWith([{ orig: "e2", brush: "green" }]);
 });

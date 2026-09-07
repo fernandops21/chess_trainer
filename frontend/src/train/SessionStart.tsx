@@ -33,8 +33,12 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
   const studyParam = params.get("study");
   const [timed, setTimed] = useState<boolean>(storage.get("train.timed", true));
   const [minutes, setMinutes] = useState<number>(storage.get("train.minutes", 25));
+  // `?study=` vem do botão "Treinar este estudo": o estudo só existe na repetição
+  // espaçada, então ele manda mais que o `?source=` e que a última escolha guardada
   const [source, setSource] = useState<SessionSource>(() =>
-    params.get("source") ? asSource(params.get("source")) : asSource(storage.get<SessionSource>("train.source", "own")));
+    studyParam ? "own"
+      : params.get("source") ? asSource(params.get("source"))
+        : asSource(storage.get<SessionSource>("train.source", "own")));
   const [themes, setThemes] = useState<string[]>(() => storage.get<string[]>("train.themes", []));
   // fontes da fila: vazio = todas; `?study=<id>` já chega com "study" marcado
   const [sources, setSources] = useState<PuzzleSource[]>(() =>

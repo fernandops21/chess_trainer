@@ -362,6 +362,8 @@ export interface StudyOut {
   lichess_id: string | null;
   imported_at: string | null;
   chapter_count: number;
+  /** Capítulos com exercício, estejam eles na repetição ou não. */
+  exercise_count: number;
   in_queue: number;
   due_today: number;
 }

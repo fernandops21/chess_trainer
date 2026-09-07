@@ -7,8 +7,8 @@ import type { StudyOut, TacticsStatus } from "../src/api/types";
 import { SessionStart } from "../src/train/SessionStart";
 
 const STUDIES: StudyOut[] = [
-  { id: "s1", title: "Finais de torre", author: "Basso", source_url: "https://lichess.org/study/aaa", lichess_id: "aaa", imported_at: null, chapter_count: 27, in_queue: 20, due_today: 3 },
-  { id: "s2", title: "Aberturas", author: "Basso", source_url: "", lichess_id: null, imported_at: null, chapter_count: 4, in_queue: 4, due_today: 0 },
+  { id: "s1", title: "Finais de torre", author: "Basso", source_url: "https://lichess.org/study/aaa", lichess_id: "aaa", imported_at: null, chapter_count: 27, exercise_count: 20, in_queue: 20, due_today: 3 },
+  { id: "s2", title: "Aberturas", author: "Basso", source_url: "", lichess_id: null, imported_at: null, chapter_count: 4, exercise_count: 4, in_queue: 4, due_today: 0 },
 ];
 
 const status: TacticsStatus = {
@@ -82,4 +82,20 @@ test("train.sources guardado antes volta marcado", () => {
   renderStart();
   expect(screen.getByText("Lichess guardados").getAttribute("aria-pressed")).toBe("true");
   expect(screen.getByText("Meus erros").getAttribute("aria-pressed")).toBe("false");
+});
+
+test("?study=<id> força a repetição espaçada mesmo com Táticas guardado", async () => {
+  // veio da tela Estudos ("Treinar este estudo"): a última escolha guardada não pode
+  // levar para as táticas do Lichess, onde o estudo não existe
+  localStorage.setItem("train.source", JSON.stringify("tactics"));
+  const onStart = renderStart("/treinar?study=s1");
+
+  const espacada = screen.getByLabelText("Repetição espaçada") as HTMLInputElement;
+  expect(espacada.checked).toBe(true);
+  expect((screen.getByLabelText("Táticas do Lichess") as HTMLInputElement).checked).toBe(false);
+  expect(screen.getByText("Estudos").getAttribute("aria-pressed")).toBe("true");
+  await screen.findByText("Finais de torre");
+  expect((screen.getByLabelText("Estudo") as HTMLSelectElement).value).toBe("s1");
+  fireEvent.click(screen.getByText("Começar"));
+  expect(onStart.mock.calls[0][0]).toMatchObject({ source: "own" });
 });

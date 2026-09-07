@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useImportStudy, useStudies, useStudyActions } from "../api/queries";
+import { useImportStudy, useStatus, useStudies, useStudyActions } from "../api/queries";
 import type { StudyOut } from "../api/types";
 import { ErrorBox } from "../components/ErrorBox";
 import { JobCard } from "../components/JobCard";
@@ -27,7 +27,10 @@ export function StudiesPage() {
   const [pgn, setPgn] = useState("");
   const [showPgn, setShowPgn] = useState(false);
   const [confirm, setConfirm] = useState<StudyOut | null>(null);
-  const busy = importStudy.isPending || reimport.isPending;
+  const { data: status } = useStatus();
+  // uma tarefa já em andamento (importação de outro estudo, análise…) recusaria a
+  // próxima com 409: o botão fica desligado enquanto ela roda
+  const busy = importStudy.isPending || reimport.isPending || status?.job.state === "running";
 
   return (
     <>
@@ -101,12 +104,17 @@ export function StudiesPage() {
             {s.lichess_id && (
               <button disabled={busy} onClick={() => reimport.mutate(s.id)}>Reimportar</button>
             )}
-            <button
-              disabled={setQueue.isPending}
-              onClick={() => setQueue.mutate({ id: s.id, in_queue: s.in_queue === 0 })}
-            >
-              {s.in_queue > 0 ? "Tirar da repetição" : "Voltar para a repetição"}
-            </button>
+            {s.exercise_count > 0 ? (
+              <button
+                disabled={setQueue.isPending}
+                onClick={() => setQueue.mutate({ id: s.id, in_queue: s.in_queue === 0 })}
+              >
+                {s.in_queue > 0 ? "Tirar da repetição" : "Voltar para a repetição"}
+              </button>
+            ) : (
+              // sem nenhum capítulo em modo gamebook não há o que pôr ou tirar da fila
+              <span className="muted">sem exercícios: só capítulos de leitura</span>
+            )}
             <button className="danger" onClick={() => setConfirm(s)}>Remover</button>
           </div>
         </div>

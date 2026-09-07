@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import type { PuzzleOut, ReviewOut } from "../api/types";
 import { usePuzzleQuery } from "../api/queries";
 import { ErrorBox } from "../components/ErrorBox";
-import { formatEval, themeLabel } from "../lib/format";
+import { categoryLabel, formatEval, themeLabel } from "../lib/format";
 import { startPlyFromFen } from "../lib/plies";
 import { buildLine } from "../board/line";
 import { LineViewer } from "./LineViewer";
@@ -50,7 +50,7 @@ export function ResultPanel({ puzzle, review, error, onRetry, onNext, nextLabel 
         {isAvoid && puzzle.mistake && (
           <p>Na partida você jogou <b>{puzzle.mistake.move_played}</b> ({formatEval(puzzle.mistake.eval_before)} → {formatEval(puzzle.mistake.eval_after)}). O melhor era <b>{bestSan}</b>.</p>
         )}
-        <div style={{ marginTop: 10 }}><span className="tag">{themeLabel(puzzle.theme)}</span><span className="tag">{puzzle.category}</span><span className="tag">{puzzle.end_reason === "mate" ? "termina em mate" : puzzle.end_reason === "material_gain" ? "ganho de material" : "explicação"}</span></div>
+        <div style={{ marginTop: 10 }}><span className="tag">{themeLabel(puzzle.theme)}</span><span className="tag">{categoryLabel(puzzle.category)}</span><span className="tag">{puzzle.end_reason === "mate" ? "termina em mate" : puzzle.end_reason === "material_gain" ? "ganho de material" : "explicação"}</span></div>
         <div className="row" style={{ marginTop: 10 }}>
           {puzzle.game && <a href={puzzle.game.source_id} target="_blank" rel="noopener">partida no chess.com</a>}
           {puzzle.game && puzzle.ply != null && <Link to={`/partidas/${puzzle.game.id}?ply=${puzzle.ply}`}>partida no app</Link>}

@@ -26,6 +26,7 @@ const detail = (over: Partial<StudyDetail> = {}): StudyDetail => ({
   lichess_id: "abc12345",
   imported_at: "2026-09-01T10:00:00",
   chapter_count: 2,
+  exercise_count: 2,
   in_queue: 1,
   due_today: 0,
   chapters: [

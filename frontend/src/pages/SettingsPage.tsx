@@ -122,11 +122,11 @@ export function SettingsPage() {
         <ErrorBox error={start.error} />
       </div>
       <Modal open={confirm} title="Recriar todos os puzzles?" onClose={() => setConfirm(false)}>
-        <p>Isso apaga todos os puzzles e <b>todo o histórico de treino</b> (revisões, intervalos, sequência) e gera tudo de novo com os limiares atuais. Não pode ser desfeito.</p>
+        <p>Isso apaga <b>só os exercícios das suas partidas</b> e o histórico de treino deles (revisões, intervalos, sequência), e gera tudo de novo com os limiares atuais. As táticas guardadas do Lichess e os exercícios dos estudos ficam como estão. Não pode ser desfeito.</p>
         <div className="row"><button className="danger" onClick={() => { start.mutate({ kind: "regenerate" }); setConfirm(false); }}>Recriar</button><button onClick={() => setConfirm(false)}>Cancelar</button></div>
       </Modal>
       <Modal open={confirmAvoid} title="Recriar só os puzzles 'evitar'?" onClose={() => setConfirmAvoid(false)}>
-        <p>Apaga e regera só os puzzles "evitar" (e o histórico de treino deles). Os "punir" e seu histórico ficam.</p>
+        <p>Apaga e recria só os puzzles "evitar" das suas partidas (e o histórico de treino deles). Os "punir" e seu histórico ficam.</p>
         <div className="row"><button className="danger" onClick={() => { start.mutate({ kind: "regenerate", avoidOnly: true }); setConfirmAvoid(false); }}>Recriar</button><button onClick={() => setConfirmAvoid(false)}>Cancelar</button></div>
       </Modal>
     </>

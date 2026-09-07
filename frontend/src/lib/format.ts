@@ -34,7 +34,15 @@ const THEMES: Record<string, string> = {
   pin: "cravada",
   discovered_attack: "ataque descoberto",
   tactic: "tática",
+  // temas próprios das outras fontes (cópia de `core/tactics/themes.py: THEME_LABELS`)
+  study: "estudo",
+  lichess: "tática do Lichess",
 };
+
+/** Categoria do exercício: nas partidas é o ritmo (rapid, blitz…); nas outras fontes, a origem. */
+const CATEGORIES: Record<string, string> = { study: "estudo", lichess: "Lichess" };
+
+export const categoryLabel = (category: string): string => CATEGORIES[category] ?? category;
 
 /** Temas do banco do Lichess (cópia de `core/tactics/themes.py: THEME_LABELS`). */
 export const LICHESS_THEMES: Record<string, string> = {

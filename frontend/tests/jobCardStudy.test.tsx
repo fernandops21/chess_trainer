@@ -33,3 +33,8 @@ test("importação de estudo: nome da tarefa, dica e progresso por capítulo", (
   expect(screen.getByText(/baixa o PGN do estudo e cria um exercício por capítulo/)).toBeTruthy();
   expect(screen.getByText(/2\/5 capítulos/)).toBeTruthy();
 });
+
+test("o cancelamento do estudo avisa que nada será gravado", () => {
+  render(<JobCard />);
+  expect(screen.getByRole("button", { name: "Cancelar (antes de gravar)" })).toBeTruthy();
+});
