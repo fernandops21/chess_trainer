@@ -109,16 +109,22 @@ def parse_study_pgn(text: str) -> ParsedStudy:
 # --- estudo --------------------------------------------------------------
 
 
+def _unescape(text: str) -> str:
+    """Desfaz o escape de aspas e barras dos headers PGN (`\\"` e `\\`), que o
+    python-chess devolve como estão no arquivo."""
+    return text.replace('\\"', '"').replace("\\\\", "\\")
+
+
 def _study_title(headers) -> str:
-    name = headers.get("StudyName", "").strip()
+    name = _unescape(headers.get("StudyName", "").strip())
     if name:
         return name
-    prefix, sep, _ = headers.get("Event", "").strip().partition(": ")
+    prefix, sep, _ = _unescape(headers.get("Event", "").strip()).partition(": ")
     return prefix if sep else ""
 
 
 def _author(headers) -> str:
-    annotator = headers.get("Annotator", "").strip()
+    annotator = _unescape(headers.get("Annotator", "").strip())
     if annotator.startswith(AUTHOR_PREFIX):
         return annotator[len(AUTHOR_PREFIX) :]
     return annotator
@@ -200,10 +206,10 @@ def _headers_only(game: chess.pgn.Game) -> str:
 
 
 def _chapter_name(headers) -> str:
-    name = headers.get("ChapterName", "").strip()
+    name = _unescape(headers.get("ChapterName", "").strip())
     if name:
         return name
-    event = headers.get("Event", "").strip()
+    event = _unescape(headers.get("Event", "").strip())
     _, sep, suffix = event.partition(": ")
     return suffix if sep else event
 

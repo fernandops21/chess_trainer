@@ -372,3 +372,10 @@ def test_posicao_propria_dentro_do_teto_vira_exercicio():
     texto = pgn_sintetico("Curta", linha, extras='[FEN "4k1n1/8/8/8/8/8/8/4K1N1 w - - 0 1"]\n[SetUp "1"]')
     cap = parse_study_pgn(texto).chapters[0]
     assert cap.skipped_reason is None and cap.mode == "gamebook"
+
+
+def test_aspas_escapadas_nos_headers_sao_desfeitas():
+    texto = pgn_sintetico("Exercicio", "1. e4 *", extras='[ChapterName "Brancas jogam (\\"pegadinha\\")"]\n[StudyName "Tática \\"dupla\\""]')
+    estudo = parse_study_pgn(texto)
+    assert estudo.chapters[0].name == 'Brancas jogam ("pegadinha")'
+    assert estudo.title == 'Tática "dupla"'
