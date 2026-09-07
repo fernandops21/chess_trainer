@@ -217,3 +217,14 @@ test("nagLabel devolve o símbolo", () => {
   expect(nagLabel(14)).toBe("⩲");
   expect(nagLabel(999)).toBe("$999");
 });
+
+
+describe("marcações da posição inicial", () => {
+  it("setShapes sem nó atual grava na raiz e addMove preserva", () => {
+    const t0 = emptyTree(START);
+    const t1 = setShapes(t0, null, [{ orig: "e2", dest: "e4", brush: "green" }]);
+    expect(t1.root.shapes).toEqual([{ orig: "e2", dest: "e4", brush: "green" }]);
+    const { tree: t2 } = addMove(t1, null, "e2e4");
+    expect(t2.root.shapes).toEqual(t1.root.shapes);
+  });
+});

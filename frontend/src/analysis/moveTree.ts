@@ -23,6 +23,8 @@ export interface TreeNode {
 }
 
 export interface TreeRoot {
+  /** Marcações do autor na posição inicial (chave "start" da solução). */
+  shapes?: Shape[];
   children: TreeNode[];
 }
 
@@ -66,7 +68,8 @@ export function emptyTree(fen: string, orientation: "white" | "black" = "white")
 }
 
 function withChildren(tree: Tree, children: TreeNode[]): Tree {
-  return { ...tree, root: { children } };
+  // preserva `root.shapes` (e qualquer outro campo da raiz) ao trocar os filhos
+  return { ...tree, root: { ...tree.root, children } };
 }
 
 export function countNodes(tree: Tree): number {
@@ -178,6 +181,8 @@ export function setComment(tree: Tree, id: string | null, comment: string): Tree
 }
 
 export function setShapes(tree: Tree, id: string | null, shapes: Shape[]): Tree {
+  // na posição inicial (sem nó atual) as marcações vivem na raiz
+  if (id === null) return { ...tree, root: { ...tree.root, shapes } };
   return patch(tree, id, (n) => ({ ...n, shapes }));
 }
 
