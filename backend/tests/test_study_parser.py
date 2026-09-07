@@ -356,8 +356,21 @@ def test_partida_inteira_da_posicao_inicial_continua_leitura():
 
 
 def test_posicao_propria_com_linha_longa_continua_leitura():
-    lances = " ".join(f"{i}. Nf3 Nf6 {i}... " for i in range(1, 1))  # placeholder para clareza
-    linha = "1. Nf3 Nf6 2. Ng1 Ng8 " * 7 + "*"
-    texto = pgn_sintetico("Longa", linha, extras='[FEN "4k3/8/8/8/8/8/8/4K1N1 w - - 0 1"]\n[SetUp "1"]')
+    # cavalos dos dois lados vão e voltam: 28 meios-lances legais, acima do teto
+    passos = ["Nf3 Nf6", "Ng1 Ng8"] * 7
+    linha = " ".join(f"{i + 1}. {par}" for i, par in enumerate(passos)) + " *"
+    texto = pgn_sintetico("Longa", linha, extras='[FEN "4k1n1/8/8/8/8/8/8/4K1N1 w - - 0 1"]
+[SetUp "1"]')
     cap = parse_study_pgn(texto).chapters[0]
-    assert cap.mode == "read"
+    # é o teto de lances que decide, não um lance ilegal
+    assert cap.skipped_reason is None
+    assert cap.mode == "read" and cap.solution is None
+
+
+def test_posicao_propria_dentro_do_teto_vira_exercicio():
+    passos = ["Nf3 Nf6", "Ng1 Ng8"] * 6  # 24 meios-lances: no limite
+    linha = " ".join(f"{i + 1}. {par}" for i, par in enumerate(passos)) + " *"
+    texto = pgn_sintetico("Curta", linha, extras='[FEN "4k1n1/8/8/8/8/8/8/4K1N1 w - - 0 1"]
+[SetUp "1"]')
+    cap = parse_study_pgn(texto).chapters[0]
+    assert cap.skipped_reason is None and cap.mode == "gamebook"
