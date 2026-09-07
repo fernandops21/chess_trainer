@@ -18,7 +18,7 @@ vi.mock("../src/board/Board", () => ({
   },
 }));
 
-import { emptyTree, findNode, insertLine } from "../src/analysis/moveTree";
+import { emptyTree, findNode, insertLine, setComment } from "../src/analysis/moveTree";
 import type { Tree } from "../src/analysis/moveTree";
 import { AnalysisBoard } from "../src/analysis/AnalysisBoard";
 
@@ -217,4 +217,43 @@ test("no modo edição a seta do motor é azul (o verde fica para as marcações
 
   renderBoard({ editable: true });
   await waitFor(() => expect(last().arrows?.[0]?.brush).toBe("blue"));
+});
+
+// --- modo leitura: comentários do autor --------------------------------
+
+/** Comentário mais longo que o corte da árvore (80 caracteres). */
+const LONGO =
+  "As brancas seguram o peão passado com a torre atrás dele e só então avançam o rei pela coluna livre.";
+
+/** Árvore com enunciado e um comentário longo no primeiro lance. */
+function comComentarios(): Tree {
+  const base = insertLine(emptyTree(START), null, ["e2e4"]).tree;
+  const com = setComment(base, base.root.children[0].id, LONGO);
+  return { ...com, intro: "Brancas jogam e ganham." };
+}
+
+test("no modo leitura o enunciado e o comentário do lance aparecem inteiros", () => {
+  comProvedores(<AnalysisBoard tree={comComentarios()} />);
+  // na posição inicial o cartão traz o enunciado
+  expect(screen.getByText("Brancas jogam e ganham.")).toBeTruthy();
+
+  fireEvent.click(screen.getByText(/^1\. e4$/));
+  // a árvore corta o comentário em 80 caracteres; o cartão mostra o texto todo
+  expect(screen.getByText(LONGO)).toBeTruthy();
+  expect(screen.getByText("Comentário de e4")).toBeTruthy();
+  expect(screen.queryByText("Brancas jogam e ganham.")).toBeNull();
+});
+
+test("sem comentário nenhum o modo leitura não mostra o cartão", () => {
+  comProvedores(<AnalysisBoard tree={emptyTree(START)} />);
+  expect(screen.queryByText("Enunciado")).toBeNull();
+});
+
+test("no modo edição o cartão de leitura não aparece junto da caixa de edição", () => {
+  comProvedores(<AnalysisBoard editable tree={comComentarios()} />);
+  expect((screen.getByLabelText("Comentário") as HTMLTextAreaElement).value).toBe("Brancas jogam e ganham.");
+  // só a caixa de edição traz o texto: nada de mostrar duas vezes
+  expect(screen.getAllByText("Brancas jogam e ganham.").length).toBe(1);
+  expect(screen.queryByText("Enunciado")).toBeNull();
+  expect(screen.getByText("Enunciado (posição inicial)")).toBeTruthy();
 });

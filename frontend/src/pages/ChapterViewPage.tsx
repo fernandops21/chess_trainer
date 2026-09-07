@@ -10,6 +10,9 @@ import { chapterPgnUrl } from "../api/client";
  * Leitura de um capítulo: a mesma árvore do editor, só que sem edição — os
  * comentários e as marcações do autor aparecem enquanto se navega pelos
  * lances (é assim que se lê uma partida anotada importada do Lichess).
+ *
+ * O enunciado não sai aqui: quem o mostra é o cartão de leitura do próprio
+ * tabuleiro, junto com o comentário do lance atual.
  */
 export function ChapterViewPage() {
   const { id = "", cid = "" } = useParams();
@@ -32,7 +35,6 @@ export function ChapterViewPage() {
       {isLoading && <p className="muted">Carregando…</p>}
       {data && tree && (
         <>
-          {tree.intro && <p>{tree.intro}</p>}
           <div className="row" style={{ marginBottom: 10 }}>
             {data.puzzle_id && data.in_queue && (
               <button className="primary" onClick={() => navigate(`/treinar?puzzle=${data.puzzle_id}`)}>

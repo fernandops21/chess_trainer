@@ -175,3 +175,40 @@ test("salvar mantém o lance atual no tabuleiro", async () => {
   expect(last().fen).toBe(fen);
   expect(screen.getByText("e5").getAttribute("aria-current")).toBe("true");
 });
+
+test("edição feita enquanto o PUT está no ar continua não salva", async () => {
+  let liberar!: () => void;
+  vi.spyOn(api, "saveChapter").mockReturnValue(
+    new Promise((res) => { liberar = () => res(capitulo()); }),
+  );
+  renderPage();
+  await screen.findByLabelText("Nome do capítulo");
+  play("g1f3");
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+  await waitFor(() => expect(api.saveChapter).toHaveBeenCalled());
+
+  // o usuário continua editando antes de a resposta chegar
+  fireEvent.change(screen.getByLabelText("Nome do capítulo"), { target: { value: "Outro nome" } });
+  await act(async () => { liberar(); });
+
+  expect(screen.getByText("alterações não salvas")).toBeTruthy();
+  expect(screen.queryByText(/salvo às/)).toBeNull();
+});
+
+test("mudar a orientação ou sair do enunciado não volta ao começo", async () => {
+  renderPage();
+  await screen.findByLabelText("Nome do capítulo");
+  fireEvent.click(screen.getByText("e5"));
+  const fen = last().fen;
+  expect(fen).not.toBe(START);
+
+  fireEvent.change(screen.getByLabelText("Orientação"), { target: { value: "black" } });
+  expect(last().fen).toBe(fen);
+  expect(last().orientation).toBe("black");
+
+  const enunciado = screen.getByLabelText("Enunciado");
+  fireEvent.change(enunciado, { target: { value: "Pretas jogam e empatam." } });
+  fireEvent.blur(enunciado);
+  expect(last().fen).toBe(fen);
+  expect(screen.getByText("e5").getAttribute("aria-current")).toBe("true");
+});

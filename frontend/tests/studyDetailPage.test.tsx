@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -201,7 +201,7 @@ test("apagar pede confirmação antes de remover o capítulo", async () => {
   renderPage();
   await screen.findByText("Torre atrás do peão");
   fireEvent.click(screen.getByRole("button", { name: 'apagar "Torre atrás do peão"' }));
-  expect(screen.getByText("Apaga o capítulo, o exercício e o histórico dele.")).toBeTruthy();
+  expect(screen.getByText("Apaga o capítulo, o exercício e o histórico dele. Não pode ser desfeito.")).toBeTruthy();
   expect(api.deleteChapter).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Apagar mesmo assim" }));
   await waitFor(() => expect(api.deleteChapter).toHaveBeenCalledWith("s1", "c1"));
@@ -234,4 +234,52 @@ test("estudo local não mostra o aviso de reimportação", async () => {
   renderPage();
   await screen.findByText("Finais de torre");
   expect(screen.queryByText(/reimportar sobrescreve/)).toBeNull();
+});
+
+test("capítulo fora da repetição não oferece treinar, mesmo tendo exercício", async () => {
+  vi.spyOn(api, "study").mockResolvedValue(
+    detail({ chapters: [chapter({ id: "c3", name: "Fora da fila", in_queue: false, puzzle_id: "p3" })] }),
+  );
+  renderPage();
+  await screen.findByText("Fora da fila");
+  expect(screen.queryByRole("button", { name: "Treinar este" })).toBeNull();
+});
+
+test("reordenar de novo só libera depois de a lista voltar do servidor", async () => {
+  let liberar!: () => void;
+  let vezes = 0;
+  vi.spyOn(api, "study").mockImplementation(() => {
+    vezes += 1;
+    if (vezes === 1) return Promise.resolve(detail());
+    return new Promise((res) => { liberar = () => res(detail()); });
+  });
+  vi.spyOn(api, "updateStudy").mockResolvedValue(detail());
+  renderPage();
+  await screen.findByText("Ponte de Lucena");
+
+  const subir = () => screen.getByRole("button", { name: 'mover "Ponte de Lucena" para cima' }) as HTMLButtonElement;
+  fireEvent.click(subir());
+  await waitFor(() => expect(api.updateStudy).toHaveBeenCalledTimes(1));
+  // a lista ainda é a antiga: um segundo clique mandaria a ordem errada
+  await waitFor(() => expect(subir().disabled).toBe(true));
+
+  await act(async () => { liberar(); });
+  await waitFor(() => expect(subir().disabled).toBe(false));
+});
+
+test("apagar avisa que não pode ser desfeito e trava o botão enquanto apaga", async () => {
+  let liberar!: () => void;
+  vi.spyOn(api, "deleteChapter").mockReturnValue(new Promise((res) => { liberar = () => res(undefined); }));
+  renderPage();
+  await screen.findByText("Torre atrás do peão");
+  fireEvent.click(screen.getByRole("button", { name: 'apagar "Torre atrás do peão"' }));
+  expect(screen.getByText(/Não pode ser desfeito\./)).toBeTruthy();
+
+  const confirmar = () => screen.getByRole("button", { name: "Apagar mesmo assim" }) as HTMLButtonElement;
+  fireEvent.click(confirmar());
+  await waitFor(() => expect(confirmar().disabled).toBe(true));
+
+  await act(async () => { liberar(); });
+  await waitFor(() => expect(screen.queryByText(/Não pode ser desfeito\./)).toBeNull());
+  expect(api.deleteChapter).toHaveBeenCalledWith("s1", "c1");
 });

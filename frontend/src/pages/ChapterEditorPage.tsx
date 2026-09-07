@@ -33,6 +33,15 @@ export function ChapterEditorPage() {
   const [dirty, setDirty] = useState(false);
   const [salvoEm, setSalvoEm] = useState<Date | null>(null);
 
+  // Conta as edições do usuário. O `PUT` guarda o valor de antes de partir e,
+  // na volta, só se dá por salvo se nada mudou no meio do caminho: o que foi
+  // digitado com a requisição no ar continua pendente.
+  const versao = useRef(0);
+  const marcarSujo = useCallback(() => {
+    versao.current += 1;
+    setDirty(true);
+  }, []);
+
   // Só o primeiro carregamento reinicia o formulário: depois de salvar, a
   // resposta do servidor volta pelo cache com o mesmo id e não pode desfazer
   // o que já está na tela.
@@ -45,6 +54,7 @@ export function ChapterEditorPage() {
     setNome(data.name);
     setModo(data.mode);
     setEnunciado(arvore.intro ?? "");
+    versao.current = 0;
     setDirty(false);
     setSalvoEm(null);
   }, [data]);
@@ -52,8 +62,8 @@ export function ChapterEditorPage() {
   const aoMudarArvore = useCallback((t: Tree) => {
     setTree(t);
     setEnunciado(t.intro ?? "");
-    setDirty(true);
-  }, []);
+    marcarSujo();
+  }, [marcarSujo]);
 
   // `save.mutate` é estável (TanStack Query); o resto entra nas dependências
   const { mutate: mandarSalvar, isPending: salvando } = save;
@@ -63,9 +73,11 @@ export function ChapterEditorPage() {
     // ao perder o foco): salvar sempre manda a versão mais nova
     const arvore = tree.intro === enunciado ? tree : { ...tree, intro: enunciado };
     if (arvore !== tree) setTree(arvore);
+    // trocar o enunciado aqui é parte do próprio salvamento, não uma edição nova
+    const enviada = versao.current;
     mandarSalvar(
       { cid, body: { name: nome.trim() || "Capítulo", mode: modo, orientation: arvore.orientation, tree: arvore } },
-      { onSuccess: () => { setDirty(false); setSalvoEm(new Date()); } },
+      { onSuccess: () => { if (versao.current === enviada) setDirty(false); setSalvoEm(new Date()); } },
     );
   }, [tree, nome, modo, enunciado, cid, salvando, mandarSalvar]);
 
@@ -91,7 +103,7 @@ export function ChapterEditorPage() {
     const nova = fn(tree);
     if (nova === tree) return;
     setTree(nova);
-    setDirty(true);
+    marcarSujo();
   };
 
   return (
@@ -116,7 +128,7 @@ export function ChapterEditorPage() {
                   aria-label="Nome do capítulo"
                   style={{ width: "100%" }}
                   value={nome}
-                  onChange={(e) => { setNome(e.target.value); setDirty(true); }}
+                  onChange={(e) => { setNome(e.target.value); marcarSujo(); }}
                 />
               </label>
               <label>
@@ -124,7 +136,7 @@ export function ChapterEditorPage() {
                 <select
                   aria-label="Modo"
                   value={modo}
-                  onChange={(e) => { setModo(e.target.value as ChapterOut["mode"]); setDirty(true); }}
+                  onChange={(e) => { setModo(e.target.value as ChapterOut["mode"]); marcarSujo(); }}
                 >
                   <option value="gamebook">exercício</option>
                   <option value="read">leitura</option>
@@ -151,7 +163,7 @@ export function ChapterEditorPage() {
                 aria-label="Enunciado"
                 style={{ width: "100%", minHeight: 60 }}
                 value={enunciado}
-                onChange={(e) => { setEnunciado(e.target.value); setDirty(true); }}
+                onChange={(e) => { setEnunciado(e.target.value); marcarSujo(); }}
                 onBlur={() => trocaArvore((t) => (t.intro === enunciado ? t : { ...t, intro: enunciado }))}
               />
             </div>

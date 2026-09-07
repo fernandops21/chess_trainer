@@ -50,6 +50,7 @@ beforeEach(() => {
   vi.spyOn(api, "reimportStudy").mockResolvedValue({ queued: true, job: "import_study" });
   vi.spyOn(api, "setStudyQueue").mockResolvedValue(study({ in_queue: 0 }));
   vi.spyOn(api, "deleteStudy").mockResolvedValue(undefined);
+  vi.spyOn(api, "settings").mockResolvedValue({ chesscom_username: "fernando" } as never);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -155,15 +156,30 @@ test("com uma tarefa em andamento, importar e reimportar ficam desligados", asyn
   expect((screen.getByRole("button", { name: "Importar" }) as HTMLButtonElement).disabled).toBe(true);
 });
 
-test("novo estudo cria e abre o detalhe", async () => {
+test("novo estudo cria e abre o detalhe, com o autor do nome configurado", async () => {
   vi.spyOn(api, "createStudy").mockResolvedValue(study({ id: "s9", title: "Meu estudo", origin: "local" }));
   renderPage();
   await screen.findByText("Finais de torre");
   fireEvent.click(screen.getByRole("button", { name: "Novo estudo" }));
+  await waitFor(() => expect((screen.getByLabelText("Autor") as HTMLInputElement).value).toBe("fernando"));
   fireEvent.change(screen.getByLabelText("Título do estudo"), { target: { value: "Meu estudo" } });
   fireEvent.click(screen.getByRole("button", { name: "Criar estudo" }));
-  await waitFor(() => expect(api.createStudy).toHaveBeenCalledWith({ title: "Meu estudo", author: "" }));
+  await waitFor(() => expect(api.createStudy).toHaveBeenCalledWith({ title: "Meu estudo", author: "fernando" }));
   await waitFor(() => expect(screen.getByTestId("where").textContent).toBe("/estudos/s9"));
+});
+
+test("o autor sugerido continua editável", async () => {
+  vi.spyOn(api, "createStudy").mockResolvedValue(study({ id: "s9", title: "Meu estudo", origin: "local" }));
+  renderPage();
+  await screen.findByText("Finais de torre");
+  fireEvent.click(screen.getByRole("button", { name: "Novo estudo" }));
+  await waitFor(() => expect((screen.getByLabelText("Autor") as HTMLInputElement).value).toBe("fernando"));
+  fireEvent.change(screen.getByLabelText("Autor"), { target: { value: "Outra pessoa" } });
+  fireEvent.change(screen.getByLabelText("Título do estudo"), { target: { value: "Meu estudo" } });
+  fireEvent.click(screen.getByRole("button", { name: "Criar estudo" }));
+  await waitFor(() =>
+    expect(api.createStudy).toHaveBeenCalledWith({ title: "Meu estudo", author: "Outra pessoa" }),
+  );
 });
 
 test("novo estudo sem título não deixa criar", async () => {

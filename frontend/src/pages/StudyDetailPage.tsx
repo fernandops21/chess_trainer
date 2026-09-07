@@ -23,13 +23,15 @@ function reordenar(chapters: ChapterOut[], at: number, delta: number): string[] 
 export function StudyDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
-  const { data, error, isLoading } = useStudy(id);
+  const { data, error, isFetching, isLoading } = useStudy(id);
   const { update } = useStudyEditor();
   const { create, duplicate, remove } = useChapterActions(id);
   const [novo, setNovo] = useState(false);
   const [apagar, setApagar] = useState<ChapterOut | null>(null);
 
-  const mexendo = update.isPending || duplicate.isPending || remove.isPending;
+  // `isFetching` entra junto: depois de reordenar, a lista na tela ainda é a
+  // antiga até a busca voltar, e um segundo ↑/↓ mandaria a ordem errada.
+  const mexendo = isFetching || update.isPending || duplicate.isPending || remove.isPending;
 
   return (
     <>
@@ -75,7 +77,7 @@ export function StudyDetailPage() {
                 <div className="row" style={{ marginTop: 6 }}>
                   <Link to={`/estudos/${id}/capitulos/${c.id}`} aria-label={`ver "${c.name}"`}>Ver</Link>
                   <Link to={`/estudos/${id}/capitulos/${c.id}/editar`} aria-label={`editar "${c.name}"`}>Editar</Link>
-                  {c.puzzle_id && (
+                  {c.puzzle_id && c.in_queue && (
                     <button onClick={() => navigate(`/treinar?puzzle=${c.puzzle_id}`)}>Treinar este</button>
                   )}
                   <button
@@ -140,11 +142,12 @@ export function StudyDetailPage() {
       )}
 
       <Modal open={apagar !== null} title={`Apagar "${apagar?.name ?? ""}"?`} onClose={() => setApagar(null)}>
-        <p>Apaga o capítulo, o exercício e o histórico dele.</p>
+        <p>Apaga o capítulo, o exercício e o histórico dele. Não pode ser desfeito.</p>
         <div className="row">
           <button
             className="danger"
-            onClick={() => { if (apagar) remove.mutate(apagar.id); setApagar(null); }}
+            disabled={remove.isPending}
+            onClick={() => { if (apagar) remove.mutate(apagar.id, { onSettled: () => setApagar(null) }); }}
           >
             Apagar mesmo assim
           </button>

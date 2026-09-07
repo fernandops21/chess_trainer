@@ -39,7 +39,8 @@ function terminalLabel(terminal: string): string {
 /**
  * Tabuleiro de análise completo: árvore de variações, comentários, marcações
  * salvas e o motor ao lado. É o mesmo componente do editor de capítulo — o que
- * muda é o `editable` e quem cuida de salvar.
+ * muda é o `editable` e quem cuida de salvar. Sem `editable` o comentário do
+ * lance (ou o enunciado, na posição inicial) aparece como cartão de leitura.
  */
 export function AnalysisBoard({
   tree,
@@ -137,6 +138,14 @@ export function AnalysisBoard({
     [editable, marcacoes],
   );
 
+  // Comentário do lance atual; na posição inicial, o enunciado do capítulo.
+  const comentario = mt.node ? mt.node.comment : mt.tree.intro;
+  const tituloComentario = mt.node
+    ? `Comentário de ${mt.node.san}`
+    : editable
+      ? "Enunciado (posição inicial)"
+      : "Enunciado";
+
   const onMove = (orig: Key, dest: Key) => {
     if (!mt.play(`${orig}${dest}`)) mt.play(`${orig}${dest}q`);
   };
@@ -168,19 +177,25 @@ export function AnalysisBoard({
           {showSaveAsChapter && <button onClick={() => setSalvarComo(true)}>Salvar como capítulo</button>}
           {backTo && <Link to={backTo}>Voltar</Link>}
         </div>
-        {editable && (
+        {editable ? (
           <div className="card" style={{ marginTop: 12 }}>
-            <div className="muted">
-              {mt.node ? `Comentário de ${mt.node.san}` : "Enunciado (posição inicial)"}
-            </div>
+            <div className="muted">{tituloComentario}</div>
             <textarea
               aria-label="Comentário"
               style={{ width: "100%", minHeight: 70 }}
-              value={mt.node ? mt.node.comment : mt.tree.intro}
+              value={comentario}
               onChange={(e) => mt.setComment(e.target.value)}
             />
             <div className="muted">Botão direito no tabuleiro desenha setas e casas: elas ficam salvas neste lance.</div>
           </div>
+        ) : (
+          // leitura: o texto do autor por inteiro (na árvore ele sai cortado)
+          comentario !== "" && (
+            <div className="card" style={{ marginTop: 12 }}>
+              <div className="muted">{tituloComentario}</div>
+              <div style={{ whiteSpace: "pre-wrap" }}>{comentario}</div>
+            </div>
+          )
         )}
       </div>
       <div>

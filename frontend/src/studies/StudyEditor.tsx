@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Chess } from "chess.js";
+import { useSettings } from "../api/queries";
 import type { ChapterIn, ChapterOut, Color, StudyDetail } from "../api/types";
 import { ErrorBox } from "../components/ErrorBox";
 import { Modal } from "../components/Modal";
@@ -192,10 +193,16 @@ export interface NewStudyModalProps {
   onClose: () => void;
 }
 
-/** "Novo estudo": título e autor, só isso — os capítulos vêm depois. */
+/**
+ * "Novo estudo": título e autor, só isso — os capítulos vêm depois. O autor já
+ * vem com o nome configurado (é quase sempre quem escreve o estudo aqui) e
+ * continua editável: `null` quer dizer "ainda não mexeram no campo".
+ */
 export function NewStudyModal({ saving, error, onCreate, onClose }: NewStudyModalProps) {
+  const { data: settings } = useSettings();
   const [titulo, setTitulo] = useState("");
-  const [autor, setAutor] = useState("");
+  const [autor, setAutor] = useState<string | null>(null);
+  const nomeAutor = autor ?? settings?.chesscom_username ?? "";
   return (
     <Modal open title="Novo estudo" onClose={onClose}>
       <div style={{ marginBottom: 10 }}>
@@ -210,7 +217,7 @@ export function NewStudyModal({ saving, error, onCreate, onClose }: NewStudyModa
         <input
           aria-label="Autor"
           style={{ width: "100%" }}
-          value={autor}
+          value={nomeAutor}
           onChange={(e) => setAutor(e.target.value)}
         />
       </div>
@@ -219,7 +226,7 @@ export function NewStudyModal({ saving, error, onCreate, onClose }: NewStudyModa
         <button
           className="primary"
           disabled={saving || titulo.trim() === ""}
-          onClick={() => onCreate({ title: titulo.trim(), author: autor.trim() })}
+          onClick={() => onCreate({ title: titulo.trim(), author: nomeAutor.trim() })}
         >
           Criar estudo
         </button>
