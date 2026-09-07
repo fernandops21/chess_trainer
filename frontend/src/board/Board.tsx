@@ -94,6 +94,8 @@ function editorConfig(p: BoardProps, editor: BoardEditor): Config {
     turnColor: p.turnColor ?? "white",
     check: false,
     lastMove: undefined,
+    // no editor o rei anda livre: sem roque automático (senão a torre pula junto)
+    autoCastle: false,
     viewOnly: false,
     coordinates: p.coordinates ?? true,
     animation: { duration: 200 },

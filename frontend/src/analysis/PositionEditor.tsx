@@ -209,7 +209,7 @@ export function PositionEditor({
           value={fenTexto ?? fen}
           onChange={(e) => digitarFen(e.target.value)}
         />
-        {fenErro && <div className="msg bad">FEN inválida.</div>}
+        {fenErro && <div className="msg bad">FEN inválido.</div>}
       </div>
 
       {erros.length > 0 && (
@@ -221,7 +221,7 @@ export function PositionEditor({
       )}
 
       <div className="row" style={{ marginTop: 10 }}>
-        <button className="primary" disabled={erros.length > 0} onClick={() => onUse(fen)}>
+        <button className="primary" disabled={erros.length > 0 || fenErro} onClick={() => onUse(fen)}>
           {useLabel}
         </button>
         <button onClick={onCancel}>Cancelar</button>

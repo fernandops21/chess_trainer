@@ -293,6 +293,8 @@ test("no modo montagem a peça vai para qualquer casa e o clique é do pai", () 
   expect(cfg.draggable?.enabled).toBe(true);
   // arrastar para fora do tabuleiro apaga a peça
   expect(cfg.draggable?.deleteOnDropOff).toBe(true);
+  // mover o rei para g1 não pode virar roque
+  expect(cfg.autoCastle).toBe(false);
   // clicar não move a peça selecionada: quem decide o que fazer é a paleta
   expect(cfg.selectable?.enabled).toBe(false);
   expect(cfg.drawable?.enabled).toBe(false);

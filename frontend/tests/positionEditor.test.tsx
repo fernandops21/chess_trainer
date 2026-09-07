@@ -107,7 +107,7 @@ test("FEN colada válida entra no tabuleiro; a inválida avisa e não muda a pos
   expect(screen.getByLabelText("Lado a jogar")).toHaveProperty("value", "black");
 
   fireEvent.change(campoFen(), { target: { value: "isso não é uma FEN" } });
-  expect(screen.getByText("FEN inválida.")).toBeTruthy();
+  expect(screen.getByText("FEN inválido.")).toBeTruthy();
   // o tabuleiro ficou na última posição boa
   expect(last().fen).toBe(alvo);
 });
