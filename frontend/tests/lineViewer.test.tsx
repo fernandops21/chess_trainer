@@ -113,7 +113,7 @@ test("avançar na linha toca o som do lance alcançado", () => {
 
   // pular direto para um lance à frente também toca
   fireEvent.click(screen.getByText(/Qxe8#$/));
-  expect(sons()).toEqual(["move", "capture", "capture"]);
+  expect(sons()).toEqual(["check", "capture", "check"]); // Qxe8# é mate: soa como xeque
 });
 
 test("sound={false} silencia a navegação", () => {
