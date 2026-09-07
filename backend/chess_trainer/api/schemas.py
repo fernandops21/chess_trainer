@@ -263,6 +263,40 @@ class DashboardOut(BaseModel):
     by_source: dict[str, SourceCount] = {}
 
 
+class StudyOut(BaseModel):
+    id: str
+    title: str
+    author: str
+    source_url: str
+    lichess_id: str | None
+    imported_at: datetime | None
+    # contagens: capítulos do estudo, capítulos na repetição e vencidos hoje
+    chapters: int = 0
+    in_queue: int = 0
+    due_today: int = 0
+
+
+class ChapterOut(BaseModel):
+    id: str
+    order: int
+    name: str
+    lichess_url: str | None
+    mode: str
+    in_queue: bool
+    puzzle_id: str | None
+    intro_comment: str = ""
+
+
+class StudyDetail(StudyOut):
+    # no detalhe `chapters` é a lista dos capítulos, não a contagem
+    chapters: list[ChapterOut] = []
+
+
+class StudyImportIn(BaseModel):
+    url: str | None = None
+    pgn: str | None = None
+
+
 class TacticOut(BaseModel):
     id: str
     kind: str = "tactic"

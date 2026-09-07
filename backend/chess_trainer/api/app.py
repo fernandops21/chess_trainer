@@ -2,12 +2,13 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
 from chess_trainer.api.jobs import JobRunner
-from chess_trainer.api.routes import analysis, games, system, tactics, training
+from chess_trainer.api.routes import analysis, games, studies, system, tactics, training
 from chess_trainer.config import AppSettings, load_settings
 from chess_trainer.core.analysis.engine import EngineLike, StockfishEngine, find_stockfish
 from chess_trainer.core.analysis.interactive import InteractiveAnalyzer
@@ -71,6 +72,7 @@ def create_app(
     dist_dir: str | Path | None = None,
     analysis_engine_factory=None,
     tactics_source: str | Path | None = None,
+    study_http_factory=None,
 ) -> FastAPI:
     if db_path is None:
         db_path = os.environ.get("CHESS_TRAINER_DB", str(BACKEND_DIR / "data" / "chess_trainer.db"))
@@ -104,12 +106,16 @@ def create_app(
     # caminho local já baixado ou URL do banco do Lichess (nos testes, um arquivo local)
     app.state.tactics_source = tactics_source or os.environ.get("CHESS_TRAINER_LICHESS_SOURCE", LICHESS_PUZZLE_URL)
     app.state.tactics_dest = BACKEND_DIR / "data" / "lichess_db_puzzle.csv.zst"
+    # cliente HTTP do download de estudos (nos testes, um `MockTransport`); o Lichess
+    # redireciona o export do PGN, daí o `follow_redirects`
+    app.state.study_http_factory = study_http_factory or (lambda: httpx.Client(follow_redirects=True, timeout=30.0))
 
     app.include_router(system.router)
     app.include_router(games.router)
     app.include_router(training.router)
     app.include_router(analysis.router)
     app.include_router(tactics.router)
+    app.include_router(studies.router)
 
     dist = Path(dist_dir) if dist_dir is not None else BACKEND_DIR.parent / "frontend" / "dist"
     if dist.is_dir():
