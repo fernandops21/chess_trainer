@@ -329,6 +329,9 @@ def test_migracao_copia_o_banco_antes_de_reconstruir_uma_vez_so(old_db):
         assert _notnull(copias[0], "position_id") == 1
         conn = sqlite3.connect(copias[0])
         assert conn.execute("SELECT count(*) FROM puzzles").fetchone()[0] == 1
+        # e sai antes de qualquer ALTER: ainda sem as colunas novas
+        colunas = {row[1] for row in conn.execute("PRAGMA table_info(puzzles)")}
+        assert "source" not in colunas and "in_queue" not in colunas
         conn.close()
         # segunda passada não reconstrói nem copia de novo
         copias[0].unlink()

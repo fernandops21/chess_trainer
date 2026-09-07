@@ -84,8 +84,11 @@ def _copia_de_seguranca(engine: Engine) -> None:
     if not caminho or caminho == ":memory:":
         return
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-        # sem o checkpoint, o que estiver no WAL ficaria de fora da cópia
-        conn.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
+        # sem o checkpoint, o que estiver no WAL ficaria de fora da cópia; se outro
+        # leitor segura o WAL, a cópia sairia velha sem aviso — melhor parar.
+        busy = conn.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)").first()
+        if busy is not None and busy[0]:
+            raise RuntimeError("não foi possível fazer o checkpoint do banco antes da cópia de segurança; feche outros acessos e tente de novo")
     origem = Path(caminho)
     destino = origem.with_name(f"{origem.name}.bak-{datetime.now().strftime('%Y%m%d-%H%M%S')}")
     shutil.copy2(origem, destino)
@@ -130,17 +133,22 @@ def migrate(engine: Engine) -> None:
     """Acrescenta a bancos antigos o que o `create_all` não alcança: colunas,
     índices e o esquema atual de `puzzles`. Nenhum puzzle ou histórico é apagado.
     Idempotente — rodar de novo (ou num banco criado do zero) não faz nada."""
-    with engine.begin() as conn:
+    with engine.connect() as conn:
         # chamada solta (fora do `init_db`) num banco ainda sem tabelas: nada a fazer
         existing = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(puzzles)")}
-        if not existing:
-            return
+    if not existing:
+        return
+    # a cópia de segurança sai antes de qualquer alteração de estrutura
+    esquema_antigo = _puzzles_no_esquema_antigo(engine)
+    if esquema_antigo:
+        _copia_de_seguranca(engine)
+
+    with engine.begin() as conn:
         for name, ddl in _NEW_PUZZLE_COLUMNS:
             if name not in existing:
                 conn.exec_driver_sql(f"ALTER TABLE puzzles ADD COLUMN {name} {ddl}")
 
-    if _puzzles_no_esquema_antigo(engine):
-        _copia_de_seguranca(engine)
+    if esquema_antigo:
         _reconstruir_puzzles(engine)
 
     with engine.begin() as conn:
