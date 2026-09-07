@@ -119,9 +119,9 @@ test("resolver mostra o rating novo e o link do Lichess", async () => {
   await solve();
   expect(await screen.findByText("Rating 1200 → 1216 (+16)")).toBeTruthy();
   expect(screen.getByText("Resolvido sem erro.")).toBeTruthy();
-  // a linha do resultado também começa no lance do adversário, com a numeração recuada
-  expect(screen.getByText(/^1… Qd5$/)).toBeTruthy();
-  expect(screen.getByText(/^2\. Nxd5$/)).toBeTruthy();
+  // a árvore do resultado também começa no lance do adversário, com a numeração recuada
+  expect(screen.getByRole("button", { name: /^1\.\.\. Qd5$/ })).toBeTruthy();
+  expect(screen.getByRole("button", { name: /^2\. Nxd5$/ })).toBeTruthy();
   expect(screen.getByText("ver no Lichess").getAttribute("href")).toBe("https://lichess.org/training/t1");
   expect(api.attempt).toHaveBeenCalledWith(expect.objectContaining({ puzzle_id: "t1", session_id: "s1", correct: true }));
 });

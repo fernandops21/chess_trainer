@@ -463,3 +463,42 @@ test("um lance jogado no tabuleiro toca o som do lance", () => {
   play("e4d5");
   expect(tocar).toHaveBeenLastCalledWith("capture");
 });
+
+// --- abrir num lance e motor desligado ---------------------------------
+
+test("initialNodeId 'last' abre no último lance da linha principal", () => {
+  const arvore = insertLine(emptyTree(START), null, ["e2e4", "e7e5"]).tree;
+  const fim = fenAt(arvore, arvore.root.children[0].children[0].id);
+  comProvedores(<AnalysisBoard tree={arvore} initialNodeId="last" />);
+  expect(last().fen).toBe(fim);
+  expect(screen.getByRole("button", { name: "e5" }).getAttribute("aria-current")).toBe("true");
+  // as setas continuam navegando a partir dali
+  fireEvent.keyDown(window, { key: "ArrowLeft" });
+  expect(last().fen).not.toBe(fim);
+});
+
+test("initialNodeId pode ser o id de um lance qualquer", () => {
+  const arvore = insertLine(emptyTree(START), null, ["e2e4", "e7e5"]).tree;
+  const e4 = arvore.root.children[0];
+  comProvedores(<AnalysisBoard tree={arvore} initialNodeId={e4.id} />);
+  expect(last().fen).toBe(fenAt(arvore, e4.id));
+});
+
+test("sem árvore o initialNodeId 'last' começa na posição inicial", () => {
+  comProvedores(<AnalysisBoard tree={emptyTree(START)} initialNodeId="last" />);
+  expect(last().fen).toBe(START);
+});
+
+test("com engine desligada nada é consultado até apertar o botão", async () => {
+  comProvedores(<AnalysisBoard tree={insertLine(emptyTree(START), null, ["e2e4"]).tree} engine={false} />);
+  expect(screen.queryByRole("tab", { name: "Engine" })).toBeNull();
+  expect(screen.queryByRole("tab", { name: "Aberturas" })).toBeNull();
+  expect(api.analyse).not.toHaveBeenCalled();
+  // a árvore de lances continua na tela
+  expect(screen.getByRole("button", { name: /^1\. e4$/ })).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("button", { name: "Analisar com a engine" }));
+  expect(await screen.findByRole("button", { name: /\+0\.30 e4 e5 Nf3/ })).toBeTruthy();
+  expect(api.analyse).toHaveBeenCalled();
+  expect(screen.queryByRole("button", { name: "Analisar com a engine" })).toBeNull();
+});

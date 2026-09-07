@@ -31,6 +31,10 @@ export interface AnalysisBoardProps {
   savedAt?: number;
   backTo?: string;
   showSaveAsChapter?: boolean;
+  /** Lance em que a navegação abre: `"last"` é o fim da linha principal. */
+  initialNodeId?: string | "last";
+  /** Motor ligado desde o começo (padrão). Desligado, um botão liga a análise. */
+  engine?: boolean;
 }
 
 /** Abas do painel lateral: o motor ou o livro de aberturas. */
@@ -63,8 +67,12 @@ export function AnalysisBoard({
   savedAt,
   backTo,
   showSaveAsChapter = false,
+  initialNodeId,
+  engine = true,
 }: AnalysisBoardProps) {
-  const mt = useMoveTree(tree);
+  const mt = useMoveTree(tree, initialNodeId);
+  // o motor desligado só custa um botão: quem quiser a análise liga na hora
+  const [motor, setMotor] = useState(engine);
   const [orient, setOrient] = useState(tree.orientation);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [salvarComo, setSalvarComo] = useState(false);
@@ -72,13 +80,13 @@ export function AnalysisBoard({
   const [aba, setAba] = useState<Aba>(() =>
     storage.get<Aba>("analysis.sidePanel", "engine") === "aberturas" ? "aberturas" : "engine",
   );
-  const { data, error, isFetching } = useAnalyse(mt.fen);
+  const { data, error, isFetching } = useAnalyse(motor ? mt.fen : null);
   const { data: settings } = useSettings();
   // símbolo do livro nos lances do caminho atual que estão na base de mestres
   const bookIds = useBookMoves(mt.tree, mt.path);
   // classificação (melhor, erro, blunder…) de cada lance do caminho atual
   const classes = useMoveClassification(mt.tree, mt.path, {
-    enabled: settings?.classify_moves ?? false,
+    enabled: motor && (settings?.classify_moves ?? false),
     thresholds: {
       mistake: settings?.mistake_threshold_cp ?? PADRAO_MISTAKE,
       blunder: settings?.blunder_threshold_cp ?? PADRAO_BLUNDER,
@@ -267,6 +275,12 @@ export function AnalysisBoard({
         )}
       </div>
       <div>
+        {!motor ? (
+          <div className="card">
+            <button onClick={() => setMotor(true)}>Analisar com a engine</button>
+          </div>
+        ) : (
+        <>
         <div className="tabs" role="tablist" aria-label="Painel de análise">
           <button role="tab" aria-selected={aba === "engine"} onClick={() => trocarAba("engine")}>Engine</button>
           <button role="tab" aria-selected={aba === "aberturas"} onClick={() => trocarAba("aberturas")}>Aberturas</button>
@@ -304,6 +318,8 @@ export function AnalysisBoard({
             </div>
           )}
         </div>
+        )}
+        </>
         )}
         <div className="card">
           {/* cheia, a árvore não aceita lance novo: dizer isso aqui evita o

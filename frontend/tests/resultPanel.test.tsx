@@ -1,14 +1,29 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { expect, test } from "vitest";
-import type { PuzzleOut } from "../src/api/types";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import type { AnalyseOut, PuzzleOut } from "../src/api/types";
+import type { BoardProps } from "../src/board/Board";
+import { api } from "../src/api/client";
 import { ResultPanel } from "../src/train/ResultPanel";
+
+// o chessground não roda no jsdom: o dublê guarda as props do tabuleiro
+const { boardProps } = vi.hoisted(() => ({ boardProps: [] as Record<string, unknown>[] }));
+vi.mock("../src/board/Board", () => ({
+  Board: (p: Record<string, unknown>) => {
+    boardProps.push(p);
+    return <div data-testid="board" />;
+  },
+}));
+
+const last = () => boardProps.at(-1) as unknown as BoardProps;
+
+const FEN = "2r3k1/5ppp/8/8/Q7/8/8/4R1K1 w - - 0 12";
 
 const base: PuzzleOut = {
   id: "p1",
   kind: "punish",
-  fen_start: "2r3k1/5ppp/8/8/Q7/8/8/4R1K1 w - - 0 12",
+  fen_start: FEN,
   side_to_move: "white",
   solution: {
     moves: [
@@ -46,6 +61,22 @@ const study = (over: Partial<PuzzleOut> = {}): PuzzleOut => ({
   ...over,
 });
 
+const analyse: AnalyseOut = {
+  fen: FEN,
+  turn: "white",
+  terminal: null,
+  lines: [{ move: "e1e8", san: "Re8+", score: 900, pv: ["e1e8"], pv_san: ["Re8+"] }],
+};
+
+beforeEach(() => {
+  boardProps.length = 0;
+  localStorage.clear();
+  vi.spyOn(api, "analyse").mockResolvedValue(analyse);
+  vi.spyOn(api, "openings").mockRejectedValue(new Error("sem livro"));
+  vi.spyOn(api, "settings").mockRejectedValue(new Error("sem configurações"));
+});
+afterEach(() => vi.restoreAllMocks());
+
 function renderPanel(puzzle: PuzzleOut) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
@@ -56,6 +87,24 @@ function renderPanel(puzzle: PuzzleOut) {
   );
 }
 
+test("a solução vira o tabuleiro de análise, aberto no último lance", () => {
+  renderPanel(study());
+  expect(screen.getByRole("button", { name: /^12\. Re8\+$/ })).toBeTruthy();
+  // lance das pretas no meio da linha: a árvore não repete o número
+  const ultimo = screen.getByRole("button", { name: "Rxe8" });
+  expect(ultimo.getAttribute("aria-current")).toBe("true");
+  expect(last().lastMove).toEqual(["c8", "e8"]);
+  fireEvent.keyDown(window, { key: "ArrowLeft" });
+  expect(last().lastMove).toEqual(["e1", "e8"]);
+});
+
+test("a engine fica desligada até o botão ser apertado", async () => {
+  renderPanel(study());
+  expect(api.analyse).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Analisar com a engine" }));
+  expect(await screen.findByRole("button", { name: /\+9\.00 Re8\+/ })).toBeTruthy();
+});
+
 test("puzzle de estudo não mostra links de partida e leva ao capítulo no Lichess", () => {
   renderPanel(study());
   expect(screen.queryByText("partida no chess.com")).toBeNull();
@@ -64,20 +113,48 @@ test("puzzle de estudo não mostra links de partida e leva ao capítulo no Liche
   expect(screen.getByText("Finais de torre · Ponte de Lucena")).toBeTruthy();
 });
 
-test("puzzle próprio continua com os dois links da partida", () => {
+test("puzzle próprio traz a partida e o cartão do erro", () => {
   renderPanel(base);
   expect(screen.getByText("partida no chess.com").getAttribute("href")).toBe("https://chess.com/g1");
+  // o cartão "Meu erro" já vem aberto e é ele que leva à partida no app
   expect(screen.getByText("partida no app").getAttribute("href")).toBe("/partidas/g1?ply=23");
+  expect(screen.getByText("revisão de erros")).toBeTruthy();
 });
 
-test("comentário do autor aparece na posição corrente da linha", () => {
+test("estudo não tem cartão de erro", () => {
+  renderPanel(study());
+  expect(screen.queryByText("revisão de erros")).toBeNull();
+});
+
+test("comentário do autor aparece no lance corrente da árvore", () => {
   renderPanel(study({ solution: { ...base.solution, comments: { "0": "A torre entra pela oitava.", "1": "e o rei está preso." } } }));
-  expect(screen.getByText("e o rei está preso.")).toBeTruthy();
-  fireEvent.click(screen.getByLabelText("anterior"));
-  expect(screen.getByText("A torre entra pela oitava.")).toBeTruthy();
+  // o texto aparece duas vezes: resumido na árvore e inteiro no cartão de leitura
+  expect(screen.getByText("Comentário de Rxe8")).toBeTruthy();
+  expect(screen.getAllByText("e o rei está preso.").length).toBeGreaterThan(0);
+  fireEvent.keyDown(window, { key: "ArrowLeft" });
+  expect(screen.getByText("Comentário de Re8+")).toBeTruthy();
+  expect(screen.getAllByText("A torre entra pela oitava.").length).toBeGreaterThan(0);
 });
 
 test("resultado traz o botão de tirar da repetição", () => {
   renderPanel(study());
   expect(screen.getByText("Tirar da repetição")).toBeTruthy();
+});
+
+test("no 'evitar' o lance da partida entra como variação com a refutação", async () => {
+  vi.spyOn(api, "puzzle").mockResolvedValue({
+    ...base,
+    id: "p2",
+    kind: "punish",
+    fen_start: "2r3k1/5ppp/8/8/Q7/8/4R3/6K1 b - - 1 12",
+    side_to_move: "black",
+    solution: { moves: [{ uci: "c8c1", by: "solver", alternatives: [] }], explanation_pv: [] },
+  });
+  renderPanel({ ...base, kind: "avoid", siblings: [{ id: "p2", kind: "punish" }] });
+
+  const jogado = await screen.findByRole("button", { name: /^12\. Re2$/ });
+  expect(await screen.findByRole("button", { name: "Rc1+" })).toBeTruthy();
+  fireEvent.click(jogado);
+  expect(screen.getByText("Comentário de Re2")).toBeTruthy();
+  expect(screen.getAllByText("Na partida você jogou Re2").length).toBeGreaterThan(0);
 });

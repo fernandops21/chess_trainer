@@ -13,6 +13,7 @@ import {
   fenAt,
   findNode,
   insertLine as insertLineTree,
+  mainline,
   pathTo,
   promote as promoteTree,
   setComment as setCommentTree,
@@ -33,15 +34,37 @@ interface State {
   dirty: boolean;
 }
 
+/** Nó em que a navegação começa: nenhum, o último da linha principal ou um id. */
+export type InitialNode = string | "last" | null | undefined;
+
+function noInicial(tree: Tree, inicial: InitialNode): string | null {
+  if (!inicial) return null;
+  if (inicial === "last") {
+    const linha = mainline(tree);
+    return linha.length > 0 ? linha[linha.length - 1].id : null;
+  }
+  return findNode(tree, inicial) ? inicial : null;
+}
+
 /**
  * Navegação e edição de uma árvore de lances.
  *
  * A árvore é imutável: cada mutação troca `tree` por uma nova e liga `dirty`,
  * que só volta a `false` em `markSaved()` ou `setTree()`. Navegar (incluindo
  * jogar um lance que já existe na árvore) não suja nada.
+ *
+ * `initialCurrent` diz onde a navegação começa (padrão: a posição inicial);
+ * só vale na primeira montagem, como todo valor inicial.
  */
-export function useMoveTree(initial: Tree) {
+export function useMoveTree(initial: Tree, initialCurrent?: InitialNode) {
   const ref = useRef<State>({ tree: initial, currentId: null, dirty: false });
+  // o valor inicial do `useRef` seria recalculado a cada render: o nó de
+  // abertura entra uma vez só, aqui
+  const montado = useRef(false);
+  if (!montado.current) {
+    montado.current = true;
+    ref.current.currentId = noInicial(initial, initialCurrent);
+  }
   const [, bump] = useState(0);
   // FEN por nó, memoizado enquanto o objeto `tree` for o mesmo.
   const fenCache = useRef<{ tree: Tree | null; map: Map<string | null, string> }>({ tree: null, map: new Map() });

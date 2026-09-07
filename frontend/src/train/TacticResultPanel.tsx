@@ -1,26 +1,22 @@
+import { useMemo } from "react";
 import type { AttemptOut, TacticOut } from "../api/types";
+import { AnalysisBoard } from "../analysis/AnalysisBoard";
+import { treeFromSolution } from "../analysis/solutionTree";
 import { ErrorBox } from "../components/ErrorBox";
 import { themeLabel } from "../lib/format";
-import { startPlyFromFen } from "../lib/plies";
-import { LineViewer } from "./LineViewer";
 import { QueueButtons } from "./QueueButtons";
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 
 export function TacticResultPanel({ tactic, attempt, durationMs, error, onRetry, onNext, nextDisabled, clockLabel }:
   { tactic: TacticOut; attempt?: AttemptOut; durationMs?: number; error?: unknown; onRetry: () => void; onNext: () => void; nextDisabled?: boolean; clockLabel?: string }) {
-  const ucis = tactic.solution.moves.map((m) => m.uci);
   const clean = attempt && attempt.correct && !attempt.used_hint;
   const exploreHref = `/analise?fen=${encodeURIComponent(tactic.fen_start)}&orientation=${tactic.side_to_move}&back=${encodeURIComponent("/treinar")}`;
+  // a solução vira a árvore do tabuleiro de análise: dá para sair da linha e
+  // experimentar qualquer lance, sem pedir nada à engine antes de o usuário querer
+  const tree = useMemo(() => treeFromSolution(tactic), [tactic]);
   return (
-    <div className="two-col">
-      <div>
-        {/* `startPly` e `initialPos` são contados a partir de `fen_start`; com o lance do
-            adversário o próprio LineViewer recua a numeração e a posição em um meio-lance */}
-        <LineViewer fenStart={tactic.fen_start} ucis={ucis} orientation={tactic.side_to_move}
-          startPly={startPlyFromFen(tactic.fen_start)} initialPos={tactic.solution.moves.length}
-          fenBefore={tactic.fen_before} lastMoveUci={tactic.last_move} />
-      </div>
+    <>
       <div className="card">
         {clockLabel && <div className="row"><span className="muted" aria-label="relógio">{clockLabel}</span></div>}
         {!!error && (<><ErrorBox error={error} /><button onClick={onRetry}>Tentar registrar de novo</button></>)}
@@ -42,6 +38,7 @@ export function TacticResultPanel({ tactic, attempt, durationMs, error, onRetry,
           {attempt && <button className="primary" style={{ marginLeft: "auto" }} disabled={nextDisabled} onClick={onNext}>{nextDisabled ? "Carregando…" : "Próximo"}</button>}
         </div>
       </div>
-    </div>
+      <AnalysisBoard tree={tree} initialNodeId="last" engine={false} />
+    </>
   );
 }
