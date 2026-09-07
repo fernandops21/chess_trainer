@@ -5,8 +5,10 @@ from pathlib import Path
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from chess_trainer.api.app import create_app
+from chess_trainer.core.models import Puzzle
 from tests.fakes import FakeEngine, first_legal_default
 
 FIXTURE = Path(__file__).parent / "fixtures" / "study_4JKVAfaE.pgn"
@@ -23,6 +25,28 @@ PGN_SEM_URL = """[Event "Colado: Único"]
 [FEN "6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1"]
 
 1. Ra8# *
+"""
+
+# dois capítulos com a mesma posição inicial: o segundo não vira exercício
+PGN_FEN_REPETIDA = """[Event "Repetido: Um"]
+[Result "*"]
+[StudyName "Repetido"]
+[ChapterName "Um"]
+[ChapterMode "gamebook"]
+[SetUp "1"]
+[FEN "6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1"]
+
+1. Ra8# *
+
+[Event "Repetido: Dois"]
+[Result "*"]
+[StudyName "Repetido"]
+[ChapterName "Dois"]
+[ChapterMode "gamebook"]
+[SetUp "1"]
+[FEN "6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1"]
+
+1. Ra7 Kf8 2. Rb7 *
 """
 
 
@@ -100,6 +124,24 @@ def test_fila_filtrada_pelo_estudo(client):
     assert all(item["source"] == "study" for item in fila["items"])
     assert fila["items"][0]["study"]["id"] == estudo_id
     assert fila["items"][0]["study"]["chapter_name"]
+
+
+def test_mensagem_final_nomeia_o_capitulo_pulado(client):
+    job = importar(client, {"pgn": PGN_FEN_REPETIDA})
+
+    assert job["message"].startswith("2 capítulos, 1 exercícios, 1 pulados: ")
+    assert "2. Dois: posição inicial já usada por outro capítulo" in job["message"]
+
+
+def test_contagem_da_repeticao_ignora_exercicio_travado(client):
+    importar(client)
+    with client.app.state.session_factory() as db:
+        travado = db.scalars(select(Puzzle).where(Puzzle.source == "study")).first()
+        travado.is_leech = True
+        db.commit()
+
+    estudo = client.get("/api/studies").json()[0]
+    assert estudo["in_queue"] == 14
 
 
 def test_importar_por_pgn_nao_baixa_nada():

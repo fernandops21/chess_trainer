@@ -31,18 +31,20 @@ def _get_study(db: Session, study_id: str) -> Study:
 
 
 def _counts(db: Session, study: Study) -> tuple[int, int, int]:
-    """Capítulos, capítulos na repetição e exercícios vencidos hoje."""
+    """Capítulos, exercícios na repetição e exercícios vencidos hoje.
+
+    As duas contagens saem dos exercícios com os mesmos filtros da fila
+    (`core/srs/queue.py`), para bater com o que `/api/queue?study_id=` serve."""
     chapters = list(study.chapters)
-    in_queue = sum(1 for c in chapters if c.in_queue and c.puzzle_id)
-    due = db.scalar(
-        select(func.count(Puzzle.id)).where(
-            Puzzle.chapter_id.in_(select(StudyChapter.id).where(StudyChapter.study_id == study.id)),
-            Puzzle.in_queue.is_(True),
-            Puzzle.srs_due_at.is_not(None),
-            Puzzle.srs_due_at <= utcnow(),
-        )
+    do_estudo = select(StudyChapter.id).where(StudyChapter.study_id == study.id)
+    na_fila = select(func.count(Puzzle.id)).where(
+        Puzzle.chapter_id.in_(do_estudo),
+        Puzzle.in_queue.is_(True),
+        Puzzle.is_leech.is_(False),
     )
-    return len(chapters), in_queue, int(due or 0)
+    in_queue = db.scalar(na_fila)
+    due = db.scalar(na_fila.where(Puzzle.srs_due_at.is_not(None), Puzzle.srs_due_at <= utcnow()))
+    return len(chapters), int(in_queue or 0), int(due or 0)
 
 
 def _study_out(db: Session, study: Study) -> StudyOut:

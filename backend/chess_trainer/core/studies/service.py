@@ -31,6 +31,9 @@ STUDY_URL = "https://lichess.org/study/{lichess_id}"
 # `/study/<id>` com ou sem host e com ou sem o capítulo depois do id
 _STUDY_URL_RE = re.compile(r"(?:^|/)study/([A-Za-z0-9]{8})(?:/[A-Za-z0-9]{8})?$")
 
+# limite da lista de capítulos pulados na mensagem final do job
+DETALHE_MAX = 300
+
 
 class StudyNotFound(Exception):
     """O Lichess respondeu 404: estudo privado ou inexistente."""
@@ -50,7 +53,14 @@ class ImportReport:
         return self.created + self.updated
 
     def message(self) -> str:
-        return f"{self.chapters} capítulos, {self.puzzles} exercícios, {len(self.skipped)} pulados"
+        texto = f"{self.chapters} capítulos, {self.puzzles} exercícios, {len(self.skipped)} pulados"
+        if not self.skipped:
+            return texto
+        # os pulados vão nomeados na mensagem final para o usuário saber o que rever
+        detalhe = "; ".join(self.skipped)
+        if len(detalhe) > DETALHE_MAX:
+            detalhe = detalhe[: DETALHE_MAX - 1] + "…"
+        return f"{texto}: {detalhe}"
 
 
 # --- URL e download ------------------------------------------------------
@@ -152,6 +162,9 @@ def _upsert_chapter(db: Session, study: Study, chapter: StudyChapter | None,
     if chapter is None:
         chapter = StudyChapter(id=new_id(), study_id=study.id, in_queue=True)
         db.add(chapter)
+    # de propósito: um capítulo que já existia mantém o `in_queue` que tinha. Se ele
+    # sumiu do estudo e voltou, ou se o usuário o tirou da repetição, a decisão dele
+    # continua valendo — quem devolve tudo à fila é o botão "voltar" do estudo
     chapter.order = parsed.order
     chapter.name = parsed.name
     # PGN colado (sem `ChapterURL`) sobre um estudo já baixado: a URL que havia fica
@@ -192,16 +205,27 @@ def _upsert_puzzle(db: Session, chapter: StudyChapter, parsed: ParsedChapter, re
     puzzle = Puzzle(id=new_id(), source="study", in_queue=chapter.in_queue, chapter_id=chapter.id,
                     kind="punish", theme="study", category="study", **dados)
     try:
+        # o SAVEPOINT só existe porque o `flush()` de `_upsert_chapter` já abriu a
+        # transação (o pysqlite não emite BEGIN sozinho antes do primeiro comando)
         with db.begin_nested():
             db.add(puzzle)
             db.flush()
     except IntegrityError:
         # a única (fen_start, kind, source) impede dois exercícios de estudo com a
-        # mesma posição inicial: o capítulo passa a apontar para o que já existe
+        # mesma posição inicial
         gemeo = db.scalar(select(Puzzle).where(Puzzle.fen_start == dados["fen_start"],
                                                Puzzle.kind == "punish", Puzzle.source == "study"))
         if gemeo is None:
             raise
+        if gemeo.chapter_id not in (None, chapter.id):
+            # o gêmeo é de outro capítulo (deste ou de outro estudo): mexer nele
+            # roubaria o exercício e o histórico de quem já é dono, então este
+            # capítulo fica sem exercício e a colisão vai para o relatório
+            chapter.puzzle_id = None
+            db.flush()
+            report.skipped.append(f"{chapter.order}. {chapter.name}: posição inicial já usada por outro capítulo")
+            return
+        # gêmeo sem dono (ou já deste capítulo): o capítulo o adota
         for campo, valor in dados.items():
             setattr(gemeo, campo, valor)
         gemeo.chapter_id = chapter.id
@@ -277,8 +301,9 @@ def delete_study(db: Session, study: Study) -> None:
     puzzle_ids = list(db.scalars(select(Puzzle.id).where(Puzzle.chapter_id.in_(chapter_ids)))) if chapter_ids else []
     if puzzle_ids:
         db.execute(delete(Review).where(Review.puzzle_id.in_(puzzle_ids)))
-        # um capítulo de outro estudo pode apontar para um exercício daqui (posição
-        # inicial repetida): a referência é desfeita antes do exercício sumir
+        # rede de segurança para bancos importados antes da correção da colisão de
+        # FEN, onde um capítulo de outro estudo podia apontar para um exercício
+        # daqui: a referência é desfeita antes de o exercício sumir
         db.execute(update(StudyChapter).where(StudyChapter.puzzle_id.in_(puzzle_ids)).values(puzzle_id=None))
         db.execute(delete(Puzzle).where(Puzzle.id.in_(puzzle_ids)))
     if chapter_ids:

@@ -174,20 +174,53 @@ def test_desfecho_mate_ou_ganho_de_material(db_session):
     assert mate.end_reason == "mate" and mate.solver_moves == 1 and mate.side_to_move == "white"
 
 
-def test_fen_repetida_em_outro_estudo_reaproveita_o_exercicio(db_session):
+def test_fen_repetida_em_outro_estudo_nao_mexe_no_exercicio_alheio(db_session):
     primeiro = capitulo_pgn("Um", "https://lichess.org/study/AAAAAAAA/cap00001", FEN_MATE, "1. Ra8#", estudo="A")
-    segundo = capitulo_pgn("Outro", "https://lichess.org/study/BBBBBBBB/cap00002", FEN_MATE, "1. Ra8#", estudo="B")
+    segundo = capitulo_pgn("Outro", "https://lichess.org/study/BBBBBBBB/cap00002", FEN_MATE,
+                           "1. Ra7 Kf8 2. Rb7", estudo="B")
     estudo_a, _ = importar(db_session, primeiro)
-    puzzle_id = estudo_a.chapters[0].puzzle_id
+    capitulo_a, puzzle_id = estudo_a.chapters[0].id, estudo_a.chapters[0].puzzle_id
+    db_session.add(Review(puzzle_id=puzzle_id, reviewed_at=utcnow(), result="ok",
+                          ease=2.5, interval_days=1, due_at=utcnow(), lapses=0))
+    db_session.commit()
 
     estudo_b, report = importar(db_session, segundo)
 
     assert estudo_b.id != estudo_a.id
+    db_session.expire_all()
     # a única (fen_start, kind, source) não deixa dois exercícios de estudo com a
-    # mesma posição inicial: o segundo capítulo passa a apontar para o mesmo
-    assert estudo_b.chapters[0].puzzle_id == puzzle_id
+    # mesma posição inicial: o exercício continua sendo do capítulo do estudo A
+    exercicio = db_session.get(Puzzle, puzzle_id)
+    assert exercicio.chapter_id == capitulo_a
+    assert [m["uci"] for m in json.loads(exercicio.solution)["moves"]] == ["a1a8"]
+    assert db_session.scalar(select(func.count(Review.id))) == 1
+    # o capítulo do estudo B fica sem exercício e a colisão vai para o relatório
+    assert db_session.get(Study, estudo_b.id).chapters[0].puzzle_id is None
+    assert report.created == 0 and report.updated == 0
+    assert report.skipped == ["1. Outro: posição inicial já usada por outro capítulo"]
     assert db_session.scalar(select(func.count(Puzzle.id))) == 1
-    assert report.created + report.updated == 1
+
+    delete_study(db_session, db_session.get(Study, estudo_b.id))
+
+    db_session.expire_all()
+    assert db_session.get(Puzzle, puzzle_id) is not None
+    assert db_session.get(StudyChapter, capitulo_a).puzzle_id == puzzle_id
+    assert db_session.scalar(select(func.count(Review.id))) == 1
+
+
+def test_fen_repetida_no_mesmo_estudo_pula_o_segundo_capitulo(db_session):
+    texto = estudo_pgn(
+        capitulo_pgn("Um", "https://lichess.org/study/TESTE001/cap00001", FEN_MATE, "1. Ra8#"),
+        capitulo_pgn("Dois", "https://lichess.org/study/TESTE001/cap00002", FEN_MATE, "1. Ra7 Kf8 2. Rb7"),
+    )
+
+    study, report = importar(db_session, texto)
+
+    assert study.chapters[0].puzzle_id is not None
+    assert study.chapters[1].puzzle_id is None
+    assert report.created == 1 and report.updated == 0
+    assert report.skipped == ["2. Dois: posição inicial já usada por outro capítulo"]
+    assert db_session.scalar(select(func.count(Puzzle.id)).where(Puzzle.in_queue.is_(True))) == 1
 
 
 # --- fila e remoção ------------------------------------------------------
