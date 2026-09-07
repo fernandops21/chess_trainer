@@ -14,9 +14,11 @@ function fakeParam() {
 type FakeOsc = { type: string; frequency: ReturnType<typeof fakeParam>; connect: ReturnType<typeof vi.fn>; start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> };
 type FakeGain = { gain: ReturnType<typeof fakeParam>; connect: ReturnType<typeof vi.fn> };
 
+type FakeSource = { buffer: unknown; connect: ReturnType<typeof vi.fn>; start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> };
+
 /** O jsdom não tem Web Audio: este dublê registra os nós criados. */
 function fakeAudio(state: "running" | "suspended" = "running") {
-  const criados = { ctx: 0, osc: [] as FakeOsc[], gain: [] as FakeGain[], fontes: 0, filtros: 0, resume: 0 };
+  const criados = { ctx: 0, osc: [] as FakeOsc[], gain: [] as FakeGain[], fontes: [] as FakeSource[], filtros: 0, resume: 0, decode: 0 };
   class FakeAudioContext {
     state = state;
     currentTime = 0;
@@ -35,17 +37,38 @@ function fakeAudio(state: "running" | "suspended" = "running") {
       return g;
     }
     createBuffer(_ch: number, len: number) { return { getChannelData: () => new Float32Array(len) }; }
-    createBufferSource() {
-      criados.fontes += 1;
-      return { buffer: null as unknown, connect: vi.fn(), start: vi.fn(), stop: vi.fn() };
+    createBufferSource(): FakeSource {
+      const fonte = { buffer: null as unknown, connect: vi.fn(), start: vi.fn(), stop: vi.fn() };
+      criados.fontes.push(fonte);
+      return fonte;
     }
     createBiquadFilter() {
       criados.filtros += 1;
       return { type: "lowpass", frequency: fakeParam(), Q: fakeParam(), connect: vi.fn() };
     }
+    decodeAudioData(_dados: ArrayBuffer): Promise<unknown> {
+      criados.decode += 1;
+      return Promise.resolve({ marca: "amostra-decodificada" });
+    }
   }
   (window as unknown as { AudioContext: unknown }).AudioContext = FakeAudioContext;
   return criados;
+}
+
+/** Dublê de `fetch`: resolve com um ArrayBuffer, contando as chamadas por URL. */
+function fakeFetch() {
+  const chamadas: string[] = [];
+  const mock = vi.fn((url: string) => {
+    chamadas.push(url);
+    return Promise.resolve({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) });
+  });
+  (globalThis as unknown as { fetch: unknown }).fetch = mock;
+  return { mock, chamadas };
+}
+
+/** Espera as microtasks de `fetch`+`decodeAudioData` (várias cadeias de `.then`) resolverem. */
+async function flush() {
+  for (let i = 0; i < 12; i++) await Promise.resolve();
 }
 
 /** Módulo novo a cada teste: o AudioContext e a preferência ficam em cache no módulo. */
@@ -53,6 +76,8 @@ async function carregar() {
   vi.resetModules();
   return await import("../src/lib/sound");
 }
+
+const fetchOriginal = globalThis.fetch;
 
 beforeEach(() => {
   localStorage.clear();
@@ -63,6 +88,7 @@ beforeEach(() => {
 afterEach(() => {
   delete (window as unknown as { AudioContext?: unknown }).AudioContext;
   delete (window as unknown as { webkitAudioContext?: unknown }).webkitAudioContext;
+  globalThis.fetch = fetchOriginal;
 });
 
 test("play('move') cria e agenda os nós de áudio", async () => {
@@ -77,7 +103,7 @@ test("play('move') cria e agenda os nós de áudio", async () => {
   expect(osc.start).toHaveBeenCalled();
   expect(osc.stop).toHaveBeenCalled();
   // o "tock" leva também um clique de ruído filtrado
-  expect(criados.fontes).toBe(1);
+  expect(criados.fontes.length).toBe(1);
   expect(criados.filtros).toBe(1);
 });
 
@@ -186,4 +212,90 @@ test("um ponteiro/tecla retoma o contexto cedo", async () => {
   window.dispatchEvent(new Event("pointerdown"));
   expect(criados.ctx).toBeGreaterThan(0);
   expect(criados.resume).toBeGreaterThan(0);
+});
+
+// ------------------------------------------------------------- amostras Lichess
+
+test("depois da amostra carregada, play('move') toca um AudioBufferSourceNode com o buffer decodificado", async () => {
+  const criados = fakeAudio();
+  const { chamadas } = fakeFetch();
+  const { play } = await carregar();
+
+  play("move"); // primeira chamada: amostra ainda não chegou, cai no sintetizado
+  await flush();
+  expect(chamadas).toEqual(["/sound/Move.mp3"]);
+  expect(criados.decode).toBe(1);
+
+  const fontesAntes = criados.fontes.length;
+  play("move"); // segunda chamada: amostra já em cache
+  expect(criados.fontes.length).toBe(fontesAntes + 1);
+  const fonte = criados.fontes[criados.fontes.length - 1];
+  expect(fonte.buffer).toEqual({ marca: "amostra-decodificada" });
+  expect(fonte.start).toHaveBeenCalled();
+});
+
+test("fetch é chamado uma única vez por tipo mesmo com vários play()", async () => {
+  const criados = fakeAudio();
+  const { mock, chamadas } = fakeFetch();
+  const { play } = await carregar();
+
+  play("move");
+  play("move");
+  play("move");
+  await flush();
+  play("move");
+  play("move");
+
+  expect(chamadas.filter((u) => u === "/sound/Move.mp3").length).toBe(1);
+  expect(mock).toHaveBeenCalledTimes(1);
+  expect(criados.decode).toBe(1);
+});
+
+test("dois tipos que usam a mesma amostra (move e check) compartilham o fetch", async () => {
+  const { mock } = fakeFetch();
+  fakeAudio();
+  const { play } = await carregar();
+
+  play("move");
+  play("check");
+  await flush();
+
+  expect(mock.mock.calls.filter((c) => c[0] === "/sound/Move.mp3").length).toBe(1);
+});
+
+test("falha no fetch mantém o som sintetizado (oscilador) como alternativa", async () => {
+  const criados = fakeAudio();
+  (globalThis as unknown as { fetch: unknown }).fetch = vi.fn(() => Promise.reject(new Error("rede fora")));
+  const { play } = await carregar();
+
+  play("wrong");
+  await flush();
+  expect(criados.osc.length).toBeGreaterThan(0);
+
+  // depois da falha, novas chamadas continuam usando o sintetizado, sem lançar
+  const oscAntes = criados.osc.length;
+  expect(() => play("wrong")).not.toThrow();
+  expect(criados.osc.length).toBeGreaterThan(oscAntes);
+});
+
+test("falha ao decodificar também mantém o sintetizado, sem lançar", async () => {
+  const criados = fakeAudio();
+  fakeFetch();
+  const { play } = await carregar();
+  const c = (window as unknown as { AudioContext: { prototype: { decodeAudioData: () => Promise<unknown> } } }).AudioContext;
+  c.prototype.decodeAudioData = () => Promise.reject(new Error("mp3 inválido"));
+
+  expect(() => play("solved")).not.toThrow();
+  await flush();
+  expect(criados.osc.length).toBeGreaterThan(0);
+});
+
+test("com o som desligado, play não busca nem decodifica amostra", async () => {
+  fakeAudio();
+  const { mock } = fakeFetch();
+  const { play, setEnabled } = await carregar();
+  setEnabled(false);
+  play("move");
+  await flush();
+  expect(mock).not.toHaveBeenCalled();
 });

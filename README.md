@@ -206,9 +206,14 @@ clica em "Guardar para repetir" no resultado.
 
 ## Som
 
-Efeitos sonoros curtos, sintetizados na hora pela Web Audio API (sem arquivos de áudio): lance,
-captura, xeque, erro, dica e o arpejo de exercício resolvido. Valem no treino, na análise e ao
-navegar pela linha da solução.
+Efeitos sonoros curtos para lance, captura, xeque, erro, dica e exercício resolvido. Valem no
+treino, na análise e ao navegar pela linha da solução.
+
+Os sons são as amostras do conjunto "standard" do Lichess (`frontend/public/sound/`, licença
+AGPL-3.0 — ver `frontend/public/sound/LICENSE.txt`), carregadas e decodificadas pela Web Audio API
+na primeira vez que cada uma é tocada e reaproveitadas depois via `AudioBufferSourceNode`. Se a
+amostra ainda não chegou (ou o carregamento falha), um som sintetizado na hora entra no lugar dela,
+para o efeito nunca ficar mudo.
 
 O botão 🔊/🔇 no fim da barra de navegação liga e desliga tudo; a escolha fica guardada no navegador
 (`sound.enabled`). Navegadores só liberam áudio depois de um clique ou tecla na página — o primeiro

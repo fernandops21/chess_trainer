@@ -113,6 +113,93 @@ function clique(c: AudioContext, inicio: number, durMs: number, pico: number, co
   fonte.stop(inicio + dur + 0.02);
 }
 
+/** Sintetiza o efeito de `kind` (caminho de reserva, usado quando a amostra ainda não está pronta). */
+function sintetizar(c: AudioContext, kind: SoundKind): void {
+  const t = c.currentTime + 0.005;
+  switch (kind) {
+    case "move":
+      nota(c, t, 180, 60, 0.16);
+      clique(c, t, 25, 0.06, 2200);
+      break;
+    case "capture":
+      nota(c, t, 120, 90, 0.25);
+      clique(c, t, 35, 0.1, 1400);
+      break;
+    case "check":
+      nota(c, t, 660, 90, 0.16, "triangle");
+      break;
+    case "correct":
+      nota(c, t, 523, 80, 0.14, "triangle");
+      nota(c, t + 0.085, 784, 80, 0.14, "triangle");
+      break;
+    case "wrong":
+      nota(c, t, 150, 150, 0.09, "square");
+      break;
+    case "solved":
+      nota(c, t, 523, 90, 0.14, "triangle");
+      nota(c, t + 0.095, 659, 90, 0.14, "triangle");
+      nota(c, t + 0.19, 784, 140, 0.16, "triangle");
+      break;
+    case "hint":
+      nota(c, t, 440, 80, 0.13, "triangle");
+      break;
+  }
+}
+
+// --------------------------------------------------------------- amostras
+
+// Amostras do conjunto "standard" do Lichess (ver frontend/public/sound/LICENSE.txt).
+// "check" soa como "move": é o que o próprio Lichess faz.
+const ARQUIVO_AMOSTRA: Record<SoundKind, string> = {
+  move: "Move",
+  capture: "Capture",
+  check: "Move",
+  correct: "Confirmation",
+  wrong: "Error",
+  solved: "Confirmation",
+  hint: "Select",
+};
+
+const GANHO_AMOSTRA = 0.9;
+
+const amostras = new Map<string, AudioBuffer>();
+const carregando = new Set<string>();
+const falharam = new Set<string>();
+
+/** Busca e decodifica uma amostra uma única vez; chamadas concorrentes não duplicam o fetch. */
+function carregarAmostra(nome: string, c: AudioContext): void {
+  if (amostras.has(nome) || carregando.has(nome) || falharam.has(nome)) return;
+  if (typeof fetch !== "function") {
+    falharam.add(nome);
+    return;
+  }
+  carregando.add(nome);
+  fetch(`/sound/${nome}.mp3`)
+    .then((resp) => resp.arrayBuffer())
+    .then((dados) => c.decodeAudioData(dados))
+    .then((buffer) => {
+      amostras.set(nome, buffer);
+    })
+    .catch(() => {
+      // sem amostra: o som sintetizado continua servindo de alternativa
+      falharam.add(nome);
+    })
+    .finally(() => {
+      carregando.delete(nome);
+    });
+}
+
+/** Toca uma amostra já decodificada. */
+function tocarAmostra(c: AudioContext, buffer: AudioBuffer): void {
+  const fonte = c.createBufferSource();
+  fonte.buffer = buffer;
+  const g = c.createGain();
+  g.gain.setValueAtTime(GANHO_AMOSTRA, c.currentTime);
+  fonte.connect(g);
+  g.connect(c.destination);
+  fonte.start();
+}
+
 /** Toca um efeito. Sem som ligado, sem Web Audio ou com qualquer erro, não faz nada. */
 export function play(kind: SoundKind): void {
   if (!ligado) return;
@@ -120,35 +207,15 @@ export function play(kind: SoundKind): void {
   if (!c) return;
   try {
     retomar(c);
-    const t = c.currentTime + 0.005;
-    switch (kind) {
-      case "move":
-        nota(c, t, 180, 60, 0.16);
-        clique(c, t, 25, 0.06, 2200);
-        break;
-      case "capture":
-        nota(c, t, 120, 90, 0.25);
-        clique(c, t, 35, 0.1, 1400);
-        break;
-      case "check":
-        nota(c, t, 660, 90, 0.16, "triangle");
-        break;
-      case "correct":
-        nota(c, t, 523, 80, 0.14, "triangle");
-        nota(c, t + 0.085, 784, 80, 0.14, "triangle");
-        break;
-      case "wrong":
-        nota(c, t, 150, 150, 0.09, "square");
-        break;
-      case "solved":
-        nota(c, t, 523, 90, 0.14, "triangle");
-        nota(c, t + 0.095, 659, 90, 0.14, "triangle");
-        nota(c, t + 0.19, 784, 140, 0.16, "triangle");
-        break;
-      case "hint":
-        nota(c, t, 440, 80, 0.13, "triangle");
-        break;
+    const arquivo = ARQUIVO_AMOSTRA[kind];
+    const buffer = amostras.get(arquivo);
+    if (buffer) {
+      tocarAmostra(c, buffer);
+      return;
     }
+    // amostra ainda não chegou: dispara o carregamento e usa a síntese desta vez
+    carregarAmostra(arquivo, c);
+    sintetizar(c, kind);
   } catch {
     /* som nunca derruba a tela */
   }
