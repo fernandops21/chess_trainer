@@ -11,7 +11,7 @@ from chess_trainer.api.schemas import (
     SessionIn, SessionOut, SourceCount, SrsOut, StudyRef,
 )
 from chess_trainer.config import get_setting, load_settings
-from chess_trainer.core.models import Game, Position, Puzzle, Review, Study, StudyChapter, TrainingSession, utcnow
+from chess_trainer.core.models import Game, Position, Puzzle, Review, TrainingSession, utcnow
 from chess_trainer.core.srs.queue import QueueFilters, build_queue, local_day_start
 from chess_trainer.core.srs.reviews import record_review, unleech
 
@@ -37,13 +37,11 @@ def _last_move(db: Session, p: Puzzle) -> tuple[str | None, str | None]:
     return (prev.fen, prev.move_uci) if prev is not None else (None, None)
 
 
-def _study_ref(db: Session, p: Puzzle) -> StudyRef | None:
-    if p.chapter_id is None:
-        return None
-    chapter = db.get(StudyChapter, p.chapter_id)
+def _study_ref(p: Puzzle) -> StudyRef | None:
+    chapter = p.chapter
     if chapter is None:
         return None
-    study = db.get(Study, chapter.study_id)
+    study = chapter.study
     return StudyRef(id=chapter.study_id, title=study.title if study is not None else "",
                     chapter_id=chapter.id, chapter_name=chapter.name, lichess_url=chapter.lichess_url)
 
@@ -69,7 +67,7 @@ def _puzzle_out(db: Session, p: Puzzle) -> PuzzleOut:
         fen_before=fen_before, last_move=last_move, game=game,
         ply=pos.ply if pos is not None else None,
         move_played=pos.move_played if pos is not None else None,
-        mistake=mistake, study=_study_ref(db, p),
+        mistake=mistake, study=_study_ref(p),
         siblings=[PuzzleSibling(id=s.id, kind=s.kind) for s in (pos.puzzles if pos is not None else []) if s.id != p.id],
     )
 
@@ -184,7 +182,7 @@ def _by_source(db: Session, now) -> dict[str, SourceCount]:
     """Guardados e vencidos por fonte, com o mesmo recorte da fila (na fila e sem sanguessuga)."""
     rows = db.execute(
         select(Puzzle.source, func.count(Puzzle.id),
-               func.sum(case((Puzzle.srs_due_at.is_not(None) & (Puzzle.srs_due_at <= now), 1), else_=0)))
+               func.sum(case((Puzzle.srs_due_at <= now, 1), else_=0)))
         .where(Puzzle.in_queue.is_(True), Puzzle.is_leech.is_(False))
         .group_by(Puzzle.source)
     ).all()

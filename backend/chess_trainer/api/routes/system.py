@@ -149,7 +149,8 @@ def post_analyze(request: Request, limit: int | None = None, game_id: str | None
 
 @router.post("/puzzles/regenerate", status_code=202)
 def post_regenerate(request: Request, kind: Literal["avoid"] | None = None):
-    """Sem `kind`, regera tudo (apaga o histórico); `kind=avoid` regera só os "evitar"."""
+    """Sem `kind`, recria os exercícios das suas partidas (apagando o histórico deles);
+    `kind=avoid` recria só os "evitar". Táticas guardadas e estudos não são tocados."""
     stop = request.app.state.jobs.should_stop
     regenerate = regenerate_avoid if kind == "avoid" else regenerate_all
     job_name = "regenerate_avoid" if kind == "avoid" else "regenerate"

@@ -179,3 +179,41 @@ def test_saved_tactic_enters_the_queue_and_accepts_reviews(client):
     # guardar de novo devolve o mesmo puzzle, de volta à fila
     again = client.post("/api/tactics/00sHx/save")
     assert again.status_code == 200 and again.json()["id"] == p["id"] and again.json()["in_queue"] is True
+
+
+# Duas táticas que transpõem para a mesma posição depois do lance do adversário
+# (torre de d8 ou de a4 para d4): o exercício guardado é um só, pela única
+# (fen_start, kind, source).
+GEMEA_A = {"id": "gemA", "fen": "3r2k1/8/8/8/8/8/7P/Q5K1 b - - 0 1", "moves": "d8d4 a1d4"}
+GEMEA_B = {"id": "gemB", "fen": "6k1/8/8/8/r7/8/7P/Q5K1 b - - 0 1", "moves": "a4d4 a1d4"}
+
+
+def _add_gemeas(client):
+    from chess_trainer.core.models import LichessPuzzle
+    db = client.app.state.session_factory()
+    try:
+        for row in (GEMEA_A, GEMEA_B):
+            db.add(LichessPuzzle(id=row["id"], fen=row["fen"], moves=row["moves"], rating=1500,
+                                 rating_deviation=80, popularity=95, nb_plays=900, themes="fork"))
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_twin_tactic_reports_saved_after_the_other_was_saved(client):
+    """Guardar uma tática guarda a gêmea junto (mesma posição inicial): a tela
+    de táticas precisa mostrar a segunda como já guardada, e não oferecer de novo."""
+    run_import(client)
+    _add_gemeas(client)
+    assert client.put("/api/settings", json={"tactics_rating": 1500, "tactics_window": 50}).status_code == 200
+
+    p = client.post("/api/tactics/gemA/save")
+    assert p.status_code == 201
+
+    # a segunda gêmea cai no mesmo exercício: a rota de salvar devolve o mesmo id...
+    outra = client.post("/api/tactics/gemB/save")
+    assert outra.status_code == 200 and outra.json()["id"] == p.json()["id"]
+
+    # ...e a tela de treino já a mostra como guardada
+    t = client.get("/api/tactics/next", params={"exclude": "00sHx,00sJ9,gemA"}).json()
+    assert t["id"] == "gemB" and t["saved"] is True

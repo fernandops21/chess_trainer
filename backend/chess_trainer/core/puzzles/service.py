@@ -103,7 +103,10 @@ def draft_puzzles(
 
 
 def persist_draft(db: Session, pos: Position, game: Game, kind: str, draft: PuzzleDraft) -> Puzzle | None:
-    exists = db.scalar(select(Puzzle.id).where(Puzzle.fen_start == draft.fen_start, Puzzle.kind == kind))
+    # só dedup contra os próprios exercícios: a única do banco é (fen_start, kind, source),
+    # então uma tática guardada ou um capítulo de estudo com a mesma posição inicial convive
+    exists = db.scalar(select(Puzzle.id).where(Puzzle.fen_start == draft.fen_start, Puzzle.kind == kind,
+                                               Puzzle.source == "own"))
     if exists:
         return None
     puzzle = Puzzle(
@@ -126,7 +129,7 @@ def persist_draft(db: Session, pos: Position, game: Game, kind: str, draft: Puzz
 def draft_avoids(
     positions: Iterable[Position], engine: EngineLike, cfg: PuzzleConfig, should_stop: StopFn | None = None,
 ) -> list[Draft] | None:
-    """Como `draft_puzzles`, mas só o "evitar" dos erros do usuário (regeração parcial)."""
+    """Como `draft_puzzles`, mas só o "evitar" dos erros do usuário (recriação parcial)."""
     drafts: list[Draft] = []
     for pos in positions:
         if not pos.is_mistake or pos.mistake_by != "me":
@@ -159,7 +162,7 @@ def _regenerate(
     progress: ProgressFn | None = None,
     should_stop: StopFn | None = None,
 ) -> int:
-    """Laço comum das regerações: assume que a fase de exclusão já foi commitada."""
+    """Laço comum das recriações: assume que a fase de exclusão já foi commitada."""
     thresholds = thresholds_from(settings)
     cfg = puzzle_config_from(settings)
     games = db.scalars(select(Game).where(Game.analyzed_at.is_not(None)).order_by(Game.played_at.desc())).all()
@@ -201,8 +204,15 @@ def regenerate_all(
     progress: ProgressFn | None = None,
     should_stop: StopFn | None = None,
 ) -> int:
-    db.execute(delete(Review))
-    db.execute(delete(Puzzle))
+    """Recria os exercícios das partidas do usuário (`source == "own"`).
+
+    O recorte por fonte é essencial: as táticas guardadas do Lichess e os
+    exercícios dos estudos não saem de partida nenhuma — apagá-los perderia
+    trabalho do usuário e ainda esbarraria na referência de
+    `study_chapters.puzzle_id`."""
+    own_ids = select(Puzzle.id).where(Puzzle.source == "own")
+    db.execute(delete(Review).where(Review.puzzle_id.in_(own_ids)))
+    db.execute(delete(Puzzle).where(Puzzle.source == "own"))
     db.commit()
     return _regenerate(db, engine, settings, draft_puzzles, progress, should_stop)
 
@@ -214,9 +224,10 @@ def regenerate_avoid(
     progress: ProgressFn | None = None,
     should_stop: StopFn | None = None,
 ) -> int:
-    """Regera só os puzzles "evitar": o histórico de treino dos "punir" fica intacto."""
-    avoid_ids = select(Puzzle.id).where(Puzzle.kind == "avoid")
+    """Recria só os puzzles "evitar" das partidas do usuário: o histórico de treino
+    dos "punir" — e tudo o que veio do Lichess ou de um estudo — fica intacto."""
+    avoid_ids = select(Puzzle.id).where(Puzzle.kind == "avoid", Puzzle.source == "own")
     db.execute(delete(Review).where(Review.puzzle_id.in_(avoid_ids)))
-    db.execute(delete(Puzzle).where(Puzzle.kind == "avoid"))
+    db.execute(delete(Puzzle).where(Puzzle.kind == "avoid", Puzzle.source == "own"))
     db.commit()
     return _regenerate(db, engine, settings, draft_avoids, progress, should_stop)

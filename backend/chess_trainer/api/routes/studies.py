@@ -10,6 +10,7 @@ from chess_trainer.core.models import Puzzle, Study, StudyChapter, utcnow
 from chess_trainer.core.studies.parser import parse_study_pgn
 from chess_trainer.core.studies.service import (
     STUDY_URL,
+    StudyImportCancelled,
     StudyNotFound,
     delete_study,
     fetch_study_pgn,
@@ -30,11 +31,13 @@ def _get_study(db: Session, study_id: str) -> Study:
     return study
 
 
-def _counts(db: Session, study: Study) -> tuple[int, int, int]:
-    """Capítulos, exercícios na repetição e exercícios vencidos hoje.
+def _counts(db: Session, study: Study) -> tuple[int, int, int, int]:
+    """Capítulos, capítulos com exercício, exercícios na repetição e vencidos hoje.
 
-    As duas contagens saem dos exercícios com os mesmos filtros da fila
-    (`core/srs/queue.py`), para bater com o que `/api/queue?study_id=` serve."""
+    As duas últimas saem dos exercícios com os mesmos filtros da fila
+    (`core/srs/queue.py`), para bater com o que `/api/queue?study_id=` serve.
+    `exercise_count` é diferente: conta os capítulos que têm exercício, estejam
+    eles na repetição ou não — é o que diz se há algo para devolver à fila."""
     chapters = list(study.chapters)
     do_estudo = select(StudyChapter.id).where(StudyChapter.study_id == study.id)
     na_fila = select(func.count(Puzzle.id)).where(
@@ -43,15 +46,16 @@ def _counts(db: Session, study: Study) -> tuple[int, int, int]:
         Puzzle.is_leech.is_(False),
     )
     in_queue = db.scalar(na_fila)
-    due = db.scalar(na_fila.where(Puzzle.srs_due_at.is_not(None), Puzzle.srs_due_at <= utcnow()))
-    return len(chapters), int(in_queue or 0), int(due or 0)
+    due = db.scalar(na_fila.where(Puzzle.srs_due_at <= utcnow()))
+    com_exercicio = sum(1 for c in chapters if c.puzzle_id is not None)
+    return len(chapters), com_exercicio, int(in_queue or 0), int(due or 0)
 
 
 def _study_out(db: Session, study: Study) -> StudyOut:
-    chapters, in_queue, due = _counts(db, study)
+    chapters, exercises, in_queue, due = _counts(db, study)
     return StudyOut(id=study.id, title=study.title, author=study.author, source_url=study.source_url,
                     lichess_id=study.lichess_id, imported_at=study.imported_at,
-                    chapter_count=chapters, in_queue=in_queue, due_today=due)
+                    chapter_count=chapters, exercise_count=exercises, in_queue=in_queue, due_today=due)
 
 
 @router.get("/studies", response_model=list[StudyOut])
@@ -84,10 +88,21 @@ def _submit(request: Request, *, lichess_id: str | None, pgn: str, source_url: s
                 raise RuntimeError("o PGN não tem nenhum capítulo")
             total = len(parsed.chapters)
             progress("import_study", 0, total, f"0/{total} capítulos")
-            _, report = upsert_study(
-                db, parsed, source_url, utcnow(),
-                on_chapter=lambda done, tot: progress("import_study", done, tot, f"{done}/{tot} capítulos"),
-            )
+
+            def on_chapter(done: int, tot: int) -> None:
+                # o cancelamento é checado aqui, capítulo a capítulo, e ainda dentro da
+                # transação de `upsert_study`: cancelar deixa o estudo inteiro de fora,
+                # nunca metade dos capítulos gravados
+                if app.state.jobs.should_stop():
+                    raise StudyImportCancelled
+                progress("import_study", done, tot, f"{done}/{tot} capítulos")
+
+            try:
+                _, report = upsert_study(db, parsed, source_url, utcnow(), on_chapter=on_chapter)
+            except StudyImportCancelled:
+                db.rollback()
+                progress("import_study", 0, total, "cancelado")
+                return
             progress("import_study", total, total, report.message())
         finally:
             db.close()

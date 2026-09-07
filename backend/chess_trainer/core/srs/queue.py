@@ -68,7 +68,8 @@ def build_queue(db: Session, filters: QueueFilters, settings: AppSettings, now: 
     base = _apply_filters(select(Puzzle).where(Puzzle.is_leech.is_(False), Puzzle.in_queue.is_(True)), filters)
 
     due = db.scalars(
-        base.where(Puzzle.srs_due_at.is_not(None), Puzzle.srs_due_at <= now).order_by(Puzzle.srs_due_at)
+        # `srs_due_at <= now` já exclui os nulos (nunca revisados): em SQL, NULL <= x não é verdadeiro
+        base.where(Puzzle.srs_due_at <= now).order_by(Puzzle.srs_due_at)
     ).all()
 
     # puzzles de fora das partidas do usuário não têm `game`: a data deles é a de criação

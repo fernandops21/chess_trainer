@@ -149,11 +149,15 @@ def _chapter(game: chess.pgn.Game, order: int) -> ParsedChapter:
     except ValueError as exc:
         chapter.pgn = _headers_only(game)
         chapter.skipped_reason = f"FEN inválida: {exc}"
+        # sem posição inicial não há exercício possível: vale como leitura
+        chapter.mode = "read"
         return chapter
     chapter.fen = board.fen()
     chapter.orientation = _orientation(headers, board)
     if game.errors:
         chapter.skipped_reason = f"lance ilegal: {game.errors[0]}"
+        # a linha não pôde ser lida até o fim: nada de gamebook, o capítulo fica como leitura
+        chapter.mode = "read"
         return chapter
     if mode == "gamebook":
         chapter.solution = _solution(game)

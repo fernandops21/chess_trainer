@@ -50,6 +50,16 @@ PGN_FEN_REPETIDA = """[Event "Repetido: Um"]
 """
 
 
+# estudo sem nenhum capítulo em modo gamebook: importa, mas não cria exercício algum
+PGN_SO_LEITURA = """[Event "Leitura: Um"]
+[Result "*"]
+[StudyName "Leitura"]
+[ChapterName "Um"]
+
+1. e4 e5 *
+"""
+
+
 def build_client(handler):
     app = create_app(
         db_path=":memory:",
@@ -131,6 +141,32 @@ def test_mensagem_final_nomeia_o_capitulo_pulado(client):
 
     assert job["message"].startswith("2 capítulos, 1 exercícios, 1 pulados: ")
     assert "2. Dois: posição inicial já usada por outro capítulo" in job["message"]
+
+
+def test_mensagem_final_avisa_quando_nao_ha_exercicio(client):
+    """Só capítulos de leitura: "0 exercícios" sozinho parece falha da importação."""
+    job = importar(client, {"pgn": PGN_SO_LEITURA})
+
+    assert job["message"] == "1 capítulos, 0 exercícios, 0 pulados (só capítulos de leitura; nenhum exercício)"
+    estudo = client.get("/api/studies").json()[0]
+    assert estudo["chapter_count"] == 1 and estudo["exercise_count"] == 0 and estudo["in_queue"] == 0
+
+
+def test_cancelar_a_importacao_nao_grava_capitulo_nenhum(client):
+    """Cancelar antes do commit descarta o estudo inteiro: nada de meia importação."""
+    from chess_trainer.core.models import Study, StudyChapter
+
+    client.app.state.jobs.should_stop = lambda: True
+
+    assert client.post("/api/studies/import", json={"url": URL}).status_code == 202
+    job = esperar_job(client)
+
+    assert job["state"] == "idle" and job["message"] == "cancelado"
+    assert client.get("/api/studies").json() == []
+    with client.app.state.session_factory() as db:
+        assert db.scalars(select(Study)).all() == []
+        assert db.scalars(select(StudyChapter)).all() == []
+        assert db.scalars(select(Puzzle)).all() == []
 
 
 def test_contagem_da_repeticao_ignora_exercicio_travado(client):

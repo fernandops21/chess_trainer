@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import chess
 import pytest
 from fastapi.testclient import TestClient
@@ -186,6 +188,26 @@ def test_queue_toggle_removes_from_queue_and_dashboard(ready):
     assert len(client.get("/api/queue").json()["items"]) == 1
     assert client.get("/api/dashboard").json()["by_source"]["own"]["in_queue"] == 1
     assert client.post("/api/puzzles/nope/queue", json={"in_queue": True}).status_code == 404
+
+
+def test_dashboard_counts_due_by_source(ready):
+    """A coluna `due` do painel por fonte conta os vencidos. Sem um exercício com
+    `srs_due_at` no passado ela ficaria sempre em zero e o teste não diria nada."""
+    from chess_trainer.core.models import Puzzle
+
+    app, client = ready
+    puzzle_id = client.get("/api/queue").json()["items"][0]["id"]
+    db = app.state.session_factory()
+    try:
+        db.get(Puzzle, puzzle_id).srs_due_at = datetime(2020, 1, 1)
+        db.commit()
+    finally:
+        db.close()
+
+    dash = client.get("/api/dashboard").json()
+    assert dash["by_source"]["own"] == {"in_queue": 1, "due": 1}
+    assert dash["by_source"]["lichess"] == {"in_queue": 0, "due": 0}
+    assert dash["due_today"] == 1
 
 
 def test_queue_filters_by_source(ready):

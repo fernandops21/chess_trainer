@@ -270,8 +270,10 @@ class StudyOut(BaseModel):
     source_url: str
     lichess_id: str | None
     imported_at: datetime | None
-    # contagens: capítulos do estudo, capítulos na repetição e vencidos hoje
+    # contagens: capítulos do estudo, capítulos com exercício (na fila ou fora),
+    # exercícios na repetição e vencidos hoje
     chapter_count: int = 0
+    exercise_count: int = 0
     in_queue: int = 0
     due_today: int = 0
 

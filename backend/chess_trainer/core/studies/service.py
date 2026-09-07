@@ -39,6 +39,12 @@ class StudyNotFound(Exception):
     """O Lichess respondeu 404: estudo privado ou inexistente."""
 
 
+class StudyImportCancelled(Exception):
+    """O usuário cancelou a importação antes de ela gravar. Levantada de dentro
+    do `on_chapter` de `upsert_study`, ou seja, antes do commit: o chamador dá
+    rollback e o estudo não entra pela metade."""
+
+
 @dataclass
 class ImportReport:
     """O que a importação fez, para a mensagem final do job."""
@@ -54,6 +60,9 @@ class ImportReport:
 
     def message(self) -> str:
         texto = f"{self.chapters} capítulos, {self.puzzles} exercícios, {len(self.skipped)} pulados"
+        if self.chapters and not self.puzzles:
+            # sem isto o usuário lê "0 exercícios" e acha que a importação falhou
+            texto += " (só capítulos de leitura; nenhum exercício)"
         if not self.skipped:
             return texto
         # os pulados vão nomeados na mensagem final para o usuário saber o que rever

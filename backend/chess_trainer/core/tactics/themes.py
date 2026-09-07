@@ -32,6 +32,9 @@ THEME_LABELS: dict[str, str] = {
     "blindSwineMate": "mate dos porcos cegos",
     "balestraMate": "mate da balestra",
     "tactic": "tática",
+    # temas próprios das outras fontes de exercício (não vêm do banco do Lichess)
+    "study": "estudo",
+    "lichess": "tática do Lichess",
 }
 
 # temas que descrevem duração, fase da partida, avaliação ou origem do jogo: são

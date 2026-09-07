@@ -182,6 +182,8 @@ def test_lance_ilegal_marca_skipped_reason():
     assert cap.skipped_reason
     assert "Qh8" in cap.skipped_reason
     assert cap.solution is None
+    # sem solução não há exercício: o capítulo vale como leitura, e não como gamebook
+    assert cap.mode == "read"
 
 
 def test_fen_invalida_marca_skipped_reason():
@@ -193,6 +195,7 @@ def test_fen_invalida_marca_skipped_reason():
     cap = parse_study_pgn(texto).chapters[0]
     assert cap.skipped_reason
     assert cap.solution is None
+    assert cap.mode == "read"
 
 
 def test_sem_chapter_mode_vira_read():

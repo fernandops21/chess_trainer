@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from chess_trainer.config import AppSettings
 from chess_trainer.core.analysis.engine import LineEval
 from chess_trainer.core.evals import MATE_SCORE
-from chess_trainer.core.models import Game, Position, Puzzle, Review
+from chess_trainer.core.models import Game, Position, Puzzle, Review, Study, StudyChapter
 from chess_trainer.core.pipeline import analyze_pending
 from chess_trainer.core.puzzles.service import regenerate_all, regenerate_avoid
 from tests.fakes import FakeEngine, first_legal_default
@@ -286,3 +286,89 @@ def test_regenerate_avoid_drops_old_avoid_puzzles_and_their_reviews(db_session):
     assert db_session.get(Puzzle, stale.id) is None
     reviews = db_session.scalars(select(Review)).all()
     assert [r.puzzle_id for r in reviews] == [punish.id]
+
+
+def _externo(db_session, *, source: str, fen: str, chapter_id: str | None = None,
+             external_id: str | None = None) -> Puzzle:
+    """Exercício que não veio das partidas do usuário (tática guardada ou capítulo de estudo)."""
+    puzzle = Puzzle(
+        source=source, external_id=external_id, chapter_id=chapter_id, kind="punish",
+        fen_start=fen, side_to_move="white",
+        solution='{"moves": [{"uci": "a2a4", "by": "solver", "alternatives": []}], "explanation_pv": []}',
+        end_reason="material_gain", theme=source, category=source, solver_moves=1,
+    )
+    db_session.add(puzzle)
+    db_session.flush()
+    db_session.add(Review(puzzle_id=puzzle.id, result="correct", ease=2.5, interval_days=1,
+                          due_at=datetime(2026, 8, 1), lapses=0))
+    return puzzle
+
+
+def test_regenerate_all_keeps_tactics_and_study_exercises(db_session):
+    """Recriar os puzzles só mexe nos das partidas do usuário: as táticas guardadas
+    do Lichess e os exercícios dos estudos (e o histórico deles) continuam."""
+    game = _game(pgn=SCHOLAR)
+    db_session.add(game)
+    db_session.commit()
+    analyze_pending(db_session, _engine(), SETTINGS)
+    proprio = db_session.scalars(select(Puzzle).where(Puzzle.source == "own")).one()
+    db_session.add(Review(puzzle_id=proprio.id, result="correct", ease=2.5, interval_days=1,
+                          due_at=proprio.created_at, lapses=0))
+
+    study = Study(title="Finais básicos")
+    db_session.add(study)
+    db_session.flush()
+    chapter = StudyChapter(study_id=study.id, order=1, name="Oposição", fen=chess.STARTING_FEN)
+    db_session.add(chapter)
+    db_session.flush()
+    tatica = _externo(db_session, source="lichess", external_id="abc12",
+                      fen="8/8/8/8/8/5k2/6q1/7K w - - 0 1")
+    estudo = _externo(db_session, source="study", chapter_id=chapter.id,
+                      fen="8/8/8/8/8/4k3/6q1/7K w - - 0 1")
+    chapter.puzzle_id = estudo.id
+    db_session.commit()
+
+    n = regenerate_all(db_session, _engine(), SETTINGS)
+
+    assert n == 1
+    assert db_session.get(Puzzle, tatica.id) is not None
+    assert db_session.get(Puzzle, estudo.id) is not None
+    assert db_session.get(Puzzle, proprio.id) is None  # o próprio foi recriado do zero
+    novo = db_session.scalars(select(Puzzle).where(Puzzle.source == "own")).one()
+    assert novo.id != proprio.id and novo.theme == "mate_in_1"
+    # o histórico das outras fontes fica; só o do puzzle próprio sumiu
+    assert sorted(r.puzzle_id for r in db_session.scalars(select(Review))) == sorted([tatica.id, estudo.id])
+
+
+def test_regenerate_avoid_keeps_other_sources(db_session):
+    """A recriação parcial ("evitar") também não toca nas outras fontes, mesmo que
+    o exercício guardado tenha `kind` "avoid"."""
+    game = _game(pgn=SCHOLAR, my_color="black")
+    db_session.add(game)
+    db_session.commit()
+    analyze_pending(db_session, _engine(), SETTINGS)
+    tatica = _externo(db_session, source="lichess", external_id="zz999",
+                      fen="8/8/8/8/8/5k2/6q1/7K w - - 0 1")
+    tatica.kind = "avoid"
+    db_session.commit()
+
+    regenerate_avoid(db_session, _engine(), SETTINGS)
+
+    assert db_session.get(Puzzle, tatica.id) is not None
+    assert db_session.scalar(select(func.count(Review.id)).where(Review.puzzle_id == tatica.id)) == 1
+
+
+def test_lichess_puzzle_with_same_fen_does_not_suppress_own_puzzle(db_session):
+    """Uma tática guardada na mesma posição inicial não pode roubar o lugar do
+    exercício do próprio usuário: a única do banco é (fen_start, kind, source)."""
+    guardada = _externo(db_session, source="lichess", external_id="dup01", fen=_before_mate().fen())
+    db_session.commit()
+
+    game = _game(pgn=SCHOLAR)
+    db_session.add(game)
+    db_session.commit()
+    assert analyze_pending(db_session, _engine(), SETTINGS) == 1
+
+    proprio = db_session.scalars(select(Puzzle).where(Puzzle.source == "own")).one()
+    assert proprio.fen_start == guardada.fen_start and proprio.kind == guardada.kind
+    assert db_session.get(Puzzle, guardada.id) is not None

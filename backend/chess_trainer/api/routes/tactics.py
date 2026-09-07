@@ -102,14 +102,23 @@ def get_next(themes: str | None = None, exclude: str | None = None, db: Session 
             last = exc
             skip = [*skip, row.id]
             continue
-        tactic["saved"] = _is_saved(db, row.id)
+        tactic["saved"] = _is_saved(db, row.id, tactic["fen_start"])
         return tactic
     raise HTTPException(500, str(last)) from last
 
 
-def _is_saved(db: Session, lichess_id: str) -> bool:
-    """A tática já virou exercício da repetição e continua na fila?"""
-    return db.scalar(select(Puzzle.id).where(Puzzle.external_id == lichess_id, Puzzle.in_queue.is_(True))) is not None
+def _is_saved(db: Session, lichess_id: str, fen_start: str) -> bool:
+    """A tática já virou exercício da repetição e continua na fila?
+
+    A gêmea conta: duas táticas que transpõem para a mesma posição inicial
+    dividem um único exercício (a única (fen_start, kind, source)), então
+    guardar uma guarda a outra — e a tela precisa dizer isso."""
+    return db.scalar(
+        select(Puzzle.id).where(
+            Puzzle.in_queue.is_(True), Puzzle.source == "lichess",
+            (Puzzle.external_id == lichess_id) | (Puzzle.fen_start == fen_start),
+        )
+    ) is not None
 
 
 @router.post("/tactics/{lichess_id}/save", response_model=PuzzleOut)
