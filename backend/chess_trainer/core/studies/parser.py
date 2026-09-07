@@ -27,6 +27,9 @@ Cada forma é `{"orig", "dest", "brush"}` para uma seta (`[%cal …]`) e
 python-chess representa como uma seta com `tail == head`). O pincel usa os
 nomes do python-chess: `green`, `red`, `blue`, `yellow`.
 
+Cada capítulo também traz a `tree`: a árvore de lances no formato do editor
+(ver `tree.py`), que a importação grava em `study_chapters.tree_json`.
+
 Este módulo não acessa rede nem banco: recebe texto e devolve dados.
 """
 
@@ -39,12 +42,20 @@ from dataclasses import dataclass, field
 import chess
 import chess.pgn
 
+# `clean_comment`, as formas e a árvore moram em `tree.py` (o editor também
+# precisa delas); aqui elas continuam disponíveis com os nomes de sempre
+from chess_trainer.core.studies.tree import (
+    clean_comment,
+    game_to_tree,
+    orientation_of,
+    shapes_from_arrows,
+)
+
 AUTHOR_PREFIX = "https://lichess.org/@/"
 
-_COMMAND_RE = re.compile(r"\[%[^\]]*\]")
-_WHITESPACE_RE = re.compile(r"\s+")
 _STUDY_ID_RE = re.compile(r"/study/([A-Za-z0-9]+)")
-_ORIENTATIONS = ("white", "black")
+
+__all__ = ["ParsedChapter", "ParsedStudy", "clean_comment", "parse_study_pgn", "solution_from_game"]
 
 
 @dataclass
@@ -60,6 +71,7 @@ class ParsedChapter:
     pgn: str
     intro_comment: str = ""
     solution: dict | None = None
+    tree: dict | None = None
     skipped_reason: str | None = None
 
 
@@ -71,13 +83,6 @@ class ParsedStudy:
     author: str
     lichess_id: str | None
     chapters: list[ParsedChapter] = field(default_factory=list)
-
-
-def clean_comment(text: str) -> str:
-    """Remove os comandos `[%…]` (cal, csl, eval, clk, …) e normaliza espaços."""
-    if not text:
-        return ""
-    return _WHITESPACE_RE.sub(" ", _COMMAND_RE.sub(" ", text)).strip()
 
 
 def parse_study_pgn(text: str) -> ParsedStudy:
@@ -153,14 +158,15 @@ def _chapter(game: chess.pgn.Game, order: int) -> ParsedChapter:
         chapter.mode = "read"
         return chapter
     chapter.fen = board.fen()
-    chapter.orientation = _orientation(headers, board)
+    chapter.orientation = orientation_of(headers, board)
+    chapter.tree = game_to_tree(game)
     if game.errors:
         chapter.skipped_reason = f"lance ilegal: {game.errors[0]}"
         # a linha não pôde ser lida até o fim: nada de gamebook, o capítulo fica como leitura
         chapter.mode = "read"
         return chapter
     if mode == "gamebook":
-        chapter.solution = _solution(game)
+        chapter.solution = solution_from_game(game)
         if chapter.solution is None:
             chapter.mode = "read"
     return chapter
@@ -180,17 +186,10 @@ def _chapter_name(headers) -> str:
     return suffix if sep else event
 
 
-def _orientation(headers, board: chess.Board) -> str:
-    declared = headers.get("Orientation", "").strip().lower()
-    if declared in _ORIENTATIONS:
-        return declared
-    return "white" if board.turn == chess.WHITE else "black"
-
-
 # --- solução -------------------------------------------------------------
 
 
-def _solution(game: chess.pgn.Game) -> dict | None:
+def solution_from_game(game: chess.pgn.Game) -> dict | None:
     """Monta a solução do capítulo. Devolve None se não houver lances."""
     mainline = list(game.mainline())
     if not mainline:
@@ -247,13 +246,5 @@ def _wrong_moves(node: chess.pgn.ChildNode) -> dict[str, str]:
     return found
 
 
-def _shapes(arrows) -> list[dict]:
-    """Converte as setas do python-chess para o formato do app."""
-    shapes = []
-    for arrow in arrows:
-        shape = {"orig": chess.square_name(arrow.tail)}
-        if arrow.head != arrow.tail:
-            shape["dest"] = chess.square_name(arrow.head)
-        shape["brush"] = arrow.color
-        shapes.append(shape)
-    return shapes
+# as formas saem do mesmo lugar que as do editor
+_shapes = shapes_from_arrows

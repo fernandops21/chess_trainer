@@ -51,6 +51,19 @@ _NEW_PUZZLE_COLUMNS: tuple[tuple[str, str], ...] = (
     ("last_move", "VARCHAR(6)"),
 )
 
+# Colunas acrescentadas a `studies` e `study_chapters` no ciclo do editor de
+# estudos. Só ADD COLUMN: nenhuma tabela é refeita. Os estudos que já existiam
+# vieram do Lichess (daí o padrão de `origin`), e o `updated_at`/`tree_json` dos
+# capítulos antigos fica vazio até a primeira leitura no editor.
+_NEW_STUDY_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("origin", "VARCHAR(8) NOT NULL DEFAULT 'lichess'"),
+    ("updated_at", "DATETIME"),
+)
+_NEW_CHAPTER_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("tree_json", "TEXT"),
+    ("updated_at", "DATETIME"),
+)
+
 # Índices de `puzzles` que não saem de um `CREATE INDEX` do metadata: o
 # `uq_puzzle_fen_kind_source` acompanha a `UniqueConstraint` declarada dentro do
 # `CREATE TABLE`, e num banco antigo a tabela já existe quando o `create_all` roda.
@@ -65,6 +78,16 @@ _PUZZLE_INDEXES: tuple[str, ...] = (
 # Colunas cujo NOT NULL do esquema antigo impede um puzzle de fonte externa
 # (Lichess ou estudo), que não tem partida nem posição de origem.
 _PUZZLE_COLUMNS_NULLABLE_AGORA: tuple[str, ...] = ("position_id", "game_id")
+
+
+def _acrescenta_colunas(conn, tabela: str, colunas: tuple[tuple[str, str], ...]) -> None:
+    """ALTER TABLE ADD COLUMN para o que faltar. Tabela ausente: nada a fazer."""
+    existentes = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({tabela})")}
+    if not existentes:
+        return
+    for nome, ddl in colunas:
+        if nome not in existentes:
+            conn.exec_driver_sql(f"ALTER TABLE {tabela} ADD COLUMN {nome} {ddl}")
 
 
 def _puzzles_no_esquema_antigo(engine: Engine) -> bool:
@@ -154,6 +177,8 @@ def migrate(engine: Engine) -> None:
     with engine.begin() as conn:
         for statement in _PUZZLE_INDEXES:
             conn.exec_driver_sql(statement)
+        _acrescenta_colunas(conn, "studies", _NEW_STUDY_COLUMNS)
+        _acrescenta_colunas(conn, "study_chapters", _NEW_CHAPTER_COLUMNS)
 
 
 def init_db(engine: Engine) -> None:

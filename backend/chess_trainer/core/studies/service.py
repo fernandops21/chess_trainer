@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from chess_trainer.core.models import Puzzle, Review, Study, StudyChapter, new_id, utcnow
 from chess_trainer.core.studies.parser import ParsedChapter, ParsedStudy
+from chess_trainer.core.studies.tree import chapter_tree
 
 STUDY_PGN_URL = "https://lichess.org/api/study/{lichess_id}.pgn"
 STUDY_URL = "https://lichess.org/study/{lichess_id}"
@@ -117,7 +118,7 @@ def upsert_study(
     now = now or utcnow()
     study = _find_study(db, parsed, source_url)
     if study is None:
-        study = Study(id=new_id(), title=parsed.title, author=parsed.author,
+        study = Study(id=new_id(), title=parsed.title, author=parsed.author, origin="lichess",
                       source_url=source_url or _default_url(parsed), lichess_id=parsed.lichess_id)
         db.add(study)
     else:
@@ -182,6 +183,9 @@ def _upsert_chapter(db: Session, study: Study, chapter: StudyChapter | None,
     chapter.orientation = parsed.orientation
     chapter.mode = parsed.mode
     chapter.pgn = parsed.pgn
+    # a árvore do parser é a fonte da verdade do editor; capítulo cuja FEN o
+    # parser não leu fica sem árvore e o editor a monta na primeira abertura
+    chapter.tree_json = json.dumps(parsed.tree, ensure_ascii=False) if parsed.tree else ""
     chapter.intro_comment = parsed.intro_comment
     db.flush()
 
@@ -284,6 +288,18 @@ def _puzzle_out_of_queue(db: Session, chapter: StudyChapter) -> None:
     if puzzle is not None:
         puzzle.in_queue = False
     db.flush()
+
+
+# --- árvore do capítulo --------------------------------------------------
+
+
+def ensure_tree(chapter: StudyChapter) -> dict:
+    """Árvore do capítulo, montada a partir do PGN e gravada quando ainda não
+    havia uma (capítulos importados antes do editor). Quem chama dá o commit."""
+    tree = chapter_tree(chapter)
+    if not chapter.tree_json:
+        chapter.tree_json = json.dumps(tree, ensure_ascii=False)
+    return tree
 
 
 # --- fila e remoção ------------------------------------------------------

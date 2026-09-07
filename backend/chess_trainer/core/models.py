@@ -139,6 +139,8 @@ class Study(Base):
     author: Mapped[str] = mapped_column(String(64), default="")
     source_url: Mapped[str] = mapped_column(String(255), default="")
     lichess_id: Mapped[str | None] = mapped_column(String(16), unique=True, default=None)
+    # "lichess" (importado) ou "local" (criado aqui)
+    origin: Mapped[str] = mapped_column(String(8), default="lichess")
     imported_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
@@ -164,9 +166,14 @@ class StudyChapter(Base):
     orientation: Mapped[str] = mapped_column(String(5), default="white")
     mode: Mapped[str] = mapped_column(String(8), default="read")
     pgn: Mapped[str] = mapped_column(Text, default="")
+    # árvore de lances em JSON (ver `core/studies/tree.py`): a fonte da verdade do
+    # editor; o `pgn` acima é gerado a partir dela ao salvar
+    tree_json: Mapped[str] = mapped_column(Text, default="")
     intro_comment: Mapped[str] = mapped_column(Text, default="")
     puzzle_id: Mapped[str | None] = mapped_column(ForeignKey("puzzles.id"), default=None)
     in_queue: Mapped[bool] = mapped_column(Boolean, default=True)
+    # nulo nos capítulos importados antes do editor (a migração só acrescenta a coluna)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
     study: Mapped[Study] = relationship(back_populates="chapters")
     puzzle: Mapped[Puzzle | None] = relationship(foreign_keys=[puzzle_id])

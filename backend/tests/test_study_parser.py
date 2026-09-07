@@ -1,12 +1,19 @@
 """Testes do parser de PGN de estudos do Lichess."""
 
+import io
 import re
 from pathlib import Path
 
 import chess
+import chess.pgn
 import pytest
 
-from chess_trainer.core.studies.parser import ParsedChapter, clean_comment, parse_study_pgn
+from chess_trainer.core.studies.parser import (
+    ParsedChapter,
+    clean_comment,
+    parse_study_pgn,
+    solution_from_game,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "study_4JKVAfaE.pgn"
 
@@ -288,3 +295,42 @@ def test_pgn_do_capitulo_preserva_headers_e_lances():
     assert '[ChapterMode "gamebook"]' in cap.pgn
     assert "e4" in cap.pgn
     assert "Nota" in cap.pgn
+
+
+# --- árvore de lances ----------------------------------------------------
+
+
+def test_capitulo_traz_a_arvore_de_lances(estudo):
+    cap = estudo.chapters[0]
+    assert cap.tree["fen"] == cap.fen
+    assert cap.tree["orientation"] == cap.orientation
+    assert cap.tree["intro"] == cap.intro_comment
+    assert [n["san"] for n in cap.tree["root"]["children"]] == ["Qb6+", "O-O", "Bg6"]
+    assert cap.tree["root"]["children"][0]["uci"] == "d8b6"
+
+
+def test_todos_os_capitulos_lidos_tem_arvore(estudo):
+    assert all(c.tree is not None for c in estudo.chapters)
+
+
+def test_capitulo_de_leitura_tambem_tem_arvore(estudo):
+    cap = capitulo_por_url(estudo, "/kM4x3MjK")
+    assert cap.mode == "read" and cap.tree == {
+        "fen": cap.fen, "orientation": cap.orientation, "intro": cap.intro_comment,
+        "root": {"shapes": [], "children": []},
+    }
+
+
+def test_capitulo_com_fen_invalida_fica_sem_arvore():
+    texto = pgn_sintetico(
+        "FEN quebrada",
+        "*",
+        extras='[FEN "isso nao e uma fen"]\n[SetUp "1"]\n[ChapterMode "gamebook"]',
+    )
+    cap = parse_study_pgn(texto).chapters[0]
+    assert cap.tree is None
+
+
+def test_solution_from_game_e_a_funcao_publica_da_solucao(estudo, texto_do_estudo):
+    game = chess.pgn.read_game(io.StringIO(texto_do_estudo))
+    assert solution_from_game(game) == estudo.chapters[0].solution

@@ -301,3 +301,33 @@ def test_fetch_study_pgn_404_vira_study_not_found():
 def test_fetch_study_pgn_erro_http_vira_runtime_error():
     with pytest.raises(RuntimeError, match="500"):
         fetch_study_pgn("4JKVAfaE", _http(lambda request: httpx.Response(500, text="")))
+
+
+# --- árvore de lances do capítulo ----------------------------------------
+
+
+def test_importacao_grava_a_arvore_e_a_origem(db_session, texto_da_fixture):
+    study, _ = importar(db_session, texto_da_fixture)
+    assert study.origin == "lichess"
+    capitulo = study.chapters[0]
+    tree = json.loads(capitulo.tree_json)
+    assert tree["fen"] == capitulo.fen and tree["orientation"] == capitulo.orientation
+    assert [n["san"] for n in tree["root"]["children"]] == ["Qb6+", "O-O", "Bg6"]
+    # capítulos de leitura também guardam a árvore
+    leitura = next(c for c in study.chapters if c.mode == "read")
+    assert json.loads(leitura.tree_json)["root"]["children"] is not None
+
+
+def test_ensure_tree_preenche_capitulo_sem_arvore(db_session):
+    from chess_trainer.core.studies.service import ensure_tree
+
+    texto = capitulo_pgn("Um", "https://lichess.org/study/ABCD1234/EFGH5678", FEN_MATE, "1. Ra8#")
+    study, _ = importar(db_session, texto)
+    capitulo = study.chapters[0]
+    capitulo.tree_json = ""  # como ficam os capítulos importados antes do editor
+    db_session.commit()
+
+    tree = ensure_tree(capitulo)
+    db_session.commit()
+    assert [n["san"] for n in tree["root"]["children"]] == ["Ra8#"]
+    assert json.loads(capitulo.tree_json) == tree

@@ -350,3 +350,96 @@ def test_banco_novo_nao_e_reconstruido_nem_copiado(tmp_path):
         assert _backups(path) == []
     finally:
         engine.dispose()
+
+
+# --- colunas do editor de estudos ----------------------------------------
+
+# colunas que o ciclo do editor acrescentou; o banco do usuário vem sem elas
+COLUNAS_NOVAS = {"studies": ("origin", "updated_at"), "study_chapters": ("tree_json", "updated_at")}
+
+
+@pytest.fixture
+def db_do_ciclo_anterior(tmp_path):
+    """Banco no esquema do ciclo dos estudos importados: igual ao de hoje, sem
+    as colunas do editor (o `DROP COLUMN` do SQLite as tira do banco novo)."""
+    path = tmp_path / "estudos.db"
+    engine = make_engine(str(path))
+    init_db(engine)
+    with make_session_factory(engine)() as db:
+        estudo = Study(id="e1", title="Aulas do Basso", author="basso01",
+                       source_url="https://lichess.org/study/4JKVAfaE", lichess_id="4JKVAfaE")
+        db.add(estudo)
+        db.flush()
+        db.add(StudyChapter(id="c1", study_id="e1", order=1, name="Capítulo 1", fen="fen-cap",
+                            orientation="white", mode="gamebook", pgn="1. e4 *", intro_comment="Enunciado"))
+        db.commit()
+    engine.dispose()
+    conn = sqlite3.connect(path)
+    for tabela, colunas in COLUNAS_NOVAS.items():
+        for coluna in colunas:
+            conn.execute(f"ALTER TABLE {tabela} DROP COLUMN {coluna}")
+    conn.commit()
+    conn.close()
+    return path
+
+
+def _colunas(path, tabela: str) -> set[str]:
+    conn = sqlite3.connect(path)
+    try:
+        return {row[1] for row in conn.execute(f"PRAGMA table_info({tabela})")}
+    finally:
+        conn.close()
+
+
+def test_migracao_acrescenta_as_colunas_do_editor(db_do_ciclo_anterior):
+    assert "origin" not in _colunas(db_do_ciclo_anterior, "studies")
+    engine = make_engine(str(db_do_ciclo_anterior))
+    init_db(engine)
+    try:
+        assert {"origin", "updated_at"} <= _colunas(db_do_ciclo_anterior, "studies")
+        assert {"tree_json", "updated_at"} <= _colunas(db_do_ciclo_anterior, "study_chapters")
+        with make_session_factory(engine)() as db:
+            estudo = db.get(Study, "e1")
+            # o estudo que já existia veio do Lichess
+            assert estudo is not None and estudo.origin == "lichess"
+            assert estudo.title == "Aulas do Basso" and estudo.lichess_id == "4JKVAfaE"
+            capitulo = db.get(StudyChapter, "c1")
+            assert capitulo.name == "Capítulo 1" and capitulo.pgn == "1. e4 *"
+            assert capitulo.intro_comment == "Enunciado"
+            # sem árvore ainda: o editor a monta na primeira abertura
+            assert not capitulo.tree_json
+    finally:
+        engine.dispose()
+
+
+def test_migracao_das_colunas_do_editor_e_idempotente(db_do_ciclo_anterior):
+    engine = make_engine(str(db_do_ciclo_anterior))
+    init_db(engine)
+    init_db(engine)
+    try:
+        for tabela, colunas in COLUNAS_NOVAS.items():
+            nomes = [row[1] for row in sqlite3.connect(db_do_ciclo_anterior).execute(f"PRAGMA table_info({tabela})")]
+            assert len(nomes) == len(set(nomes))
+            assert set(colunas) <= set(nomes)
+        with make_session_factory(engine)() as db:
+            assert db.query(Study).count() == 1 and db.query(StudyChapter).count() == 1
+    finally:
+        engine.dispose()
+
+
+def test_migracao_grava_a_arvore_do_capitulo_antigo_na_primeira_leitura(db_do_ciclo_anterior):
+    """Capítulo importado antes do editor: `ensure_tree` monta a árvore a
+    partir do PGN guardado e a grava."""
+    from chess_trainer.core.studies.service import ensure_tree
+
+    engine = make_engine(str(db_do_ciclo_anterior))
+    init_db(engine)
+    try:
+        with make_session_factory(engine)() as db:
+            capitulo = db.get(StudyChapter, "c1")
+            tree = ensure_tree(capitulo)
+            db.commit()
+            assert [n["san"] for n in tree["root"]["children"]] == ["e4"]
+            assert db.get(StudyChapter, "c1").tree_json
+    finally:
+        engine.dispose()
