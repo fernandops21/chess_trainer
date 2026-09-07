@@ -11,7 +11,7 @@ from datetime import datetime
 import pytest
 
 from chess_trainer.core.db import init_db, make_engine, make_session_factory
-from chess_trainer.core.models import Puzzle, Study, StudyChapter
+from chess_trainer.core.models import Puzzle, Review, Study, StudyChapter
 
 OLD_SCHEMA = """
 CREATE TABLE games (
@@ -217,5 +217,133 @@ def test_banco_novo_tambem_passa_pela_migracao(tmp_path):
     init_db(engine)
     try:
         assert {"source", "in_queue"} <= _column_names(path)
+    finally:
+        engine.dispose()
+
+
+def _notnull(path, coluna: str) -> int:
+    conn = sqlite3.connect(path)
+    try:
+        return next(row[3] for row in conn.execute("PRAGMA table_info(puzzles)") if row[1] == coluna)
+    finally:
+        conn.close()
+
+
+def _ddl_puzzles(path) -> str:
+    """DDL de `puzzles` guardada no banco. O `ALTER TABLE ... RENAME TO` do
+    SQLite grava o nome novo entre aspas: só isso é normalizado."""
+    conn = sqlite3.connect(path)
+    try:
+        ddl = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='puzzles'").fetchone()[0]
+        return ddl.replace('CREATE TABLE "puzzles"', "CREATE TABLE puzzles", 1)
+    finally:
+        conn.close()
+
+
+def _backups(path) -> list:
+    return sorted(path.parent.glob(f"{path.name}.bak-*"))
+
+
+def _puzzle_de_fonte(**over) -> Puzzle:
+    base = dict(source="lichess", position_id=None, game_id=None, kind="punish", fen_start="fen-lichess",
+                side_to_move="white", solution="{}", end_reason="mate", theme="fork", category="lichess",
+                solver_moves=1)
+    base.update(over)
+    return Puzzle(**base)
+
+
+def test_migracao_aceita_puzzle_sem_partida_nem_posicao(old_db):
+    """O esquema antigo tinha `position_id`/`game_id` NOT NULL; sem a
+    reconstrução da tabela, um puzzle do Lichess não entra no banco migrado."""
+    engine = make_engine(str(old_db))
+    init_db(engine)
+    try:
+        assert _notnull(old_db, "position_id") == 0 and _notnull(old_db, "game_id") == 0
+        with make_session_factory(engine)() as db:
+            puzzle = _puzzle_de_fonte(external_id="abc")
+            db.add(puzzle)
+            db.commit()
+            gravado = db.get(Puzzle, puzzle.id)
+            assert gravado.position_id is None and gravado.game_id is None
+            assert gravado.source == "lichess" and gravado.in_queue is True
+    finally:
+        engine.dispose()
+
+
+def test_migracao_solta_a_restricao_antiga_de_fen_e_kind(old_db):
+    """A `UNIQUE(fen_start, kind)` do esquema antigo dava lugar à
+    `UNIQUE(fen_start, kind, source)`: mesma posição em fontes diferentes convive."""
+    engine = make_engine(str(old_db))
+    init_db(engine)
+    try:
+        with make_session_factory(engine)() as db:
+            db.add(_puzzle_de_fonte(fen_start="fen-do-puzzle", kind="punish", external_id="00sHx"))
+            db.commit()
+            assert db.query(Puzzle).filter_by(fen_start="fen-do-puzzle").count() == 2
+    finally:
+        engine.dispose()
+
+
+def test_migracao_preserva_puzzle_revisao_e_vinculo(old_db):
+    engine = make_engine(str(old_db))
+    init_db(engine)
+    try:
+        with make_session_factory(engine)() as db:
+            puzzle = db.get(Puzzle, PUZZLE_ID)
+            assert puzzle.fen_start == "fen-do-puzzle" and puzzle.position_id == "p1" and puzzle.game_id == "g1"
+            assert puzzle.srs_ease == 2.5 and puzzle.srs_interval_days == 3 and puzzle.srs_lapses == 1
+            assert puzzle.srs_due_at == datetime(2026, 9, 1)
+            revisao = db.get(Review, "r1")
+            assert revisao is not None and revisao.puzzle is puzzle
+            assert [r.id for r in puzzle.reviews] == ["r1"]
+            # a FK reviews → puzzles continua valendo depois da reconstrução
+            db.add(Review(id="r2", puzzle_id=PUZZLE_ID, result="correct", used_hint=False, duration_ms=900,
+                          reviewed_at=datetime(2026, 9, 2), ease=2.6, interval_days=6,
+                          due_at=datetime(2026, 9, 8), lapses=1))
+            db.commit()
+            assert db.query(Review).count() == 2
+    finally:
+        engine.dispose()
+
+
+def test_migracao_deixa_o_esquema_igual_ao_de_um_banco_novo(old_db, tmp_path):
+    engine = make_engine(str(old_db))
+    init_db(engine)
+    novo = tmp_path / "novo.db"
+    engine_novo = make_engine(str(novo))
+    init_db(engine_novo)
+    try:
+        assert _ddl_puzzles(old_db) == _ddl_puzzles(novo)
+    finally:
+        engine.dispose()
+        engine_novo.dispose()
+
+
+def test_migracao_copia_o_banco_antes_de_reconstruir_uma_vez_so(old_db):
+    engine = make_engine(str(old_db))
+    init_db(engine)
+    try:
+        copias = _backups(old_db)
+        assert len(copias) == 1
+        # a cópia é do esquema anterior: tem o puzzle e ainda o NOT NULL
+        assert _notnull(copias[0], "position_id") == 1
+        conn = sqlite3.connect(copias[0])
+        assert conn.execute("SELECT count(*) FROM puzzles").fetchone()[0] == 1
+        conn.close()
+        # segunda passada não reconstrói nem copia de novo
+        copias[0].unlink()
+        init_db(engine)
+        assert _backups(old_db) == []
+    finally:
+        engine.dispose()
+
+
+def test_banco_novo_nao_e_reconstruido_nem_copiado(tmp_path):
+    path = tmp_path / "novo.db"
+    engine = make_engine(str(path))
+    init_db(engine)
+    init_db(engine)
+    try:
+        assert _backups(path) == []
     finally:
         engine.dispose()

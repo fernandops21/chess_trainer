@@ -1,8 +1,12 @@
 import json
 from datetime import datetime
 
+import pytest
+from sqlalchemy.exc import IntegrityError
+
 from chess_trainer.core.models import Game, Position, Puzzle, Review, TrainingSession, utcnow
 from chess_trainer.core.models import LichessPuzzle, LichessPuzzleTheme, TacticsAttempt
+from chess_trainer.core.models import Study, StudyChapter
 
 
 def _game(**over):
@@ -62,8 +66,6 @@ def test_position_puzzle_review_chain(db_session):
 
 
 def test_puzzle_unique_fen_kind(db_session):
-    import pytest
-    from sqlalchemy.exc import IntegrityError
     game = _game()
     db_session.add(game)
     for _ in range(2):
@@ -119,8 +121,6 @@ def test_puzzle_defaults_de_fonte(db_session):
 
 
 def test_puzzle_unique_fen_kind_source(db_session):
-    import pytest
-    from sqlalchemy.exc import IntegrityError
     # mesma fen e kind em fontes diferentes convivem
     db_session.add(_puzzle_solto(fen_start="mesma", source="own"))
     db_session.add(_puzzle_solto(fen_start="mesma", source="lichess"))
@@ -131,8 +131,6 @@ def test_puzzle_unique_fen_kind_source(db_session):
 
 
 def test_puzzle_external_id_unico_mas_aceita_varios_nulos(db_session):
-    import pytest
-    from sqlalchemy.exc import IntegrityError
     db_session.add(_puzzle_solto(fen_start="a"))
     db_session.add(_puzzle_solto(fen_start="b"))
     db_session.commit()  # dois external_id nulos convivem
@@ -143,7 +141,6 @@ def test_puzzle_external_id_unico_mas_aceita_varios_nulos(db_session):
 
 
 def test_study_com_capitulos_em_ordem_e_cascade(db_session):
-    from chess_trainer.core.models import Study, StudyChapter
     estudo = Study(title="Aulas", author="basso", source_url="https://lichess.org/study/4JKVAfaE",
                    lichess_id="4JKVAfaE")
     db_session.add(estudo)

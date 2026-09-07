@@ -1,10 +1,13 @@
+import shutil
+from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+from sqlalchemy.schema import CreateIndex, CreateTable
 
-from chess_trainer.core.models import Base
+from chess_trainer.core.models import Base, Puzzle
 
 
 def make_engine(db_path: str | None) -> Engine:
@@ -48,10 +51,9 @@ _NEW_PUZZLE_COLUMNS: tuple[tuple[str, str], ...] = (
     ("last_move", "VARCHAR(6)"),
 )
 
-# Índices de `puzzles` que o `create_all` não cria em banco antigo (a tabela já
-# existe). O SQLite não remove a restrição única antiga `(fen_start, kind)`
-# declarada dentro do CREATE TABLE; ela fica e não atrapalha, porque puzzles
-# `lichess`/`study` não disputam posição com os erros das partidas do usuário.
+# Índices de `puzzles` que não saem de um `CREATE INDEX` do metadata: o
+# `uq_puzzle_fen_kind_source` acompanha a `UniqueConstraint` declarada dentro do
+# `CREATE TABLE`, e num banco antigo a tabela já existe quando o `create_all` roda.
 _PUZZLE_INDEXES: tuple[str, ...] = (
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_puzzle_fen_kind_source ON puzzles (fen_start, kind, source)",
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_puzzle_external_id ON puzzles (external_id)",
@@ -60,18 +62,88 @@ _PUZZLE_INDEXES: tuple[str, ...] = (
     "CREATE INDEX IF NOT EXISTS ix_puzzles_chapter_id ON puzzles (chapter_id)",
 )
 
+# Colunas cujo NOT NULL do esquema antigo impede um puzzle de fonte externa
+# (Lichess ou estudo), que não tem partida nem posição de origem.
+_PUZZLE_COLUMNS_NULLABLE_AGORA: tuple[str, ...] = ("position_id", "game_id")
+
+
+def _puzzles_no_esquema_antigo(engine: Engine) -> bool:
+    """A tabela `puzzles` ainda exige `position_id`/`game_id`? O SQLite não tira
+    um NOT NULL (nem a única antiga `(fen_start, kind)`) por ALTER TABLE."""
+    with engine.connect() as conn:
+        return any(
+            row[1] in _PUZZLE_COLUMNS_NULLABLE_AGORA and row[3] == 1
+            for row in conn.exec_driver_sql("PRAGMA table_info(puzzles)")
+        )
+
+
+def _copia_de_seguranca(engine: Engine) -> None:
+    """Cópia do arquivo do banco antes de mexer na estrutura de `puzzles`.
+    Banco em memória não tem arquivo e é ignorado."""
+    caminho = engine.url.database
+    if not caminho or caminho == ":memory:":
+        return
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+        # sem o checkpoint, o que estiver no WAL ficaria de fora da cópia
+        conn.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
+    origem = Path(caminho)
+    destino = origem.with_name(f"{origem.name}.bak-{datetime.now().strftime('%Y%m%d-%H%M%S')}")
+    shutil.copy2(origem, destino)
+
+
+def _reconstruir_puzzles(engine: Engine) -> None:
+    """Refaz `puzzles` no esquema atual pelo procedimento que o SQLite documenta
+    para mudanças que o ALTER TABLE não alcança: cria a tabela nova a partir do
+    metadata, copia todas as linhas, apaga a antiga e renomeia. As colunas novas
+    ficam com o padrão; nenhum puzzle e nenhuma revisão se perde."""
+    ddl_tabela = str(CreateTable(Puzzle.__table__).compile(engine))
+    ddl_tabela = ddl_tabela.replace("CREATE TABLE puzzles ", "CREATE TABLE puzzles_new ", 1)
+    ddl_indices = [str(CreateIndex(indice).compile(engine)).strip() for indice in Puzzle.__table__.indexes]
+
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+        antigas = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(puzzles)")}
+        comuns = ", ".join(coluna.name for coluna in Puzzle.__table__.columns if coluna.name in antigas)
+        # o PRAGMA é ignorado dentro de uma transação: daí o modo autocommit
+        conn.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        conn.exec_driver_sql("BEGIN")
+        try:
+            conn.exec_driver_sql(ddl_tabela)
+            conn.exec_driver_sql(f"INSERT INTO puzzles_new ({comuns}) SELECT {comuns} FROM puzzles")
+            conn.exec_driver_sql("DROP TABLE puzzles")
+            conn.exec_driver_sql("ALTER TABLE puzzles_new RENAME TO puzzles")
+            for ddl in ddl_indices:
+                conn.exec_driver_sql(ddl)
+            # `reviews.puzzle_id` e `study_chapters.puzzle_id` apontam para o nome
+            # `puzzles`, que o rename devolve; o check confirma antes do commit
+            quebradas = list(conn.exec_driver_sql("PRAGMA foreign_key_check"))
+            if quebradas:
+                raise RuntimeError(f"migração de `puzzles`: {len(quebradas)} referência(s) quebrada(s)")
+            conn.exec_driver_sql("COMMIT")
+        except Exception:
+            conn.exec_driver_sql("ROLLBACK")
+            raise
+        finally:
+            conn.exec_driver_sql("PRAGMA foreign_keys=ON")
+
 
 def migrate(engine: Engine) -> None:
-    """Acrescenta a bancos antigos o que o `create_all` não alcança. Só adiciona
-    colunas e índices: nenhum puzzle ou histórico é apagado ou reescrito.
+    """Acrescenta a bancos antigos o que o `create_all` não alcança: colunas,
+    índices e o esquema atual de `puzzles`. Nenhum puzzle ou histórico é apagado.
     Idempotente — rodar de novo (ou num banco criado do zero) não faz nada."""
     with engine.begin() as conn:
+        # chamada solta (fora do `init_db`) num banco ainda sem tabelas: nada a fazer
         existing = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(puzzles)")}
-        if not existing:  # banco sem a tabela: o create_all já deu conta
+        if not existing:
             return
         for name, ddl in _NEW_PUZZLE_COLUMNS:
             if name not in existing:
                 conn.exec_driver_sql(f"ALTER TABLE puzzles ADD COLUMN {name} {ddl}")
+
+    if _puzzles_no_esquema_antigo(engine):
+        _copia_de_seguranca(engine)
+        _reconstruir_puzzles(engine)
+
+    with engine.begin() as conn:
         for statement in _PUZZLE_INDEXES:
             conn.exec_driver_sql(statement)
 
