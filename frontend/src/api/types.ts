@@ -36,6 +36,8 @@ export interface Settings {
   lichess_min_popularity: number;
   /** Classificar automaticamente os lances na Análise (usa a engine). */
   classify_moves: boolean;
+  /** Ao errar no treino, mostra a réplica da engine e a queda de avaliação. */
+  refute_wrong_moves: boolean;
   /** Só diz se há um token do Lichess guardado: o valor nunca sai da API. */
   lichess_token_set: boolean;
 }

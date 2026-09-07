@@ -69,6 +69,8 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDis
   const [verErro, setVerErro] = useState(false);
   const comErro = !tactic && puzzle.source === "own" && !!puzzle.mistake && !!puzzle.game ? puzzle : null;
   const playable = state.phase === "awaiting_move";
+  // com o lance errado no tabuleiro a dica dá lugar ao "Tentar de novo"
+  const refutando = state.phase === "refuting" || state.phase === "refuted";
   // enunciado do capítulo do estudo (comentário do autor antes do primeiro lance)
   const intro = !tactic && puzzle.source === "study" ? puzzle.solution.intro : undefined;
   // setas e casas do autor do estudo: só na posição inicial, como dica visual dele
@@ -106,9 +108,13 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDis
         {intro && <p style={{ fontWeight: 600, marginBottom: 0 }}>{intro}</p>}
         <div className={`msg ${state.message.tone}`} aria-live="polite">{state.message.text}</div>
         <div className="row" style={{ marginTop: 10 }}>
-          <button onClick={ctl.useHint} disabled={!playable} aria-label="Dica">
-            {state.hintStage === 1 ? "Jogar o lance" : "Mostrar peça"}
-          </button>
+          {refutando ? (
+            <button onClick={ctl.retryMove} aria-label="Tentar de novo">Tentar de novo</button>
+          ) : (
+            <button onClick={ctl.useHint} disabled={!playable} aria-label="Dica">
+              {state.hintStage === 1 ? "Jogar o lance" : "Mostrar peça"}
+            </button>
+          )}
           {onSkip && <button onClick={onSkip} disabled={skipDisabled} aria-label="Pular">Pular</button>}
           {comErro && (
             <button onClick={() => setVerErro((v) => !v)} aria-expanded={verErro}>

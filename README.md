@@ -193,6 +193,16 @@ No Painel, **Revisar (N)** abre a repetição espaçada com os N vencidos e **Fa
 estreia dos seus erros. `?mode=review|new|study` e `?study=<id>` no endereço já chegam com a escolha
 feita, e a última escolha fica guardada para a próxima sessão.
 
+### Refutação do lance errado
+
+Ao jogar um lance que não é a solução, o lance entra no tabuleiro, a engine responde com a melhor
+réplica e o app explica por que não serve: `h3? Qg2 — avaliação cai de +9.00 para -5.00` (com a
+continuação e, nos estudos, o comentário do autor para aquele lance errado). O botão **Tentar de
+novo** desfaz tudo e devolve a posição do exercício. A tentativa continua contando como erro.
+
+Ligue ou desligue em **Configurações → Refutar o lance errado com a engine** (ligado por padrão).
+Desligada — ou sem Stockfish disponível — a tentativa é só recusada, como antes.
+
 ## Fontes de exercício
 
 A repetição espaçada mistura três fontes: **seus erros** (das partidas importadas do chess.com),

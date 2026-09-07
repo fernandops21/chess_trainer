@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 import type { Key } from "chessground/types";
-import type { ReviewIn, ReviewOut, Trainable } from "../api/types";
+import { api } from "../api/client";
+import type { AnalyseOut, ReviewIn, ReviewOut, Trainable } from "../api/types";
 import { destsFrom } from "../board/dests";
 import { uciToMove } from "../board/line";
+import { formatEval } from "../lib/format";
 import { play, sanSound } from "../lib/sound";
 
 /** O mínimo que a máquina de estados precisa: serve tanto para `PuzzleOut` quanto para `TacticOut`.
@@ -14,8 +16,45 @@ export type PuzzleInput = Pick<Trainable, "id" | "fen_start" | "solution"> & {
   last_move?: string | null;
 };
 
-export type Phase = "intro" | "awaiting_move" | "engine_replying" | "solved" | "submitting" | "result" | "submit_error";
+export type Phase = "intro" | "awaiting_move" | "engine_replying" | "refuting" | "refuted" | "solved" | "submitting" | "result" | "submit_error";
 export type Promotion = "q" | "r" | "b" | "n";
+
+/** Por que o lance errado não serve: a réplica da engine e a queda de avaliação. */
+export interface Refutation {
+  /** SAN do lance errado que o usuário jogou. */
+  wrongSan: string;
+  /** SAN da melhor réplica da engine; ausente quando o lance errado já terminou a partida. */
+  replySan?: string;
+  /** Avaliação depois da réplica, em centipeões do ponto de vista de quem resolve. */
+  evalAfter?: number;
+  /** Avaliação de antes do lance errado; chega depois, pela segunda análise. */
+  evalBefore?: number;
+  /** Continuação depois da réplica, em SAN. */
+  pvSan: string[];
+  /** Comentário do autor do estudo para este lance errado, quando houver. */
+  authored?: string;
+  /** Fim de partida provocado pelo lance errado ("checkmate", "stalemate", "draw"). */
+  terminal?: string;
+}
+
+const TERMINAL_TEXT: Record<string, string> = {
+  checkmate: "é mate, mas não é a solução do exercício",
+  stalemate: "afoga o rei: empate",
+  draw: "é empate",
+};
+
+/** Texto da mensagem da refutação, montado do que já se sabe (a avaliação de antes pode faltar). */
+export function refutationMessage(r: Refutation): string {
+  if (r.terminal) return `${r.wrongSan}? — ${TERMINAL_TEXT[r.terminal] ?? "termina a partida"}`;
+  const cabeca = r.replySan ? `${r.wrongSan}? ${r.replySan}` : `${r.wrongSan}?`;
+  const avaliacao = r.evalAfter == null ? ""
+    : r.evalBefore != null
+      ? ` — avaliação cai de ${formatEval(r.evalBefore)} para ${formatEval(r.evalAfter)}`
+      : ` — avaliação ${formatEval(r.evalAfter)}`;
+  const segue = r.pvSan.length ? ` · segue ${r.pvSan.join(" ")}` : "";
+  const autor = r.authored ? ` — ${r.authored}` : "";
+  return `${cabeca}${avaliacao}${segue}${autor}`;
+}
 
 export interface PuzzleState<R = ReviewOut> {
   phase: Phase;
@@ -32,6 +71,8 @@ export interface PuzzleState<R = ReviewOut> {
   check: boolean;
   hint?: Key;
   pendingPromotion?: { orig: Key; dest: Key };
+  /** Só nas fases `refuting`/`refuted`: o que a engine respondeu ao lance errado. */
+  refutation?: Refutation;
   review?: R;
   error?: unknown;
 }
@@ -44,6 +85,10 @@ export interface UsePuzzleOptions<R = ReviewOut> {
   introDelayMs?: number;
   submit: (body: ReviewIn) => Promise<R>;
   now?: () => number;
+  /** Ligada, ao errar o lance entra no tabuleiro e a engine mostra a refutação (padrão desligada). */
+  refute?: boolean;
+  /** Injetável para os testes; por padrão a análise de verdade da API. */
+  analyse?: (fen: string, multipv?: number) => Promise<AnalyseOut>;
 }
 
 const turnOf = (c: Chess) => (c.turn() === "w" ? "white" : "black") as "white" | "black";
@@ -99,8 +144,24 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
   // `finally`), so a rapid double call to `retrySubmit()` cannot fire a
   // second request while the first is still in flight.
   const submittingRef = useRef(false);
+  // O `lastMove` de antes do lance errado, para o "Tentar de novo" (e o fallback
+  // de engine indisponível) devolverem o tabuleiro exatamente como estava.
+  const lastMoveRef = useRef(state.lastMove);
+  lastMoveRef.current = state.lastMove;
+  const antesRef = useRef<[Key, Key] | undefined>(undefined);
+  // Token da tentativa de refutação: uma resposta atrasada de uma tentativa
+  // anterior (outro lance errado, ou depois do "Tentar de novo") é ignorada.
+  const tentativaRef = useRef(0);
+  // A avaliação de antes do lance errado pode chegar antes da réplica: fica aqui
+  // até a refutação existir para recebê-la.
+  const evalBeforeRef = useRef<{ tentativa: number; valor: number } | null>(null);
+  // Falso depois de desmontar: nenhuma resposta da engine mexe no estado então.
+  const aliveRef = useRef(true);
 
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  useEffect(() => {
+    aliveRef.current = true;
+    return () => { aliveRef.current = false; if (timer.current) clearTimeout(timer.current); };
+  }, []);
 
   // O relógio do puzzle (`startedAt`) só começa depois da introdução: o tempo
   // de ver o lance do adversário não conta como tempo de resolução.
@@ -208,6 +269,90 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [puzzle.solution.moves, opts.engineDelayMs, finish, okMessage]);
 
+  // Lance errado sem refutação (opção desligada, engine indisponível ou lance
+  // ilegal): o lance é só recusado e o tabuleiro nem chega a mudar. Com
+  // `voltar`, desfaz também o que a refutação já tinha posto na tela.
+  const recusar = useCallback((authored?: string, voltar = false) => {
+    setState((p) => ({
+      ...p,
+      ...(voltar
+        ? {
+          phase: "awaiting_move" as Phase, fen: chessRef.current.fen(), turn: turnOf(chessRef.current),
+          check: chessRef.current.inCheck(), lastMove: antesRef.current, hintStage: 0 as const,
+          hint: undefined, refutation: undefined,
+        }
+        : null),
+      wrong: true, pendingPromotion: undefined,
+      message: { text: authored ?? "Não é esse. Tente de novo.", tone: "bad" as const },
+    }));
+  }, []);
+
+  // Refutação: o lance errado entra numa cópia da posição (o `chessRef` do
+  // exercício nunca o recebe), a engine responde e a mensagem explica a queda.
+  const refutar = useCallback((uci: string, authored?: string) => {
+    const fenAntes = chessRef.current.fen();
+    const copia = new Chess(fenAntes);
+    let mv: ReturnType<Chess["move"]>;
+    try {
+      mv = copia.move(uciToMove(uci));
+    } catch {
+      recusar(authored);
+      return;
+    }
+    const wrongSan = mv.san;
+    const fenDepois = copia.fen();
+    antesRef.current = lastMoveRef.current;
+    const tentativa = ++tentativaRef.current;
+    setState((p) => ({
+      ...p, phase: "refuting", wrong: true, hintStage: 0, hint: undefined, pendingPromotion: undefined,
+      fen: fenDepois, turn: turnOf(copia), check: copia.inCheck(), lastMove: [mv.from as Key, mv.to as Key],
+      refutation: undefined, message: { text: `${wrongSan}? Vendo a resposta…`, tone: "bad" },
+    }));
+
+    const analyse = opts.analyse ?? api.analyse;
+    const vale = () => aliveRef.current && tentativaRef.current === tentativa;
+
+    // A avaliação de antes só serve para a frase "cai de X para Y": se ela
+    // falhar ou demorar, a mensagem sai com a avaliação de agora e pronto.
+    void analyse(fenAntes, 1).then((out) => {
+      const linha = out.lines?.[0];
+      if (!linha || !vale()) return;
+      evalBeforeRef.current = { tentativa, valor: linha.score };
+      setState((p) => {
+        if (!p.refutation || (p.phase !== "refuting" && p.phase !== "refuted")) return p;
+        const r: Refutation = { ...p.refutation, evalBefore: linha.score };
+        return { ...p, refutation: r, message: { text: refutationMessage(r), tone: "bad" } };
+      });
+    }, () => { /* sem a avaliação de antes a mensagem continua servindo */ });
+
+    void analyse(fenDepois, 1).then((out) => {
+      if (!vale()) return;
+      const evalBefore = evalBeforeRef.current?.tentativa === tentativa ? evalBeforeRef.current.valor : undefined;
+      if (out.terminal) {
+        // o lance errado terminou a partida: não há réplica para mostrar
+        const r: Refutation = { wrongSan, pvSan: [], authored, terminal: out.terminal, evalBefore };
+        setState((p) => ({ ...p, phase: "refuted", refutation: r, message: { text: refutationMessage(r), tone: "bad" } }));
+        return;
+      }
+      const linha = out.lines?.[0];
+      let resposta: ReturnType<Chess["move"]> | null = null;
+      if (linha) {
+        try { resposta = copia.move(uciToMove(linha.move)); } catch { resposta = null; }
+      }
+      if (!linha || !resposta) { recusar(authored, true); return; }
+      const rep = resposta;
+      play(sanSound(rep.san));
+      const r: Refutation = {
+        wrongSan, replySan: rep.san, evalAfter: -linha.score, evalBefore,
+        pvSan: (linha.pv_san ?? []).slice(1, 6), authored,
+      };
+      setState((p) => ({
+        ...p, phase: "refuted", refutation: r, fen: copia.fen(), turn: turnOf(copia), check: copia.inCheck(),
+        lastMove: [rep.from as Key, rep.to as Key], message: { text: refutationMessage(r), tone: "bad" },
+      }));
+    }, () => { if (vale()) recusar(authored, true); });
+  }, [opts.analyse, recusar]);
+
   const judge = useCallback((orig: Key, dest: Key, promotion?: Promotion) => {
     const expected = puzzle.solution.moves[state.idx];
     if (!expected || expected.by !== "solver") return;
@@ -217,12 +362,13 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
       // erro previsto pelo autor do estudo: a mensagem vira o comentário dele
       const authored = puzzle.solution.wrong_moves?.[uci];
       play("wrong");
-      setState((p) => ({ ...p, wrong: true, pendingPromotion: undefined, message: { text: authored ?? "Não é esse. Tente de novo.", tone: "bad" } }));
+      if (opts.refute) refutar(uci, authored);
+      else recusar(authored);
       return;
     }
     applySolverMove(uci);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [puzzle.solution.moves, puzzle.solution.wrong_moves, state.idx, applySolverMove]);
+  }, [puzzle.solution.moves, puzzle.solution.wrong_moves, state.idx, applySolverMove, opts.refute, refutar, recusar]);
 
   const tryMove = useCallback((orig: Key, dest: Key, promotion?: Promotion) => {
     if (state.phase !== "awaiting_move") return;
@@ -265,6 +411,20 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
     applySolverMove(expected.uci);
   }, [state.phase, state.idx, state.hintStage, puzzle.solution.moves, applySolverMove]);
 
+  // "Tentar de novo": volta à posição de antes do lance errado. Vale também
+  // enquanto a engine ainda pensa — a resposta que chegar depois é ignorada,
+  // porque o token da tentativa já mudou.
+  const retryMove = useCallback(() => {
+    if (state.phase !== "refuting" && state.phase !== "refuted") return;
+    tentativaRef.current++;
+    setState(snapshot({
+      phase: "awaiting_move", lastMove: antesRef.current, refutation: undefined,
+      hintStage: 0, hint: undefined, pendingPromotion: undefined,
+      message: { text: "Tente de novo.", tone: "bad" },
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.phase]);
+
   const retrySubmit = useCallback(() => {
     if (state.phase !== "submit_error" || submittingRef.current) return;
     void doSubmit(wrongRef.current, usedHintRef.current);
@@ -272,7 +432,7 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
 
   const dests = useMemo(() => (state.phase === "awaiting_move" ? destsFrom(chessRef.current) : new Map<Key, Key[]>()), [state.phase, state.fen]);
 
-  return { state, dests, tryMove, choosePromotion, cancelPromotion, useHint, retrySubmit };
+  return { state, dests, tryMove, choosePromotion, cancelPromotion, useHint, retryMove, retrySubmit };
 }
 
 /** Retorno de `usePuzzle`; use `PuzzleCtl<unknown>` para aceitar qualquer resultado de submit. */

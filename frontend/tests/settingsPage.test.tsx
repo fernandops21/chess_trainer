@@ -10,7 +10,7 @@ const SETTINGS: Settings = {
   mistake_threshold_cp: 100, blunder_threshold_cp: 200, avoid_gap_cp: 150, new_per_day: 10, new_order: "random", leech_lapses: 5,
   analysis_seconds: 15, puzzle_search_seconds: 20, puzzle_reply_seconds: 10,
   tactics_rating: 1200, tactics_window: 150, lichess_min_plays: 2000, lichess_min_popularity: 90,
-  classify_moves: true, lichess_token_set: false,
+  classify_moves: true, refute_wrong_moves: true, lichess_token_set: false,
 };
 
 const STATUS: StatusOut = {
@@ -128,6 +128,18 @@ test("a caixa de classificar lances vem do servidor e vai no salvamento", async 
   fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
   await waitFor(() => expect(api.saveSettings).toHaveBeenCalled());
   expect(vi.mocked(api.saveSettings).mock.calls[0][0].classify_moves).toBe(false);
+});
+
+test("a caixa de refutar o lance errado vem do servidor e vai no salvamento", async () => {
+  renderPage();
+  const caixa = (await screen.findByLabelText("Refutar o lance errado com a engine")) as HTMLInputElement;
+  expect(caixa.type).toBe("checkbox");
+  expect(caixa.checked).toBe(true);
+  fireEvent.click(caixa);
+  expect(caixa.checked).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+  await waitFor(() => expect(api.saveSettings).toHaveBeenCalled());
+  expect(vi.mocked(api.saveSettings).mock.calls[0][0].refute_wrong_moves).toBe(false);
 });
 
 test("a ordem dos novos aparece e vai no salvamento", async () => {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
-import { usePuzzleQuery, useStudy } from "../api/queries";
+import { usePuzzleQuery, useSettings, useStudy } from "../api/queries";
 import type { PuzzleOut, QueueOut, ReviewIn, SessionOut } from "../api/types";
 import { ErrorBox } from "../components/ErrorBox";
 import { Modal } from "../components/Modal";
@@ -26,7 +26,9 @@ function SessionPuzzle({ puzzle, sessionId, clockLabel, orderInfo, onDone, prese
     void qc.invalidateQueries({ queryKey: ["queue"] });
     return out;
   }, [qc]);
-  const ctl = usePuzzle(puzzle, { sessionId, submit, presetHint });
+  // enquanto as configurações não chegam, a refutação fica ligada (é o padrão)
+  const { data: settings } = useSettings();
+  const ctl = usePuzzle(puzzle, { sessionId, submit, presetHint, refute: settings?.refute_wrong_moves ?? true });
   const { state } = ctl;
   if (state.phase === "result" || state.phase === "submit_error" || state.phase === "submitting") {
     return <ResultPanel puzzle={puzzle} review={state.review} error={state.error} onRetry={ctl.retrySubmit}

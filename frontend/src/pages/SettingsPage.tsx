@@ -96,6 +96,18 @@ export function SettingsPage() {
           Cada lance do caminho aberto na Análise ganha um selo (melhor, imprecisão, erro…). Desligado, a engine
           só analisa a posição na tela.
         </div>
+        <label className="row" style={{ justifyContent: "space-between" }}>
+          Refutar o lance errado com a engine
+          <input
+            type="checkbox"
+            checked={form.refute_wrong_moves}
+            onChange={(e) => setForm({ ...form, refute_wrong_moves: e.target.checked })}
+          />
+        </label>
+        <div className="muted">
+          Ao errar, o lance entra no tabuleiro, a engine responde e o app mostra a queda de avaliação. Desligado,
+          o lance é só recusado.
+        </div>
       </div>
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Erros e treino</h3>

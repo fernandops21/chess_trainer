@@ -70,7 +70,7 @@ const SETTINGS: Settings = {
   mistake_threshold_cp: 100, blunder_threshold_cp: 200, avoid_gap_cp: 150, new_per_day: 10, new_order: "random", leech_lapses: 5,
   analysis_seconds: 15, puzzle_search_seconds: 20, puzzle_reply_seconds: 10,
   tactics_rating: 1200, tactics_window: 150, lichess_min_plays: 2000, lichess_min_popularity: 90,
-  classify_moves: false, lichess_token_set: false,
+  classify_moves: false, refute_wrong_moves: true, lichess_token_set: false,
 };
 
 beforeEach(() => {

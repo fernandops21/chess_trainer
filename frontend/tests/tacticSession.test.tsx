@@ -98,6 +98,7 @@ function renderSession() {
 
 beforeEach(() => {
   vi.spyOn(api, "tacticsStatus").mockResolvedValue(status);
+  vi.spyOn(api, "settings").mockResolvedValue({ refute_wrong_moves: true } as never);
   vi.spyOn(api, "createSession").mockResolvedValue(session);
   vi.spyOn(api, "endSession").mockResolvedValue({ ...session, ended_at: "2026-01-01T00:25:00Z" });
   vi.spyOn(api, "attempt").mockResolvedValue(attempt());

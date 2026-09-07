@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { expect, test, vi } from "vitest";
-import type { AttemptOut, PuzzleOut, TacticOut } from "../src/api/types";
+import type { AnalyseOut, AttemptOut, PuzzleOut, TacticOut } from "../src/api/types";
 import { PuzzleView } from "../src/train/PuzzleView";
 import { usePuzzle } from "../src/train/usePuzzle";
 
@@ -191,4 +191,43 @@ test("sem erro de partida não há botão 'Meu erro'", () => {
   unmount();
   comRotas(<TacticHost />);
   expect(screen.queryByRole("button", { name: /Meu erro/ })).toBeNull();
+});
+
+// --- refutação do lance errado ------------------------------------------
+
+// `h2h3` é legal e errado na posição de `own`; a engine dublê responde `Qg2`.
+const FEN_ERRO = "4k3/8/8/3q4/8/2N4P/8/4K3 b - - 0 1";
+const analiseOut = (fen: string, move: string, san: string, score: number): AnalyseOut =>
+  ({ fen, turn: fen.split(" ")[1] === "b" ? "black" : "white", terminal: null, lines: [{ move, san, score, pv: [move], pv_san: [san] }] });
+const engine = async (fen: string) => (fen === own.fen_start
+  ? analiseOut(fen, "c3d5", "Nxd5", 900)
+  : analiseOut(FEN_ERRO, "d5g2", "Qg2", 500));
+
+function RefutaHost({ retry }: { retry?: () => void }) {
+  const ctl = usePuzzle(own, { sessionId: null, submit: async () => ({}) as never, refute: true, analyse: engine });
+  return (
+    <>
+      <button onClick={() => ctl.tryMove("h2", "h3")}>errar</button>
+      <PuzzleView puzzle={own} ctl={retry ? { ...ctl, retryMove: retry } : ctl} onSkip={() => {}} />
+    </>
+  );
+}
+
+test("com o lance errado no tabuleiro a dica dá lugar ao 'Tentar de novo'", async () => {
+  render(<RefutaHost />);
+  expect(screen.getByRole("button", { name: "Dica" })).toBeTruthy();
+  fireEvent.click(screen.getByText("errar"));
+  expect(await screen.findByRole("button", { name: "Tentar de novo" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Dica" })).toBeNull();
+  // o "Pular" continua onde estava
+  expect(screen.getByRole("button", { name: "Pular" })).toBeTruthy();
+  expect(screen.getByText("h3? Qg2 — avaliação cai de +9.00 para -5.00")).toBeTruthy();
+});
+
+test("clicar em 'Tentar de novo' chama retryMove", async () => {
+  const retry = vi.fn();
+  render(<RefutaHost retry={retry} />);
+  fireEvent.click(screen.getByText("errar"));
+  fireEvent.click(await screen.findByRole("button", { name: "Tentar de novo" }));
+  expect(retry).toHaveBeenCalledTimes(1);
 });

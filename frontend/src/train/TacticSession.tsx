@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError, api } from "../api/client";
-import { useTacticsStatus } from "../api/queries";
+import { useSettings, useTacticsStatus } from "../api/queries";
 import type { AttemptOut, ReviewIn, SessionOut, TacticOut } from "../api/types";
 import { ErrorBox } from "../components/ErrorBox";
 import { Modal } from "../components/Modal";
@@ -37,7 +37,9 @@ function TacticPuzzle({ tactic, sessionId, clockLabel, orderInfo, onDone, nextDi
     void qc.invalidateQueries({ queryKey: ["stats"] });
     return out;
   }, [qc]);
-  const ctl = usePuzzle<AttemptOut>(tactic, { sessionId, submit });
+  // enquanto as configurações não chegam, a refutação fica ligada (é o padrão)
+  const { data: settings } = useSettings();
+  const ctl = usePuzzle<AttemptOut>(tactic, { sessionId, submit, refute: settings?.refute_wrong_moves ?? true });
   const { state } = ctl;
   if (state.phase === "result" || state.phase === "submit_error" || state.phase === "submitting") {
     return <TacticResultPanel tactic={tactic} attempt={state.review} durationMs={durationRef.current} error={state.error} onRetry={ctl.retrySubmit}
