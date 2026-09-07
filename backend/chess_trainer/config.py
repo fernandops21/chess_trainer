@@ -30,6 +30,8 @@ class AppSettings:
     lichess_min_popularity: int = 90
     # token pessoal do explorador de aberturas; fica só neste banco e nunca sai pela API
     lichess_token: str = ""
+    # classifica os lances (brilhante, erro, imprecisão etc.) durante a análise
+    classify_moves: bool = True
 
 
 def get_setting(db: Session, key: str, default: Any = None) -> Any:

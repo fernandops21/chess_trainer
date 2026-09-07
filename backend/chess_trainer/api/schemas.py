@@ -23,6 +23,7 @@ class SettingsOut(BaseModel):
     lichess_min_popularity: int
     # o valor do token nunca sai daqui: só se há um configurado
     lichess_token_set: bool
+    classify_moves: bool
 
 
 class SettingsIn(BaseModel):
@@ -47,6 +48,7 @@ class SettingsIn(BaseModel):
     lichess_min_popularity: int | None = Field(None, ge=-100, le=100)
     # ausente mantém o token guardado; string vazia apaga
     lichess_token: str | None = None
+    classify_moves: bool | None = None
 
 
 class GameOut(BaseModel):
