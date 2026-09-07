@@ -231,7 +231,6 @@ def get_chapter(study_id: str, chapter_id: str, db: Session = Depends(get_db)):
     dados = chapter_detail(chapter)
     # capítulo importado antes do editor ganha a árvore aqui, na primeira abertura
     db.commit()
-    dados["updated_at"] = chapter.updated_at
     return _chapter_response(dados)
 
 

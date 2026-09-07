@@ -496,6 +496,82 @@ def test_virar_leitura_tira_o_exercicio_da_fila_e_voltar_devolve(db_session):
     assert db_session.get(Puzzle, puzzle_id).in_queue is True
 
 
+def test_exercicio_tirado_da_fila_na_mao_continua_fora_ao_salvar_o_capitulo(db_session):
+    """Salvar um capítulo que já era gamebook não desfaz a saída da fila feita na
+    tela de treino (`POST /puzzles/{id}/queue`); só voltar de leitura devolve."""
+    study = estudo_local(db_session)
+    chapter = create_chapter(db_session, study, "Um", FEN_MATE)
+    save_chapter(db_session, chapter, "Um", "gamebook", "white", arvore_mate())
+    puzzle_id = chapter.puzzle_id
+    db_session.get(Puzzle, puzzle_id).in_queue = False
+    db_session.commit()
+
+    arvore = arvore_mate()
+    arvore["root"]["children"][0]["comment"] = "Mate no corredor!"
+    save_chapter(db_session, chapter, "Um", "gamebook", "white", arvore)
+
+    db_session.expire_all()
+    assert db_session.get(Puzzle, puzzle_id).in_queue is False
+
+
+def test_mudar_a_posicao_inicial_para_a_de_outro_capitulo_recusa(db_session):
+    study = estudo_local(db_session)
+    um = create_chapter(db_session, study, "Um", FEN_MATE)
+    save_chapter(db_session, um, "Um", "gamebook", "white", arvore_mate())
+    dois = create_chapter(db_session, study, "Dois", FEN_PEAO)
+    save_chapter(db_session, dois, "Dois", "gamebook", "white", arvore_linear(FEN_PEAO, LANCES_PEAO))
+    dois_id, puzzle_de_dois = dois.id, dois.puzzle_id
+
+    with pytest.raises(TreeInvalid) as exc:
+        save_chapter(db_session, dois, "Dois", "gamebook", "white", arvore_mate())
+
+    assert exc.value.errors == ["posição inicial já usada por outro capítulo"]
+    db_session.rollback()
+    db_session.expire_all()
+    # nada foi gravado: o exercício do capítulo continua o mesmo, na posição dele
+    assert db_session.get(StudyChapter, dois_id).puzzle_id == puzzle_de_dois
+    assert db_session.get(Puzzle, puzzle_de_dois).fen_start == FEN_PEAO
+
+
+def test_salvar_com_fen_que_nao_e_texto_recusa(db_session):
+    study = estudo_local(db_session)
+    chapter = create_chapter(db_session, study, "Um", FEN_MATE)
+    arvore = arvore_mate()
+    arvore["fen"] = 5
+
+    with pytest.raises(TreeInvalid) as exc:
+        save_chapter(db_session, chapter, "Um", "gamebook", "white", arvore)
+
+    assert any("FEN inválida" in erro for erro in exc.value.errors)
+
+
+def test_salvar_com_enunciado_que_nao_e_texto_recusa(db_session):
+    study = estudo_local(db_session)
+    chapter = create_chapter(db_session, study, "Um", FEN_MATE)
+    arvore = arvore_mate()
+    arvore["intro"] = 5
+
+    with pytest.raises(TreeInvalid) as exc:
+        save_chapter(db_session, chapter, "Um", "gamebook", "white", arvore)
+
+    assert any("enunciado" in erro for erro in exc.value.errors)
+
+
+def test_modo_e_orientacao_invalidos_recusam(db_session):
+    study = estudo_local(db_session)
+    chapter = create_chapter(db_session, study, "Um", FEN_MATE)
+
+    with pytest.raises(TreeInvalid) as modo:
+        save_chapter(db_session, chapter, "Um", "livro", "white", arvore_mate())
+    with pytest.raises(TreeInvalid) as orientacao:
+        save_chapter(db_session, chapter, "Um", "gamebook", "cima", arvore_mate())
+
+    assert modo.value.errors == ["modo inválido"]
+    assert orientacao.value.errors == ["orientação inválida"]
+    db_session.expire_all()
+    assert db_session.get(StudyChapter, chapter.id).mode == "read"
+
+
 def test_salvar_arvore_com_lance_ilegal_recusa_sem_gravar(db_session):
     study = estudo_local(db_session)
     chapter = create_chapter(db_session, study, "Um", FEN_MATE)
@@ -582,6 +658,18 @@ def test_atualizar_titulo_e_autor(db_session):
     db_session.expire_all()
     atualizado = db_session.get(Study, study.id)
     assert atualizado.title == "Novo" and atualizado.author == "outro"
+
+
+def test_atualizar_estudo_sem_campo_algum_nao_mexe_no_updated_at(db_session):
+    study = estudo_local(db_session, "Antigo", "alguém")
+    antes = study.updated_at
+
+    update_study(db_session, study)
+
+    db_session.expire_all()
+    atualizado = db_session.get(Study, study.id)
+    assert atualizado.updated_at == antes
+    assert atualizado.title == "Antigo" and atualizado.author == "alguém"
 
 
 def test_detalhe_do_capitulo_monta_a_arvore_de_capitulo_antigo(db_session):

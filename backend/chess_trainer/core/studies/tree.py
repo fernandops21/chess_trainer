@@ -245,7 +245,12 @@ def _shape_pgn(shape: dict) -> str | None:
 
 
 def _fen_of(tree: dict) -> str:
-    return (tree.get("fen") or "").strip() or chess.STARTING_FEN
+    """FEN da árvore, sem confiar no tipo: o JSON vem do editor e a FEN pode
+    chegar como número ou objeto. Quem valida é `validate_tree`; aqui só não se
+    levanta `AttributeError`."""
+    fen = tree.get("fen")
+    fen = fen.strip() if isinstance(fen, str) else ""
+    return fen or chess.STARTING_FEN
 
 
 def _children(node: dict) -> list[dict]:
@@ -266,6 +271,10 @@ def validate_tree(tree: dict) -> list[str]:
     uma mensagem em vez de uma `KeyError`/`AttributeError`."""
     if not isinstance(tree, dict):
         return ["a árvore não é um objeto"]
+    fen = tree.get("fen")
+    if fen is not None and not isinstance(fen, str):
+        # sem a posição inicial não dá para conferir lance nenhum
+        return ["FEN inválida: a posição inicial precisa ser texto"]
     try:
         board = chess.Board(_fen_of(tree))
     except ValueError as exc:
@@ -286,7 +295,7 @@ def validate_tree(tree: dict) -> list[str]:
     if "}" in intro:
         erros.append("o enunciado não pode conter '}'")
 
-    erros.extend(_validar_marcacoes(root.get("shapes"), "raiz"))
+    erros.extend(_validar_marcacoes(root.get("shapes"), "na posição inicial"))
 
     total = count_nodes(tree)
     if total > MAX_NOS:
@@ -312,7 +321,7 @@ def validate_tree(tree: dict) -> list[str]:
         if "}" in comentario:
             erros.append(f"comentário do nó {node_id} não pode conter '}}'")
 
-        erros.extend(_validar_marcacoes(node.get("shapes"), node_id))
+        erros.extend(_validar_marcacoes(node.get("shapes"), f"no nó {node_id}"))
 
         nags = node.get("nags")
         if nags is not None and (
@@ -346,26 +355,26 @@ def validate_tree(tree: dict) -> list[str]:
     return erros[:MAX_ERROS]
 
 
-def _validar_marcacoes(shapes, label: str) -> list[str]:
-    """Erros das marcações (`shapes`) de um nó ou da raiz: pincel conhecido e
-    casas válidas. `label` identifica o dono nas mensagens (`"raiz"` ou o
-    `id` do nó, por exemplo `"n2"`)."""
+def _validar_marcacoes(shapes, onde: str) -> list[str]:
+    """Erros das marcações (`shapes`) de um nó ou da posição inicial: pincel
+    conhecido e casas válidas. `onde` já vem escrito como aparece na mensagem
+    (`"na posição inicial"` ou `"no nó n2"`) — o usuário não conhece "raiz"."""
     if shapes is None:
         return []
     if not isinstance(shapes, list):
-        return [f"marcações inválidas no nó {label}"]
+        return [f"marcações inválidas {onde}"]
     erros: list[str] = []
     for shape in shapes:
         if not isinstance(shape, dict):
-            erros.append(f"marcação inválida no nó {label}")
+            erros.append(f"marcação inválida {onde}")
             continue
         brush = shape.get("brush")
         if brush not in BRUSHES:
-            erros.append(f'marcação com pincel desconhecido "{brush}" no nó {label}')
+            erros.append(f'marcação com pincel desconhecido "{brush}" {onde}')
         orig = shape.get("orig")
         dest = shape.get("dest")
         if orig not in chess.SQUARE_NAMES or (dest is not None and dest not in chess.SQUARE_NAMES):
-            erros.append(f"casa inválida na marcação do nó {label}")
+            erros.append(f"marcação com casa inválida {onde}")
     return erros
 
 

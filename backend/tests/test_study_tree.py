@@ -306,18 +306,18 @@ def test_validate_tree_acusa_filhos_com_tipo_errado():
     assert erros and "n1" in erros[0]
 
 
-def test_validate_tree_acusa_marcacao_invalida_na_raiz():
+def test_validate_tree_acusa_marcacao_invalida_na_posicao_inicial():
     tree = empty_tree(chess.STARTING_FEN, "white")
     tree["root"]["shapes"] = [{"orig": "e2", "dest": "e4", "brush": "roxo"}]
     erros = validate_tree(tree)
-    assert erros and "roxo" in erros[0] and "raiz" in erros[0]
+    assert erros and "roxo" in erros[0] and "na posição inicial" in erros[0]
 
 
-def test_validate_tree_acusa_casa_invalida_na_marcacao_da_raiz():
+def test_validate_tree_acusa_casa_invalida_na_marcacao_da_posicao_inicial():
     tree = empty_tree(chess.STARTING_FEN, "white")
     tree["root"]["shapes"] = [{"orig": "z9", "brush": "green"}]
     erros = validate_tree(tree)
-    assert erros and "casa inválida" in erros[0] and "raiz" in erros[0]
+    assert erros and "casa inválida" in erros[0] and "na posição inicial" in erros[0]
 
 
 def test_validate_tree_acusa_casa_invalida_na_marcacao_do_no():
@@ -339,6 +339,24 @@ def test_validate_tree_acusa_comentario_com_chave_de_fechamento():
     tree["root"]["children"][0]["comment"] = "nota } estranha"
     erros = validate_tree(tree)
     assert erros and "n1" in erros[0] and "}" in erros[0]
+
+
+def test_validate_tree_acusa_fen_que_nao_e_texto():
+    # o JSON vem do editor: uma FEN que não é texto tem de virar mensagem, não exceção
+    erros = validate_tree({"fen": 5, "root": {"shapes": [], "children": []}})
+    assert erros and "FEN inválida" in erros[0]
+
+
+def test_validate_tree_acusa_enunciado_que_nao_e_texto():
+    tree = empty_tree(chess.STARTING_FEN, "white")
+    tree["intro"] = 5
+    erros = validate_tree(tree)
+    assert erros and "enunciado" in erros[0]
+
+
+def test_tree_to_game_nao_estoura_com_fen_que_nao_e_texto():
+    game = tree_to_game({"fen": 5, "root": {"shapes": [], "children": []}}, {})
+    assert game.board().fen() == chess.STARTING_FEN
 
 
 def test_validate_tree_acusa_enunciado_com_chave_de_fechamento():

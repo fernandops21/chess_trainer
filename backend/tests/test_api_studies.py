@@ -5,10 +5,10 @@ from pathlib import Path
 import httpx
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from chess_trainer.api.app import create_app
-from chess_trainer.core.models import Puzzle
+from chess_trainer.core.models import Puzzle, Review, utcnow
 from tests.fakes import FakeEngine, first_legal_default
 
 FIXTURE = Path(__file__).parent / "fixtures" / "study_4JKVAfaE.pgn"
@@ -407,6 +407,62 @@ def test_salvar_arvore_com_lance_ilegal_422(client):
     # nada foi gravado: o capítulo continua com a árvore vazia
     atual = client.get(f"/api/studies/{estudo['id']}/chapters/{capitulo['id']}").json()
     assert atual["tree"]["root"]["children"] == []
+
+
+def test_mudar_a_posicao_inicial_para_a_de_outro_capitulo_422(client):
+    estudo = criar_estudo(client)
+    um = criar_capitulo(client, estudo["id"], name="Um", fen=FEN_MATE, mode="gamebook")
+    salvar_capitulo(client, estudo["id"], um["id"], ARVORE_MATE, name="Um")
+    dois = criar_capitulo(client, estudo["id"], name="Dois", fen=FEN_PEAO, mode="gamebook")
+    salvo = salvar_capitulo(client, estudo["id"], dois["id"], ARVORE_PEAO, name="Dois").json()
+    puzzle_de_dois = salvo["puzzle_id"]
+    with client.app.state.session_factory() as db:
+        db.add(Review(puzzle_id=puzzle_de_dois, reviewed_at=utcnow(), result="ok",
+                      ease=2.5, interval_days=1, due_at=utcnow(), lapses=0))
+        db.commit()
+
+    r = salvar_capitulo(client, estudo["id"], dois["id"], ARVORE_MATE, name="Dois")
+
+    assert r.status_code == 422, r.text
+    assert r.json()["detail"] == ["posição inicial já usada por outro capítulo"]
+    # a edição foi recusada inteira: o capítulo continua com a árvore e o exercício dele
+    atual = client.get(f"/api/studies/{estudo['id']}/chapters/{dois['id']}").json()
+    assert atual["puzzle_id"] == puzzle_de_dois and atual["tree"] == ARVORE_PEAO
+    with client.app.state.session_factory() as db:
+        assert db.get(Puzzle, puzzle_de_dois).fen_start == FEN_PEAO
+        assert db.scalar(select(func.count(Review.id))) == 1
+
+
+def test_salvar_com_fen_que_nao_e_texto_422(client):
+    estudo = criar_estudo(client)
+    capitulo = criar_capitulo(client, estudo["id"], name="Um", fen=FEN_MATE)
+
+    r = salvar_capitulo(client, estudo["id"], capitulo["id"], {**ARVORE_MATE, "fen": 5})
+
+    assert r.status_code == 422, r.text
+    assert any("FEN inválida" in erro for erro in r.json()["detail"])
+
+
+def test_salvar_com_modo_ou_orientacao_invalidos_422(client):
+    estudo = criar_estudo(client)
+    capitulo = criar_capitulo(client, estudo["id"], name="Um", fen=FEN_MATE)
+
+    modo = salvar_capitulo(client, estudo["id"], capitulo["id"], ARVORE_MATE, mode="livro")
+    orientacao = salvar_capitulo(client, estudo["id"], capitulo["id"], ARVORE_MATE, orientation="cima")
+
+    assert modo.status_code == 422 and modo.json()["detail"] == ["modo inválido"]
+    assert orientacao.status_code == 422
+    assert orientacao.json()["detail"] == ["orientação inválida"]
+
+
+def test_atualizar_o_estudo_sem_campo_algum_nao_mexe_no_updated_at(client):
+    estudo = criar_estudo(client, "Antigo", "alguém")
+
+    r = client.put(f"/api/studies/{estudo['id']}", json={})
+
+    assert r.status_code == 200, r.text
+    assert r.json()["updated_at"] == estudo["updated_at"]
+    assert r.json()["title"] == "Antigo" and r.json()["author"] == "alguém"
 
 
 def test_duplicar_o_capitulo(client):
