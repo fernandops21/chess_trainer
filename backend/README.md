@@ -106,6 +106,44 @@ Exportar dá o PGN no formato que o Lichess importa (um jogo por capítulo, com 
 `[ChapterName]`, `[ChapterMode]`, `[Orientation]`, `[FEN]`/`[SetUp]`, `[%cal]`/`[%csl]` e NAGs).
 Exportar um estudo e importá-lo de volta devolve exatamente as mesmas árvores.
 
+## Livro de aberturas
+
+Painel de aberturas da análise, servido pelo explorador do Lichess:
+
+    GET /api/openings?fen=<fen>&db=masters|lichess   # db padrão: masters
+
+Resposta normalizada (os campos das duas bases são diferentes; aqui saem iguais):
+
+    {"opening": {"eco": "B10", "name": "Caro-Kann"} | null,
+     "total": 200, "white": 120, "draws": 60, "black": 20,
+     "moves": [{"uci": "d2d4", "san": "d4", "games": 100,
+                "white": 60, "draws": 30, "black": 10, "avg_rating": 2481}]}
+
+Os lances vêm do mais jogado para o menos. `masters` consulta as partidas de mestres;
+`lichess`, as de jogadores em rapid/classical nas faixas 1600–2500 (xadrez rápido demais
+ou de rating muito distante não ajudaria a estudar aberturas).
+
+O explorador exige um token pessoal do Lichess (crie um em
+https://lichess.org/account/oauth/token, **sem nenhum escopo**) e ele é gravado na
+configuração `lichess_token`:
+
+    PUT /api/settings {"lichess_token": "lip_..."}   # string vazia apaga; campo ausente mantém
+
+**O token nunca sai pela API**: `GET/PUT /api/settings` devolvem `lichess_token_set: bool`,
+nunca o valor, e ele também não aparece em log nem em mensagem de erro — só no cabeçalho
+`Authorization: Bearer` da chamada ao Lichess.
+
+Erros: sem token → **400** `"configure o token do Lichess em Configurações"`; 401/403 do
+Lichess → **400** `"token do Lichess recusado; gere outro em Configurações"`; 429 → **503**
+`"limite do Lichess; tente em instantes"`; qualquer outra falha ou tempo esgotado → **502**
+`"explorador do Lichess indisponível"`; FEN que o python-chess não aceita → **400** `"FEN inválida"`.
+
+As respostas ficam em cache no processo por (base, FEN), 500 entradas (LRU) e validade de
+24 h — na análise a mesma posição é consultada muitas vezes e o explorador tem limite de uso.
+`create_app(openings_http_factory=...)` troca o cliente HTTP (padrão
+`httpx.Client(timeout=10.0, follow_redirects=True)`); os testes passam um `httpx.MockTransport`
+por ali, sem rede.
+
 ## Atualização do banco
 
 `studies` e `study_chapters` ganharam colunas no ciclo do editor, todas por `ALTER TABLE ADD COLUMN`

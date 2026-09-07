@@ -21,6 +21,8 @@ class SettingsOut(BaseModel):
     tactics_window: int
     lichess_min_plays: int
     lichess_min_popularity: int
+    # o valor do token nunca sai daqui: só se há um configurado
+    lichess_token_set: bool
 
 
 class SettingsIn(BaseModel):
@@ -43,6 +45,8 @@ class SettingsIn(BaseModel):
     tactics_window: int | None = Field(None, ge=50)
     lichess_min_plays: int | None = Field(None, ge=0)
     lichess_min_popularity: int | None = Field(None, ge=-100, le=100)
+    # ausente mantém o token guardado; string vazia apaga
+    lichess_token: str | None = None
 
 
 class GameOut(BaseModel):

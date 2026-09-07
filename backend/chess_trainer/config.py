@@ -28,6 +28,8 @@ class AppSettings:
     tactics_window: int = 150
     lichess_min_plays: int = 2000
     lichess_min_popularity: int = 90
+    # token pessoal do explorador de aberturas; fica só neste banco e nunca sai pela API
+    lichess_token: str = ""
 
 
 def get_setting(db: Session, key: str, default: Any = None) -> Any:
@@ -55,6 +57,8 @@ def load_settings(db: Session) -> AppSettings:
 
 def save_settings(db: Session, settings: AppSettings) -> AppSettings:
     settings.chesscom_username = settings.chesscom_username.strip().lower()
+    # token colado costuma vir com espaços em volta; só espaços equivale a apagar
+    settings.lichess_token = settings.lichess_token.strip()
     for key, value in asdict(settings).items():
         set_setting(db, key, value)
     return settings

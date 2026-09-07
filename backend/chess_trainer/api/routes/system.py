@@ -63,17 +63,28 @@ def status(request: Request, db: Session = Depends(get_db)):
     }
 
 
+def _settings_out(settings: AppSettings) -> dict:
+    """Configurações como a API as devolve: o token do Lichess vira um sim/não.
+
+    O valor não pode sair daqui em resposta nenhuma — quem configurou já o tem,
+    e a tela só precisa saber se há um token guardado."""
+    data = asdict(settings)
+    data["lichess_token_set"] = bool(data.pop("lichess_token", ""))
+    return data
+
+
 @router.get("/settings", response_model=SettingsOut)
 def get_settings(db: Session = Depends(get_db)):
-    return asdict(load_settings(db))
+    return _settings_out(load_settings(db))
 
 
 @router.put("/settings", response_model=SettingsOut)
 def put_settings(body: SettingsIn, db: Session = Depends(get_db)):
     current = load_settings(db)
+    # `exclude_none`: campo ausente fica como está; string vazia no token apaga
     for key, value in body.model_dump(exclude_none=True).items():
         setattr(current, key, value)
-    return asdict(save_settings(db, current))
+    return _settings_out(save_settings(db, current))
 
 
 def _submit(request: Request, name: str, fn) -> dict:

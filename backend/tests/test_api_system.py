@@ -210,3 +210,20 @@ def test_local_url_is_lan_when_host_is_wildcard(client, monkeypatch):
     monkeypatch.setenv("CHESS_TRAINER_HOST", "0.0.0.0")
     monkeypatch.setattr("chess_trainer.api.routes.system.local_ip", lambda: "192.168.0.7")
     assert client.get("/api/status").json()["local_url"] == "http://192.168.0.7:8000"
+
+
+def test_token_do_lichess_nunca_volta_nas_respostas(client):
+    inicial = client.get("/api/settings").json()
+    assert inicial["lichess_token_set"] is False and "lichess_token" not in inicial
+
+    body = client.put("/api/settings", json={"lichess_token": "  lip_segredo  "}).json()
+    assert body["lichess_token_set"] is True and "lichess_token" not in body
+    assert "lip_segredo" not in client.get("/api/settings").text
+
+    # outra alteração sem o campo mantém o token guardado
+    body = client.put("/api/settings", json={"new_per_day": 7}).json()
+    assert body["new_per_day"] == 7 and body["lichess_token_set"] is True
+
+    # string vazia apaga
+    assert client.put("/api/settings", json={"lichess_token": ""}).json()["lichess_token_set"] is False
+    assert client.get("/api/settings").json()["lichess_token_set"] is False

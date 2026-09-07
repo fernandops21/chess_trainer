@@ -8,12 +8,13 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
 from chess_trainer.api.jobs import JobRunner
-from chess_trainer.api.routes import analysis, games, studies, system, tactics, training
+from chess_trainer.api.routes import analysis, games, openings, studies, system, tactics, training
 from chess_trainer.config import AppSettings, load_settings
 from chess_trainer.core.analysis.engine import EngineLike, StockfishEngine, find_stockfish
 from chess_trainer.core.analysis.interactive import InteractiveAnalyzer
 from chess_trainer.core.db import init_db, make_engine, make_session_factory
 from chess_trainer.core.importers.chesscom import ChessComClient
+from chess_trainer.core.openings import OpeningExplorer
 from chess_trainer.core.tactics.importer import LICHESS_PUZZLE_URL
 
 USER_AGENT = "chess-trainer/0.1 (local)"
@@ -73,6 +74,7 @@ def create_app(
     analysis_engine_factory=None,
     tactics_source: str | Path | None = None,
     study_http_factory=None,
+    openings_http_factory=None,
 ) -> FastAPI:
     if db_path is None:
         db_path = os.environ.get("CHESS_TRAINER_DB", str(BACKEND_DIR / "data" / "chess_trainer.db"))
@@ -109,6 +111,9 @@ def create_app(
     # cliente HTTP do download de estudos (nos testes, um `MockTransport`); o Lichess
     # redireciona o export do PGN, daí o `follow_redirects`
     app.state.study_http_factory = study_http_factory or (lambda: httpx.Client(follow_redirects=True, timeout=30.0))
+    # livro de aberturas: o cache vive no app (uma instância por processo), e o
+    # cliente HTTP sai da factory para os testes entrarem com um `MockTransport`
+    app.state.openings = OpeningExplorer(openings_http_factory)
 
     app.include_router(system.router)
     app.include_router(games.router)
@@ -116,6 +121,7 @@ def create_app(
     app.include_router(analysis.router)
     app.include_router(tactics.router)
     app.include_router(studies.router)
+    app.include_router(openings.router)
 
     dist = Path(dist_dir) if dist_dir is not None else BACKEND_DIR.parent / "frontend" / "dist"
     if dist.is_dir():
