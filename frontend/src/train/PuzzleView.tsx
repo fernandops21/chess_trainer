@@ -1,7 +1,9 @@
+import { useState } from "react";
 import type { Key } from "chessground/types";
 import type { PuzzleOut, TacticOut, Trainable } from "../api/types";
 import { Board } from "../board/Board";
 import { colorName, kindLabel, themeLabel } from "../lib/format";
+import { MistakeCard } from "./MistakeCard";
 import type { PuzzleCtl } from "./usePuzzle";
 
 // `unknown` no resultado do submit: a view não lê `state.review`, então serve
@@ -63,6 +65,9 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDis
   { puzzle: Trainable; ctl: Ctl; clockLabel?: string; orderInfo?: string; onSkip?: () => void; skipDisabled?: boolean }) {
   const tactic = puzzle.kind === "tactic";
   const { state, dests } = ctl;
+  // erro da partida: escondido por padrão — no "evitar" ele entrega a resposta
+  const [verErro, setVerErro] = useState(false);
+  const comErro = !tactic && puzzle.source === "own" && !!puzzle.mistake && !!puzzle.game ? puzzle : null;
   const playable = state.phase === "awaiting_move";
   // enunciado do capítulo do estudo (comentário do autor antes do primeiro lance)
   const intro = !tactic && puzzle.source === "study" ? puzzle.solution.intro : undefined;
@@ -105,8 +110,14 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDis
             {state.hintStage === 1 ? "Jogar o lance" : "Mostrar peça"}
           </button>
           {onSkip && <button onClick={onSkip} disabled={skipDisabled} aria-label="Pular">Pular</button>}
+          {comErro && (
+            <button onClick={() => setVerErro((v) => !v)} aria-expanded={verErro}>
+              {comErro.kind === "avoid" ? "Meu erro (revela o lance que não jogar)" : "Meu erro"}
+            </button>
+          )}
           {clockLabel && <span className="muted" aria-label="relógio">{clockLabel}</span>}
         </div>
+        {comErro && verErro && <div style={{ marginTop: 10 }}><MistakeCard puzzle={comErro} /></div>}
       </div>
     </div>
   );

@@ -1,4 +1,6 @@
+import type { ReactNode } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { expect, test, vi } from "vitest";
 import type { AttemptOut, PuzzleOut, TacticOut } from "../src/api/types";
 import { PuzzleView } from "../src/train/PuzzleView";
@@ -159,4 +161,34 @@ test("o botão Pular pode vir desabilitado", () => {
   }
   render(<SkipHost />);
   expect((screen.getByRole("button", { name: "Pular" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+// --- cartão "Meu erro" --------------------------------------------------
+
+function comRotas(node: ReactNode) {
+  return render(<MemoryRouter>{node}</MemoryRouter>);
+}
+
+test("o cartão do erro fica escondido atrás do botão 'Meu erro'", () => {
+  const { container } = comRotas(<Host puzzle={own} />);
+  const botao = screen.getByRole("button", { name: "Meu erro" });
+  expect(container.textContent).not.toMatch(/Na partida/);
+  fireEvent.click(botao);
+  expect(container.textContent).toMatch(/Na partida você jogou\s*Nb1/);
+  expect(screen.getByText("partida no app")).toBeTruthy();
+  fireEvent.click(botao);
+  expect(container.textContent).not.toMatch(/Na partida/);
+});
+
+test("no 'evitar' o botão avisa que revela o lance a não jogar", () => {
+  comRotas(<Host puzzle={{ ...own, kind: "avoid" }} />);
+  expect(screen.getByRole("button", { name: "Meu erro (revela o lance que não jogar)" })).toBeTruthy();
+});
+
+test("sem erro de partida não há botão 'Meu erro'", () => {
+  const { unmount } = comRotas(<Host puzzle={chapter} />);
+  expect(screen.queryByRole("button", { name: /Meu erro/ })).toBeNull();
+  unmount();
+  comRotas(<TacticHost />);
+  expect(screen.queryByRole("button", { name: /Meu erro/ })).toBeNull();
 });
