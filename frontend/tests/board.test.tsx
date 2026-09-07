@@ -1,11 +1,18 @@
 import { render } from "@testing-library/react";
-import { expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { Key } from "chessground/types";
 
 // O tabuleiro real do chessground não expõe a API para o teste; um dublê deixa
-// checar o que o Board manda para ele (config e limpeza das marcações).
+// checar o que o Board manda para ele (config, marcações e o toque longo).
 const { api } = vi.hoisted(() => ({
-  api: { set: vi.fn(), setShapes: vi.fn(), destroy: vi.fn() },
+  api: {
+    set: vi.fn(),
+    setShapes: vi.fn(),
+    destroy: vi.fn(),
+    cancelMove: vi.fn(),
+    getKeyAtDomPos: vi.fn(),
+    state: { drawable: { shapes: [] as { orig: string; dest?: string; brush?: string }[] } },
+  },
 }));
 vi.mock("chessground", () => ({ Chessground: () => api }));
 
@@ -13,6 +20,42 @@ import { Board, toConfig } from "../src/board/Board";
 
 const F1 = "2r3k1/5ppp/8/8/Q7/8/8/4R1K1 w - - 0 1";
 const F2 = "2r1R1k1/5ppp/8/8/Q7/8/8/6K1 b - - 1 1";
+
+/** Ponteiro grosso (celular) ou fino (mouse): o jsdom não traz `matchMedia`. */
+function setPointer(coarse: boolean) {
+  window.matchMedia = ((query: string) => ({
+    matches: coarse && query.includes("coarse"), media: query, onchange: null,
+    addListener: () => {}, removeListener: () => {},
+    addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+}
+
+/** Evento de toque simplificado: o jsdom não constrói `TouchEvent` com pontos. */
+function touch(type: string, points: { clientX: number; clientY: number }[]) {
+  const ev = new Event(type, { bubbles: true, cancelable: true }) as Event & {
+    touches: typeof points; changedTouches: typeof points;
+  };
+  ev.touches = type === "touchend" ? [] : points;
+  ev.changedTouches = points;
+  return ev;
+}
+const at = (x: number) => ({ clientX: x, clientY: 10 });
+
+/** O `div` onde o Board registra o toque longo. */
+function boardOf(container: HTMLElement) {
+  return container.querySelector(".board > div") as HTMLElement;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  api.state.drawable.shapes = [];
+  // metade esquerda = e2, metade direita = e4
+  api.getKeyAtDomPos.mockImplementation(([x]: [number, number]) => (x < 50 ? "e2" : "e4"));
+});
+afterEach(() => {
+  vi.useRealTimers();
+  delete (window as { matchMedia?: unknown }).matchMedia;
+});
 
 test("por padrão não dá para desenhar", () => {
   const cfg = toConfig({ fen: F1, orientation: "white" });
@@ -55,4 +98,95 @@ test("as marcações do usuário somem ao trocar de posição, mas não a cada r
   rerender(<Board fen={F2} orientation="white" drawable />);
   expect(api.setShapes).toHaveBeenCalledWith([]);
   expect(api.set.mock.calls[1][0].fen).toBe(F2);
+});
+
+// --- toque longo (celular) ---------------------------------------------
+
+test("no celular, segurar numa casa e soltar em outra desenha uma seta", () => {
+  setPointer(true);
+  vi.useFakeTimers();
+  const { container } = render(<Board fen={F1} orientation="white" drawable />);
+  const el = boardOf(container);
+
+  el.dispatchEvent(touch("touchstart", [at(10)]));
+  vi.advanceTimersByTime(350);
+  el.dispatchEvent(touch("touchend", [at(90)]));
+
+  expect(api.setShapes).toHaveBeenCalledWith([{ orig: "e2", dest: "e4", brush: "green" }]);
+  // o chessground já tinha começado a arrastar a peça no mesmo toque
+  expect(api.cancelMove).toHaveBeenCalled();
+});
+
+test("no celular, segurar e soltar na mesma casa destaca a casa", () => {
+  setPointer(true);
+  vi.useFakeTimers();
+  const { container } = render(<Board fen={F1} orientation="white" drawable />);
+  const el = boardOf(container);
+
+  el.dispatchEvent(touch("touchstart", [at(10)]));
+  vi.advanceTimersByTime(350);
+  el.dispatchEvent(touch("touchend", [at(20)]));
+
+  expect(api.setShapes).toHaveBeenCalledWith([{ orig: "e2", brush: "green" }]);
+});
+
+test("repetir o mesmo gesto apaga a marcação e preserva as outras", () => {
+  setPointer(true);
+  vi.useFakeTimers();
+  api.state.drawable.shapes = [{ orig: "a1", dest: "h8", brush: "green" }, { orig: "e2", dest: "e4", brush: "green" }];
+  const { container } = render(<Board fen={F1} orientation="white" drawable />);
+  const el = boardOf(container);
+
+  el.dispatchEvent(touch("touchstart", [at(10)]));
+  vi.advanceTimersByTime(350);
+  el.dispatchEvent(touch("touchend", [at(90)]));
+
+  expect(api.setShapes).toHaveBeenCalledWith([{ orig: "a1", dest: "h8", brush: "green" }]);
+});
+
+test("mover o dedo antes dos 350 ms cancela o desenho (rolagem da página)", () => {
+  setPointer(true);
+  vi.useFakeTimers();
+  const { container } = render(<Board fen={F1} orientation="white" drawable />);
+  const el = boardOf(container);
+
+  el.dispatchEvent(touch("touchstart", [at(10)]));
+  el.dispatchEvent(touch("touchmove", [at(40)]));
+  vi.advanceTimersByTime(350);
+  el.dispatchEvent(touch("touchend", [at(90)]));
+
+  expect(api.setShapes).not.toHaveBeenCalled();
+});
+
+test("no computador o toque longo não desenha (lá é o botão direito)", () => {
+  setPointer(false);
+  vi.useFakeTimers();
+  const { container } = render(<Board fen={F1} orientation="white" drawable />);
+  const el = boardOf(container);
+
+  el.dispatchEvent(touch("touchstart", [at(10)]));
+  vi.advanceTimersByTime(350);
+  el.dispatchEvent(touch("touchend", [at(90)]));
+
+  expect(api.setShapes).not.toHaveBeenCalled();
+});
+
+test("tabuleiro congelado: viewOnly de verdade no celular, desenhável no computador", () => {
+  setPointer(true);
+  expect(toConfig({ fen: F1, orientation: "white", viewOnly: true, drawable: true }).viewOnly).toBe(true);
+  setPointer(false);
+  expect(toConfig({ fen: F1, orientation: "white", viewOnly: true, drawable: true }).viewOnly).toBe(false);
+});
+
+test("no celular o tabuleiro congelado não desenha com toque longo (a página rola)", () => {
+  setPointer(true);
+  vi.useFakeTimers();
+  const { container } = render(<Board fen={F1} orientation="white" drawable viewOnly />);
+  const el = boardOf(container);
+
+  el.dispatchEvent(touch("touchstart", [at(10)]));
+  vi.advanceTimersByTime(350);
+  el.dispatchEvent(touch("touchend", [at(90)]));
+
+  expect(api.setShapes).not.toHaveBeenCalled();
 });

@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Chessground } from "chessground";
 import type { Api } from "chessground/api";
 import type { Config } from "chessground/config";
+import type { DrawShape } from "chessground/draw";
 import type { Key } from "chessground/types";
 import "chessground/assets/chessground.base.css";
 import "chessground/assets/chessground.brown.css";
@@ -23,24 +24,51 @@ export interface BoardProps {
   onMove?: (orig: Key, dest: Key) => void;
   viewOnly?: boolean;
   coordinates?: boolean;
-  /** Botão direito desenha setas/casas (clique esquerdo apaga). Não são salvas. */
+  /** Botão direito (ou toque longo no celular) desenha setas/casas. Não são salvas. */
   drawable?: boolean;
 }
 
-export function toConfig(p: BoardProps): Config {
-  // O `viewOnly` do chessground não registra evento nenhum no tabuleiro — nem o
-  // do botão direito. Para um tabuleiro só de leitura onde ainda dá para
-  // desenhar (linha do resultado), deixamos os eventos ligados e travamos
-  // arrastar, selecionar e premove.
+/** Quanto tempo o dedo fica parado até virar desenho, e o quanto pode escorregar antes disso. */
+const LONG_PRESS_MS = 350;
+const LONG_PRESS_SLACK_PX = 12;
+
+/** Ponteiro grosso (celular/tablet): não existe botão direito para desenhar. */
+function coarsePointer(): boolean {
+  // no jsdom (e em navegadores antigos) `matchMedia` não existe: trata como ponteiro fino
+  const mm = typeof window === "undefined" ? undefined : window.matchMedia;
+  try {
+    return typeof mm === "function" && mm.call(window, "(pointer: coarse)").matches;
+  } catch {
+    return false;
+  }
+}
+
+/** Como o tabuleiro se comporta, conforme só-leitura, marcações e tipo de ponteiro. */
+function boardMode(p: BoardProps) {
   const readOnly = p.viewOnly ?? false;
-  const frozen = readOnly && !!p.drawable;
+  const draw = p.drawable ?? false;
+  // Congelado com marcações: o `viewOnly` do chessground não registra evento
+  // nenhum no tabuleiro — nem o do botão direito —, então mantemos os eventos
+  // ligados e travamos arrastar, selecionar e premove.
+  //
+  // No celular é ao contrário: sem botão direito não haveria o que ganhar, e os
+  // eventos ligados travariam a rolagem da página perto das peças. Aí o
+  // `viewOnly` de verdade é melhor. O preço: no celular dá para desenhar no
+  // tabuleiro do puzzle e no da análise (onde arrastar peça já segura a
+  // rolagem), mas não na linha do resultado.
+  const frozen = readOnly && draw && !coarsePointer();
+  return { readOnly, frozen, viewOnly: readOnly && !frozen, longPress: draw && !readOnly && coarsePointer() };
+}
+
+export function toConfig(p: BoardProps): Config {
+  const { readOnly, frozen, viewOnly } = boardMode(p);
   return {
     fen: p.fen,
     orientation: p.orientation,
     turnColor: p.turnColor,
     check: p.check,
     lastMove: p.lastMove,
-    viewOnly: readOnly && !p.drawable,
+    viewOnly,
     coordinates: p.coordinates ?? true,
     animation: { duration: 200 },
     movable: { free: false, color: readOnly ? undefined : p.movableColor, dests: frozen ? new Map() : p.dests ?? new Map(), showDests: !frozen, events: { after: p.onMove } },
@@ -60,16 +88,93 @@ export function toConfig(p: BoardProps): Config {
   };
 }
 
+/** Liga ou desliga uma marcação do usuário, preservando as outras. */
+function toggleShape(api: Api, orig: Key, dest?: Key) {
+  const shape: DrawShape = dest && dest !== orig ? { orig, dest, brush: "green" } : { orig, brush: "green" };
+  const shapes = api.state.drawable.shapes ?? [];
+  const kept = shapes.filter((s) => !(s.orig === shape.orig && s.dest === shape.dest && s.brush === shape.brush));
+  api.setShapes(kept.length === shapes.length ? [...shapes, shape] : kept);
+}
+
 export function Board(props: BoardProps) {
   const host = useRef<HTMLDivElement>(null);
   const cg = useRef<Api | null>(null);
   const prevFen = useRef(props.fen);
+  const longPress = useRef(false);
+  longPress.current = boardMode(props).longPress;
+
   useEffect(() => {
     if (!host.current) return;
     cg.current = Chessground(host.current, toConfig(props));
     return () => { cg.current?.destroy(); cg.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Toque longo para desenhar: o chessground 9 só começa uma seta com o botão
+  // direito ou com shift, então no celular não haveria como marcar nada.
+  // Segurar o dedo numa casa entra no modo desenho; soltar em outra casa vira
+  // seta, soltar na mesma vira destaque, e repetir o gesto apaga.
+  useEffect(() => {
+    const el = host.current;
+    if (!el) return;
+    let orig: Key | null = null;
+    let from: [number, number] | null = null;
+    let drawing = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const reset = () => {
+      if (timer) clearTimeout(timer);
+      timer = null; orig = null; from = null; drawing = false;
+    };
+
+    const onStart = (e: TouchEvent) => {
+      reset();
+      if (!longPress.current || e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const key = cg.current?.getKeyAtDomPos([t.clientX, t.clientY]);
+      if (!key) return;
+      orig = key;
+      from = [t.clientX, t.clientY];
+      timer = setTimeout(() => {
+        timer = null;
+        drawing = true;
+        // o chessground começou a arrastar a peça no mesmo toque: cancelar
+        // evita jogar um lance junto com a marcação
+        cg.current?.cancelMove();
+        navigator.vibrate?.(10);
+      }, LONG_PRESS_MS);
+    };
+
+    const onMove = (e: TouchEvent) => {
+      if (drawing) { e.preventDefault(); return; }
+      const t = e.touches[0];
+      if (!from || !t) return;
+      // escorregou antes da hora: é rolagem da página ou arrastar de peça
+      if (Math.hypot(t.clientX - from[0], t.clientY - from[1]) > LONG_PRESS_SLACK_PX) reset();
+    };
+
+    const onEnd = (e: TouchEvent) => {
+      const api = cg.current;
+      if (drawing && orig && api) {
+        const t = e.changedTouches[0];
+        toggleShape(api, orig, t ? api.getKeyAtDomPos([t.clientX, t.clientY]) : undefined);
+      }
+      reset();
+    };
+
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: false });
+    el.addEventListener("touchend", onEnd);
+    el.addEventListener("touchcancel", reset);
+    return () => {
+      reset();
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchend", onEnd);
+      el.removeEventListener("touchcancel", reset);
+    };
+  }, []);
+
   useEffect(() => {
     const config = toConfig(props);
     const moved = prevFen.current !== props.fen;
