@@ -66,9 +66,11 @@ def test_contagem_de_modos_bate_com_os_headers(estudo, texto_do_estudo):
     gamebook = len(re.findall(r'^\[ChapterMode "gamebook"\]', texto_do_estudo, flags=re.MULTILINE))
     total = len(re.findall(r"^\[Event ", texto_do_estudo, flags=re.MULTILINE))
     modos = [c.mode for c in estudo.chapters]
-    # todos os capítulos `gamebook` da fixture têm lances, então nenhum vira `read`
-    assert modos.count("gamebook") == gamebook == 15
-    assert modos.count("read") == total - gamebook == 12
+    # todos os capítulos `gamebook` da fixture têm lances, então nenhum vira `read`;
+    # um capítulo comum (posição própria + linha curta) vira exercício pela heurística
+    assert gamebook == 15 and total == 27
+    assert modos.count("gamebook") == 16
+    assert modos.count("read") == 11
 
 
 def test_nenhum_capitulo_da_fixture_foi_pulado(estudo):
@@ -334,3 +336,28 @@ def test_capitulo_com_fen_invalida_fica_sem_arvore():
 def test_solution_from_game_e_a_funcao_publica_da_solucao(estudo, texto_do_estudo):
     game = chess.pgn.read_game(io.StringIO(texto_do_estudo))
     assert solution_from_game(game) == estudo.chapters[0].solution
+
+
+def test_capitulo_comum_com_posicao_propria_e_linha_curta_vira_exercicio():
+    texto = pgn_sintetico(
+        "Exemplo",
+        "1... Qxf6 2. Qxf6 Re1+ 3. Bf1 Rxf1+ 4. Rxf1 f2+ 5. Qf3 Bxf3# *",
+        extras='[FEN "2k1r3/1pp2p2/p2p1B1p/3b2q1/1P4p1/2QB1pP1/P4R1P/7K b - - 0 1"]\n[SetUp "1"]',
+    )
+    cap = parse_study_pgn(texto).chapters[0]
+    assert cap.mode == "gamebook" and cap.solution is not None
+    assert cap.solution["moves"][0]["uci"] == "g5f6" and cap.solution["moves"][0]["by"] == "solver"
+
+
+def test_partida_inteira_da_posicao_inicial_continua_leitura():
+    texto = pgn_sintetico("Partida", "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *")
+    cap = parse_study_pgn(texto).chapters[0]
+    assert cap.mode == "read" and cap.solution is None
+
+
+def test_posicao_propria_com_linha_longa_continua_leitura():
+    lances = " ".join(f"{i}. Nf3 Nf6 {i}... " for i in range(1, 1))  # placeholder para clareza
+    linha = "1. Nf3 Nf6 2. Ng1 Ng8 " * 7 + "*"
+    texto = pgn_sintetico("Longa", linha, extras='[FEN "4k3/8/8/8/8/8/8/4K1N1 w - - 0 1"]\n[SetUp "1"]')
+    cap = parse_study_pgn(texto).chapters[0]
+    assert cap.mode == "read"

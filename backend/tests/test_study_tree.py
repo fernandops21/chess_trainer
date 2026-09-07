@@ -420,11 +420,12 @@ def test_chapter_pgn_traz_os_headers_do_lichess(jogos):
     assert "Qb6+" in pgn and "acabaram de rocar" in pgn
 
 
-def test_chapter_pgn_de_capitulo_de_leitura_nao_tem_chapter_mode():
+def test_chapter_pgn_de_capitulo_de_leitura_sai_como_normal():
     cap = capitulo(mode="read", tree_json="")
     cap.pgn = '[Event "x"]\n\n1. e4 e5 *\n'
     pgn = chapter_pgn(cap, Study(id="e1", title="Estudo", author=""))
-    assert "ChapterMode" not in pgn
+    # capítulo de leitura sai marcado como "normal": a reimportação não aplica a heurística de exercício
+    assert '[ChapterMode "normal"]' in pgn and '"gamebook"' not in pgn
     # sem `tree_json`, a árvore sai do PGN guardado
     assert "1. e4 e5" in pgn
 

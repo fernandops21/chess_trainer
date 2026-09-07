@@ -100,14 +100,14 @@ def importar(client, body=None) -> dict:
 def test_importar_por_url_lista_o_estudo(client):
     job = importar(client)
     assert job["job"] == "import_study"
-    assert job["message"] == "27 capítulos, 15 exercícios, 0 pulados"
+    assert job["message"] == "27 capítulos, 16 exercícios, 0 pulados"
 
     estudos = client.get("/api/studies").json()
     assert len(estudos) == 1
     estudo = estudos[0]
     assert estudo["lichess_id"] == "4JKVAfaE" and estudo["author"] == "basso01"
     assert estudo["title"].startswith("#PL05A") and estudo["source_url"] == URL
-    assert estudo["chapter_count"] == 27 and estudo["in_queue"] == 15 and estudo["due_today"] == 0
+    assert estudo["chapter_count"] == 27 and estudo["in_queue"] == 16 and estudo["due_today"] == 0
     assert estudo["imported_at"] is not None
 
 
@@ -122,7 +122,7 @@ def test_detalhe_traz_os_capitulos_em_ordem(client):
     primeiro = capitulos[0]
     assert primeiro["mode"] == "gamebook" and primeiro["puzzle_id"] and primeiro["in_queue"] is True
     assert primeiro["lichess_url"].startswith("https://lichess.org/study/4JKVAfaE/")
-    assert sum(1 for c in capitulos if c["mode"] == "read") == 12
+    assert sum(1 for c in capitulos if c["mode"] == "read") == 11
 
 
 def test_fila_filtrada_pelo_estudo(client):
@@ -130,7 +130,7 @@ def test_fila_filtrada_pelo_estudo(client):
     estudo_id = client.get("/api/studies").json()[0]["id"]
 
     fila = client.get("/api/queue", params={"study_id": estudo_id}).json()
-    assert fila["new_available"] == 15 and fila["items"]
+    assert fila["new_available"] == 16 and fila["items"]
     assert all(item["source"] == "study" for item in fila["items"])
     assert fila["items"][0]["study"]["id"] == estudo_id
     assert fila["items"][0]["study"]["chapter_name"]
@@ -177,7 +177,7 @@ def test_contagem_da_repeticao_ignora_exercicio_travado(client):
         db.commit()
 
     estudo = client.get("/api/studies").json()[0]
-    assert estudo["in_queue"] == 14
+    assert estudo["in_queue"] == 15
 
 
 def test_importar_por_pgn_nao_baixa_nada():
@@ -263,14 +263,14 @@ def test_tirar_e_devolver_o_estudo_da_repeticao(client):
     assert client.get("/api/queue", params={"study_id": estudo_id}).json()["items"] == []
 
     dentro = client.post(f"/api/studies/{estudo_id}/queue", json={"in_queue": True})
-    assert dentro.status_code == 200 and dentro.json()["in_queue"] == 15
+    assert dentro.status_code == 200 and dentro.json()["in_queue"] == 16
     assert client.get("/api/queue", params={"study_id": estudo_id}).json()["items"]
 
 
 def test_remover_o_estudo_apaga_os_exercicios(client):
     importar(client)
     estudo_id = client.get("/api/studies").json()[0]["id"]
-    assert client.get("/api/dashboard").json()["by_source"]["study"]["in_queue"] == 15
+    assert client.get("/api/dashboard").json()["by_source"]["study"]["in_queue"] == 16
 
     assert client.delete(f"/api/studies/{estudo_id}").status_code == 204
 

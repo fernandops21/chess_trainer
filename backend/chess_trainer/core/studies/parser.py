@@ -136,7 +136,8 @@ def _chapter(game: chess.pgn.Game, order: int) -> ParsedChapter:
     headers = game.headers
     url = headers.get("ChapterURL", "").strip()
     fen = headers.get("FEN", "").strip() or chess.STARTING_FEN
-    mode = "gamebook" if headers.get("ChapterMode", "").strip() == "gamebook" else "read"
+    modo_declarado = headers.get("ChapterMode", "").strip()
+    mode = "gamebook" if modo_declarado == "gamebook" else "read"
     chapter = ParsedChapter(
         order=order,
         name=_chapter_name(headers),
@@ -165,11 +166,32 @@ def _chapter(game: chess.pgn.Game, order: int) -> ParsedChapter:
         # a linha não pôde ser lida até o fim: nada de gamebook, o capítulo fica como leitura
         chapter.mode = "read"
         return chapter
+    # sem header ChapterMode (exportação do Lichess para capítulos comuns) vale a
+    # heurística; um modo declarado que não seja gamebook (ex.: "normal", que a
+    # nossa exportação escreve) é respeitado.
+    if not modo_declarado and _parece_exercicio(game, board):
+        # muitos autores montam exercícios como capítulos comuns: posição
+        # própria (não a inicial) e uma linha curta. Tratamos como exercício.
+        mode = chapter.mode = "gamebook"
     if mode == "gamebook":
         chapter.solution = solution_from_game(game)
         if chapter.solution is None:
             chapter.mode = "read"
     return chapter
+
+
+# capítulo comum vira exercício quando parte de uma posição própria com uma
+# linha principal de até este tanto de meios-lances (partidas anotadas inteiras
+# continuam como leitura)
+MAX_PLIES_EXERCICIO = 24
+
+
+def _parece_exercicio(game: chess.pgn.Game, board: chess.Board) -> bool:
+    posicao_inicial = board.board_fen() == chess.Board().board_fen()
+    if posicao_inicial:
+        return False
+    n = sum(1 for _ in game.mainline())
+    return 1 <= n <= MAX_PLIES_EXERCICIO
 
 
 def _headers_only(game: chess.pgn.Game) -> str:

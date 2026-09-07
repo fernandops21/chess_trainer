@@ -88,8 +88,8 @@ def test_upsert_da_fixture_cria_capitulos_e_exercicios(db_session, texto_da_fixt
     assert len(study.chapters) == 27
     assert [c.order for c in study.chapters] == list(range(1, 28))
     puzzles = db_session.scalars(select(Puzzle).where(Puzzle.source == "study")).all()
-    assert len(puzzles) == 15
-    assert report.created == 15 and report.updated == 0 and report.skipped == []
+    assert len(puzzles) == 16
+    assert report.created == 16 and report.updated == 0 and report.skipped == []
     p = next(p for p in puzzles if p.chapter_id == study.chapters[0].id)
     assert p.kind == "punish" and p.category == "study" and p.theme == "study"
     assert p.in_queue is True and p.fen_start == study.chapters[0].fen
@@ -98,7 +98,7 @@ def test_upsert_da_fixture_cria_capitulos_e_exercicios(db_session, texto_da_fixt
     assert study.chapters[0].puzzle_id == p.id
     # capítulos de leitura ficam sem exercício
     leitura = [c for c in study.chapters if c.mode == "read"]
-    assert len(leitura) == 12 and all(c.puzzle_id is None for c in leitura)
+    assert len(leitura) == 11 and all(c.puzzle_id is None for c in leitura)
 
 
 def test_reimportar_o_mesmo_pgn_nao_duplica(db_session, texto_da_fixture):
@@ -110,8 +110,8 @@ def test_reimportar_o_mesmo_pgn_nao_duplica(db_session, texto_da_fixture):
     assert study2.id == study.id
     assert db_session.scalar(select(func.count(Study.id))) == 1
     assert db_session.scalar(select(func.count(StudyChapter.id))) == 27
-    assert db_session.scalar(select(func.count(Puzzle.id))) == 15
-    assert report.created == 0 and report.updated == 15
+    assert db_session.scalar(select(func.count(Puzzle.id))) == 16
+    assert report.created == 0 and report.updated == 16
     assert {c.lichess_url: c.puzzle_id for c in study2.chapters} == antes
 
 

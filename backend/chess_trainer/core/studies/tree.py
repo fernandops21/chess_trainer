@@ -448,6 +448,9 @@ def chapter_headers(chapter: StudyChapter, study: Study | None = None) -> dict[s
         headers["Annotator"] = autor
     if chapter.mode == "gamebook":
         headers["ChapterMode"] = "gamebook"
+    else:
+        # explícito para que a reimportação não aplique a heurística de exercício
+        headers["ChapterMode"] = "normal"
     return headers
 
 
