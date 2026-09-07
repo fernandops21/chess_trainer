@@ -23,6 +23,13 @@ CACHE_TTL_S = 24 * 60 * 60.0
 CACHE_MAX_ENTRIES = 500
 DBS = ("masters", "lichess")
 
+
+def _cache_fen(fen: str) -> str:
+    """Chave do cache: só peças, lado, roques e en passant. O explorador ignora os
+    contadores de lances, então posições iguais por ordens diferentes de lances
+    compartilham a entrada."""
+    return " ".join(fen.split()[:4])
+
 MSG_SEM_TOKEN = "configure o token do Lichess em Configurações"
 MSG_TOKEN_RECUSADO = "token do Lichess recusado; gere outro em Configurações"
 MSG_LIMITE = "limite do Lichess; tente em instantes"
@@ -118,6 +125,8 @@ class OpeningExplorer:
 
     def fetch(self, fen: str, db: str = "masters", token: str = "", http: httpx.Client | None = None) -> dict:
         token = (token or "").strip()
+        if db not in DBS:
+            raise ValueError(f"base desconhecida: {db}")
         if not token:
             raise OpeningsError(400, MSG_SEM_TOKEN)
         cached = self._get(db, fen)
@@ -159,7 +168,7 @@ class OpeningExplorer:
         return normalize(payload)
 
     def _get(self, db: str, fen: str) -> dict | None:
-        key = (db, fen)
+        key = (db, _cache_fen(fen))
         with self._lock:
             entry = self._cache.get(key)
             if entry is None:
@@ -174,8 +183,9 @@ class OpeningExplorer:
 
     def _put(self, db: str, fen: str, data: dict) -> None:
         with self._lock:
-            self._cache[(db, fen)] = (self._clock() + self._ttl_s, data)
-            self._cache.move_to_end((db, fen))
+            key = (db, _cache_fen(fen))
+            self._cache[key] = (self._clock() + self._ttl_s, data)
+            self._cache.move_to_end(key)
             while len(self._cache) > self._max_entries:
                 self._cache.popitem(last=False)
 

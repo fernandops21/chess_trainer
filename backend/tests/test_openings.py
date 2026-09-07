@@ -303,3 +303,28 @@ def test_rota_usa_o_cache():
     assert client.get("/api/openings", params={"fen": FEN}).status_code == 200
     assert client.get("/api/openings", params={"fen": FEN}).status_code == 200
     assert len(calls) == 1
+
+
+def test_cache_ignora_contadores_de_lances(explorer_factory=None):
+    from chess_trainer.core.openings import OpeningExplorer
+    import httpx
+    calls = []
+
+    def handler(request):
+        calls.append(request.url)
+        return httpx.Response(200, json={"white": 1, "draws": 0, "black": 0, "moves": [], "opening": None})
+
+    ex = OpeningExplorer(lambda: httpx.Client(transport=httpx.MockTransport(handler)))
+    base = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -"
+    ex.fetch(f"{base} 0 1", "masters", token="t")
+    ex.fetch(f"{base} 3 12", "masters", token="t")
+    assert len(calls) == 1
+
+
+def test_base_desconhecida_e_recusada():
+    from chess_trainer.core.openings import OpeningExplorer
+    import httpx
+    import pytest
+    ex = OpeningExplorer(lambda: httpx.Client())
+    with pytest.raises(ValueError):
+        ex.fetch("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", "../x", token="t")
