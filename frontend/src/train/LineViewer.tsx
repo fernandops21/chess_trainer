@@ -33,8 +33,10 @@ export function LineViewer({ fenStart, ucis, orientation, startPly, keyboard = t
   const { line, offset } = useMemo(() => {
     if (fenBefore && lastMoveUci) {
       const withIntro = buildLine(fenBefore, [lastMoveUci, ...ucis]);
-      // lance do adversário ilegal para a fen guardada: cai no comportamento de sempre
-      if (withIntro.sans.length > 0) return { line: withIntro, offset: 1 };
+      // `buildLine` para no primeiro lance ilegal: se a linha inteira não couber na
+      // fen guardada (dado incoerente), meia linha na tela seria pior do que
+      // simplesmente começar em `fenStart`, como sempre
+      if (withIntro.sans.length === ucis.length + 1) return { line: withIntro, offset: 1 };
     }
     return { line: buildLine(fenStart, ucis), offset: 0 };
   }, [fenStart, key, fenBefore, lastMoveUci]);

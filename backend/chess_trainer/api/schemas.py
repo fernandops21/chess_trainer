@@ -309,6 +309,9 @@ class TacticOut(BaseModel):
     rating: int
     solver_moves: int
     lichess_url: str
+    # posição de antes do lance do adversário e o lance em si: a tela abre nela e anima o lance
+    fen_before: str
+    last_move: str
     popularity: int
     nb_plays: int
     opening_tags: list[str] = []

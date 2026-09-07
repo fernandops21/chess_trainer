@@ -66,7 +66,9 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo }: { puzzle: Tra
   // enunciado do capítulo do estudo (comentário do autor antes do primeiro lance)
   const intro = !tactic && puzzle.source === "study" ? puzzle.solution.intro : undefined;
   // setas e casas do autor do estudo: só na posição inicial, como dica visual dele
-  const authored = (state.idx === 0 ? puzzle.solution.shapes?.["start"] : undefined) ?? [];
+  // (durante a introdução o tabuleiro ainda mostra a posição de antes do lance
+  // do adversário, onde essas marcações apontariam para as casas erradas)
+  const authored = (state.phase !== "intro" && state.idx === 0 ? puzzle.solution.shapes?.["start"] : undefined) ?? [];
   const arrows = authored.filter((s) => s.dest).map((s) => ({ orig: s.orig as Key, dest: s.dest as Key, brush: s.brush }));
   const squares = authored.filter((s) => !s.dest).map((s) => ({ orig: s.orig as Key, brush: s.brush }));
   const what = tactic ? "tática" : puzzle.source === "own" ? kindLabel(puzzle.kind) : puzzle.source === "study" ? "exercício do estudo" : "tática guardada";

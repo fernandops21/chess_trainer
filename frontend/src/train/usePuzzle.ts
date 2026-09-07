@@ -104,7 +104,10 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
     if (!intro) return;
     const t = setTimeout(() => {
       startedAt.current = now();
-      setState((p) => ({ ...p, phase: "awaiting_move", fen: puzzle.fen_start, turn: turnOf(chessRef.current), check: chessRef.current.inCheck(), lastMove: intro.lastMove }));
+      // a fen vem do chess.js (e não de `puzzle.fen_start`) para bater com a das
+      // jogadas seguintes: uma diferença de normalização faria o tabuleiro achar
+      // que a posição mudou de novo e apagar as marcações do usuário
+      setState((p) => ({ ...p, phase: "awaiting_move", fen: chessRef.current.fen(), turn: turnOf(chessRef.current), check: chessRef.current.inCheck(), lastMove: intro.lastMove }));
     }, opts.introDelayMs ?? 400);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps

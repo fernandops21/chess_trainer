@@ -47,6 +47,8 @@ def test_import_then_train_flow(client):
     t = client.get("/api/tactics/next").json()
     assert t["id"] == "00sHx" and t["kind"] == "tactic" and t["solution"]["moves"][0]["by"] == "solver"
     assert t["lichess_url"].endswith("/training/00sHx") and t["end_reason"] == "mate"
+    # a interface abre na posição de antes do lance do adversário e anima esse lance
+    assert t["fen_before"] == ROWS[0]["FEN"] and t["last_move"] == "e8d7"
     a = client.post("/api/tactics/attempts", json={"puzzle_id": t["id"], "correct": True, "duration_ms": 5000}).json()
     assert a["rating_before"] == 1760 and a["delta"] == 16 and a["rating_after"] == 1776
     assert client.get("/api/settings").json()["tactics_rating"] == 1776

@@ -31,15 +31,23 @@ vi.mock("../src/train/PuzzleView", () => ({
   PuzzleView: ({ puzzle, ctl, orderInfo }: { puzzle: TacticOut; ctl: PuzzleCtl<unknown>; orderInfo?: string }) => (
     <div>
       <div>{orderInfo}</div>
+      <div>{`fen:${ctl.state.fen}`}</div>
       <button onClick={() => { const u = puzzle.solution.moves[0].uci; ctl.tryMove(u.slice(0, 2) as never, u.slice(2, 4) as never); }}>resolver</button>
     </div>
   ),
 }));
 
+// a tática abre na posição de antes do lance do adversário (`fen_before`) e o
+// chessground anima `last_move` antes de liberar as peças
+const FEN_BEFORE = "4k3/8/8/8/3q4/2N5/7P/4K3 b - - 0 1";
+const FEN_START = "4k3/8/8/3q4/8/2N5/7P/4K3 w - - 1 2";
+
 const tactic = (id: string): TacticOut => ({
   id,
   kind: "tactic",
-  fen_start: "4k3/8/8/3q4/8/2N5/7P/4K3 w - - 0 1",
+  fen_start: FEN_START,
+  fen_before: FEN_BEFORE,
+  last_move: "d4d5",
   side_to_move: "white",
   solution: { moves: [{ uci: "c3d5", by: "solver", alternatives: [] }], explanation_pv: [] },
   end_reason: "material_gain",
@@ -74,6 +82,12 @@ function Host() {
   return sum ? <TacticSummary {...sum} onNew={() => setSum(null)} /> : <TacticSession config={config} onFinish={setSum} />;
 }
 
+/** O lance do usuário só vale depois da introdução: espera o tabuleiro chegar em `fen_start`. */
+async function solve() {
+  await screen.findByText(`fen:${FEN_START}`);
+  fireEvent.click(screen.getByText("resolver"));
+}
+
 function renderSession() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -102,9 +116,12 @@ test("cria a sessão de táticas e busca a primeira com os temas", async () => {
 test("resolver mostra o rating novo e o link do Lichess", async () => {
   vi.spyOn(api, "nextTactic").mockResolvedValue(tactic("t1"));
   renderSession();
-  fireEvent.click(await screen.findByText("resolver"));
+  await solve();
   expect(await screen.findByText("Rating 1200 → 1216 (+16)")).toBeTruthy();
   expect(screen.getByText("Resolvido sem erro.")).toBeTruthy();
+  // a linha do resultado também começa no lance do adversário, com a numeração recuada
+  expect(screen.getByText(/^1… Qd5$/)).toBeTruthy();
+  expect(screen.getByText(/^2\. Nxd5$/)).toBeTruthy();
   expect(screen.getByText("ver no Lichess").getAttribute("href")).toBe("https://lichess.org/training/t1");
   expect(api.attempt).toHaveBeenCalledWith(expect.objectContaining({ puzzle_id: "t1", session_id: "s1", correct: true }));
 });
@@ -114,7 +131,7 @@ test("próximo exclui as táticas já vistas e o 404 encerra com o motivo", asyn
     .mockResolvedValueOnce(tactic("t1"))
     .mockRejectedValueOnce(new ApiError(404, "Nenhuma tática nova com esses temas."));
   renderSession();
-  fireEvent.click(await screen.findByText("resolver"));
+  await solve();
   fireEvent.click(await screen.findByText("Próximo"));
   expect(next).toHaveBeenLastCalledWith({ themes: ["fork"], exclude: ["t1"] });
   expect(await screen.findByText("Nenhuma tática nova com esses temas.")).toBeTruthy();
@@ -159,7 +176,7 @@ test("Continuar do tempo esgotado bloqueia o Próximo até a próxima tática ch
     .mockResolvedValueOnce(tactic("t1"))
     .mockImplementationOnce(() => new Promise<TacticOut>((res) => { resolveNext = res; }));
   renderSession();
-  fireEvent.click(await screen.findByText("resolver"));
+  await solve();
   fireEvent.click(await screen.findByText("Próximo"));
   // com o tempo esgotado o avanço vira o modal; Continuar é que busca a próxima
   fireEvent.click(await screen.findByText("Continuar"));
@@ -190,4 +207,11 @@ test("resumo com outro motivo não oferece a nova sessão sem temas", () => {
       ratingStart={1200} ratingEnd={1200} onNew={() => {}} />,
   );
   expect(screen.queryByText("Nova sessão sem temas")).toBeNull();
+});
+
+test("a tática abre na posição de antes do lance do adversário e depois anima até a do puzzle", async () => {
+  vi.spyOn(api, "nextTactic").mockResolvedValue(tactic("t1"));
+  renderSession();
+  expect(await screen.findByText(`fen:${FEN_BEFORE}`)).toBeTruthy();
+  expect(await screen.findByText(`fen:${FEN_START}`)).toBeTruthy();
 });

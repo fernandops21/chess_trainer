@@ -20,6 +20,10 @@ class Tactic:
     rating: int
     solver_moves: int
     lichess_url: str
+    #: posição de antes do lance do adversário (o FEN da linha do Lichess) e o lance em si:
+    #: a interface abre nela e anima o lance antes de liberar as peças
+    fen_before: str
+    last_move: str
     kind: str = "tactic"
     category: str = "lichess"
     popularity: int = 0
@@ -53,6 +57,7 @@ def to_tactic(row: LichessPuzzle) -> Tactic:
         theme=primary_theme(themes), themes=themes, rating=row.rating,
         solver_moves=sum(1 for m in moves if m["by"] == "solver"),
         lichess_url=LICHESS_TRAINING_URL.format(id=row.id),
+        fen_before=row.fen, last_move=ucis[0],
         popularity=row.popularity, nb_plays=row.nb_plays,
         opening_tags=row.opening_tags.split() if row.opening_tags else [],
     )

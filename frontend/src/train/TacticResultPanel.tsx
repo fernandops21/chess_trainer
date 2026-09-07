@@ -15,8 +15,11 @@ export function TacticResultPanel({ tactic, attempt, error, onRetry, onNext, nex
   return (
     <div className="two-col">
       <div>
+        {/* `startPly` e `initialPos` são contados a partir de `fen_start`; com o lance do
+            adversário o próprio LineViewer recua a numeração e a posição em um meio-lance */}
         <LineViewer fenStart={tactic.fen_start} ucis={ucis} orientation={tactic.side_to_move}
-          startPly={startPlyFromFen(tactic.fen_start)} initialPos={tactic.solution.moves.length} />
+          startPly={startPlyFromFen(tactic.fen_start)} initialPos={tactic.solution.moves.length}
+          fenBefore={tactic.fen_before} lastMoveUci={tactic.last_move} />
       </div>
       <div className="card">
         {clockLabel && <div className="row"><span className="muted" aria-label="relógio">{clockLabel}</span></div>}

@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, expect, test, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { BoardProps } from "../src/board/Board";
 import type { PuzzleOut } from "../src/api/types";
 
@@ -20,6 +20,7 @@ import { usePuzzle } from "../src/train/usePuzzle";
 const last = () => boardProps.at(-1) as unknown as BoardProps;
 
 beforeEach(() => { boardProps.length = 0; });
+afterEach(() => { vi.useRealTimers(); });
 
 const chapter: PuzzleOut = {
   id: "p1",
@@ -53,12 +54,19 @@ const chapter: PuzzleOut = {
 };
 
 function Host() {
-  const ctl = usePuzzle(chapter, { sessionId: null, submit: async () => ({}) as never, introDelayMs: 0 });
+  const ctl = usePuzzle(chapter, { sessionId: null, submit: async () => ({}) as never, introDelayMs: 400 });
   return <PuzzleView puzzle={chapter} ctl={ctl} />;
 }
 
-test("o tabuleiro do puzzle desenha as marcações do autor da posição inicial", () => {
+test("o tabuleiro do puzzle só desenha as marcações do autor depois da introdução", () => {
+  vi.useFakeTimers();
   render(<Host />);
+  // durante a introdução o tabuleiro está na posição de antes do lance do adversário
+  expect(last().fen).toBe(chapter.fen_before);
+  expect(last().arrows).toEqual([]);
+  expect(last().squares).toEqual([]);
+
+  act(() => { vi.advanceTimersByTime(400); });
   const p = last();
   expect(p.drawable).toBe(true);
   expect(p.arrows).toEqual([{ orig: "c8", dest: "e8", brush: "green" }]);

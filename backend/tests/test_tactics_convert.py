@@ -26,6 +26,8 @@ def test_to_tactic_applies_opponent_move_and_alternates():
     assert t.theme == "mateIn2" and t.themes == ["mate", "mateIn2", "middlegame", "short"]
     assert t.lichess_url == "https://lichess.org/training/00sHx"
     assert t.rating == 1760 and t.kind == "tactic"
+    # a introdução da interface: a posição de antes do lance do adversário e o lance em si
+    assert t.fen_before == row().fen and t.last_move == "e8d7"
 
 
 def test_to_tactic_material_gain_when_no_mate():

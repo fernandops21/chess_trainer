@@ -235,6 +235,9 @@ export interface TacticOut {
   rating: number;
   solver_moves: number;
   lichess_url: string;
+  /** Posição de antes do lance do adversário e o lance em si: ligam a introdução animada. */
+  fen_before?: string;
+  last_move?: string;
   popularity: number;
   nb_plays: number;
   opening_tags: string[];

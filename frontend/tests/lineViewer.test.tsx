@@ -71,3 +71,14 @@ test("`onPos` continua contando a partir de `fenStart` mesmo com `fenBefore`", (
   fireEvent.click(screen.getByLabelText("anterior"));
   expect(seen.at(-1)).toBe(-1); // posição de `fenBefore`, antes do lance do adversário
 });
+
+test("último lance incoerente com a linha guardada cai no comportamento de sempre", () => {
+  // `a4a5` é legal na fen guardada, mas depois dele a linha da solução não é:
+  // meia linha na tela seria pior do que começar em `fenStart`
+  render(
+    <LineViewer fenStart={fenAfter} ucis={["c8e8", "a4e8"]} orientation="white" startPly={startPly48}
+      fenBefore={fenBefore} lastMoveUci="a4a5" keyboard={false} />,
+  );
+  expect(screen.getByText(/^24… Rxe8$/)).toBeTruthy();
+  expect(screen.getByText("2/2")).toBeTruthy();
+});
