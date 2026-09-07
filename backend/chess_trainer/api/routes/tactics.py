@@ -164,7 +164,7 @@ def post_save_tactic(lichess_id: str, response: Response, body: SaveTacticIn | N
         if twin is None:
             raise
         return _back_to_queue(db, twin, body)
-    _agendar_primeira_revisao(db, puzzle, body)
+    _schedule_first_review(db, puzzle, body)
     response.status_code = 201
     return _puzzle_out(db, puzzle)
 
@@ -173,11 +173,11 @@ def _back_to_queue(db: Session, puzzle: Puzzle, body: SaveTacticIn | None = None
     if not puzzle.in_queue:
         puzzle.in_queue = True
         db.commit()
-    _agendar_primeira_revisao(db, puzzle, body)
+    _schedule_first_review(db, puzzle, body)
     return _puzzle_out(db, puzzle)
 
 
-def _agendar_primeira_revisao(db: Session, puzzle: Puzzle, body: SaveTacticIn | None) -> None:
+def _schedule_first_review(db: Session, puzzle: Puzzle, body: SaveTacticIn | None) -> None:
     """Grava o resultado da tentativa como a primeira revisão do exercício.
 
     Só na primeira vez: um exercício que já tem revisão (`srs_due_at` definido)

@@ -13,7 +13,7 @@ from chess_trainer.api.schemas import (
 )
 from chess_trainer.config import get_setting, load_settings
 from chess_trainer.core.models import Game, Position, Puzzle, Review, TrainingSession, utcnow
-from chess_trainer.core.srs.queue import QueueFilters, build_queue, local_day_start
+from chess_trainer.core.srs.queue import MODES, QueueFilters, build_queue, local_day_start
 from chess_trainer.core.srs.reviews import record_review, unleech
 
 router = APIRouter(prefix="/api")
@@ -89,18 +89,19 @@ def get_puzzle(puzzle_id: str, db: Session = Depends(get_db)):
 def get_queue(
     category: str | None = None, theme: str | None = None, kind: str | None = None, color: str | None = None,
     sources: str | None = None, study_id: str | None = None,
-    mode: Literal["review", "new", "study"] = "review",
+    mode: Literal[MODES] = "review",
     db: Session = Depends(get_db),
 ):
     """Fila de treino no modo pedido: `review` (repetição espaçada, só o que já
     foi feito e venceu), `new` (a primeira vez dos meus erros) ou `study` (um
     estudo inteiro, na ordem dos capítulos)."""
-    if mode == "study" and not study_id:
-        raise HTTPException(400, "informe o estudo para treinar")
     filters = QueueFilters(category, theme, kind, color,
                            sources=tuple(v.strip() for v in (sources or "").split(",") if v.strip()),
                            study_id=study_id, mode=mode)
-    result = build_queue(db, filters, load_settings(db), utcnow())
+    try:
+        result = build_queue(db, filters, load_settings(db), utcnow())
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     return QueueOut(mode=mode, due_count=result.due_count, new_available=result.new_available,
                     new_remaining_today=result.new_remaining_today,
                     items=[_puzzle_out(db, p) for p in result.items])

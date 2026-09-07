@@ -201,6 +201,38 @@ def test_guardar_a_tatica_com_o_resultado_ja_a_agenda(client):
     assert len(_reviews(client, p["id"])) == 1
 
 
+def test_guardar_tatica_errada_pela_primeira_vez_conta_como_lapso(client):
+    run_import(client)
+    r = client.post("/api/tactics/00sHx/save", json={"correct": False})
+    assert r.status_code == 201
+    p = r.json()
+    assert p["srs"]["interval_days"] == 1 and p["srs"]["lapses"] == 1
+
+
+def test_guardar_tatica_com_dica_conta_como_erro_mesmo_se_correta(client):
+    """Usar a dica desconta o mérito do acerto: no agendamento é tratado como erro."""
+    run_import(client)
+    r = client.post("/api/tactics/00sHx/save", json={"correct": True, "used_hint": True})
+    assert r.status_code == 201
+    p = r.json()
+    assert p["srs"]["interval_days"] == 1 and p["srs"]["lapses"] == 1
+
+
+def test_guardar_tatica_com_sessao_inexistente_nao_cria_puzzle(client):
+    from sqlalchemy import select
+
+    from chess_trainer.core.models import Puzzle
+
+    run_import(client)
+    r = client.post("/api/tactics/00sHx/save", json={"correct": True, "session_id": "nada"})
+    assert r.status_code == 404
+    db = client.app.state.session_factory()
+    try:
+        assert db.scalar(select(Puzzle)) is None
+    finally:
+        db.close()
+
+
 def test_guardar_com_erro_agenda_como_erro_e_aceita_a_sessao(client):
     run_import(client)
     sessao = client.post("/api/sessions", json={"planned_minutes": 10}).json()

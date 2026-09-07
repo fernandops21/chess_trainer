@@ -68,13 +68,22 @@ def _apply_filters(stmt: Select, f: QueueFilters) -> Select:
 
 
 def count_new_reviewed_today(db: Session, now: datetime) -> int:
+    """Quantos exercícios tiveram a primeira revisão hoje, contando só os erros do
+    próprio usuário: é o que desconta do limite diário de "novos" (táticas e
+    estudos entram na repetição pela tela deles, sem passar por "novos")."""
     day_start = local_day_start(now)
     first_reviews = (
         select(Review.puzzle_id, func.min(Review.reviewed_at).label("first_at"))
         .group_by(Review.puzzle_id)
         .subquery()
     )
-    return int(db.scalar(select(func.count()).select_from(first_reviews).where(first_reviews.c.first_at >= day_start)) or 0)
+    stmt = (
+        select(func.count())
+        .select_from(first_reviews)
+        .join(Puzzle, Puzzle.id == first_reviews.c.puzzle_id)
+        .where(first_reviews.c.first_at >= day_start, Puzzle.source == "own")
+    )
+    return int(db.scalar(stmt) or 0)
 
 
 def _shuffle_within_days(due: list[Puzzle], rng: random.Random) -> list[Puzzle]:
@@ -91,6 +100,10 @@ def _shuffle_within_days(due: list[Puzzle], rng: random.Random) -> list[Puzzle]:
 
 def build_queue(db: Session, filters: QueueFilters, settings: AppSettings, now: datetime,
                 rng: random.Random | None = None) -> QueueResult:
+    if filters.mode not in MODES:
+        raise ValueError(f"modo inválido: {filters.mode}")
+    if filters.mode == "study" and not filters.study_id:
+        raise ValueError("informe o estudo para treinar")
     rng = rng or random.Random()
     # fora da fila (in_queue = false) o puzzle e seu histórico ficam, mas ele não é servido nem contado
     base = _apply_filters(select(Puzzle).where(Puzzle.is_leech.is_(False), Puzzle.in_queue.is_(True)), filters)
@@ -111,7 +124,8 @@ def build_queue(db: Session, filters: QueueFilters, settings: AppSettings, now: 
     if filters.mode == "study":
         # o estudo inteiro na ordem dos capítulos, feito ou não, sem limite diário
         items = list(db.scalars(
-            base.join(StudyChapter, StudyChapter.id == Puzzle.chapter_id).order_by(StudyChapter.order)
+            base.join(StudyChapter, StudyChapter.id == Puzzle.chapter_id)
+                .order_by(StudyChapter.order, Puzzle.id)
         ).all())
         due = [p for p in items if p.srs_due_at is not None and p.srs_due_at <= now]
         new = [p for p in items if p.srs_due_at is None]

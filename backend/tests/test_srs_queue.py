@@ -53,6 +53,41 @@ def test_new_limit_discounts_new_reviewed_today(db_session):
     assert len(q.new) == 1 and q.new_remaining_today == 1
 
 
+def test_new_remaining_today_conta_so_revisoes_de_puzzles_proprios(db_session):
+    """O limite diário de "novos" é só sobre os erros do próprio usuário: revisar
+    pela primeira vez exercícios de estudo hoje não pode descontar dele."""
+    from chess_trainer.core.models import Study, StudyChapter
+
+    estudo = Study(title="estudo-a", source_url="https://lichess.org/study/estudo-a")
+    db_session.add(estudo)
+    db_session.flush()
+    capitulo = StudyChapter(study_id=estudo.id, order=1, name="estudo-a cap 1", fen="fen-cap",
+                            orientation="white", mode="gamebook", pgn="1. e4 *")
+    db_session.add(capitulo)
+    db_session.commit()
+    for i in range(10):
+        p = Puzzle(source="study", chapter_id=capitulo.id, kind="punish", fen_start=f"e{i}",
+                   side_to_move="white",
+                   solution='{"moves": [{"uci": "a2a4", "by": "solver", "alternatives": []}]}',
+                   end_reason="material_gain", theme="tactic", category="lichess", solver_moves=1)
+        db_session.add(p)
+        db_session.flush()
+        db_session.add(Review(puzzle_id=p.id, reviewed_at=NOW - timedelta(hours=1), result="correct",
+                              ease=2.5, interval_days=1, due_at=NOW + timedelta(days=1), lapses=0))
+    db_session.commit()
+    assert count_new_reviewed_today(db_session, NOW) == 0
+    q = build_queue(db_session, QueueFilters(mode="new"), S, NOW)
+    assert q.new_remaining_today == S.new_per_day
+
+    proprio = make_puzzle(db_session, fen="p1")
+    db_session.add(Review(puzzle_id=proprio.id, reviewed_at=NOW - timedelta(hours=1), result="correct",
+                          ease=2.5, interval_days=1, due_at=NOW + timedelta(days=1), lapses=0))
+    db_session.commit()
+    assert count_new_reviewed_today(db_session, NOW) == 1
+    q2 = build_queue(db_session, QueueFilters(mode="new"), S, NOW)
+    assert q2.new_remaining_today == S.new_per_day - 1
+
+
 def test_filters_and_leeches(db_session):
     make_puzzle(db_session, fen="f1", due_at=NOW - timedelta(days=1), category="rapid", theme="fork", kind="punish", side="white")
     make_puzzle(db_session, fen="f2", due_at=NOW - timedelta(days=1), category="blitz", theme="fork", kind="avoid", side="black")
