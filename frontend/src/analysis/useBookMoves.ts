@@ -50,6 +50,8 @@ export function useBookMoves(tree: Tree, path: TreeNode[]): Set<string> {
       enabled: i < limite,
       staleTime: Infinity,
       retry: 0,
+      // consulta que deu erro (sem token) não volta a rodar quando o nó reaparece no caminho
+      retryOnMount: false,
     })),
   });
 

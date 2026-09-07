@@ -75,6 +75,7 @@ export const useOpenings = (fen: string | null, db: OpeningsDb) =>
     enabled: !!fen,
     staleTime: Infinity,
     retry: 0,
+    retryOnMount: false,
   });
 
 export const useAnalyse = (fen: string | null) =>
