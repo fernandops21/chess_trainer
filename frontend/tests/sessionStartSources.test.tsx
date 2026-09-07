@@ -87,6 +87,15 @@ test("?mode=study&study=<id> já vem com o estudo escolhido", async () => {
   expect(onStart.mock.calls[0][0].filters).toMatchObject({ mode: "study", study_id: "s1" });
 });
 
+test("?mode=study sem ?study= cai na repetição espaçada (sem study_id)", async () => {
+  const onStart = renderStart("/treinar?mode=study");
+  expect((screen.getByLabelText("Repetição espaçada") as HTMLInputElement).checked).toBe(true);
+  fireEvent.click(screen.getByText("Começar"));
+  expect(onStart.mock.calls[0][0]).toMatchObject({ mode: "review" });
+  expect(onStart.mock.calls[0][0].filters).toMatchObject({ mode: "review" });
+  expect(onStart.mock.calls[0][0].filters.study_id).toBe(undefined);
+});
+
 test("train.sources guardado antes volta marcado", () => {
   localStorage.setItem("train.sources", JSON.stringify(["lichess"]));
   renderStart();

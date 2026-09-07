@@ -48,7 +48,11 @@ function SingleTrain({ id, seen }: { id: string; seen: boolean }) {
 /** Mensagem de fila vazia conforme o modo. */
 function emptyMessage(mode: SessionConfig["mode"], queue: QueueOut): string {
   if (mode === "study") return "Este estudo não tem exercícios na repetição.";
-  if (mode === "new") return `Sem erros novos (ou limite diário atingido: ${queue.new_available} esperando amanhã).`;
+  if (mode === "new") {
+    return queue.new_available === 0
+      ? "Sem erros novos."
+      : `Sem erros novos (ou limite diário atingido: ${queue.new_available} esperando amanhã).`;
+  }
   return "Nada vencido. Faça novos ou treine um estudo.";
 }
 
@@ -69,6 +73,9 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
   // roda duas vezes e a segunda execução precisa se reinscrever no mesmo
   // request, senão o resultado cai numa closure já morta.
   const startP = useRef<Promise<[SessionOut, QueueOut]> | null>(null);
+  // posição de cada puzzle na primeira carga: usada para o "capítulo N de M" do
+  // estudo continuar certo depois de um pulo reordenar `items`
+  const ordemInicial = useRef<Map<string, number>>(new Map());
   // o título do estudo só é buscado no modo estudo
   const { data: study } = useStudy(config.mode === "study" ? config.filters.study_id ?? null : null);
   const heading = config.mode === "new" ? "Novos (meus erros)"
@@ -82,7 +89,11 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
     })();
     let alive = true;
     startP.current.then(
-      ([s, q]) => { if (alive) { setSession(s); setQueue(q); setItems(q.items); } },
+      ([s, q]) => {
+        if (!alive) return;
+        setSession(s); setQueue(q); setItems(q.items);
+        ordemInicial.current = new Map(q.items.map((p, idx) => [p.id, idx]));
+      },
       (e) => { if (alive) setError(e); },
     );
     return () => { alive = false; };
@@ -110,10 +121,22 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
   const goNext = async (all: Done[]) => {
     if (!queue) return;
     if (i + 1 < items.length) { setI(i + 1); return; }
+    if (config.mode === "study") {
+      // a fila do estudo é fixa (o backend sempre devolve o estudo inteiro), então
+      // recarregar aqui só repetiria os mesmos exercícios: terminado o último item
+      // da lista (e nada pendente segundo `all`), a sessão acaba
+      const resolvidosAgora = new Set(all.map((d) => d.puzzle.id));
+      if (items.every((p) => resolvidosAgora.has(p.id))) await finish("Estudo concluído.", all);
+      return;
+    }
     try {
       const q = await api.queue(config.filters);
-      if (q.items.length === 0) { await finish("Fila vazia por hoje.", all); return; }
-      setQueue(q); setItems(q.items); setI(0);
+      // um puzzle já resolvido nesta sessão pode voltar a aparecer na fila
+      // recarregada (ex.: lapso com intervalo zerado) — não serve de novo
+      const resolvidosAgora = new Set(all.map((d) => d.puzzle.id));
+      const restantes = q.items.filter((p) => !resolvidosAgora.has(p.id));
+      if (restantes.length === 0) { await finish("Fila vazia por hoje.", all); return; }
+      setQueue(q); setItems(restantes); setI(0);
     } catch {
       await finish("Não foi possível recarregar a fila.", all);
     }
@@ -152,8 +175,11 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
     );
   }
   const puzzle = items[i];
+  // o capítulo exibido é a posição original do puzzle no estudo, não a posição
+  // atual em `items` (que muda a cada pulo)
+  const capitulo = (ordemInicial.current.get(puzzle.id) ?? i) + 1;
   const orderInfo = (config.mode === "study"
-    ? `capítulo ${i + 1} de ${items.length}`
+    ? `capítulo ${capitulo} de ${items.length}`
     : `${done.length + 1}º da sessão · ${queue.due_count} vencidos`)
     + (skipped > 0 ? ` · ${skipped} ${skipped === 1 ? "pulado" : "pulados"}` : "");
   return (

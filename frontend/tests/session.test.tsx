@@ -226,3 +226,44 @@ test("estudo sem exercícios na repetição avisa", async () => {
   fireEvent.click(screen.getByText("Começar"));
   expect(await screen.findByText("Este estudo não tem exercícios na repetição.")).toBeTruthy();
 });
+
+test("fila vazia nos novos sem previsão futura não menciona amanhã", async () => {
+  bodies["/api/queue"] = { mode: "new", due_count: 0, new_available: 0, new_remaining_today: 0, items: [] };
+  renderPage();
+  fireEvent.click(screen.getByLabelText("Novos (meus erros)"));
+  fireEvent.click(screen.getByText("Começar"));
+  expect(await screen.findByText("Sem erros novos.")).toBeTruthy();
+});
+
+// a fila do estudo é fixa (o backend sempre devolve o estudo inteiro): resolver o
+// último exercício não pode recarregar a fila, senão os mesmos exercícios voltam
+test("estudo com dois exercícios termina ao resolver o último, sem recarregar a fila", async () => {
+  bodies["/api/queue"] = { mode: "study", due_count: 0, new_available: 0, new_remaining_today: 0, items: [puzzle, outro] };
+  renderPage();
+  await screen.findByRole("option", { name: "Finais de torre" });
+  fireEvent.change(screen.getByLabelText("Estudo"), { target: { value: "s1" } });
+  fireEvent.click(screen.getByText("Começar"));
+
+  expect(await screen.findByText(/eu × ele/)).toBeTruthy();
+  await resolverEAvancar();
+  expect(await screen.findByText(/outro × ele/)).toBeTruthy();
+  await resolverEAvancar();
+
+  expect(await screen.findByText("Estudo concluído.")).toBeTruthy();
+  expect(fetchMock.mock.calls.filter((c) => String(c[0]) === "/api/reviews").length).toBe(2);
+  expect(queueUrls().length).toBe(1);
+});
+
+test("capítulo mostrado depois de pular usa a posição original no estudo", async () => {
+  bodies["/api/queue"] = { mode: "study", due_count: 0, new_available: 0, new_remaining_today: 0, items: [puzzle, outro] };
+  renderPage();
+  await screen.findByRole("option", { name: "Finais de torre" });
+  fireEvent.change(screen.getByLabelText("Estudo"), { target: { value: "s1" } });
+  fireEvent.click(screen.getByText("Começar"));
+
+  expect(await screen.findByText(/eu × ele/)).toBeTruthy();
+  expect(screen.getByText(/capítulo 1 de 2/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Pular" }));
+  expect(await screen.findByText(/outro × ele/)).toBeTruthy();
+  expect(screen.getByText(/capítulo 2 de 2/)).toBeTruthy();
+});
