@@ -45,7 +45,7 @@ const ROTULOS: Record<ClassKind, { label: string; symbol: string }> = {
 /** Acima disso o score é mate (±(100000 − n)) e vira ±`MATE_CP` na conta da perda. */
 const MATE_MIN = 90000;
 const MATE_CP = 3000;
-/** Queda de material que caracteriza um sacrifício. */
+/** Queda da diferença de material que caracteriza um sacrifício. */
 const SACRIFICIO_CP = 200;
 /** Até onde a posição depois do lance ainda não é "perdida" (POV de quem jogou). */
 const NAO_PERDIDO_CP = -50;
@@ -77,23 +77,37 @@ export function materialOf(fen: string, color: Color): number {
 }
 
 /**
- * Material de `color` depois de o adversário responder com `replyUci` na
- * posição `fenChild`. Sem resposta (ou com uma resposta que não é legal ali)
- * fica o material da própria posição — é o que sobra de mais razoável.
+ * Vantagem material de `color`: o material dele menos o do adversário. É esta
+ * diferença que diz se houve sacrifício — o material de um lado só cai também
+ * numa troca comum, em que o adversário devolve peça equivalente.
  */
+export function materialDiff(fen: string, color: Color): number {
+  return materialOf(fen, color) - materialOf(fen, color === "white" ? "black" : "white");
+}
+
+/**
+ * Posição depois de o adversário responder com `replyUci`. Sem resposta (ou
+ * com uma resposta que não é legal ali) fica a própria posição — é o que sobra
+ * de mais razoável.
+ */
+function fenAfterReply(fenChild: string, replyUci: string | undefined): string {
+  if (!replyUci) return fenChild;
+  try {
+    const chess = new Chess(fenChild);
+    chess.move(uciToMove(replyUci));
+    return chess.fen();
+  } catch {
+    return fenChild;
+  }
+}
+
+/** Material de `color` depois de o adversário responder com `replyUci`. */
 export function materialAfterReply(
   fenChild: string,
   replyUci: string | undefined,
   color: Color,
 ): number {
-  if (!replyUci) return materialOf(fenChild, color);
-  try {
-    const chess = new Chess(fenChild);
-    chess.move(uciToMove(replyUci));
-    return materialOf(chess.fen(), color);
-  } catch {
-    return materialOf(fenChild, color);
-  }
+  return materialOf(fenAfterReply(fenChild, replyUci), color);
 }
 
 /** Score da engine em centipeões, com os mates presos em ±`MATE_CP`. */
@@ -146,27 +160,31 @@ export function classifyMove({
   const deuMate = child?.terminal === "checkmate";
   const loss = depois === null ? null : Math.max(0, sBest - depois);
 
+  // Sacrifício: a vantagem material de quem jogou cai de verdade, já contada a
+  // melhor resposta do adversário. Uma troca simples não mexe na diferença.
   if (
     (eOMelhor || deuMate) &&
     child !== null &&
     linhaFilho !== null &&
     depois !== null &&
     depois >= NAO_PERDIDO_CP &&
-    materialOf(parent.fen, parent.turn) -
-      materialAfterReply(child.fen, linhaFilho.pv[0], parent.turn) >=
+    materialDiff(parent.fen, parent.turn) -
+      materialDiff(fenAfterReply(child.fen, linhaFilho.pv[0]), parent.turn) >=
       SACRIFICIO_CP
   ) {
     return classe("brilhante", loss);
   }
 
   // "ótimo" só sai com o filho em mãos: enquanto ele não chega o lance fica
-  // em "melhor", que é a única categoria que não pode mudar depois.
+  // em "melhor", que é a única categoria que não pode mudar depois. A conta vai
+  // nos scores com os mates presos, senão dois mates seguidos viram diferença.
+  const segundaLinha = parent.lines[1];
   if (
     eOMelhor &&
     depois !== null &&
-    parent.lines.length > 1 &&
-    melhorLinha.score - parent.lines[1].score >= GAP_OTIMO_CP &&
-    melhorLinha.score <= TETO_OTIMO_CP
+    segundaLinha !== undefined &&
+    sBest - emCp(segundaLinha.score) >= GAP_OTIMO_CP &&
+    sBest <= TETO_OTIMO_CP
   ) {
     return classe("otimo", loss);
   }

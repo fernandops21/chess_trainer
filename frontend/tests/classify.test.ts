@@ -221,3 +221,24 @@ test("lance que afoga o adversário vale como empate", () => {
   expect(c?.kind).toBe("blunder");
   expect(c?.loss).toBe(400);
 });
+
+// Troca de damas: 1. Qxd8+ Kxd8. Cada lado perde uma dama, a diferença de
+// material não muda — não é sacrifício.
+const TROCA_DE_DAMAS = "3qk3/8/8/8/8/8/8/3QK3 w - - 0 1";
+const DEPOIS_DA_TROCA = (() => {
+  const chess = new Chess(TROCA_DE_DAMAS);
+  chess.move({ from: "d1", to: "d8" });
+  return chess.fen();
+})();
+
+test("troca simples não é sacrifício, mesmo sendo o melhor lance", () => {
+  const parent = posicao(TROCA_DE_DAMAS, "white", [linha("d1d8", 50)]);
+  const child = posicao(DEPOIS_DA_TROCA, "black", [linha("e8d8", -50, ["e8d8"])]);
+  expect(classificar(parent, child, "d1d8")?.kind).toBe("melhor");
+});
+
+test("ótimo usa os scores com mates presos: posição perdida por força", () => {
+  // −99000 e −99500 são dois mates: a diferença real entre as linhas é zero
+  const c = classificar(pai(-99000, -99500), filho(99000), "e2e4");
+  expect(c?.kind).toBe("melhor");
+});

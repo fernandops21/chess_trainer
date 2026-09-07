@@ -4,9 +4,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "../src/api/client";
 import type { AnalyseOut, Color } from "../src/api/types";
-import { fenAt, pathTo } from "../src/analysis/moveTree";
+import { fenAt, mainline, pathTo } from "../src/analysis/moveTree";
 import type { Tree, TreeNode } from "../src/analysis/moveTree";
-import { useMoveClassification } from "../src/analysis/useMoveClassification";
+import { MAX_EM_VOO, MAX_LANCES, useMoveClassification } from "../src/analysis/useMoveClassification";
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const LIMIARES = { mistake: 100, blunder: 200 };
@@ -107,4 +107,105 @@ test("lance de livro vira selo de livro sem depender da engine", async () => {
   expect(result.current.get("n1")?.kind).toBe("livro");
   expect(result.current.get("n2")?.kind).toBe("livro");
   expect(result.current.get("n3")?.kind).toBe("imprecisao");
+});
+
+/** Mesmos ids da árvore acima, outros lances: 1. d4 d5 2. c4 */
+const OUTRA: Tree = {
+  fen: START,
+  orientation: "white",
+  intro: "",
+  root: {
+    children: [node("n1", "d2d4", "d4", [node("n2", "d7d5", "d5", [node("n3", "c2c4", "c4")])])],
+  },
+};
+
+const OFEN1 = fenAt(OUTRA, "n1");
+const OFEN2 = fenAt(OUTRA, "n2");
+const OFEN3 = fenAt(OUTRA, "n3");
+
+/** d4 não é o melhor lance e perde 50 cp (bom), ao contrário do e4 da outra árvore. */
+Object.assign(RESPOSTAS, {
+  [OFEN1]: analise(OFEN1, "black", "g8f6", 20),
+  [OFEN2]: analise(OFEN2, "white", "c2c4", -5),
+  [OFEN3]: analise(OFEN3, "black", "e7e6", 75),
+});
+
+const NENHUM: Set<string> = new Set();
+
+/** FENs da linha principal, da posição inicial até o último lance. */
+function fensDe(t: Tree): string[] {
+  return [t.fen, ...mainline(t).map((n) => fenAt(t, n.id))];
+}
+
+/** Árvore de uma linha só, com ids `n1`, `n2`, ... na ordem dos lances. */
+function arvoreLinear(ucis: string[]): Tree {
+  let filhos: TreeNode[] = [];
+  for (let i = ucis.length - 1; i >= 0; i--) filhos = [node(`n${i + 1}`, ucis[i], ucis[i], filhos)];
+  return { fen: START, orientation: "white", intro: "", root: { children: filhos } };
+}
+
+/** Monta o hook com a árvore dada; `semear` põe as análises no cache antes. */
+function montarArvore(arvore: Tree, id: string, semear: Tree[] = []) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  for (const t of semear) {
+    for (const fen of fensDe(t)) client.setQueryData(["analyse", fen], RESPOSTAS[fen]);
+  }
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  return renderHook(
+    ({ t }: { t: Tree }) =>
+      useMoveClassification(t, pathTo(t, id), { enabled: true, thresholds: LIMIARES, bookIds: NENHUM }),
+    { wrapper, initialProps: { t: arvore } },
+  );
+}
+
+test("árvore diferente com os mesmos ids recalcula o mapa", async () => {
+  mockar();
+  const { result, rerender } = montarArvore(tree, "n3", [tree, OUTRA]);
+  await waitFor(() => expect(result.current.get("n1")?.kind).toBe("melhor"));
+  rerender({ t: OUTRA });
+  expect(result.current.get("n1")?.kind).toBe("bom");
+  expect(result.current.get("n3")?.kind).toBe("melhor");
+});
+
+// 1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7
+const RUY = ["e2e4", "e7e5", "g1f3", "b8c6", "f1b5", "a7a6", "b5a4", "g8f6", "e1g1", "f8e7"];
+
+test("no máximo 6 posições sem resposta em voo, começando pela atual", async () => {
+  const espia = vi.spyOn(api, "analyse").mockImplementation(() => new Promise<AnalyseOut>(() => {}));
+  const arvore = arvoreLinear(RUY);
+  const fens = fensDe(arvore);
+  const { result } = montarArvore(arvore, `n${RUY.length}`);
+  await waitFor(() => expect(espia).toHaveBeenCalledTimes(MAX_EM_VOO));
+  // as seis últimas posições do caminho, da atual para trás
+  expect(espia.mock.calls.map((c) => c[0])).toEqual(fens.slice(-MAX_EM_VOO).reverse());
+  expect(result.current.size).toBe(0);
+});
+
+// Nf3 Nf6 Ng1 Ng8 repetidos: 65 meios-lances legais, todos com FEN diferente.
+const CAVALOS = Array.from({ length: 65 }, (_, i) => ["g1f3", "g8f6", "f3g1", "f6g8"][i % 4]);
+
+test("classifica no máximo 60 meios-lances", async () => {
+  const espia = vi.spyOn(api, "analyse").mockImplementation(async (fen: string) =>
+    analise(fen, fen.split(" ")[1] === "w" ? "white" : "black", "a2a3", 0),
+  );
+  const arvore = arvoreLinear(CAVALOS);
+  const { result } = montarArvore(arvore, `n${CAVALOS.length}`);
+  await waitFor(() => expect(result.current.size).toBe(MAX_LANCES), { timeout: 5000 });
+  expect(result.current.get(`n${MAX_LANCES}`)).toBeDefined();
+  expect(result.current.get(`n${MAX_LANCES + 1}`)).toBeUndefined();
+  // uma consulta por posição: os 60 lances mais a inicial
+  expect(espia).toHaveBeenCalledTimes(MAX_LANCES + 1);
+});
+
+test("estado parcial: só entram os lances cujas análises já chegaram", async () => {
+  vi.spyOn(api, "analyse").mockImplementation((fen: string) =>
+    fen === FEN0 || fen === FEN1 ? Promise.resolve(RESPOSTAS[fen]) : new Promise<AnalyseOut>(() => {}),
+  );
+  const { result } = montar("n3", true);
+  await waitFor(() => expect(result.current.size).toBe(1));
+  expect(result.current.get("n1")?.kind).toBe("melhor");
+  expect(result.current.get("n2")).toBeUndefined();
+  expect(result.current.get("n3")).toBeUndefined();
 });

@@ -1,16 +1,20 @@
 import { useMemo } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
+import { Chess } from "chess.js";
 import { api } from "../api/client";
 import type { AnalyseOut } from "../api/types";
+import { uciToMove } from "../board/line";
 import { classifyMove } from "./classify";
 import type { Classification } from "./classify";
-import { fenAt } from "./moveTree";
 import type { Tree, TreeNode } from "./moveTree";
 
 /** Teto de meios-lances classificados por caminho. */
 export const MAX_LANCES = 60;
 
-const NENHUMA: Map<string, Classification> = new Map();
+/** Quantas posições sem resposta podem estar sendo consultadas ao mesmo tempo. */
+export const MAX_EM_VOO = 6;
+
+const NENHUMA: ReadonlyMap<string, Classification> = new Map();
 
 export interface MoveClassificationOptions {
   /** Configuração `classify_moves`: desligada, nada é consultado. */
@@ -28,26 +32,53 @@ export interface MoveClassificationOptions {
  * posição a que ele leva, então uma consulta serve a dois lances.
  *
  * As consultas são as mesmas de `useAnalyse` (mesma chave e mesmo cache,
- * guardado para sempre), então navegar pela árvore não repete trabalho. Não
- * há escalonamento: a engine do servidor tem lock e serializa as chamadas
- * sozinha. Os lances vão sendo classificados conforme as respostas chegam.
+ * guardado para sempre), então navegar pela árvore não repete trabalho. Elas
+ * saem da posição atual para trás, algumas por vez (`MAX_EM_VOO`): a engine do
+ * servidor tem lock e serializa tudo, então quem sai antes é resolvido antes —
+ * e o que interessa primeiro é o lance que está na tela. Os lances vão sendo
+ * classificados conforme as respostas chegam.
  */
 export function useMoveClassification(
   tree: Tree,
   path: TreeNode[],
   { enabled, thresholds, bookIds }: MoveClassificationOptions,
-): Map<string, Classification> {
+): ReadonlyMap<string, Classification> {
   const nos = useMemo(() => path.slice(0, MAX_LANCES), [path]);
-  const fens = useMemo(
-    () => (nos.length === 0 ? [] : [fenAt(tree, null), ...nos.map((n) => fenAt(tree, n.id))]),
-    [tree, nos],
-  );
+  // uma caminhada só pelo caminho: a posição inicial e a de depois de cada lance
+  const fens = useMemo(() => {
+    if (nos.length === 0) return [];
+    const chess = new Chess(tree.fen);
+    const out = [tree.fen];
+    for (const n of nos) {
+      try {
+        chess.move(uciToMove(n.uci));
+      } catch {
+        break;
+      }
+      out.push(chess.fen());
+    }
+    return out;
+  }, [tree, nos]);
+
+  // Da posição atual para trás: é esta a ordem em que as consultas saem.
+  const ordem = useMemo(() => fens.map((_, i) => fens.length - 1 - i), [fens]);
+
+  const client = useQueryClient();
+  const janela = new Set<number>();
+  for (const i of ordem) {
+    if (janela.size >= MAX_EM_VOO) break;
+    // resposta ou erro já em mãos: a posição não ocupa vaga (erro não repete,
+    // então segurar a vaga dele travaria o resto do caminho para sempre)
+    const estado = client.getQueryState(["analyse", fens[i]]);
+    if (estado?.status === "success" || estado?.status === "error") continue;
+    janela.add(i);
+  }
 
   const results = useQueries({
-    queries: fens.map((fen) => ({
-      queryKey: ["analyse", fen],
-      queryFn: () => api.analyse(fen),
-      enabled,
+    queries: ordem.map((i) => ({
+      queryKey: ["analyse", fens[i]],
+      queryFn: () => api.analyse(fens[i]),
+      enabled: enabled && janela.has(i),
       staleTime: Infinity,
       retry: 0,
       // consulta que deu erro (engine indisponível) não volta a rodar quando o nó reaparece
@@ -55,15 +86,21 @@ export function useMoveClassification(
     })),
   });
 
-  const dados: (AnalyseOut | undefined)[] = results.map((r) => r.data);
+  // de volta à ordem do caminho: `dados[i]` é a análise de `fens[i]`
+  const dados: (AnalyseOut | undefined)[] = [];
+  ordem.forEach((i, k) => {
+    dados[i] = results[k].data;
+  });
 
   // A resposta de uma FEN não muda, então basta saber quais já chegaram para
   // saber se o mapa mudou; assim ele mantém a identidade entre renderizações.
+  // As FENs entram na conta: dois capítulos podem repetir os ids dos nós.
   const assinatura = [
     thresholds.mistake,
     thresholds.blunder,
     nos.map((n) => `${n.id}${bookIds.has(n.id) ? "*" : ""}`).join(","),
-    dados.map((d) => (d ? "1" : "0")).join(""),
+    fens.join(","),
+    fens.map((_, i) => (dados[i] ? "1" : "0")).join(""),
   ].join("|");
 
   return useMemo(() => {
