@@ -104,12 +104,18 @@ export function toConfig(p: BoardProps): Config {
   };
 }
 
-/** Liga ou desliga uma marcação do usuário, preservando as outras. */
-function toggleShape(api: Api, orig: Key, dest?: Key) {
+/**
+ * Liga ou desliga uma marcação do usuário, preservando as outras, e avisa o
+ * pai: o `setShapes` da API não dispara o `drawable.onChange` do chessground,
+ * então sem este aviso o desenho do toque longo nunca chegaria à árvore.
+ */
+function toggleShape(api: Api, orig: Key, dest: Key | undefined, avisar?: (shapes: Shape[]) => void) {
   const shape: DrawShape = dest && dest !== orig ? { orig, dest, brush: "green" } : { orig, brush: "green" };
   const shapes = api.state.drawable.shapes ?? [];
   const kept = shapes.filter((s) => !(s.orig === shape.orig && s.dest === shape.dest && s.brush === shape.brush));
-  api.setShapes(kept.length === shapes.length ? [...shapes, shape] : kept);
+  const novas = kept.length === shapes.length ? [...shapes, shape] : kept;
+  api.setShapes(novas);
+  avisar?.(novas.map(toShape));
 }
 
 export function Board(props: BoardProps) {
@@ -119,6 +125,9 @@ export function Board(props: BoardProps) {
   const prevShapes = useRef(props.shapes);
   const longPress = useRef(false);
   longPress.current = boardMode(props).longPress;
+  // o gesto do toque longo é registrado uma vez só: a props mais nova vem daqui
+  const aoMudarMarcacoes = useRef(props.onShapesChange);
+  aoMudarMarcacoes.current = props.onShapesChange;
 
   useEffect(() => {
     if (!host.current) return;
@@ -175,7 +184,7 @@ export function Board(props: BoardProps) {
       const api = cg.current;
       if (drawing && orig && api) {
         const t = e.changedTouches[0];
-        toggleShape(api, orig, t ? api.getKeyAtDomPos([t.clientX, t.clientY]) : undefined);
+        toggleShape(api, orig, t ? api.getKeyAtDomPos([t.clientX, t.clientY]) : undefined, aoMudarMarcacoes.current);
       }
       reset();
     };

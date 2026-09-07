@@ -2,22 +2,12 @@ import { ApiError } from "../api/client";
 
 /**
  * Erros de validação do editor (422): o servidor manda `detail` como lista de
- * mensagens e o cliente serializa isso na mensagem do `ApiError`. Devolve as
- * mensagens quando é esse o caso, `null` nos erros comuns.
+ * mensagens e o cliente guarda essa lista no `ApiError`. Devolve as mensagens
+ * quando é esse o caso, `null` nos erros comuns.
  */
 export function errorList(error: unknown): string[] | null {
   if (!(error instanceof ApiError)) return null;
-  const texto = error.message.trim();
-  if (!texto.startsWith("[")) return null;
-  try {
-    const valor: unknown = JSON.parse(texto);
-    if (Array.isArray(valor) && valor.length > 0 && valor.every((x) => typeof x === "string")) {
-      return valor as string[];
-    }
-  } catch {
-    /* mensagem comum que por acaso começa com "[" */
-  }
-  return null;
+  return error.details && error.details.length > 0 ? error.details : null;
 }
 
 export function errorMessage(error: unknown): string {

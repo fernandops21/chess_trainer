@@ -127,7 +127,7 @@ test("um lance novo marca alterações não salvas; salvar mostra a hora", async
 
 test("erro 422 lista as mensagens do servidor", async () => {
   vi.spyOn(api, "saveChapter").mockRejectedValue(
-    new ApiError(422, JSON.stringify(["lance ilegal no nó n3: e2e5", "comentário longo demais"])),
+    new ApiError(422, "lance ilegal no nó n3: e2e5; comentário longo demais", ["lance ilegal no nó n3: e2e5", "comentário longo demais"]),
   );
   renderPage();
   await screen.findByLabelText("Nome do capítulo");
@@ -157,4 +157,21 @@ test("sem alterações o link volta direto", async () => {
   fireEvent.click(screen.getByRole("link", { name: "Voltar ao estudo" }));
   expect(confirm).not.toHaveBeenCalled();
   expect(screen.getByTestId("where").textContent).toBe("/estudos/s1");
+});
+
+test("salvar mantém o lance atual no tabuleiro", async () => {
+  renderPage();
+  await screen.findByLabelText("Nome do capítulo");
+  fireEvent.click(screen.getByText("e5"));
+  const fen = last().fen;
+  expect(fen).not.toBe(START);
+
+  // o enunciado do cabeçalho só entra na árvore na hora de salvar: o tabuleiro
+  // recebe uma árvore nova e não pode voltar à posição inicial por causa disso
+  fireEvent.change(screen.getByLabelText("Enunciado"), { target: { value: "Pretas jogam e empatam." } });
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+  await waitFor(() => expect(screen.getByText(/salvo às \d{2}:\d{2}/)).toBeTruthy());
+  expect(last().fen).toBe(fen);
+  expect(screen.getByText("e5").getAttribute("aria-current")).toBe("true");
 });

@@ -17,6 +17,11 @@ import {
 } from "./moveTree";
 import type { Shape, Tree, TreeNode } from "./moveTree";
 
+/** Duas listas de marcações com o mesmo conteúdo, na mesma ordem. */
+function mesmasMarcacoes(a: Shape[], b: Shape[]): boolean {
+  return a.length === b.length && a.every((s, i) => s.orig === b[i].orig && s.dest === b[i].dest && s.brush === b[i].brush);
+}
+
 interface State {
   tree: Tree;
   /** Nó exibido; `null` é a posição inicial da árvore. */
@@ -134,7 +139,12 @@ export function useMoveTree(initial: Tree) {
   }, [mutate]);
 
   const setShapes = useCallback((shapes: Shape[]) => {
-    mutate((s) => setShapesTree(s.tree, s.currentId, shapes));
+    mutate((s) => {
+      // o tabuleiro reavisa a mesma lista a cada redesenho: sem isto, olhar as
+      // marcações de um lance já sujaria o capítulo
+      const atuais = (s.currentId ? findNode(s.tree, s.currentId)?.shapes : s.tree.root.shapes) ?? [];
+      return mesmasMarcacoes(atuais, shapes) ? s.tree : setShapesTree(s.tree, s.currentId, shapes);
+    });
   }, [mutate]);
 
   const toggleNag = useCallback((nag: number) => {
@@ -150,8 +160,22 @@ export function useMoveTree(initial: Tree) {
     return r.applied;
   }, [commit]);
 
+  /**
+   * Troca a árvore inteira pela que veio de fora. O lance atual fica quando o
+   * mesmo id leva pelos mesmos lances na árvore nova — é o que acontece ao
+   * salvar, que só mexe no enunciado ou na orientação —; sendo outra linha,
+   * a navegação recomeça da posição inicial.
+   */
   const setTree = useCallback((tree: Tree) => {
-    commit({ tree, currentId: null, dirty: false });
+    const s = ref.current;
+    const antes = pathTo(s.tree, s.currentId);
+    const agora = pathTo(tree, s.currentId);
+    const mesmoLance =
+      tree.fen === s.tree.fen &&
+      antes.length > 0 &&
+      antes.length === agora.length &&
+      antes.every((n, i) => n.uci === agora[i].uci);
+    commit({ tree, currentId: mesmoLance ? s.currentId : null, dirty: false });
   }, [commit]);
 
   const markSaved = useCallback(() => {

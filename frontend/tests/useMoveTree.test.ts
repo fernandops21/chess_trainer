@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { useMoveTree } from "../src/analysis/useMoveTree";
-import { emptyTree, findNode, mainline } from "../src/analysis/moveTree";
+import { emptyTree, findNode, insertLine, mainline } from "../src/analysis/moveTree";
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const sans = (nodes: { san: string }[]) => nodes.map((n) => n.san);
@@ -123,4 +123,41 @@ test("insertLine avança até o último lance legal e setTree limpa o dirty", ()
   expect(result.current.currentId).toBeNull();
   expect(result.current.fen).toBe(outra.fen);
   expect(result.current.dirty).toBe(false);
+});
+
+test("setTree mantém o lance atual quando a árvore nova traz o mesmo caminho", () => {
+  const { result } = renderHook(() => useMoveTree(emptyTree(START)));
+  act(() => { result.current.insertLine(["e2e4", "e7e5"]); });
+  const atual = result.current.currentId;
+  const fen = result.current.fen;
+
+  // o pai devolve a mesma linha com outro enunciado (é o que ele faz ao salvar)
+  const outra = { ...result.current.tree, intro: "novo enunciado" };
+  act(() => { result.current.setTree(outra); });
+  expect(result.current.tree).toBe(outra);
+  expect(result.current.currentId).toBe(atual);
+  expect(result.current.fen).toBe(fen);
+  expect(result.current.dirty).toBe(false);
+
+  // já uma árvore em que aquele id leva a outros lances recomeça do início
+  const trocada = insertLine(emptyTree(START), null, ["d2d4", "d7d5"]).tree;
+  act(() => { result.current.setTree(trocada); });
+  expect(result.current.currentId).toBeNull();
+});
+
+test("setShapes não suja a árvore quando as marcações são as mesmas", () => {
+  const { result } = renderHook(() => useMoveTree(emptyTree(START)));
+  act(() => { result.current.play("e2e4"); result.current.markSaved(); });
+  const antes = result.current.tree;
+
+  act(() => { result.current.setShapes([{ orig: "e4", brush: "green" }]); });
+  expect(result.current.dirty).toBe(true);
+  const comMarcacao = result.current.tree;
+
+  // o chessground reavisa a mesma lista a cada redesenho: nada muda
+  act(() => { result.current.markSaved(); });
+  act(() => { result.current.setShapes([{ orig: "e4", brush: "green" }]); });
+  expect(result.current.tree).toBe(comMarcacao);
+  expect(result.current.dirty).toBe(false);
+  expect(antes).not.toBe(comMarcacao);
 });

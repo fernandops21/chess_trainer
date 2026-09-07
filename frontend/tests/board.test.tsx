@@ -231,3 +231,26 @@ test("no celular as marcações se acumulam e o mesmo gesto apaga só a sua", ()
   marcar(90);
   expect(api.setShapes).toHaveBeenLastCalledWith([{ orig: "e2", brush: "green" }]);
 });
+
+test("no celular o toque longo avisa o pai da marcação nova", () => {
+  setPointer(true);
+  vi.useFakeTimers();
+  const onShapesChange = vi.fn();
+  const { container } = render(
+    <Board fen={F1} orientation="white" drawable onShapesChange={onShapesChange} />,
+  );
+  const el = boardOf(container);
+
+  el.dispatchEvent(touch("touchstart", [at(10)]));
+  vi.advanceTimersByTime(350);
+  el.dispatchEvent(touch("touchend", [at(90)]));
+
+  // o `api.setShapes` não dispara o `onChange` do chessground: o aviso é nosso
+  expect(onShapesChange).toHaveBeenCalledWith([{ orig: "e2", dest: "e4", brush: "green" }]);
+
+  // repetir o gesto apaga e avisa a lista vazia
+  el.dispatchEvent(touch("touchstart", [at(10)]));
+  vi.advanceTimersByTime(350);
+  el.dispatchEvent(touch("touchend", [at(90)]));
+  expect(onShapesChange).toHaveBeenLastCalledWith([]);
+});

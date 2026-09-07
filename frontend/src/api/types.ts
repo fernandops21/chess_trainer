@@ -386,6 +386,8 @@ export interface ChapterOut {
   in_queue: boolean;
   puzzle_id: string | null;
   intro_comment: string;
+  /** Nulo nos capítulos importados antes do editor. */
+  updated_at: string | null;
 }
 
 /** Capítulo com a árvore: o que o editor carrega e salva. */
@@ -394,7 +396,6 @@ export interface ChapterDetail extends ChapterOut {
   orientation: Color;
   tree: Tree;
   pgn: string;
-  updated_at: string | null;
 }
 
 /** Criação do capítulo: sem árvore ainda (posição inicial e modo). */

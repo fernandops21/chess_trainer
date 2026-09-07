@@ -15,6 +15,7 @@ const chapter = (over: Partial<ChapterOut> = {}): ChapterOut => ({
   in_queue: true,
   puzzle_id: "p1",
   intro_comment: "Brancas jogam e ganham.",
+  updated_at: null,
   ...over,
 });
 

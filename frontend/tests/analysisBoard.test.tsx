@@ -1,3 +1,4 @@
+import { useState, type ReactNode } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -17,7 +18,7 @@ vi.mock("../src/board/Board", () => ({
   },
 }));
 
-import { emptyTree, findNode } from "../src/analysis/moveTree";
+import { emptyTree, findNode, insertLine } from "../src/analysis/moveTree";
 import type { Tree } from "../src/analysis/moveTree";
 import { AnalysisBoard } from "../src/analysis/AnalysisBoard";
 
@@ -130,4 +131,90 @@ test("clicar na linha do motor joga só o primeiro lance", async () => {
 test("mostra o link Voltar quando recebe backTo", () => {
   renderBoard({ backTo: "/erros" });
   expect(screen.getByText("Voltar").getAttribute("href")).toBe("/erros");
+});
+
+// --- vaivém da árvore com o pai ----------------------------------------
+
+/** Pai que guarda a árvore e devolve ela pelo `tree` (como o editor de capítulo). */
+function Pai({ inicial }: { inicial: Tree }) {
+  const [t, setT] = useState(inicial);
+  return <AnalysisBoard editable tree={t} onTreeChange={setT} />;
+}
+
+/** Renderiza com os provedores e deixa trocar as props sem remontar. */
+function comProvedores(node: ReactNode) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const envolver = (n: ReactNode) => (
+    <QueryClientProvider client={client}>
+      <MemoryRouter>{n}</MemoryRouter>
+    </QueryClientProvider>
+  );
+  const r = render(envolver(node));
+  return { ...r, trocar: (n: ReactNode) => r.rerender(envolver(n)) };
+}
+
+test("a árvore que volta do pai não reinicia a navegação", () => {
+  comProvedores(<Pai inicial={emptyTree(START)} />);
+  play("e2e4");
+  play("e7e5");
+  const fen = last().fen;
+
+  fireEvent.change(screen.getByLabelText("Comentário"), { target: { value: "simétrico" } });
+  expect(last().fen).toBe(fen);
+  expect(screen.getByText("e5").getAttribute("aria-current")).toBe("true");
+});
+
+test("uma árvore de fora sem o lance atual volta ao começo", () => {
+  const { trocar } = comProvedores(<AnalysisBoard editable tree={emptyTree(START)} />);
+  play("e2e4");
+  expect(last().fen).not.toBe(START);
+
+  const outra = emptyTree("8/8/8/8/8/8/8/K6k w - - 0 1");
+  trocar(<AnalysisBoard editable tree={outra} />);
+  expect(last().fen).toBe(outra.fen);
+});
+
+test("uma árvore de fora com o mesmo caminho mantém o lance atual", () => {
+  const { trocar } = comProvedores(<AnalysisBoard editable tree={emptyTree(START)} />);
+  play("e2e4");
+  const fen = last().fen;
+
+  // mesma linha, outro enunciado (é o que o editor manda ao salvar): o lance fica
+  const mesma = insertLine(emptyTree(START), null, ["e2e4"]).tree;
+  trocar(<AnalysisBoard editable tree={{ ...mesma, intro: "novo enunciado" }} />);
+  expect(last().fen).toBe(fen);
+  expect(screen.getByText(/^1\. e4$/).getAttribute("aria-current")).toBe("true");
+});
+
+// --- menu do lance ------------------------------------------------------
+
+test("o menu do lance promove, marca NAG e apaga", () => {
+  const { onTreeChange } = renderBoard({ editable: true });
+  play("e2e4");
+  fireEvent.keyDown(window, { key: "Home" });
+  play("d2d4");
+
+  // depois do NAG o texto do lance vira "1. d4!": o nome casa pelo começo
+  const abrir = () => fireEvent.contextMenu(screen.getByRole("button", { name: /^1\. d4/ }), { clientX: 20, clientY: 20 });
+
+  abrir();
+  fireEvent.click(screen.getByRole("menuitem", { name: "Promover a linha principal" }));
+  expect(lastTree(onTreeChange).root.children[0].san).toBe("d4");
+
+  abrir();
+  fireEvent.click(screen.getByRole("menuitem", { name: "marcar !" }));
+  expect(lastTree(onTreeChange).root.children[0].nags).toEqual([1]);
+
+  abrir();
+  fireEvent.click(screen.getByRole("menuitem", { name: "Apagar daqui" }));
+  expect(lastTree(onTreeChange).root.children.map((n) => n.san)).toEqual(["e4"]);
+});
+
+test("no modo edição a seta do motor é azul (o verde fica para as marcações do autor)", async () => {
+  const semEdicao = renderBoard();
+  await waitFor(() => expect(last().arrows?.[0]?.brush).toBe("green"));
+  semEdicao.unmount();
+
+  renderBoard({ editable: true });
+  await waitFor(() => expect(last().arrows?.[0]?.brush).toBe("blue"));
 });

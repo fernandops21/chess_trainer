@@ -117,3 +117,21 @@ test("api.importStudy manda a URL e api.deleteStudy aceita 204 sem corpo", async
   vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 204, statusText: "No Content", json: async () => { throw new Error("sem corpo"); } })));
   await expect(api.deleteStudy("s1")).resolves.toBeUndefined();
 });
+
+test("detail em lista vira uma mensagem só e guarda as linhas", async () => {
+  mockFetch(422, { detail: ["lance ilegal no nó n3: e2e5", "comentário longo demais"] });
+  await expect(api.status()).rejects.toMatchObject({
+    status: 422,
+    message: "lance ilegal no nó n3: e2e5; comentário longo demais",
+    details: ["lance ilegal no nó n3: e2e5", "comentário longo demais"],
+  });
+});
+
+test("detail que não é texto nem lista de textos vira JSON", async () => {
+  mockFetch(422, { detail: [{ loc: ["body", "name"], msg: "campo obrigatório" }] });
+  await expect(api.status()).rejects.toMatchObject({
+    status: 422,
+    message: '[{"loc":["body","name"],"msg":"campo obrigatório"}]',
+    details: undefined,
+  });
+});

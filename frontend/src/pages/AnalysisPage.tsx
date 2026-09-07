@@ -48,7 +48,7 @@ export function AnalysisPage() {
         <button onClick={() => setNovoEstudo(true)}>Novo estudo</button>
         <span className="muted">Jogue os lances, monte as variações e salve como capítulo.</span>
       </div>
-      <AnalysisBoard tree={tree} onTreeChange={setTree} backTo={back} showSaveAsChapter />
+      <AnalysisBoard editable tree={tree} onTreeChange={setTree} backTo={back} showSaveAsChapter />
       {novoEstudo && <SaveChapterModal tree={tree} newStudy onClose={() => setNovoEstudo(false)} />}
     </>
   );

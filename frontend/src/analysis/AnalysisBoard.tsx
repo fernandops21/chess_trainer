@@ -21,6 +21,8 @@ export interface AnalysisBoardProps {
   onTreeChange?: (tree: Tree) => void;
   /** Botão "Salvar" e Ctrl+S. */
   onSave?: () => void;
+  /** Hora do último salvamento do pai: ao mudar, o tabuleiro se dá por salvo. */
+  savedAt?: number;
   backTo?: string;
   showSaveAsChapter?: boolean;
 }
@@ -44,6 +46,7 @@ export function AnalysisBoard({
   editable = false,
   onTreeChange,
   onSave,
+  savedAt,
   backTo,
   showSaveAsChapter = false,
 }: AnalysisBoardProps) {
@@ -75,6 +78,12 @@ export function AnalysisBoard({
       onTreeChange?.(mt.tree);
     }
   }, [tree, mt.tree, setTree, onTreeChange]);
+
+  // O pai salvou: nada muda na tela, só o `dirty` do hook volta a ficar limpo.
+  const { markSaved } = mt;
+  useEffect(() => {
+    if (savedAt !== undefined) markSaved();
+  }, [savedAt, markSaved]);
 
   const { prev, next, up, down, goStart } = mt;
   useEffect(() => {
@@ -116,7 +125,8 @@ export function AnalysisBoard({
   // no modo edição elas viram as marcações do usuário, que ele pode apagar
   const arrows = useMemo(() => {
     const out: { orig: Key; dest: Key; brush?: string }[] = [];
-    if (best) out.push({ orig: best.move.slice(0, 2) as Key, dest: best.move.slice(2, 4) as Key, brush: "green" });
+    // no modo edição o verde é do usuário: a sugestão do motor sai de azul
+    if (best) out.push({ orig: best.move.slice(0, 2) as Key, dest: best.move.slice(2, 4) as Key, brush: editable ? "blue" : "green" });
     if (!editable) {
       for (const s of marcacoes) if (s.dest) out.push({ orig: s.orig as Key, dest: s.dest as Key, brush: s.brush });
     }

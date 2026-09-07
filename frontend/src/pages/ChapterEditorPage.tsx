@@ -171,7 +171,13 @@ export function ChapterEditorPage() {
             </div>
           </div>
 
-          <AnalysisBoard editable tree={tree} onTreeChange={aoMudarArvore} onSave={salvar} />
+          <AnalysisBoard
+            editable
+            tree={tree}
+            onTreeChange={aoMudarArvore}
+            onSave={salvar}
+            savedAt={salvoEm?.getTime()}
+          />
         </>
       )}
     </>

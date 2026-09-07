@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { MOVE_NAGS, nagLabel } from "./moveTree";
 
 export interface NodeMenuProps {
@@ -11,9 +11,24 @@ export interface NodeMenuProps {
   onClose: () => void;
 }
 
+/** Folga até a borda da janela, em pixels. */
+const MARGEM = 8;
+
 /** Menu do lance: promover, apagar e os NAGs de qualidade (!, ?, !!, ??, !?, ?!). */
 export function NodeMenu({ x, y, onPromote, onDelete, onNag, onClose }: NodeMenuProps) {
   const box = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ left: x, top: y });
+
+  // Clique perto da borda direita (ou embaixo): o menu abriria metade fora da
+  // tela. Depois de montado já dá para medir e puxar ele para dentro.
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    const dentro = (v: number, tamanho: number, janela: number) =>
+      Math.max(MARGEM, Math.min(v, janela - tamanho - MARGEM));
+    setPos({ left: dentro(x, width, window.innerWidth), top: dentro(y, height, window.innerHeight) });
+  }, [x, y]);
 
   useEffect(() => {
     const fora = (e: MouseEvent) => {
@@ -36,7 +51,7 @@ export function NodeMenu({ x, y, onPromote, onDelete, onNag, onClose }: NodeMenu
   };
 
   return (
-    <div className="node-menu" role="menu" aria-label="Ações do lance" ref={box} style={{ left: x, top: y }}>
+    <div className="node-menu" role="menu" aria-label="Ações do lance" ref={box} style={{ left: pos.left, top: pos.top }}>
       <button type="button" role="menuitem" onClick={acao(onPromote)}>Promover a linha principal</button>
       <button type="button" role="menuitem" className="danger" onClick={acao(onDelete)}>Apagar daqui</button>
       <div className="row">

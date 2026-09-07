@@ -33,7 +33,11 @@ import type {
 } from "./types";
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  /**
+   * @param details Mensagens do servidor quando o `detail` vem em lista (o
+   *   editor de capítulo devolve uma por problema encontrado na árvore).
+   */
+  constructor(public status: number, message: string, public details?: string[]) {
     super(message);
     this.name = "ApiError";
   }
@@ -50,6 +54,10 @@ export function qs(params: Params): string {
   return s ? `?${s}` : "";
 }
 
+function listaDeTextos(valor: unknown): valor is string[] {
+  return Array.isArray(valor) && valor.length > 0 && valor.every((x) => typeof x === "string");
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
     headers: { "content-type": "application/json" },
@@ -57,17 +65,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     let detail = res.statusText || `HTTP ${res.status}`;
+    let lista: string[] | undefined;
     try {
       const body = (await res.json()) as { detail?: unknown };
-      if (body && body.detail !== undefined)
-        detail =
-          typeof body.detail === "string"
-            ? body.detail
-            : JSON.stringify(body.detail);
+      if (body && body.detail !== undefined) {
+        if (typeof body.detail === "string") {
+          detail = body.detail;
+        } else if (listaDeTextos(body.detail)) {
+          // 422 do editor: uma mensagem por problema da árvore
+          lista = body.detail;
+          detail = body.detail.join("; ");
+        } else {
+          detail = JSON.stringify(body.detail);
+        }
+      }
     } catch {
       /* corpo não é JSON */
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, detail, lista);
   }
   // 204 (DELETE) não tem corpo: `res.json()` lançaria
   if (res.status === 204) return undefined as T;
