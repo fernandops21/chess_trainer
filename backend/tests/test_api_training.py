@@ -118,3 +118,78 @@ def test_review_unknown_session_is_404(ready):
     puzzle = client.get("/api/queue").json()["items"][0]
     r = client.post("/api/reviews", json={"puzzle_id": puzzle["id"], "session_id": "nope", "correct": True})
     assert r.status_code == 404 and "sessão" in r.json()["detail"]
+
+
+def _positions(app):
+    """Posições da partida analisada, na ordem dos plies."""
+    from sqlalchemy import select
+
+    from chess_trainer.core.models import Position
+
+    with app.state.session_factory() as db:
+        rows = db.scalars(select(Position).order_by(Position.ply)).all()
+        return [{"id": p.id, "game_id": p.game_id, "ply": p.ply, "fen": p.fen, "move_uci": p.move_uci} for p in rows]
+
+
+def _make_avoid(app, pos: dict) -> str:
+    """Cria um puzzle "evitar" ligado a essa posição (o gerador só cria evitar
+    para erros do usuário; aqui interessa só a saída da API)."""
+    from chess_trainer.core.models import Puzzle
+
+    with app.state.session_factory() as db:
+        puzzle = Puzzle(position_id=pos["id"], game_id=pos["game_id"], kind="avoid", fen_start=pos["fen"],
+                        side_to_move="white", solution='{"moves": [], "explanation_pv": []}',
+                        end_reason="material_gain", theme="tactic", category="rapid", solver_moves=1)
+        db.add(puzzle)
+        db.commit()
+        return puzzle.id
+
+
+def test_puzzle_out_last_move_for_own_punish_and_avoid(ready):
+    app, client = ready
+    positions = _positions(app)
+    punish = client.get("/api/queue").json()["items"][0]
+    # punir: o último lance é o próprio erro do adversário, a partir da posição anterior a ele
+    assert punish["source"] == "own" and punish["kind"] == "punish" and punish["in_queue"] is True
+    assert punish["last_move"] == "g8f6" and punish["fen_before"] == positions[5]["fen"]
+    assert punish["study"] is None and punish["game"] is not None and punish["ply"] == 6
+
+    # evitar: o último lance é o do adversário, um ply antes do erro do usuário
+    avoid_id = _make_avoid(app, positions[4])
+    avoid = client.get(f"/api/puzzles/{avoid_id}").json()
+    assert avoid["kind"] == "avoid" and avoid["last_move"] == positions[3]["move_uci"]
+    assert avoid["fen_before"] == positions[3]["fen"]
+
+    # no ply 1 não há lance anterior: sem último lance
+    first = client.get(f"/api/puzzles/{_make_avoid(app, positions[0])}").json()
+    assert first["fen_before"] is None and first["last_move"] is None
+
+
+def test_queue_toggle_removes_from_queue_and_dashboard(ready):
+    _, client = ready
+    puzzle = client.get("/api/queue").json()["items"][0]
+    by_source = client.get("/api/dashboard").json()["by_source"]
+    assert by_source["own"] == {"in_queue": 1, "due": 0}
+    assert by_source["lichess"] == {"in_queue": 0, "due": 0} and by_source["study"]["in_queue"] == 0
+
+    out = client.post(f"/api/puzzles/{puzzle['id']}/queue", json={"in_queue": False})
+    assert out.status_code == 200 and out.json()["in_queue"] is False
+    q = client.get("/api/queue").json()
+    assert q["items"] == [] and q["new_available"] == 0
+    assert client.get("/api/dashboard").json()["by_source"]["own"]["in_queue"] == 0
+    # o puzzle e seu histórico continuam: a revisão de erros ainda o lista, fora da repetição
+    mistakes = client.get("/api/mistakes", params={"by": "all"}).json()
+    assert mistakes[0]["puzzles"][0]["in_queue"] is False
+
+    back = client.post(f"/api/puzzles/{puzzle['id']}/queue", json={"in_queue": True})
+    assert back.status_code == 200 and back.json()["in_queue"] is True
+    assert len(client.get("/api/queue").json()["items"]) == 1
+    assert client.get("/api/dashboard").json()["by_source"]["own"]["in_queue"] == 1
+    assert client.post("/api/puzzles/nope/queue", json={"in_queue": True}).status_code == 404
+
+
+def test_queue_filters_by_source(ready):
+    _, client = ready
+    assert client.get("/api/queue", params={"sources": "lichess"}).json()["items"] == []
+    assert len(client.get("/api/queue", params={"sources": "own, lichess"}).json()["items"]) == 1
+    assert client.get("/api/queue", params={"study_id": "nenhum"}).json()["items"] == []

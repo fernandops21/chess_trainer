@@ -1,15 +1,20 @@
+import json
 from dataclasses import asdict
 from datetime import timedelta
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from chess_trainer.api.deps import get_db
-from chess_trainer.api.schemas import AttemptIn, AttemptOut, TacticOut, TacticsStatusOut, ThemeCountOut, ThemeStatOut
+from chess_trainer.api.routes.training import _puzzle_out
+from chess_trainer.api.schemas import (
+    AttemptIn, AttemptOut, PuzzleOut, TacticOut, TacticsStatusOut, ThemeCountOut, ThemeStatOut,
+)
 from chess_trainer.config import get_setting, load_settings, set_setting
-from chess_trainer.core.models import LichessPuzzle, TrainingSession, utcnow
+from chess_trainer.core.models import LichessPuzzle, Puzzle, TrainingSession, utcnow
 from chess_trainer.core.stats import theme_stats
 from chess_trainer.core.tactics.convert import to_tactic
 from chess_trainer.core.tactics.importer import DownloadCancelled, ImportFilter, download_file, import_csv_zst
@@ -92,11 +97,66 @@ def get_next(themes: str | None = None, exclude: str | None = None, db: Session 
         if row is None:
             raise HTTPException(404, "nenhuma tática disponível com esses filtros")
         try:
-            return asdict(to_tactic(row))
+            tactic = asdict(to_tactic(row))
         except ValueError as exc:
             last = exc
             skip = [*skip, row.id]
+            continue
+        tactic["saved"] = _is_saved(db, row.id)
+        return tactic
     raise HTTPException(500, str(last)) from last
+
+
+def _is_saved(db: Session, lichess_id: str) -> bool:
+    """A tática já virou exercício da repetição e continua na fila?"""
+    return db.scalar(select(Puzzle.id).where(Puzzle.external_id == lichess_id, Puzzle.in_queue.is_(True))) is not None
+
+
+@router.post("/tactics/{lichess_id}/save", response_model=PuzzleOut)
+def post_save_tactic(lichess_id: str, response: Response, db: Session = Depends(get_db)):
+    """Guarda a tática do Lichess como exercício da repetição espaçada.
+
+    Idempotente: se já foi guardada devolve a mesma (200), trazendo-a de volta
+    à fila se estava fora; nada é apagado nem recriado."""
+    row = db.get(LichessPuzzle, lichess_id)
+    if row is None:
+        raise HTTPException(404, "tática não encontrada")
+    existing = db.scalar(select(Puzzle).where(Puzzle.external_id == lichess_id))
+    if existing is not None:
+        return _back_to_queue(db, existing)
+    try:
+        t = to_tactic(row)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    # `kind="punish"` por compatibilidade da interface: o solucionador é o lado
+    # a mover na posição inicial, como nos puzzles de punir os erros do adversário
+    puzzle = Puzzle(
+        source="lichess", in_queue=True, external_id=lichess_id, kind="punish",
+        fen_start=t.fen_start, side_to_move=t.side_to_move, solution=json.dumps(t.solution),
+        end_reason=t.end_reason, theme=t.theme, category="lichess", solver_moves=t.solver_moves,
+        fen_before=row.fen, last_move=row.moves.split()[0],
+    )
+    db.add(puzzle)
+    try:
+        db.commit()
+    except IntegrityError:
+        # duas táticas diferentes do Lichess com a mesma posição inicial: a única
+        # (fen_start, kind, source) barra a segunda; devolve a que já está guardada
+        db.rollback()
+        twin = db.scalar(select(Puzzle).where(Puzzle.fen_start == t.fen_start, Puzzle.kind == "punish",
+                                              Puzzle.source == "lichess"))
+        if twin is None:
+            raise
+        return _back_to_queue(db, twin)
+    response.status_code = 201
+    return _puzzle_out(db, puzzle)
+
+
+def _back_to_queue(db: Session, puzzle: Puzzle) -> PuzzleOut:
+    if not puzzle.in_queue:
+        puzzle.in_queue = True
+        db.commit()
+    return _puzzle_out(db, puzzle)
 
 
 @router.post("/tactics/attempts", response_model=AttemptOut, status_code=201)

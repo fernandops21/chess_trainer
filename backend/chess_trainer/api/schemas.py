@@ -86,6 +86,7 @@ class PuzzleRef(BaseModel):
     kind: str
     theme: str
     is_leech: bool
+    in_queue: bool = True
 
 
 class MistakeRef(BaseModel):
@@ -140,6 +141,14 @@ class GameRef(BaseModel):
     my_color: str
 
 
+class StudyRef(BaseModel):
+    id: str
+    title: str
+    chapter_id: str
+    chapter_name: str
+    lichess_url: str | None = None
+
+
 class PuzzleOut(BaseModel):
     id: str
     kind: str
@@ -152,11 +161,23 @@ class PuzzleOut(BaseModel):
     solver_moves: int
     is_leech: bool
     srs: SrsOut
-    game: GameRef
-    ply: int
-    move_played: str
-    mistake: MistakeRef
+    source: str = "own"
+    in_queue: bool = True
+    # posição antes do último lance do adversário e o lance em si (UCI), para animar
+    # a entrada do exercício; nulos quando a fonte não guarda esse lance
+    fen_before: str | None = None
+    last_move: str | None = None
+    # partida, erro e estudo só existem conforme a fonte: fora de `own` não há partida
+    game: GameRef | None = None
+    ply: int | None = None
+    move_played: str | None = None
+    mistake: MistakeRef | None = None
+    study: StudyRef | None = None
     siblings: list[PuzzleSibling] = []
+
+
+class QueueIn(BaseModel):
+    in_queue: bool
 
 
 class QueueOut(BaseModel):
@@ -222,6 +243,11 @@ class AnalyseOut(BaseModel):
     lines: list[AnalyseLine]
 
 
+class SourceCount(BaseModel):
+    in_queue: int = 0
+    due: int = 0
+
+
 class DashboardOut(BaseModel):
     due_today: int
     new_available: int
@@ -233,6 +259,8 @@ class DashboardOut(BaseModel):
     games_analyzed: int
     puzzles_total: int
     leeches: int
+    # contagem por fonte ("own", "lichess", "study"), sempre com as três chaves
+    by_source: dict[str, SourceCount] = {}
 
 
 class TacticOut(BaseModel):
@@ -251,6 +279,8 @@ class TacticOut(BaseModel):
     popularity: int
     nb_plays: int
     opening_tags: list[str] = []
+    # já guardada como exercício da repetição (e ainda na fila)
+    saved: bool = False
 
 
 class AttemptIn(BaseModel):

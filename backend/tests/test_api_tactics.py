@@ -134,3 +134,46 @@ def test_themes_empty_while_importing_without_cache(client):
     finally:
         gate.set()
         client.app.state.jobs.wait()
+
+
+FEN_00sHx = "q3k1nr/1pp1nQpp/3p4/1P2p3/4P3/B1PP1b2/B5PP/5K2 b k - 0 17"
+
+
+def test_save_tactic_creates_puzzle_and_is_idempotent(client):
+    run_import(client)
+    r = client.post("/api/tactics/00sHx/save")
+    assert r.status_code == 201, r.json()
+    p = r.json()
+    assert p["source"] == "lichess" and p["in_queue"] is True and p["category"] == "lichess"
+    assert p["kind"] == "punish" and p["theme"] == "mateIn2" and p["end_reason"] == "mate"
+    # a tática começa na posição anterior ao lance do adversário, que é animado
+    assert p["fen_before"] == FEN_00sHx and p["last_move"] == "e8d7"
+    assert p["game"] is None and p["mistake"] is None and p["ply"] is None
+    assert p["study"] is None and p["siblings"] == [] and p["solution"]["moves"][0]["by"] == "solver"
+
+    again = client.post("/api/tactics/00sHx/save")
+    assert again.status_code == 200 and again.json()["id"] == p["id"]
+    assert client.post("/api/tactics/nada/save").status_code == 404
+
+
+def test_saved_tactic_enters_the_queue_and_accepts_reviews(client):
+    run_import(client)
+    p = client.post("/api/tactics/00sHx/save").json()
+    assert client.put("/api/settings", json={"tactics_rating": 1760, "tactics_window": 50}).status_code == 200
+    t = client.get("/api/tactics/next").json()
+    assert t["id"] == "00sHx" and t["saved"] is True
+
+    q = client.get("/api/queue", params={"sources": "lichess"}).json()
+    assert [i["id"] for i in q["items"]] == [p["id"]] and q["new_available"] == 1
+    r = client.post("/api/reviews", json={"puzzle_id": p["id"], "correct": True, "duration_ms": 3000})
+    assert r.status_code == 201 and r.json()["interval_days"] == 1
+    dash = client.get("/api/dashboard").json()
+    assert dash["by_source"]["lichess"] == {"in_queue": 1, "due": 0} and dash["puzzles_total"] == 1
+
+    # tirar da repetição: some da fila e deixa de aparecer como guardada
+    assert client.post(f"/api/puzzles/{p['id']}/queue", json={"in_queue": False}).status_code == 200
+    assert client.get("/api/queue", params={"sources": "lichess"}).json()["items"] == []
+    assert client.get("/api/tactics/next").json()["saved"] is False
+    # guardar de novo devolve o mesmo puzzle, de volta à fila
+    again = client.post("/api/tactics/00sHx/save")
+    assert again.status_code == 200 and again.json()["id"] == p["id"] and again.json()["in_queue"] is True

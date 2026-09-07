@@ -99,6 +99,8 @@ def list_mistakes(
             eval_after=pos.eval_after, mistake_level=pos.mistake_level, mistake_by=pos.mistake_by,
             category=game.category, played_at=game.played_at, white=game.white, black=game.black,
             my_color=game.my_color,
-            puzzles=[PuzzleRef(id=p.id, kind=p.kind, theme=p.theme, is_leech=p.is_leech) for p in pos.puzzles],
+            # fora da repetição o exercício continua listado aqui, com a etiqueta na interface
+            puzzles=[PuzzleRef(id=p.id, kind=p.kind, theme=p.theme, is_leech=p.is_leech, in_queue=p.in_queue)
+                     for p in pos.puzzles],
         ))
     return items

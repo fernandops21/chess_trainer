@@ -7,30 +7,70 @@ from sqlalchemy.orm import Session
 
 from chess_trainer.api.deps import get_db
 from chess_trainer.api.schemas import (
-    DashboardOut, GameRef, MistakeRef, PuzzleOut, PuzzleSibling, QueueOut, ReviewIn, ReviewOut, SessionIn, SessionOut, SrsOut,
+    DashboardOut, GameRef, MistakeRef, PuzzleOut, PuzzleSibling, QueueIn, QueueOut, ReviewIn, ReviewOut,
+    SessionIn, SessionOut, SourceCount, SrsOut, StudyRef,
 )
 from chess_trainer.config import get_setting, load_settings
-from chess_trainer.core.models import Game, Puzzle, Review, TrainingSession, utcnow
+from chess_trainer.core.models import Game, Position, Puzzle, Review, Study, StudyChapter, TrainingSession, utcnow
 from chess_trainer.core.srs.queue import QueueFilters, build_queue, local_day_start
 from chess_trainer.core.srs.reviews import record_review, unleech
 
 router = APIRouter(prefix="/api")
 
 
-def _puzzle_out(p: Puzzle) -> PuzzleOut:
+SOURCES = ("own", "lichess", "study")
+
+
+def _last_move(db: Session, p: Puzzle) -> tuple[str | None, str | None]:
+    """Posição antes do lance do adversário e o lance (UCI), para a animação de entrada.
+
+    Em `own` o lance vem da partida: punir parte do próprio erro do adversário;
+    evitar, do lance anterior ao erro do usuário (no ply 1 não há nenhum). Nas
+    outras fontes o lance foi gravado no puzzle ao guardá-lo.
+    """
+    pos = p.position
+    if p.source != "own" or pos is None:
+        return p.fen_before, p.last_move
+    if p.kind == "punish":
+        return pos.fen, pos.move_uci
+    prev = db.scalar(select(Position).where(Position.game_id == pos.game_id, Position.ply == pos.ply - 1))
+    return (prev.fen, prev.move_uci) if prev is not None else (None, None)
+
+
+def _study_ref(db: Session, p: Puzzle) -> StudyRef | None:
+    if p.chapter_id is None:
+        return None
+    chapter = db.get(StudyChapter, p.chapter_id)
+    if chapter is None:
+        return None
+    study = db.get(Study, chapter.study_id)
+    return StudyRef(id=chapter.study_id, title=study.title if study is not None else "",
+                    chapter_id=chapter.id, chapter_name=chapter.name, lichess_url=chapter.lichess_url)
+
+
+def _puzzle_out(db: Session, p: Puzzle) -> PuzzleOut:
+    pos = p.position
+    fen_before, last_move = _last_move(db, p)
+    game = None
+    if p.game is not None:
+        game = GameRef(id=p.game.id, white=p.game.white, black=p.game.black, played_at=p.game.played_at,
+                       source_id=p.game.source_id, my_color=p.game.my_color)
+    mistake = None
+    if pos is not None:
+        mistake = MistakeRef(ply=pos.ply, move_played=pos.move_played, move_uci=pos.move_uci,
+                             eval_before=pos.eval_before, eval_after=pos.eval_after,
+                             mistake_level=pos.mistake_level, mistake_by=pos.mistake_by)
     return PuzzleOut(
         id=p.id, kind=p.kind, fen_start=p.fen_start, side_to_move=p.side_to_move,
         solution=p.solution_data, end_reason=p.end_reason, theme=p.theme, category=p.category,
-        solver_moves=p.solver_moves, is_leech=p.is_leech,
+        solver_moves=p.solver_moves, is_leech=p.is_leech, source=p.source, in_queue=p.in_queue,
         srs=SrsOut(ease=p.srs_ease, interval_days=p.srs_interval_days, lapses=p.srs_lapses,
                    due_at=p.srs_due_at, last_reviewed_at=p.srs_last_reviewed_at),
-        game=GameRef(id=p.game.id, white=p.game.white, black=p.game.black, played_at=p.game.played_at,
-                     source_id=p.game.source_id, my_color=p.game.my_color),
-        ply=p.position.ply, move_played=p.position.move_played,
-        mistake=MistakeRef(ply=p.position.ply, move_played=p.position.move_played, move_uci=p.position.move_uci,
-                           eval_before=p.position.eval_before, eval_after=p.position.eval_after,
-                           mistake_level=p.position.mistake_level, mistake_by=p.position.mistake_by),
-        siblings=[PuzzleSibling(id=s.id, kind=s.kind) for s in p.position.puzzles if s.id != p.id],
+        fen_before=fen_before, last_move=last_move, game=game,
+        ply=pos.ply if pos is not None else None,
+        move_played=pos.move_played if pos is not None else None,
+        mistake=mistake, study=_study_ref(db, p),
+        siblings=[PuzzleSibling(id=s.id, kind=s.kind) for s in (pos.puzzles if pos is not None else []) if s.id != p.id],
     )
 
 
@@ -43,31 +83,46 @@ def _get_puzzle(db: Session, puzzle_id: str) -> Puzzle:
 
 @router.get("/puzzles/{puzzle_id}", response_model=PuzzleOut)
 def get_puzzle(puzzle_id: str, db: Session = Depends(get_db)):
-    return _puzzle_out(_get_puzzle(db, puzzle_id))
+    return _puzzle_out(db, _get_puzzle(db, puzzle_id))
 
 
 @router.get("/queue", response_model=QueueOut)
 def get_queue(
     category: str | None = None, theme: str | None = None, kind: str | None = None, color: str | None = None,
+    sources: str | None = None, study_id: str | None = None,
     db: Session = Depends(get_db),
 ):
-    result = build_queue(db, QueueFilters(category, theme, kind, color), load_settings(db), utcnow())
+    filters = QueueFilters(category, theme, kind, color,
+                           sources=tuple(v.strip() for v in (sources or "").split(",") if v.strip()),
+                           study_id=study_id)
+    result = build_queue(db, filters, load_settings(db), utcnow())
     items = result.due or result.new
     return QueueOut(due_count=result.due_count, new_available=result.new_available,
-                    new_remaining_today=result.new_remaining_today, items=[_puzzle_out(p) for p in items])
+                    new_remaining_today=result.new_remaining_today, items=[_puzzle_out(db, p) for p in items])
 
 
 @router.get("/leeches", response_model=list[PuzzleOut])
 def get_leeches(db: Session = Depends(get_db)):
     puzzles = db.scalars(select(Puzzle).where(Puzzle.is_leech.is_(True)).order_by(Puzzle.leech_since.desc())).all()
-    return [_puzzle_out(p) for p in puzzles]
+    return [_puzzle_out(db, p) for p in puzzles]
 
 
 @router.post("/puzzles/{puzzle_id}/unleech", response_model=PuzzleOut)
 def post_unleech(puzzle_id: str, db: Session = Depends(get_db)):
     puzzle = _get_puzzle(db, puzzle_id)
     unleech(db, puzzle, utcnow())
-    return _puzzle_out(puzzle)
+    return _puzzle_out(db, puzzle)
+
+
+@router.post("/puzzles/{puzzle_id}/queue", response_model=PuzzleOut)
+def post_queue_toggle(puzzle_id: str, body: QueueIn, db: Session = Depends(get_db)):
+    """Tira o exercício da repetição ou o traz de volta. Nada é apagado: o
+    histórico continua e ele volta exatamente como estava."""
+    puzzle = _get_puzzle(db, puzzle_id)
+    if puzzle.in_queue != body.in_queue:
+        puzzle.in_queue = body.in_queue
+        db.commit()
+    return _puzzle_out(db, puzzle)
 
 
 def _session_out(db: Session, s: TrainingSession) -> SessionOut:
@@ -125,6 +180,18 @@ def _streak_days(db: Session, now) -> int:
     return streak
 
 
+def _by_source(db: Session, now) -> dict[str, SourceCount]:
+    """Guardados e vencidos por fonte, com o mesmo recorte da fila (na fila e sem sanguessuga)."""
+    rows = db.execute(
+        select(Puzzle.source, func.count(Puzzle.id),
+               func.sum(case((Puzzle.srs_due_at.is_not(None) & (Puzzle.srs_due_at <= now), 1), else_=0)))
+        .where(Puzzle.in_queue.is_(True), Puzzle.is_leech.is_(False))
+        .group_by(Puzzle.source)
+    ).all()
+    counts = {source: SourceCount(in_queue=int(total or 0), due=int(due or 0)) for source, total, due in rows}
+    return {source: counts.get(source, SourceCount()) for source in SOURCES}
+
+
 @router.get("/dashboard", response_model=DashboardOut)
 def dashboard(db: Session = Depends(get_db)):
     now = utcnow()
@@ -144,4 +211,5 @@ def dashboard(db: Session = Depends(get_db)):
         games_analyzed=int(db.scalar(select(func.count(Game.id)).where(Game.analyzed_at.is_not(None))) or 0),
         puzzles_total=int(db.scalar(select(func.count(Puzzle.id))) or 0),
         leeches=int(db.scalar(select(func.count(Puzzle.id)).where(Puzzle.is_leech.is_(True))) or 0),
+        by_source=_by_source(db, now),
     )
