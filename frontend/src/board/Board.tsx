@@ -122,6 +122,8 @@ export function Board(props: BoardProps) {
   const host = useRef<HTMLDivElement>(null);
   const cg = useRef<Api | null>(null);
   const prevFen = useRef(props.fen);
+  // true entre um lance feito no tabuleiro e a próxima sincronização da `fen`
+  const pendingSync = useRef(false);
   const prevShapes = useRef(props.shapes);
   const longPress = useRef(false);
   longPress.current = boardMode(props).longPress;
@@ -204,16 +206,29 @@ export function Board(props: BoardProps) {
 
   useEffect(() => {
     const config = toConfig(props);
-    const moved = prevFen.current !== props.fen;
+    // Um lance que o app recusou (errado no puzzle, ilegal na análise) deixa a
+    // peça deslocada dentro do chessground enquanto a `fen` do app não muda;
+    // nesse caso a `fen` precisa ir junto para a peça voltar ao lugar.
+    const fenChanged = prevFen.current !== props.fen;
+    const moved = fenChanged || pendingSync.current;
+    if (config.movable?.events) {
+      const after = props.onMove;
+      config.movable.events.after = (orig: Key, dest: Key) => { pendingSync.current = true; after?.(orig, dest); };
+    }
     // O chessground zera `drawable.shapes` sempre que a config traz uma `fen`;
     // como este efeito roda a cada render (relógio do pai, por exemplo), a `fen`
     // só vai junto quando a posição realmente mudou — assim as marcações do
     // usuário sobrevivem aos re-renders e somem ao trocar de posição.
     if (!moved) delete config.fen;
+    // ao repor a posição depois de um lance recusado, as marcações do usuário
+    // seriam zeradas pela `fen`; guardamos e devolvemos.
+    const keep = pendingSync.current && !fenChanged ? cg.current?.state.drawable.shapes ?? [] : null;
     cg.current?.set(config);
+    pendingSync.current = false;
+    if (keep && keep.length) cg.current?.setShapes(keep);
     // Trocar de posição (ou receber outra lista de marcações salvas) repõe o que
     // vem do `shapes`; sem `shapes`, o desenho do usuário some ao mudar de posição.
-    if (moved || prevShapes.current !== props.shapes) {
+    if (fenChanged || prevShapes.current !== props.shapes) {
       prevFen.current = props.fen;
       prevShapes.current = props.shapes;
       cg.current?.setShapes((props.shapes ?? []).map(toDrawShape));

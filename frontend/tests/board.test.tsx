@@ -254,3 +254,25 @@ test("no celular o toque longo avisa o pai da marcação nova", () => {
   el.dispatchEvent(touch("touchend", [at(90)]));
   expect(onShapesChange).toHaveBeenLastCalledWith([]);
 });
+
+test("lance recusado pelo app: a fen volta a ser enviada para a peça retornar, e as marcações ficam", () => {
+  setPointer(false);
+  api.set.mockClear();
+  api.state.drawable.shapes = [];
+  const onMove = vi.fn();
+  const { rerender } = render(<Board fen={F1} orientation="white" movableColor="white" onMove={onMove} drawable />);
+  // o chessground moveu a peça e avisou o app; o app recusou (fen igual)
+  const cfg = api.set.mock.calls.at(-1)?.[0] ?? {};
+  api.state.drawable.shapes = [{ orig: "e1", dest: "e8", brush: "green" }];
+  (cfg.movable?.events?.after ?? (api.set.mock.calls[0]?.[0] as { movable?: { events?: { after?: (o: Key, d: Key) => void } } }).movable?.events?.after)?.("e1" as Key, "e8" as Key);
+  expect(onMove).toHaveBeenCalledWith("e1", "e8");
+  api.set.mockClear();
+  rerender(<Board fen={F1} orientation="white" movableColor="white" onMove={onMove} drawable />);
+  const resync = api.set.mock.calls.at(-1)?.[0];
+  expect(resync?.fen).toBe(F1);
+  expect(api.state.drawable.shapes).toEqual([{ orig: "e1", dest: "e8", brush: "green" }]);
+  // re-render seguinte sem lance: a fen volta a ficar de fora (marcações não somem)
+  api.set.mockClear();
+  rerender(<Board fen={F1} orientation="white" movableColor="white" onMove={onMove} drawable />);
+  expect(api.set.mock.calls.at(-1)?.[0]?.fen).toBeUndefined();
+});
