@@ -56,10 +56,24 @@ Capítulos de estudos viram exercícios (`source = "study"`). Um estudo pode vir
     GET    /api/studies/{id}/pgn         # PGN do estudo inteiro, como download
     GET    /api/studies/{id}/chapters/{cid}            # capítulo completo: fen, orientation, tree, pgn
     POST   /api/studies/{id}/chapters                  # 201: capítulo novo; corpo {name, fen?, orientation?, mode?}
-    PUT    /api/studies/{id}/chapters/{cid}            # salva {name, mode, orientation, tree}; árvore inválida dá 422
+    PUT    /api/studies/{id}/chapters/{cid}            # salva {name, mode, orientation, tree}; erros dão 422
     DELETE /api/studies/{id}/chapters/{cid}            # 204: capítulo, exercício e revisões dele
     POST   /api/studies/{id}/chapters/{cid}/duplicate  # 201: cópia logo depois, como leitura
     GET    /api/studies/{id}/chapters/{cid}/pgn        # PGN de um capítulo, como download
+
+Estudo ou capítulo inexistente: 404. `POST /api/studies/{id}/chapters` e
+`PUT /api/studies/{id}/chapters/{cid}` recusam com **422** e a lista `detail` de mensagens em
+português (o frontend mostra item a item):
+
+- **árvore inválida** — FEN que o python-chess não aceita, lance ilegal (`"lance ilegal no nó n3: e2e5"`),
+  mais de 2 000 lances no capítulo ou comentário acima de 4 000 caracteres;
+- **`"posição inicial já usada por outro capítulo"`** — a única `(fen_start, kind, source)` de `puzzles`
+  não deixa dois exercícios de estudo partirem da mesma posição; acontece ao mudar a posição inicial de
+  um capítulo que já tem exercício para uma que outro capítulo ocupa (a edição inteira roda dentro de um
+  SAVEPOINT, então nada fica pela metade);
+- **`"modo inválido"`** e **`"orientação inválida"`** — fora de `MODES` (`gamebook`/`read`) e de
+  `ORIENTATIONS` (`white`/`black`). São recusados em vez de virarem o padrão calado: salvar um gamebook
+  escrito errado não pode transformá-lo em capítulo de leitura sem o usuário saber.
 
 O job `import_study` baixa `https://lichess.org/api/study/{id}.pgn` (redirecionamentos seguidos,
 timeout de 30 s) ou usa o PGN colado, separa os capítulos com python-chess e faz o upsert pela chave
@@ -93,6 +107,16 @@ Exportar dá o PGN no formato que o Lichess importa (um jogo por capítulo, com 
 Exportar um estudo e importá-lo de volta devolve exatamente as mesmas árvores.
 
 ## Atualização do banco
+
+`studies` e `study_chapters` ganharam colunas no ciclo do editor, todas por `ALTER TABLE ADD COLUMN`
+(nenhuma tabela é refeita, nenhuma cópia de segurança é preciso para elas):
+
+- `studies.origin` — `VARCHAR(8) NOT NULL DEFAULT 'lichess'`: os estudos que já existiam vieram de lá;
+  os criados aqui gravam `local`.
+- `studies.updated_at`, `study_chapters.updated_at` — `DATETIME`, vazio até a primeira edição.
+- `study_chapters.tree_json` — `TEXT` com a árvore de lances. Capítulo importado antes do editor tem
+  a coluna vazia e ganha a árvore na primeira abertura em `GET /api/studies/{id}/chapters/{cid}`
+  (`ensure_tree`, derivada do PGN guardado).
 
 O esquema de `puzzles` mudou nesta versão (`position_id`/`game_id` passaram a aceitar nulo, para
 exercícios que não vêm de uma partida). Na primeira vez que o servidor sobe, a migração faz uma **cópia

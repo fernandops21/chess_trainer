@@ -11,9 +11,10 @@ gera puzzles dos erros (seus e do adversário) e agenda com repetição espaçad
 Abra http://127.0.0.1:8000 (ou, no celular na mesma rede, o endereço mostrado em Configurações).
 Stockfish: ver backend/README.md.
 
-Tabuleiro de análise livre (`/analise`, com avaliação do Stockfish no backend): acessível pelo link
-"Explorar" no resultado do treino (abre em nova aba, para não perder a sessão em andamento), pelo botão
-"Explorar daqui" na partida e pelo botão "Explorar" na revisão de erros.
+Tabuleiro de análise livre (`/analise`, com avaliação do Stockfish no backend): pelo item "Análise" do
+menu, pelo link "Explorar" no resultado do treino (abre em nova aba, para não perder a sessão em
+andamento), pelo botão "Explorar daqui" na partida e pelo botão "Explorar" na revisão de erros. É
+também por ali que se começa um capítulo de estudo (ver "Criar estudos aqui").
 
 ## Táticas do Lichess
 
@@ -66,7 +67,61 @@ venceram hoje, com os botões:
 - **Remover** — apaga o estudo, os capítulos, os exercícios e o histórico deles (pede confirmação).
 
 Clicando no título abre o detalhe: capítulos em ordem, com o enunciado do autor, a etiqueta do modo,
-"Treinar este" (capítulos com exercício) e "ver no Lichess".
+"Treinar este" (capítulos com exercício e na repetição) e "ver no Lichess".
+
+Estudo importado também se edita aqui: "Editar" num capítulo abre o mesmo editor dos estudos feitos no
+app, e dá para acrescentar variações, comentar, renomear e reordenar capítulos. O detalhe do estudo
+avisa que **reimportar sobrescreve** essas edições — o PGN do Lichess volta a mandar. Para não perder
+o que você escreveu, exporte o PGN antes de reimportar (ou deixe o estudo importado quieto e trabalhe
+numa cópia feita aqui).
+
+## Criar estudos aqui
+
+Além de importar, dá para escrever estudos no próprio app.
+
+O começo é sempre uma posição num tabuleiro editável: a tela **Análise** (`/analise`), aberta em branco
+ou já numa posição vinda de uma partida ou de um erro. Ali você joga os lances, olha a avaliação do
+Stockfish e, quando a linha está do jeito que quer, clica em **"Salvar como capítulo"** — o modal
+pergunta se é um estudo que já existe ou um novo (título e autor, este já preenchido com o nome
+configurado) e abre o editor do capítulo. O caminho mais direto também serve: **Estudos → "Novo
+estudo"** e depois **"Novo capítulo"** (posição padrão ou uma FEN colada).
+
+O editor do capítulo (`/estudos/:id/capitulos/:cid/editar`) tem, no cabeçalho, nome, **modo**
+(exercício ou leitura), **orientação** do tabuleiro e o **enunciado** (o comentário da posição
+inicial); ao lado do tabuleiro ficam a avaliação do motor e a **árvore de lances** no formato do
+Lichess — linha principal corrida e variações recuadas entre parênteses. No editor você pode:
+
+- **jogar lances** no tabuleiro para criar a linha; um lance que já existe só navega até ele;
+- **comentar** o lance atual na caixa embaixo do tabuleiro (na posição inicial ela é o enunciado);
+- **marcar a qualidade do lance** com NAGs (`!`, `?`, `!!`, `??`, `!?`, `?!`), promover uma variação a
+  linha principal ou apagar dali para a frente — tudo no menu que abre com o botão direito (ou o toque
+  longo, no celular) em cima do lance na árvore;
+- **desenhar setas e casas** com o botão direito no tabuleiro: elas ficam salvas naquele lance e
+  aparecem para quem lê o capítulo depois;
+- aproveitar o motor: cada linha sugerida tem **"adicionar como variação"**, que entra com a sequência
+  inteira a partir do lance atual.
+
+Atalhos: **←** e **→** andam na linha, **↑** e **↓** trocam de variação, **Home** volta à posição
+inicial e **Ctrl+S** salva (o botão "Salvar" fica embaixo do tabuleiro). O cabeçalho mostra o estado
+("alterações não salvas" / "salvo às HH:MM"), e sair da tela com pendências pede confirmação.
+
+Capítulo no modo **exercício** vira um puzzle da repetição espaçada, com a linha principal como
+solução; no modo **leitura** ele fica só para ler, sem exercício. Trocar o modo e salvar de novo tira
+ou devolve o exercício sem perder o histórico dele.
+
+Cada capítulo tem também:
+
+- **Ver como leitura** — a mesma árvore sem edição, com os comentários e as marcações do autor
+  aparecendo conforme se navega. É como o capítulo vai ser lido.
+- **Exportar PGN** (do capítulo ou do estudo inteiro) — o arquivo sai no formato que o Lichess importa
+  ("Estudo → Import PGN" lá), com os comentários, as setas, os NAGs e a orientação.
+- **Duplicar** — a cópia entra logo depois, como **leitura**: dois exercícios de estudo não podem
+  partir da mesma posição inicial. Mude a posição (ou a linha) da cópia e escolha "exercício" ao salvar.
+- **Apagar** — leva junto o exercício e o histórico dele; pede confirmação.
+
+Limites por capítulo: **2 000 lances** na árvore e **4 000 caracteres** por comentário. O servidor
+confere ainda a FEN e a legalidade de cada lance; o que não passar volta como uma lista de mensagens
+em português, em cima da tela do editor.
 
 ## Fontes de exercício
 
