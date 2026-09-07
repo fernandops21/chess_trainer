@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { TrainPage } from "../src/train/TrainPage";
+import { SETTINGS } from "./fixtures/settings";
 
 const puzzle = {
   id: "p1",
@@ -38,7 +39,7 @@ const bodies: Record<string, unknown> = {
   "/api/studies": [{ id: "s1", title: "Finais de torre", author: "", source_url: "", lichess_id: null, imported_at: null, chapter_count: 2, exercise_count: 2, in_queue: 2, due_today: 0 }],
   "/api/studies/s1": { id: "s1", title: "Finais de torre", author: "", source_url: "", lichess_id: null, imported_at: null, chapter_count: 2, exercise_count: 2, in_queue: 2, due_today: 0, chapters: [] },
   "/api/dashboard": { due_today: 1, new_available: 0, new_remaining_today: 0, streak_days: 0, reviews_today: 0, last_import_at: null, games_total: 0, games_analyzed: 0, puzzles_total: 0, leeches: 0 },
-  "/api/settings": { refute_wrong_moves: true },
+  "/api/settings": SETTINGS,
   "/api/status": { engine: { available: true, path: null }, job: { state: "idle", job: null, stage: "", done: 0, total: 0, message: "", error: null, finished_at: null }, games_total: 0, games_pending: 0, last_import_at: null, local_url: "" },
 };
 

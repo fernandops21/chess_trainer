@@ -1,10 +1,26 @@
 import type { ReactNode } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import type { AnalyseOut, AttemptOut, PuzzleOut, TacticOut } from "../src/api/types";
+import type { BoardProps } from "../src/board/Board";
+
+// Dublê do tabuleiro: o desenho das setas/casas é detalhe do chessground, então
+// o que dá para inspecionar aqui é o que a `PuzzleView` manda para o Board.
+const { boardProps } = vi.hoisted(() => ({ boardProps: [] as Record<string, unknown>[] }));
+vi.mock("../src/board/Board", () => ({
+  Board: (p: Record<string, unknown>) => {
+    boardProps.push(p);
+    return <div data-testid="board" />;
+  },
+}));
+
 import { PuzzleView } from "../src/train/PuzzleView";
 import { usePuzzle } from "../src/train/usePuzzle";
+
+const last = () => boardProps.at(-1) as unknown as BoardProps;
+
+beforeEach(() => { boardProps.length = 0; });
 
 const tactic: TacticOut = {
   id: "00sHx",
@@ -230,4 +246,38 @@ test("clicar em 'Tentar de novo' chama retryMove", async () => {
   fireEvent.click(screen.getByText("errar"));
   fireEvent.click(await screen.findByRole("button", { name: "Tentar de novo" }));
   expect(retry).toHaveBeenCalledTimes(1);
+});
+
+// exercício de estudo com marcações do autor na posição inicial
+const comSetas: PuzzleOut = { ...chapter, id: "p4",
+  solution: { ...chapter.solution, shapes: { start: [{ orig: "c3", dest: "d5", brush: "green" }, { orig: "e1", brush: "red" }] } } };
+
+function SetasHost() {
+  const ctl = usePuzzle(comSetas, { sessionId: null, submit: async () => ({}) as never, refute: true, analyse: engine });
+  return (
+    <>
+      <button onClick={() => ctl.tryMove("h2", "h3")}>errar</button>
+      <PuzzleView puzzle={comSetas} ctl={ctl} />
+    </>
+  );
+}
+
+test("as marcações do autor somem enquanto a refutação está no tabuleiro", async () => {
+  render(<SetasHost />);
+  expect(last().arrows).toEqual([{ orig: "c3", dest: "d5", brush: "green" }]);
+  expect(last().squares).toEqual([{ orig: "e1", brush: "red" }]);
+
+  // com o lance errado (e depois a réplica) no tabuleiro as peças marcadas já
+  // saíram das casas: as setas do autor apontariam para o lugar errado
+  fireEvent.click(screen.getByText("errar"));
+  expect(last().arrows).toEqual([]);
+  expect(last().squares).toEqual([]);
+  const voltar = await screen.findByRole("button", { name: "Tentar de novo" });
+  expect(last().arrows).toEqual([]);
+  expect(last().squares).toEqual([]);
+
+  // de volta à posição inicial elas voltam
+  fireEvent.click(voltar);
+  expect(last().arrows).toEqual([{ orig: "c3", dest: "d5", brush: "green" }]);
+  expect(last().squares).toEqual([{ orig: "e1", brush: "red" }]);
 });

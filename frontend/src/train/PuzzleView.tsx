@@ -75,8 +75,9 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDis
   const intro = !tactic && puzzle.source === "study" ? puzzle.solution.intro : undefined;
   // setas e casas do autor do estudo: só na posição inicial, como dica visual dele
   // (durante a introdução o tabuleiro ainda mostra a posição de antes do lance
-  // do adversário, onde essas marcações apontariam para as casas erradas)
-  const authored = (state.phase !== "intro" && state.idx === 0 ? puzzle.solution.shapes?.["start"] : undefined) ?? [];
+  // do adversário, e na refutação mostra o lance errado e a réplica da engine:
+  // nos dois casos essas marcações apontariam para casas cujas peças já saíram)
+  const authored = (state.phase !== "intro" && !refutando && state.idx === 0 ? puzzle.solution.shapes?.["start"] : undefined) ?? [];
   const arrows = authored.filter((s) => s.dest).map((s) => ({ orig: s.orig as Key, dest: s.dest as Key, brush: s.brush }));
   const squares = authored.filter((s) => !s.dest).map((s) => ({ orig: s.orig as Key, brush: s.brush }));
   const what = tactic ? "tática" : puzzle.source === "own" ? kindLabel(puzzle.kind) : puzzle.source === "study" ? "exercício do estudo" : "tática guardada";

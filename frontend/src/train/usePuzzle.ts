@@ -271,18 +271,19 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
 
   // Lance errado sem refutação (opção desligada, engine indisponível ou lance
   // ilegal): o lance é só recusado e o tabuleiro nem chega a mudar. Com
-  // `voltar`, desfaz também o que a refutação já tinha posto na tela.
+  // `voltar`, desfaz também o que a refutação já tinha posto na tela. A dica
+  // volta ao estágio 0 nos dois casos, para o lance errado se comportar igual
+  // com a refutação ligada ou desligada.
   const recusar = useCallback((authored?: string, voltar = false) => {
     setState((p) => ({
       ...p,
       ...(voltar
         ? {
           phase: "awaiting_move" as Phase, fen: chessRef.current.fen(), turn: turnOf(chessRef.current),
-          check: chessRef.current.inCheck(), lastMove: antesRef.current, hintStage: 0 as const,
-          hint: undefined, refutation: undefined,
+          check: chessRef.current.inCheck(), lastMove: antesRef.current, refutation: undefined,
         }
         : null),
-      wrong: true, pendingPromotion: undefined,
+      wrong: true, hintStage: 0 as const, hint: undefined, pendingPromotion: undefined,
       message: { text: authored ?? "Não é esse. Tente de novo.", tone: "bad" as const },
     }));
   }, []);
@@ -292,10 +293,14 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
   const refutar = useCallback((uci: string, authored?: string) => {
     const fenAntes = chessRef.current.fen();
     const copia = new Chess(fenAntes);
-    let mv: ReturnType<Chess["move"]>;
-    try {
-      mv = copia.move(uciToMove(uci));
-    } catch {
+    const tentar = (promotion?: string) => {
+      try { return copia.move({ ...uciToMove(uci), ...(promotion ? { promotion } : null) }); } catch { return null; }
+    };
+    // Um lance errado de peão à última fila chega sem a peça da promoção
+    // (`tryMove` só pede a peça quando o lance esperado promove): antes de
+    // desistir da refutação, tenta o mesmo lance promovendo a dama.
+    const mv = tentar() ?? (uci.length === 4 ? tentar("q") : null);
+    if (!mv) {
       recusar(authored);
       return;
     }

@@ -9,6 +9,7 @@ import type { PuzzleCtl } from "../src/train/usePuzzle";
 import { TacticSession, type TacticSummaryData } from "../src/train/TacticSession";
 import { TacticSummary } from "../src/train/TacticSummary";
 import type { SessionConfig } from "../src/train/SessionStart";
+import { SETTINGS } from "./fixtures/settings";
 
 // O relógio real só expira depois dos minutos planejados; este flag deixa o teste
 // pedir "tempo esgotado" sem mexer em temporizadores (o resto do relógio é o de verdade,
@@ -98,7 +99,7 @@ function renderSession() {
 
 beforeEach(() => {
   vi.spyOn(api, "tacticsStatus").mockResolvedValue(status);
-  vi.spyOn(api, "settings").mockResolvedValue({ refute_wrong_moves: true } as never);
+  vi.spyOn(api, "settings").mockResolvedValue(SETTINGS);
   vi.spyOn(api, "createSession").mockResolvedValue(session);
   vi.spyOn(api, "endSession").mockResolvedValue({ ...session, ended_at: "2026-01-01T00:25:00Z" });
   vi.spyOn(api, "attempt").mockResolvedValue(attempt());

@@ -439,12 +439,17 @@ test("engine indisponível cai na mensagem de sempre, sem travar o exercício", 
 test("com a refutação desligada nada é pedido à engine", () => {
   const analyse = engineDuble();
   const { result } = setup(ONE_MOVE, { analyse });
+  act(() => result.current.useHint());
+  expect(result.current.state.hintStage).toBe(1);
   act(() => result.current.tryMove("h2", "h3"));
   expect(analyse).not.toHaveBeenCalled();
   expect(result.current.state.phase).toBe("awaiting_move");
   expect(result.current.state.fen).toBe(ONE_MOVE.fen_start);
   expect(result.current.state.wrong).toBe(true);
   expect(result.current.state.message).toEqual({ text: "Não é esse. Tente de novo.", tone: "bad" });
+  // o lance errado zera a dica igual à refutação zera
+  expect(result.current.state.hintStage).toBe(0);
+  expect(result.current.state.hint).toBeUndefined();
 });
 
 test("lance errado que dá mate fica em 'refuted' sem réplica", async () => {
@@ -482,13 +487,80 @@ test("desmontar com a engine pensando não mexe mais no estado", async () => {
   const analyse = vi.fn((fen: string) => (fen === ONE_MOVE.fen_start
     ? Promise.resolve(analiseOut(fen, [LINHA_ANTES]))
     : new Promise<AnalyseOut>((res) => { caixa.responder = res; })));
-  const erros = vi.spyOn(console, "error").mockImplementation(() => {});
   const { result, unmount } = setup(ONE_MOVE, { refute: true, analyse });
   act(() => result.current.tryMove("h2", "h3"));
+  expect(analyse).toHaveBeenCalledTimes(2);
   unmount();
   await act(async () => { caixa.responder?.(analiseOut(FEN_ERRO, [LINHA_DEPOIS])); await Promise.resolve(); });
-  expect(erros).not.toHaveBeenCalled();
-  expect(result.current.state.phase).toBe("refuting");
+  // a réplica que chegou depois do desmonte não foi aplicada: nem som de lance,
+  // nem uma nova pergunta à engine (o `result` congela em `unmount`, então o
+  // guarda de verdade é o que a resposta atrasada deixou de fazer)
   expect(sons()).toEqual(["wrong"]);
-  erros.mockRestore();
+  expect(analyse).toHaveBeenCalledTimes(2);
+});
+
+// --- casos menos comuns da refutação --------------------------------------
+
+test("a avaliação de antes que chega depois da réplica reescreve a mensagem", async () => {
+  const caixa: { responder?: (o: AnalyseOut) => void } = {};
+  const analyse = vi.fn((fen: string) => (fen === ONE_MOVE.fen_start
+    ? new Promise<AnalyseOut>((res) => { caixa.responder = res; })
+    : Promise.resolve(analiseOut(FEN_ERRO, [LINHA_DEPOIS]))));
+  const { result } = setup(ONE_MOVE, { refute: true, analyse });
+  act(() => result.current.tryMove("h2", "h3"));
+  await escoar();
+  // sem a avaliação de antes a mensagem sai só com a de agora
+  expect(result.current.state.phase).toBe("refuted");
+  expect(result.current.state.refutation?.evalBefore).toBeUndefined();
+  expect(result.current.state.message.text).toBe("h3? Qg2 — avaliação -5.00");
+
+  await act(async () => { caixa.responder?.(analiseOut(ONE_MOVE.fen_start, [LINHA_ANTES])); await Promise.resolve(); });
+  expect(result.current.state.phase).toBe("refuted");
+  expect(result.current.state.refutation?.evalBefore).toBe(900);
+  expect(result.current.state.message.text).toBe("h3? Qg2 — avaliação cai de +9.00 para -5.00");
+});
+
+test("a mensagem junta a continuação da engine e o comentário do autor", async () => {
+  const linha: AnalyseLine = { ...LINHA_DEPOIS, pv_san: ["Qg2", "Kf1", "Qxh1", "Ke2", "Qg2", "Ke1", "Qxh2"] };
+  const comAutor: PuzzleOut = { ...ONE_MOVE, id: "p8",
+    solution: { ...ONE_MOVE.solution, wrong_moves: { h2h3: "Perde a dama." } } };
+  const analyse = vi.fn(async (fen: string) => (fen === comAutor.fen_start
+    ? analiseOut(fen, [LINHA_ANTES])
+    : analiseOut(FEN_ERRO, [linha])));
+  const { result } = setup(comAutor, { refute: true, analyse });
+  act(() => result.current.tryMove("h2", "h3"));
+  await escoar();
+  expect(result.current.state.phase).toBe("refuted");
+  // a continuação para na quinta jogada depois da réplica
+  expect(result.current.state.refutation?.pvSan).toEqual(["Kf1", "Qxh1", "Ke2", "Qg2", "Ke1"]);
+  expect(result.current.state.message).toEqual({
+    text: "h3? Qg2 — avaliação cai de +9.00 para -5.00 · segue Kf1 Qxh1 Ke2 Qg2 Ke1 — Perde a dama.",
+    tone: "bad",
+  });
+});
+
+// Peão em a7 que pode promover sem que a solução (`c3d5`) seja uma promoção:
+// o lance errado chega como `a7a8`, sem a peça, e a refutação promove a dama.
+const PROMO_ERRADA: PuzzleOut = { ...base, id: "p9", kind: "punish", fen_start: "4k3/P7/8/3q4/8/2N5/7P/4K3 w - - 0 1", side_to_move: "white", solver_moves: 1,
+  solution: { moves: [{ uci: "c3d5", by: "solver", alternatives: [] }], explanation_pv: [] } };
+const FEN_PROMO = "Q3k3/8/8/3q4/8/2N5/7P/4K3 b - - 0 1";
+const LINHA_PROMO: AnalyseLine = { move: "d5a8", san: "Qxa8", score: 900, pv: ["d5a8"], pv_san: ["Qxa8"] };
+
+test("lance errado de peão à última fila é refutado promovendo a dama", async () => {
+  const analyse = vi.fn(async (fen: string) => (fen === PROMO_ERRADA.fen_start
+    ? analiseOut(fen, [LINHA_ANTES])
+    : analiseOut(FEN_PROMO, [LINHA_PROMO])));
+  const { result } = setup(PROMO_ERRADA, { refute: true, analyse });
+  act(() => result.current.tryMove("a7", "a8"));
+  // sem a peça da promoção o lance entrou como dama, e não foi só recusado
+  expect(result.current.state.phase).toBe("refuting");
+  expect(result.current.state.fen).toBe(FEN_PROMO);
+  expect(result.current.state.lastMove).toEqual(["a7", "a8"]);
+
+  await escoar();
+  expect(result.current.state.phase).toBe("refuted");
+  expect(result.current.state.refutation).toMatchObject({ wrongSan: "a8=Q+", replySan: "Qxa8", evalAfter: -900, evalBefore: 900 });
+  expect(result.current.state.fen).toBe("q3k3/8/8/8/8/2N5/7P/4K3 w - - 0 2");
+  expect(analyse).toHaveBeenCalledWith(FEN_PROMO, 1);
+  expect(sons()).toEqual(["wrong", "capture"]);
 });
