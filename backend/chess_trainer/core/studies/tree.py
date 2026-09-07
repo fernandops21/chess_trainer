@@ -249,6 +249,8 @@ def _fen_of(tree: dict) -> str:
 
 
 def _children(node: dict) -> list[dict]:
+    if not isinstance(node, dict):
+        return []
     filhos = node.get("children")
     return filhos if isinstance(filhos, list) else []
 
@@ -258,8 +260,12 @@ def _children(node: dict) -> list[dict]:
 
 def validate_tree(tree: dict) -> list[str]:
     """Erros da árvore, em português e prontos para mostrar ao usuário. Lista
-    vazia quer dizer que dá para salvar."""
-    erros: list[str] = []
+    vazia quer dizer que dá para salvar. É total sobre entrada não confiável
+    (o JSON vem direto do editor): nunca levanta exceção, mesmo com tipos
+    errados, chaves ausentes ou nós que não são objetos — cada problema vira
+    uma mensagem em vez de uma `KeyError`/`AttributeError`."""
+    if not isinstance(tree, dict):
+        return ["a árvore não é um objeto"]
     try:
         board = chess.Board(_fen_of(tree))
     except ValueError as exc:
@@ -268,6 +274,20 @@ def validate_tree(tree: dict) -> list[str]:
     if not isinstance(root, dict):
         return ['a árvore não tem "root"']
 
+    erros: list[str] = []
+
+    intro = tree.get("intro")
+    if intro is not None and not isinstance(intro, str):
+        erros.append("o enunciado precisa ser texto")
+        intro = ""
+    intro = intro or ""
+    if len(intro) > MAX_COMENTARIO:
+        erros.append(f"enunciado com mais de {MAX_COMENTARIO} caracteres")
+    if "}" in intro:
+        erros.append("o enunciado não pode conter '}'")
+
+    erros.extend(_validar_marcacoes(root.get("shapes"), "raiz"))
+
     total = count_nodes(tree)
     if total > MAX_NOS:
         erros.append(f"a árvore tem {total} lances; o máximo é {MAX_NOS}")
@@ -275,25 +295,78 @@ def validate_tree(tree: dict) -> list[str]:
     pilha = [(node, board) for node in reversed(_children(root))]
     while pilha and len(erros) < MAX_ERROS:
         node, antes = pilha.pop()
+        if not isinstance(node, dict):
+            erros.append("há um nó que não é um objeto")
+            continue
         node_id = node.get("id") or "?"
-        comentario = node.get("comment") or ""
+
+        comentario = node.get("comment")
+        if comentario is not None and not isinstance(comentario, str):
+            erros.append(f"comentário do nó {node_id} inválido")
+            comentario = ""
+        comentario = comentario or ""
         if len(comentario) > MAX_COMENTARIO:
             erros.append(
                 f"o comentário do nó {node_id} tem {len(comentario)} caracteres; o máximo é {MAX_COMENTARIO}"
             )
-        for shape in node.get("shapes") or []:
-            if shape.get("brush") not in BRUSHES:
-                erros.append(f'marcação com pincel desconhecido "{shape.get("brush")}" no nó {node_id}')
+        if "}" in comentario:
+            erros.append(f"comentário do nó {node_id} não pode conter '}}'")
+
+        erros.extend(_validar_marcacoes(node.get("shapes"), node_id))
+
+        nags = node.get("nags")
+        if nags is not None and (
+            not isinstance(nags, list)
+            or any(not isinstance(nag, int) or isinstance(nag, bool) for nag in nags)
+        ):
+            erros.append(f"NAG inválido no nó {node_id}")
+
+        children = node.get("children")
+        if children is not None and not isinstance(children, list):
+            erros.append(f"filhos inválidos no nó {node_id}")
+
+        uci = node.get("uci")
+        if uci is not None and not isinstance(uci, str):
+            erros.append(f"lance inválido no nó {node_id}")
+            uci = None
+        san = node.get("san")
+        if san is not None and not isinstance(san, str):
+            erros.append(f"lance inválido no nó {node_id}")
+            san = None
+
         try:
-            move = move_of(antes, node)
+            move = move_of(antes, {"uci": uci, "san": san})
         except ValueError:
             # sem o lance não dá para seguir: o resto do ramo fica de fora
-            erros.append(f"lance ilegal em {node.get('san') or node.get('uci') or '?'} do nó {node_id}")
+            erros.append(f"lance ilegal em {san or uci or '?'} do nó {node_id}")
             continue
         depois = antes.copy(stack=False)
         depois.push(move)
         pilha.extend((filho, depois) for filho in reversed(_children(node)))
     return erros[:MAX_ERROS]
+
+
+def _validar_marcacoes(shapes, label: str) -> list[str]:
+    """Erros das marcações (`shapes`) de um nó ou da raiz: pincel conhecido e
+    casas válidas. `label` identifica o dono nas mensagens (`"raiz"` ou o
+    `id` do nó, por exemplo `"n2"`)."""
+    if shapes is None:
+        return []
+    if not isinstance(shapes, list):
+        return [f"marcações inválidas no nó {label}"]
+    erros: list[str] = []
+    for shape in shapes:
+        if not isinstance(shape, dict):
+            erros.append(f"marcação inválida no nó {label}")
+            continue
+        brush = shape.get("brush")
+        if brush not in BRUSHES:
+            erros.append(f'marcação com pincel desconhecido "{brush}" no nó {label}')
+        orig = shape.get("orig")
+        dest = shape.get("dest")
+        if orig not in chess.SQUARE_NAMES or (dest is not None and dest not in chess.SQUARE_NAMES):
+            erros.append(f"casa inválida na marcação do nó {label}")
+    return erros
 
 
 def count_nodes(tree: dict) -> int:
@@ -341,9 +414,9 @@ def chapter_pgn(chapter: StudyChapter, study: Study | None = None) -> str:
 
 
 def chapter_headers(chapter: StudyChapter, study: Study | None = None) -> dict[str, str]:
-    titulo = (getattr(study, "title", "") or "").strip()
+    titulo = (study.title if study else "").strip()
     nome = (chapter.name or "").strip()
-    autor = (getattr(study, "author", "") or "").strip()
+    autor = (study.author if study else "").strip()
     headers: dict[str, str] = {
         "Event": f"{titulo}: {nome}" if titulo else nome,
         "Site": SITE,

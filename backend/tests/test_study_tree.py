@@ -264,6 +264,90 @@ def test_validate_tree_acusa_pincel_desconhecido():
     assert len(erros) == 1 and "roxo" in erros[0] and "n1" in erros[0]
 
 
+# --- validate_tree é total sobre entrada não confiável --------------------
+
+
+def test_validate_tree_nunca_levanta_excecao_com_arvore_que_nao_e_objeto():
+    assert validate_tree("isso não é uma árvore") == ["a árvore não é um objeto"]
+    assert validate_tree(None) == ["a árvore não é um objeto"]
+    assert validate_tree(["a", "b"]) == ["a árvore não é um objeto"]
+
+
+def test_validate_tree_acusa_arvore_sem_root():
+    erros = validate_tree({"fen": chess.STARTING_FEN})
+    assert erros == ['a árvore não tem "root"']
+
+
+def test_validate_tree_nunca_levanta_excecao_com_no_que_nao_e_objeto():
+    tree = arvore_de_sans(["e4"])
+    tree["root"]["children"].append("isso não é um nó")
+    erros = validate_tree(tree)
+    assert erros  # acusa o problema em vez de levantar exceção
+
+
+def test_validate_tree_acusa_comentario_com_tipo_errado():
+    tree = arvore_de_sans(["e4"])
+    tree["root"]["children"][0]["comment"] = 5
+    erros = validate_tree(tree)
+    assert erros and "n1" in erros[0]
+
+
+def test_validate_tree_acusa_nag_invalido():
+    tree = arvore_de_sans(["e4"])
+    tree["root"]["children"][0]["nags"] = ["x"]
+    erros = validate_tree(tree)
+    assert erros and "NAG" in erros[0] and "n1" in erros[0]
+
+
+def test_validate_tree_acusa_filhos_com_tipo_errado():
+    tree = arvore_de_sans(["e4"])
+    tree["root"]["children"][0]["children"] = "x"
+    erros = validate_tree(tree)
+    assert erros and "n1" in erros[0]
+
+
+def test_validate_tree_acusa_marcacao_invalida_na_raiz():
+    tree = empty_tree(chess.STARTING_FEN, "white")
+    tree["root"]["shapes"] = [{"orig": "e2", "dest": "e4", "brush": "roxo"}]
+    erros = validate_tree(tree)
+    assert erros and "roxo" in erros[0] and "raiz" in erros[0]
+
+
+def test_validate_tree_acusa_casa_invalida_na_marcacao_da_raiz():
+    tree = empty_tree(chess.STARTING_FEN, "white")
+    tree["root"]["shapes"] = [{"orig": "z9", "brush": "green"}]
+    erros = validate_tree(tree)
+    assert erros and "casa inválida" in erros[0] and "raiz" in erros[0]
+
+
+def test_validate_tree_acusa_casa_invalida_na_marcacao_do_no():
+    tree = arvore_de_sans(["e4"])
+    tree["root"]["children"][0]["shapes"] = [{"orig": "e2", "dest": "z9", "brush": "green"}]
+    erros = validate_tree(tree)
+    assert erros and "casa inválida" in erros[0] and "n1" in erros[0]
+
+
+def test_validate_tree_acusa_enunciado_longo_demais():
+    tree = empty_tree(chess.STARTING_FEN, "white")
+    tree["intro"] = "a" * (MAX_COMENTARIO + 1)
+    erros = validate_tree(tree)
+    assert erros and f"mais de {MAX_COMENTARIO}" in erros[0]
+
+
+def test_validate_tree_acusa_comentario_com_chave_de_fechamento():
+    tree = arvore_de_sans(["e4"])
+    tree["root"]["children"][0]["comment"] = "nota } estranha"
+    erros = validate_tree(tree)
+    assert erros and "n1" in erros[0] and "}" in erros[0]
+
+
+def test_validate_tree_acusa_enunciado_com_chave_de_fechamento():
+    tree = empty_tree(chess.STARTING_FEN, "white")
+    tree["intro"] = "olhe } isso"
+    erros = validate_tree(tree)
+    assert erros and "enunciado" in erros[0] and "}" in erros[0]
+
+
 # --- PGN do capítulo e do estudo -----------------------------------------
 
 

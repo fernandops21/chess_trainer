@@ -199,7 +199,7 @@ def solution_from_game(game: chess.pgn.Game) -> dict | None:
     shapes: dict[str, list[dict]] = {}
     wrong_moves: dict[str, str] = {}
 
-    root_shapes = _shapes(game.arrows())
+    root_shapes = shapes_from_arrows(game.arrows())
     if root_shapes:
         shapes["start"] = root_shapes
 
@@ -209,7 +209,7 @@ def solution_from_game(game: chess.pgn.Game) -> dict | None:
         comment = clean_comment(node.comment)
         if comment:
             comments[str(i)] = comment
-        node_shapes = _shapes(node.arrows())
+        node_shapes = shapes_from_arrows(node.arrows())
         if node_shapes:
             shapes[str(i)] = node_shapes
         if by == "solver":
@@ -244,7 +244,3 @@ def _wrong_moves(node: chess.pgn.ChildNode) -> dict[str, str]:
         if comment:
             found[sibling.move.uci()] = comment
     return found
-
-
-# as formas saem do mesmo lugar que as do editor
-_shapes = shapes_from_arrows
