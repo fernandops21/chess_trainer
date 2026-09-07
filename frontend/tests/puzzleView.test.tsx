@@ -171,7 +171,7 @@ function comRotas(node: ReactNode) {
 
 test("o cartão do erro fica escondido atrás do botão 'Meu erro'", () => {
   const { container } = comRotas(<Host puzzle={own} />);
-  const botao = screen.getByRole("button", { name: "Meu erro" });
+  const botao = screen.getByRole("button", { name: /Meu erro|Erro do adversário/ });
   expect(container.textContent).not.toMatch(/Na partida/);
   fireEvent.click(botao);
   expect(container.textContent).toMatch(/Na partida você jogou\s*Nb1/);

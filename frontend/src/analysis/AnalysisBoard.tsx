@@ -86,7 +86,8 @@ export function AnalysisBoard({
   const { data, error, isFetching } = useAnalyse(motor ? mt.fen : null);
   const { data: settings } = useSettings();
   // símbolo do livro nos lances do caminho atual que estão na base de mestres
-  const bookIds = useBookMoves(mt.tree, mt.path);
+  // sem engine (resultado do exercício) o livro também espera o usuário pedir análise
+  const bookIds = useBookMoves(mt.tree, motor ? mt.path : []);
   // classificação (melhor, erro, blunder…) de cada lance do caminho atual
   const classes = useMoveClassification(mt.tree, mt.path, {
     enabled: motor && (settings?.classify_moves ?? false),

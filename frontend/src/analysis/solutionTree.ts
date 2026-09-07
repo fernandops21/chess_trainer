@@ -53,7 +53,8 @@ export function treeFromSolution(p: SolutionSource): Tree {
   let r = insertLine(tree, null, linha);
   // dado incoerente (o lance guardado não cabe na posição guardada): a árvore
   // recomeça em `fen_start`, como nas fontes que não guardam o lance anterior
-  if (r.applied !== linha.length && offset) {
+  // só refaz a partir de fen_start quando o próprio last_move não encaixa
+  if (offset && r.applied === 0) {
     offset = 0;
     tree = emptyTree(p.fen_start, p.side_to_move);
     linha = ucis;
