@@ -126,7 +126,9 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
       // recarregar aqui só repetiria os mesmos exercícios: terminado o último item
       // da lista (e nada pendente segundo `all`), a sessão acaba
       const resolvidosAgora = new Set(all.map((d) => d.puzzle.id));
-      if (items.every((p) => resolvidosAgora.has(p.id))) await finish("Estudo concluído.", all);
+      const pendente = items.findIndex((p) => !resolvidosAgora.has(p.id));
+      if (pendente === -1) await finish("Estudo concluído.", all);
+      else setI(pendente); // sobrou algo pendente (não deveria): vai até ele em vez de travar
       return;
     }
     try {
