@@ -1,4 +1,4 @@
-import type { Color, PuzzleKind } from "../api/types";
+import type { Color, PuzzleKind, PuzzleOut } from "../api/types";
 
 const MATE_THRESHOLD = 90_000;
 const MATE_SCORE = 100_000;
@@ -83,6 +83,14 @@ export function resultLabel(result: string, myColor: Color): string {
     (result === "0-1" && myColor === "black");
   if (result === "1-0" || result === "0-1") return iWon ? "vitória" : "derrota";
   return result;
+}
+
+/** Nome curto do exercício, conforme a fonte: partida, capítulo do estudo ou tática guardada. */
+export function puzzleTitle(p: PuzzleOut): string {
+  if (p.game && p.ply != null) return `${p.game.white} × ${p.game.black}, lance ${Math.ceil(p.ply / 2)}`;
+  if (p.study) return `${p.study.title} · ${p.study.chapter_name}`;
+  if (p.source === "lichess") return "tática do Lichess guardada";
+  return "exercício";
 }
 
 export const levelLabel = (level: string | null) =>

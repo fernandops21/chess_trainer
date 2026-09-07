@@ -1,6 +1,8 @@
 export type Color = "white" | "black";
 export type PuzzleKind = "punish" | "avoid";
 export type MistakeLevel = "mistake" | "blunder";
+/** De onde veio o exercício: erro de partida própria, tática guardada do Lichess ou capítulo de estudo. */
+export type PuzzleSource = "own" | "lichess" | "study";
 
 export interface Settings {
   chesscom_username: string;
@@ -54,6 +56,13 @@ export interface DashboardOut {
   games_analyzed: number;
   puzzles_total: number;
   leeches: number;
+  /** Contagem por fonte; ausente em respostas antigas. */
+  by_source?: Partial<Record<PuzzleSource, SourceCount>>;
+}
+
+export interface SourceCount {
+  in_queue: number;
+  due: number;
 }
 
 export interface GameOut {
@@ -95,6 +104,8 @@ export interface PuzzleRef {
   kind: PuzzleKind;
   theme: string;
   is_leech: boolean;
+  /** `false` = fora da repetição (o puzzle continua, só não é servido). */
+  in_queue?: boolean;
 }
 
 export interface MistakeOut {
@@ -123,9 +134,24 @@ export interface SolutionMove {
   alternatives: string[];
 }
 
+/** Seta (`orig` + `dest`) ou casa destacada (`orig` só) desenhada pelo autor do estudo. */
+export interface Shape {
+  orig: string;
+  dest?: string;
+  brush: string;
+}
+
 export interface Solution {
   moves: SolutionMove[];
   explanation_pv: string[];
+  /** Lances errados previstos pelo autor: UCI -> comentário dele. */
+  wrong_moves?: Record<string, string>;
+  /** Comentários da linha principal: índice do lance (como texto) -> comentário. */
+  comments?: Record<string, string>;
+  /** Setas e casas do autor: índice do lance ou "start" para a posição inicial. */
+  shapes?: Record<string, Shape[]>;
+  /** Enunciado do capítulo (comentário antes do primeiro lance). */
+  intro?: string;
 }
 
 export interface SrsOut {
@@ -160,6 +186,14 @@ export interface PuzzleSibling {
   kind: PuzzleKind;
 }
 
+export interface StudyRef {
+  id: string;
+  title: string;
+  chapter_id: string;
+  chapter_name: string;
+  lichess_url: string | null;
+}
+
 export interface PuzzleOut {
   id: string;
   kind: PuzzleKind;
@@ -172,10 +206,17 @@ export interface PuzzleOut {
   solver_moves: number;
   is_leech: boolean;
   srs: SrsOut;
-  game: GameRef;
-  ply: number;
-  move_played: string;
-  mistake: MistakeRef;
+  source: PuzzleSource;
+  in_queue: boolean;
+  /** Posição antes do último lance do adversário e o lance em si (UCI); nulos quando a fonte não guarda. */
+  fen_before: string | null;
+  last_move: string | null;
+  /** Partida, erro e estudo dependem da fonte: fora de `own` não há partida. */
+  game: GameRef | null;
+  ply: number | null;
+  move_played: string | null;
+  mistake: MistakeRef | null;
+  study: StudyRef | null;
   siblings: PuzzleSibling[];
 }
 
@@ -197,6 +238,8 @@ export interface TacticOut {
   popularity: number;
   nb_plays: number;
   opening_tags: string[];
+  /** Já guardada como exercício da repetição (e ainda na fila). */
+  saved: boolean;
 }
 
 /** O que o motor de treino sabe resolver: puzzle próprio ou tática do Lichess. */
@@ -255,6 +298,9 @@ export interface QueueFilters {
   theme?: string;
   kind?: PuzzleKind;
   color?: Color;
+  /** Fontes aceitas; vazio ou ausente = todas. */
+  sources?: PuzzleSource[];
+  study_id?: string;
 }
 
 export interface QueueOut {
@@ -303,6 +349,38 @@ export interface ReviewOut {
 export interface JobQueued {
   queued: boolean;
   job: string;
+}
+
+export interface StudyOut {
+  id: string;
+  title: string;
+  author: string;
+  source_url: string;
+  lichess_id: string | null;
+  imported_at: string | null;
+  chapter_count: number;
+  in_queue: number;
+  due_today: number;
+}
+
+export interface ChapterOut {
+  id: string;
+  order: number;
+  name: string;
+  lichess_url: string | null;
+  mode: "gamebook" | "read";
+  in_queue: boolean;
+  puzzle_id: string | null;
+  intro_comment: string;
+}
+
+export interface StudyDetail extends StudyOut {
+  chapters: ChapterOut[];
+}
+
+export interface StudyImportIn {
+  url?: string;
+  pgn?: string;
 }
 
 export interface GamesQuery {

@@ -81,3 +81,39 @@ test("api.attempt faz POST /api/tactics/attempts com o corpo", async () => {
   expect(init.method).toBe("POST");
   expect(JSON.parse(String(init.body))).toEqual({ puzzle_id: "00sHx", correct: true, used_hint: false, duration_ms: 900 });
 });
+
+test("api.queue junta as fontes em CSV e passa o estudo", async () => {
+  const fn = mockFetch(200, { due_count: 0, new_available: 0, new_remaining_today: 0, items: [] });
+  await api.queue({ sources: ["own", "lichess"], study_id: "s1", kind: "punish" });
+  expect((fn.mock.calls[0] as unknown as [string])[0]).toBe("/api/queue?kind=punish&sources=own%2Clichess&study_id=s1");
+  await api.queue({ sources: [] });
+  expect((fn.mock.calls[1] as unknown as [string])[0]).toBe("/api/queue");
+});
+
+test("api.setQueue faz POST em /puzzles/{id}/queue", async () => {
+  const fn = mockFetch(200, {});
+  await api.setQueue("p1", false);
+  const [url, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("/api/puzzles/p1/queue");
+  expect(init.method).toBe("POST");
+  expect(JSON.parse(String(init.body))).toEqual({ in_queue: false });
+});
+
+test("api.saveTactic faz POST em /tactics/{id}/save", async () => {
+  const fn = mockFetch(201, {});
+  await api.saveTactic("00sHx");
+  const [url, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("/api/tactics/00sHx/save");
+  expect(init.method).toBe("POST");
+});
+
+test("api.importStudy manda a URL e api.deleteStudy aceita 204 sem corpo", async () => {
+  const fn = mockFetch(202, { queued: true, job: "import_study" });
+  await api.importStudy({ url: "https://lichess.org/study/4JKVAfaE" });
+  const [url, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+  expect(url).toBe("/api/studies/import");
+  expect(JSON.parse(String(init.body))).toEqual({ url: "https://lichess.org/study/4JKVAfaE" });
+
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 204, statusText: "No Content", json: async () => { throw new Error("sem corpo"); } })));
+  await expect(api.deleteStudy("s1")).resolves.toBeUndefined();
+});

@@ -18,6 +18,9 @@ import type {
   SessionOut,
   Settings,
   StatusOut,
+  StudyDetail,
+  StudyImportIn,
+  StudyOut,
   TacticOut,
   TacticsStatus,
   ThemeCount,
@@ -61,6 +64,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new ApiError(res.status, detail);
   }
+  // 204 (DELETE) não tem corpo: `res.json()` lançaria
+  if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
@@ -93,7 +98,12 @@ export const api = {
     request<MistakeOut[]>(`/mistakes${qs(p as Params)}`),
   puzzle: (id: string) => request<PuzzleOut>(`/puzzles/${id}`),
   queue: (p: QueueFilters = {}) =>
-    request<QueueOut>(`/queue${qs(p as Params)}`),
+    request<QueueOut>(`/queue${qs({
+      category: p.category, theme: p.theme, kind: p.kind, color: p.color,
+      sources: p.sources?.join(","), study_id: p.study_id,
+    })}`),
+  setQueue: (id: string, in_queue: boolean) =>
+    request<PuzzleOut>(`/puzzles/${id}/queue`, post("", { in_queue })),
   leeches: () => request<PuzzleOut[]>("/leeches"),
   unleech: (id: string) =>
     request<PuzzleOut>(`/puzzles/${id}/unleech`, post("")),
@@ -114,7 +124,19 @@ export const api = {
     ),
   attempt: (body: AttemptIn) =>
     request<AttemptOut>("/tactics/attempts", post("", body)),
+  saveTactic: (lichessId: string) =>
+    request<PuzzleOut>(`/tactics/${lichessId}/save`, post("")),
   tacticThemes: () => request<ThemeCount[]>("/tactics/themes"),
+  studies: () => request<StudyOut[]>("/studies"),
+  study: (id: string) => request<StudyDetail>(`/studies/${id}`),
+  importStudy: (body: StudyImportIn) =>
+    request<JobQueued>("/studies/import", post("", body)),
+  reimportStudy: (id: string) =>
+    request<JobQueued>(`/studies/${id}/reimport`, post("")),
+  setStudyQueue: (id: string, in_queue: boolean) =>
+    request<StudyOut>(`/studies/${id}/queue`, post("", { in_queue })),
+  deleteStudy: (id: string) =>
+    request<void>(`/studies/${id}`, { method: "DELETE" }),
   themeStats: (days = 30) =>
     request<ThemeStat[]>(`/stats/themes${qs({ days })}`),
 };

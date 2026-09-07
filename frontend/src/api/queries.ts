@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
-import type { GamesQuery, MistakesQuery, QueueFilters, Settings } from "./types";
+import type { GamesQuery, MistakesQuery, QueueFilters, Settings, StudyImportIn } from "./types";
 
 export const keys = {
   status: ["status"] as const,
@@ -13,6 +13,8 @@ export const keys = {
   queue: (f: QueueFilters) => ["queue", f] as const,
   leeches: ["leeches"] as const,
   puzzle: (id: string) => ["puzzle", id] as const,
+  studies: ["studies"] as const,
+  study: (id: string) => ["studies", id] as const,
   tacticsStatus: ["tactics", "status"] as const,
   tacticThemes: ["tactics", "themes"] as const,
   themeStats: (days: number) => ["stats", "themes", days] as const,
@@ -33,6 +35,10 @@ export const useQueue = (f: QueueFilters, enabled = true) => useQuery({ queryKey
 export const useLeeches = () => useQuery({ queryKey: keys.leeches, queryFn: api.leeches });
 export const usePuzzleQuery = (id: string | null) =>
   useQuery({ queryKey: keys.puzzle(id ?? ""), queryFn: () => api.puzzle(id!), enabled: !!id });
+export const useStudies = (enabled = true) =>
+  useQuery({ queryKey: keys.studies, queryFn: api.studies, enabled });
+export const useStudy = (id: string | null) =>
+  useQuery({ queryKey: keys.study(id ?? ""), queryFn: () => api.study(id!), enabled: !!id });
 export const useTacticsStatus = (enabled = true) =>
   useQuery({ queryKey: keys.tacticsStatus, queryFn: api.tacticsStatus, enabled });
 export const useTacticThemes = () =>
@@ -64,7 +70,7 @@ export function useJobWatcher() {
     const before = prev.current;
     prev.current = state;
     if (before === "running" && state !== undefined && state !== "running") {
-      for (const k of [["status"], ["dashboard"], ["queue"], ["games"], ["game"], ["mistakes"], ["leeches"], ["tactics"], ["stats"]]) {
+      for (const k of [["status"], ["dashboard"], ["queue"], ["games"], ["game"], ["mistakes"], ["leeches"], ["tactics"], ["stats"], ["studies"], ["puzzle"]]) {
         void qc.invalidateQueries({ queryKey: k });
       }
     }
@@ -81,10 +87,11 @@ function useInvalidate(extra: readonly (readonly unknown[])[] = []) {
 export function useStartJob() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (p: { kind: "import" | "analyze" | "regenerate" | "import_lichess"; limit?: number; game_id?: string; avoidOnly?: boolean }) =>
+    mutationFn: (p: { kind: "import" | "analyze" | "regenerate" | "import_lichess" | "import_study"; limit?: number; game_id?: string; avoidOnly?: boolean; study?: StudyImportIn }) =>
       p.kind === "import" ? api.importGames()
         : p.kind === "analyze" ? api.analyze({ limit: p.limit, game_id: p.game_id })
         : p.kind === "import_lichess" ? api.importTactics()
+        : p.kind === "import_study" ? api.importStudy(p.study ?? {})
         : api.regenerate(p.avoidOnly ? "avoid" : undefined),
     onSettled: invalidate,
   });
@@ -100,4 +107,42 @@ export function useSaveSettings() {
 export function useUnleech() {
   const invalidate = useInvalidate([keys.leeches, ["mistakes"]]);
   return useMutation({ mutationFn: (id: string) => api.unleech(id), onSettled: invalidate });
+}
+
+/** Tirar/voltar um exercício da repetição espaçada. */
+export function useSetQueue() {
+  const invalidate = useInvalidate([["puzzle"], ["mistakes"], keys.leeches, keys.studies]);
+  return useMutation({
+    mutationFn: (p: { id: string; in_queue: boolean }) => api.setQueue(p.id, p.in_queue),
+    onSettled: invalidate,
+  });
+}
+
+/** Guardar uma tática do Lichess como exercício da repetição. */
+export function useSaveTactic() {
+  const invalidate = useInvalidate([["puzzle"]]);
+  return useMutation({ mutationFn: (lichessId: string) => api.saveTactic(lichessId), onSettled: invalidate });
+}
+
+/** Importar um estudo do Lichess (URL ou PGN colado): job assíncrono. */
+export function useImportStudy() {
+  const start = useStartJob();
+  return {
+    mutate: (study: StudyImportIn) => start.mutate({ kind: "import_study", study }),
+    isPending: start.isPending,
+    error: start.error,
+    reset: start.reset,
+  };
+}
+
+/** Reimportar, tirar/voltar da repetição e remover um estudo. */
+export function useStudyActions() {
+  const invalidate = useInvalidate([keys.studies, ["puzzle"], ["mistakes"], keys.leeches]);
+  const reimport = useMutation({ mutationFn: (id: string) => api.reimportStudy(id), onSettled: invalidate });
+  const setQueue = useMutation({
+    mutationFn: (p: { id: string; in_queue: boolean }) => api.setStudyQueue(p.id, p.in_queue),
+    onSettled: invalidate,
+  });
+  const remove = useMutation({ mutationFn: (id: string) => api.deleteStudy(id), onSettled: invalidate });
+  return { reimport, setQueue, remove };
 }

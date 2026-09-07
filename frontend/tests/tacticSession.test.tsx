@@ -52,6 +52,7 @@ const tactic = (id: string): TacticOut => ({
   popularity: 90,
   nb_plays: 300,
   opening_tags: [],
+  saved: false,
 });
 
 const session: SessionOut = { id: "s1", started_at: "2026-01-01T00:00:00Z", ended_at: null, planned_minutes: 25, filters: {}, reviews: 0, correct: 0, total_duration_ms: 0 };

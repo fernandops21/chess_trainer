@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { PuzzleOut, ReviewOut } from "../api/types";
+import { puzzleTitle } from "../lib/format";
 
 export interface Done { puzzle: PuzzleOut; review: ReviewOut; }
 
@@ -18,7 +19,13 @@ export function SessionSummary({ done, elapsedLabel, reason, onNew }: { done: Do
       {failed.length > 0 && (
         <>
           <h3>Para revisar</h3>
-          <ul>{failed.map((d) => <li key={d.puzzle.id}><Link to={`/erros?position=${encodeURIComponent(d.puzzle.fen_start)}`}>{d.puzzle.game.white} × {d.puzzle.game.black}, lance {Math.ceil(d.puzzle.ply / 2)}</Link></li>)}</ul>
+          <ul>{failed.map((d) => (
+            <li key={d.puzzle.id}>
+              {d.puzzle.game
+                ? <Link to={`/erros?position=${encodeURIComponent(d.puzzle.fen_start)}`}>{puzzleTitle(d.puzzle)}</Link>
+                : <Link to={`/treinar?puzzle=${d.puzzle.id}&seen=1`}>{puzzleTitle(d.puzzle)}</Link>}
+            </li>
+          ))}</ul>
         </>
       )}
       <button className="primary" onClick={onNew}>Nova sessão</button>

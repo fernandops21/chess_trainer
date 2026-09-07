@@ -8,7 +8,7 @@ import { MiniBoard } from "../board/MiniBoard";
 import { uciToMove } from "../board/line";
 import { ErrorBox } from "../components/ErrorBox";
 import { Modal } from "../components/Modal";
-import { formatDate, formatEval, levelLabel, themeLabel } from "../lib/format";
+import { formatDate, formatEval, levelLabel, puzzleTitle, themeLabel } from "../lib/format";
 import { LineViewer } from "../train/LineViewer";
 
 function MistakeDetail({ m, onClose }: { m: MistakeOut; onClose: () => void }) {
@@ -19,7 +19,7 @@ function MistakeDetail({ m, onClose }: { m: MistakeOut; onClose: () => void }) {
   return (
     <Modal open title={`Lance ${Math.ceil(m.ply / 2)}: ${m.move_played}`} onClose={onClose}>
       {puzzle ? (
-        <LineViewer fenStart={puzzle.fen_start} ucis={puzzle.solution.moves.map((x) => x.uci)} orientation={m.my_color} startPly={puzzle.ply + 1} keyboard={false} />
+        <LineViewer fenStart={puzzle.fen_start} ucis={puzzle.solution.moves.map((x) => x.uci)} orientation={m.my_color} startPly={(puzzle.ply ?? 0) + 1} keyboard={false} />
       ) : (
         <Board fen={m.fen} orientation={m.my_color} lastMove={[played.from as Key, played.to as Key]} viewOnly />
       )}
@@ -50,7 +50,7 @@ function LeechCard({ p }: { p: PuzzleOut }) {
     <div className="row" style={{ padding: "8px 0", borderBottom: "1px solid var(--line)" }}>
       <MiniBoard fen={p.fen_start} orientation={p.side_to_move} />
       <div style={{ flex: 1 }}>
-        <div>{p.game.white} × {p.game.black}, lance {Math.ceil(p.ply / 2)} · {themeLabel(p.theme)}</div>
+        <div>{puzzleTitle(p)} · {themeLabel(p.theme)}</div>
         <div className="muted">{p.srs.lapses} erros seguidos</div>
       </div>
       <button onClick={() => unleech.mutate(p.id)} disabled={unleech.isPending}>Devolver à fila</button>
@@ -86,7 +86,7 @@ export function MistakesPage() {
           <button key={m.position_id} className="mistakerow" onClick={() => setOpen(m)}>
             <MiniBoard fen={m.fen} orientation={m.my_color} />
             <div style={{ flex: 1, textAlign: "left" }}>
-              <div><b>{m.move_played}</b> <span className={`tag ${m.mistake_level}`}>{levelLabel(m.mistake_level)}</span>{m.mistake_by === "opponent" && <span className="tag">adversário</span>}{m.puzzles.length === 0 && m.mistake_by === "me" && <span className="tag">posicional</span>}</div>
+              <div><b>{m.move_played}</b> <span className={`tag ${m.mistake_level}`}>{levelLabel(m.mistake_level)}</span>{m.mistake_by === "opponent" && <span className="tag">adversário</span>}{m.puzzles.length === 0 && m.mistake_by === "me" && <span className="tag">posicional</span>}{m.puzzles.length > 0 && m.puzzles.every((p) => p.in_queue === false) && <span className="tag">fora da repetição</span>}</div>
               <div className="muted">{formatEval(m.eval_before)} → {formatEval(m.eval_after)} · melhor {m.best_move} {m.puzzles[0] && `· ${themeLabel(m.puzzles[0].theme)}`}</div>
               <div className="muted">{m.white} × {m.black} · {formatDate(m.played_at)} · {m.category}</div>
             </div>

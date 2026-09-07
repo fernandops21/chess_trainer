@@ -1,15 +1,9 @@
 import type { AttemptOut, TacticOut } from "../api/types";
 import { ErrorBox } from "../components/ErrorBox";
 import { themeLabel } from "../lib/format";
+import { startPlyFromFen } from "../lib/plies";
 import { LineViewer } from "./LineViewer";
-
-/** Ply da posição inicial da FEN: a tática não guarda o lance da partida como os puzzles próprios. */
-export function startPlyFromFen(fen: string): number {
-  const parts = fen.split(" ");
-  const fullmove = Number(parts[5]);
-  const n = Number.isFinite(fullmove) && fullmove > 0 ? Math.floor(fullmove) : 1;
-  return (n - 1) * 2 + (parts[1] === "b" ? 1 : 0) + 1;
-}
+import { QueueButtons } from "./QueueButtons";
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 
@@ -40,6 +34,7 @@ export function TacticResultPanel({ tactic, attempt, error, onRetry, onNext, nex
         <div className="row" style={{ marginTop: 10 }}>
           <a href={tactic.lichess_url} target="_blank" rel="noopener noreferrer">ver no Lichess</a>
           <a href={exploreHref} target="_blank" rel="noopener noreferrer">Explorar</a>
+          <QueueButtons puzzle={tactic} />
           {attempt && <button className="primary" style={{ marginLeft: "auto" }} disabled={nextDisabled} onClick={onNext}>{nextDisabled ? "Carregando…" : "Próximo"}</button>}
         </div>
       </div>

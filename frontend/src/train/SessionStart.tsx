@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useTacticsStatus } from "../api/queries";
-import type { QueueFilters } from "../api/types";
+import { useStudies, useTacticsStatus } from "../api/queries";
+import type { PuzzleSource, QueueFilters } from "../api/types";
 import { storage } from "../lib/storage";
 import { ThemePicker } from "./ThemePicker";
 
@@ -14,33 +14,57 @@ export interface SessionConfig {
   themes: string[];
 }
 
+const SOURCES: { value: PuzzleSource; label: string }[] = [
+  { value: "own", label: "Meus erros" },
+  { value: "lichess", label: "Lichess guardados" },
+  { value: "study", label: "Estudos" },
+];
+
 const asKind = (v: string): QueueFilters["kind"] => (v === "punish" || v === "avoid" ? v : undefined);
 const asColor = (v: string): QueueFilters["color"] => (v === "white" || v === "black" ? v : undefined);
 const asSource = (v: unknown): SessionSource => (v === "tactics" ? "tactics" : "own");
 const clampMinutes = (v: number): number => Math.min(180, Math.max(5, v || 25));
+/** Só aceita fontes conhecidas (o valor vem de `localStorage`, que pode estar velho). */
+const asSources = (v: unknown): PuzzleSource[] =>
+  Array.isArray(v) ? SOURCES.map((s) => s.value).filter((s) => v.includes(s)) : [];
 
 export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void }) {
   const [params] = useSearchParams();
+  const studyParam = params.get("study");
   const [timed, setTimed] = useState<boolean>(storage.get("train.timed", true));
   const [minutes, setMinutes] = useState<number>(storage.get("train.minutes", 25));
   const [source, setSource] = useState<SessionSource>(() =>
     params.get("source") ? asSource(params.get("source")) : asSource(storage.get<SessionSource>("train.source", "own")));
   const [themes, setThemes] = useState<string[]>(() => storage.get<string[]>("train.themes", []));
+  // fontes da fila: vazio = todas; `?study=<id>` já chega com "study" marcado
+  const [sources, setSources] = useState<PuzzleSource[]>(() =>
+    studyParam ? ["study"] : asSources(storage.get<PuzzleSource[]>("train.sources", [])));
+  const [studyId, setStudyId] = useState<string>(studyParam ?? "");
   const [kind, setKind] = useState<string>("");
   const [color, setColor] = useState<string>("");
   const [category, setCategory] = useState<string>("");
+  const byStudy = sources.includes("study");
   // só consulta o banco de táticas quando ele importa para a escolha atual
   const { data: tactics } = useTacticsStatus(source === "tactics");
+  const { data: studies } = useStudies(source === "own" && byStudy);
   // enquanto carrega (`undefined`) o botão continua liberado
   const missingTactics = source === "tactics" && tactics?.imported === false;
+
+  const toggleSource = (s: PuzzleSource) =>
+    setSources((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : SOURCES.map((o) => o.value).filter((v) => v === s || prev.includes(v))));
 
   const start = () => {
     const clamped = clampMinutes(minutes);
     storage.set("train.timed", timed); storage.set("train.minutes", clamped);
     storage.set("train.source", source); storage.set("train.themes", themes);
+    storage.set("train.sources", sources);
     onStart({
       source,
-      filters: source === "tactics" ? {} : { kind: asKind(kind), color: asColor(color), category: category || undefined },
+      filters: source === "tactics" ? {} : {
+        kind: asKind(kind), color: asColor(color), category: category || undefined,
+        sources: sources.length ? sources : undefined,
+        study_id: byStudy && studyId ? studyId : undefined,
+      },
       plannedMinutes: timed ? clamped : null,
       themes,
     });
@@ -50,9 +74,27 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
     <div className="card">
       <h2 style={{ marginTop: 0 }}>Nova sessão</h2>
       <div className="row">
-        <label><input type="radio" name="source" checked={source === "own"} onChange={() => setSource("own")} /> Meus erros</label>
+        <label><input type="radio" name="source" checked={source === "own"} onChange={() => setSource("own")} /> Repetição espaçada</label>
         <label><input type="radio" name="source" checked={source === "tactics"} onChange={() => setSource("tactics")} /> Táticas do Lichess</label>
       </div>
+      {source === "own" && (
+        <div className="row" style={{ marginTop: 10 }}>
+          <span className="muted">Fontes:</span>
+          {SOURCES.map((s) => (
+            <button key={s.value} className={`tag ${sources.includes(s.value) ? "selected" : ""}`} aria-pressed={sources.includes(s.value)}
+              onClick={() => toggleSource(s.value)}>{s.label}</button>
+          ))}
+          <span className="muted">{sources.length ? "" : "(todas)"}</span>
+        </div>
+      )}
+      {source === "own" && byStudy && (
+        <div className="row" style={{ marginTop: 10 }}>
+          <select value={studyId} onChange={(e) => setStudyId(e.target.value)} aria-label="Estudo">
+            <option value="">todos os estudos</option>
+            {(studies ?? []).map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+          </select>
+        </div>
+      )}
       <div className="row" style={{ marginTop: 10 }}>
         <label><input type="radio" name="mode" checked={!timed} onChange={() => setTimed(false)} /> até acabar a fila</label>
         <label><input type="radio" name="mode" checked={timed} onChange={() => setTimed(true)} /> por tempo:</label>

@@ -102,11 +102,18 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
     }
   }, [puzzle.id, opts.sessionId, opts.submit, now]);
 
-  const finish = useCallback((wrong: boolean, usedHint: boolean) => {
-    setState(snapshot({ phase: "solved", hint: undefined, message: { text: "Certo!", tone: "ok" } }));
+  const finish = useCallback((wrong: boolean, usedHint: boolean, text = "Certo!") => {
+    setState(snapshot({ phase: "solved", hint: undefined, message: { text, tone: "ok" } }));
     void doSubmit(wrong, usedHint);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doSubmit]);
+
+  // "Certo!" ganha o comentário do autor do estudo para o lance recém-jogado
+  // (`solution.comments["<índice>"]`); sem comentário, a mensagem é a de sempre.
+  const okMessage = useCallback((movedIdx: number) => {
+    const comment = puzzle.solution.comments?.[String(movedIdx)];
+    return comment ? `Certo! — ${comment}` : "Certo!";
+  }, [puzzle.solution.comments]);
 
   const applySolverMove = useCallback((uci: string) => {
     const c = chessRef.current;
@@ -125,12 +132,12 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
     const moves = puzzle.solution.moves;
     if (nextIdx >= moves.length) {
       setState(snapshot({ idx: nextIdx, lastMove: last, pendingPromotion: undefined }));
-      finish(wrongRef.current, usedHintRef.current);
+      finish(wrongRef.current, usedHintRef.current, okMessage(nextIdx - 1));
       return;
     }
     const reply = moves[nextIdx];
     if (reply.by === "engine") {
-      setState(snapshot({ phase: "engine_replying", idx: nextIdx, lastMove: last, hint: undefined, pendingPromotion: undefined, message: { text: "Certo!", tone: "ok" } }));
+      setState(snapshot({ phase: "engine_replying", idx: nextIdx, lastMove: last, hint: undefined, pendingPromotion: undefined, message: { text: okMessage(nextIdx - 1), tone: "ok" } }));
       timer.current = setTimeout(() => {
         let r: ReturnType<Chess["move"]>;
         try {
@@ -145,16 +152,16 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
         const replyLast: [Key, Key] = [r.from as Key, r.to as Key];
         if (afterReply >= moves.length) {
           setState(snapshot({ idx: afterReply, lastMove: replyLast }));
-          finish(wrongRef.current, usedHintRef.current);
+          finish(wrongRef.current, usedHintRef.current, okMessage(afterReply - 1));
         } else {
           setState(snapshot({ phase: "awaiting_move", idx: afterReply, lastMove: replyLast }));
         }
       }, opts.engineDelayMs ?? 350);
     } else {
-      setState(snapshot({ phase: "awaiting_move", idx: nextIdx, lastMove: last, hint: undefined, pendingPromotion: undefined, message: { text: "Certo!", tone: "ok" } }));
+      setState(snapshot({ phase: "awaiting_move", idx: nextIdx, lastMove: last, hint: undefined, pendingPromotion: undefined, message: { text: okMessage(nextIdx - 1), tone: "ok" } }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [puzzle.solution.moves, opts.engineDelayMs, finish]);
+  }, [puzzle.solution.moves, opts.engineDelayMs, finish, okMessage]);
 
   const judge = useCallback((orig: Key, dest: Key, promotion?: Promotion) => {
     const expected = puzzle.solution.moves[state.idx];
@@ -162,12 +169,14 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
     const uci = `${orig}${dest}${promotion ?? ""}`;
     const ok = uci === expected.uci || expected.alternatives.includes(uci);
     if (!ok) {
-      setState((p) => ({ ...p, wrong: true, pendingPromotion: undefined, message: { text: "Não é esse. Tente de novo.", tone: "bad" } }));
+      // erro previsto pelo autor do estudo: a mensagem vira o comentário dele
+      const authored = puzzle.solution.wrong_moves?.[uci];
+      setState((p) => ({ ...p, wrong: true, pendingPromotion: undefined, message: { text: authored ?? "Não é esse. Tente de novo.", tone: "bad" } }));
       return;
     }
     applySolverMove(uci);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [puzzle.solution.moves, state.idx, applySolverMove]);
+  }, [puzzle.solution.moves, puzzle.solution.wrong_moves, state.idx, applySolverMove]);
 
   const tryMove = useCallback((orig: Key, dest: Key, promotion?: Promotion) => {
     if (state.phase !== "awaiting_move") return;

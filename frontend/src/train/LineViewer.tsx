@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { buildLine } from "../board/line";
 import { Board } from "../board/Board";
 
-export function LineViewer({ fenStart, ucis, orientation, startPly, keyboard = true, initialPos }: { fenStart: string; ucis: string[]; orientation: "white" | "black"; startPly: number; keyboard?: boolean; initialPos?: number }) {
+export function LineViewer({ fenStart, ucis, orientation, startPly, keyboard = true, initialPos, onPos }: { fenStart: string; ucis: string[]; orientation: "white" | "black"; startPly: number; keyboard?: boolean; initialPos?: number; onPos?: (pos: number) => void }) {
   // `ucis` is often rebuilt fresh (new array, same contents) by callers that re-render on
   // every tick (e.g. a session clock). Deriving a stable string key from its contents keeps
   // `line`/`pos` from being recomputed/reset unless the moves actually changed.
@@ -14,6 +14,10 @@ export function LineViewer({ fenStart, ucis, orientation, startPly, keyboard = t
   const lenRef = useRef(line.fens.length);
   lenRef.current = line.fens.length;
   useEffect(() => { setPos(clamp(initialPos ?? line.fens.length - 1)); }, [fenStart, key]);
+  // avisa quem mostra algo por posição (comentários do autor do estudo, por exemplo)
+  const onPosRef = useRef(onPos);
+  onPosRef.current = onPos;
+  useEffect(() => { onPosRef.current?.(pos); }, [pos]);
 
   const prev = () => setPos((p) => Math.max(0, p - 1));
   const next = () => setPos((p) => Math.min(lenRef.current - 1, p + 1));
