@@ -9,9 +9,10 @@ import { ErrorBox } from "../components/ErrorBox";
 import { formatEval } from "../lib/format";
 import { MoveTreeView } from "./MoveTreeView";
 import { NodeMenu } from "./NodeMenu";
+import { PositionEditor } from "./PositionEditor";
 import { SaveChapterModal } from "./SaveChapterModal";
 import { useMoveTree } from "./useMoveTree";
-import { MAX_NODES } from "./moveTree";
+import { MAX_NODES, countNodes, emptyTree } from "./moveTree";
 import type { Tree } from "./moveTree";
 
 export interface AnalysisBoardProps {
@@ -56,6 +57,7 @@ export function AnalysisBoard({
   const [orient, setOrient] = useState(tree.orientation);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [salvarComo, setSalvarComo] = useState(false);
+  const [montando, setMontando] = useState(false);
   const { data, error, isFetching } = useAnalyse(mt.fen);
 
   // Vaivém com o pai: a árvore que chega de fora reinicia o hook e a que nasce
@@ -151,6 +153,27 @@ export function AnalysisBoard({
     if (!mt.play(`${orig}${dest}`)) mt.play(`${orig}${dest}q`);
   };
 
+  /**
+   * A posição montada vira o começo de uma análise nova: a árvore inteira é
+   * trocada, então uma análise com lances pede confirmação antes.
+   */
+  const usarPosicao = (fen: string) => {
+    if (countNodes(mt.tree) > 0 && !window.confirm("Substituir a análise atual pela nova posição?")) return;
+    mt.setTree(emptyTree(fen, orient));
+    setMontando(false);
+  };
+
+  if (montando) {
+    return (
+      <PositionEditor
+        initialFen={mt.fen}
+        orientation={orient}
+        onUse={usarPosicao}
+        onCancel={() => setMontando(false)}
+      />
+    );
+  }
+
   return (
     <div className="two-col">
       <div>
@@ -174,6 +197,7 @@ export function AnalysisBoard({
           <button onClick={prev} disabled={mt.currentId === null} aria-label="lance anterior">◀</button>
           <button onClick={next} aria-label="próximo lance">▶</button>
           <button onClick={() => setOrient((o) => (o === "white" ? "black" : "white"))}>Inverter</button>
+          <button onClick={() => setMontando(true)}>Montar posição</button>
           {onSave && <button className="primary" onClick={onSave}>Salvar</button>}
           {showSaveAsChapter && <button onClick={() => setSalvarComo(true)}>Salvar como capítulo</button>}
           {backTo && <Link to={backTo}>Voltar</Link>}

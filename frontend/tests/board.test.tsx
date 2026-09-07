@@ -15,6 +15,7 @@ const { api } = vi.hoisted(() => ({
     destroy: vi.fn(),
     cancelMove: vi.fn(),
     getKeyAtDomPos: vi.fn(),
+    getFen: vi.fn(() => "8/8/8/8/8/8/8/4K3"),
     state: { drawable: { shapes: [] as { orig: string; dest?: string; brush?: string }[] } },
   },
 }));
@@ -275,4 +276,42 @@ test("lance recusado pelo app: a fen volta a ser enviada para a peça retornar, 
   api.set.mockClear();
   rerender(<Board fen={F1} orientation="white" movableColor="white" onMove={onMove} drawable />);
   expect(api.set.mock.calls.at(-1)?.[0]?.fen).toBeUndefined();
+});
+
+// --- modo montagem ------------------------------------------------------
+
+test("no modo montagem a peça vai para qualquer casa e o clique é do pai", () => {
+  const onSquareClick = vi.fn();
+  const cfg = toConfig({
+    fen: F1,
+    orientation: "white",
+    editor: { onSquareClick, onChange: vi.fn() },
+  });
+  expect(cfg.viewOnly).toBe(false);
+  expect(cfg.movable?.free).toBe(true);
+  expect(cfg.movable?.color).toBe("both");
+  expect(cfg.draggable?.enabled).toBe(true);
+  // arrastar para fora do tabuleiro apaga a peça
+  expect(cfg.draggable?.deleteOnDropOff).toBe(true);
+  // clicar não move a peça selecionada: quem decide o que fazer é a paleta
+  expect(cfg.selectable?.enabled).toBe(false);
+  expect(cfg.drawable?.enabled).toBe(false);
+  cfg.events?.select?.("e4" as Key);
+  expect(onSquareClick).toHaveBeenCalledWith("e4");
+});
+
+test("no modo montagem o tabuleiro devolve a FEN das peças a cada mudança", () => {
+  const onChange = vi.fn();
+  render(<Board fen={F1} orientation="white" editor={{ onSquareClick: vi.fn(), onChange }} />);
+  const cfg = api.set.mock.calls.at(-1)![0] as { events?: { change?: () => void } };
+  cfg.events?.change?.();
+  expect(onChange).toHaveBeenCalledWith("8/8/8/8/8/8/8/4K3");
+});
+
+test("no modo montagem a posição do pai volta ao tabuleiro quando muda", () => {
+  const editor = { onSquareClick: vi.fn(), onChange: vi.fn() };
+  const { rerender } = render(<Board fen={F1} orientation="white" editor={editor} />);
+  api.set.mockClear();
+  rerender(<Board fen={F2} orientation="white" editor={editor} />);
+  expect(api.set.mock.calls.at(-1)?.[0]?.fen).toBe(F2);
 });

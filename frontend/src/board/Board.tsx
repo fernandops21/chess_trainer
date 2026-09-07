@@ -31,6 +31,20 @@ export interface BoardProps {
   shapes?: Shape[];
   /** Avisa quando o usuário desenha ou apaga uma marcação. Sem isto, o desenho é passageiro. */
   onShapesChange?: (shapes: Shape[]) => void;
+  /** Modo montagem: peça solta, clique na casa e arrastar para fora apaga. */
+  editor?: BoardEditor;
+}
+
+/**
+ * Montagem de posição: o tabuleiro deixa de jogar xadrez e vira um editor —
+ * qualquer peça vai para qualquer casa, arrastar para fora do tabuleiro apaga
+ * e o clique é do pai (é ele quem sabe qual peça da paleta está escolhida).
+ */
+export interface BoardEditor {
+  /** Clique numa casa (o chessground avisa antes de qualquer seleção). */
+  onSquareClick: (key: Key) => void;
+  /** Peças mudaram no tabuleiro; vem só a parte das peças da FEN. */
+  onChange: (fen: string) => void;
 }
 
 const toShape = (s: DrawShape): Shape => ({ orig: s.orig, dest: s.dest, brush: s.brush ?? "green" });
@@ -68,7 +82,33 @@ function boardMode(p: BoardProps) {
   return { readOnly, frozen, viewOnly: readOnly && !frozen, longPress: draw && !readOnly && coarsePointer() };
 }
 
+/**
+ * Config do modo montagem, por fora do caminho normal: nada de lances legais,
+ * dica, marcações ou premove — só peças que vão e vêm. O `events.change` é
+ * ligado no componente, que é quem tem a instância para pedir a FEN.
+ */
+function editorConfig(p: BoardProps, editor: BoardEditor): Config {
+  return {
+    fen: p.fen,
+    orientation: p.orientation,
+    turnColor: p.turnColor ?? "white",
+    check: false,
+    lastMove: undefined,
+    viewOnly: false,
+    coordinates: p.coordinates ?? true,
+    animation: { duration: 200 },
+    movable: { free: true, color: "both", dests: new Map(), showDests: false, events: {} },
+    draggable: { enabled: true, deleteOnDropOff: true },
+    // clicar é da paleta: sem isto o chessground moveria a peça selecionada
+    selectable: { enabled: false },
+    premovable: { enabled: false },
+    drawable: { enabled: false, visible: false, autoShapes: [] },
+    events: { select: editor.onSquareClick },
+  };
+}
+
 export function toConfig(p: BoardProps): Config {
+  if (p.editor) return editorConfig(p, p.editor);
   const { readOnly, frozen, viewOnly, longPress } = boardMode(p);
   return {
     fen: p.fen,
@@ -214,6 +254,13 @@ export function Board(props: BoardProps) {
     if (config.movable?.events) {
       const after = props.onMove;
       config.movable.events.after = (orig: Key, dest: Key) => { pendingSync.current = true; after?.(orig, dest); };
+    }
+    // A FEN das peças só a instância sabe dizer, daí o aviso ser montado aqui.
+    // O `set({fen})` do chessground não dispara este evento: devolver a posição
+    // pelo `fen` não vira laço.
+    if (props.editor && config.events) {
+      const aoMudar = props.editor.onChange;
+      config.events.change = () => { if (cg.current) aoMudar(cg.current.getFen()); };
     }
     // O chessground zera `drawable.shapes` sempre que a config traz uma `fen`;
     // como este efeito roda a cada render (relógio do pai, por exemplo), a `fen`

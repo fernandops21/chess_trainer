@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Chess } from "chess.js";
+import { PositionEditor } from "../analysis/PositionEditor";
 import { useSettings } from "../api/queries";
 import type { ChapterIn, ChapterOut, Color, StudyDetail } from "../api/types";
 import { ErrorBox } from "../components/ErrorBox";
@@ -90,19 +91,22 @@ export interface NewChapterModalProps {
   onClose: () => void;
 }
 
-/** "Novo capítulo": nome, posição inicial (padrão ou FEN colada) e modo. */
+/** "Novo capítulo": nome, posição inicial (padrão, FEN colada ou montada) e modo. */
 export function NewChapterModal({ count, saving, error, onCreate, onClose }: NewChapterModalProps) {
   // vazio de propósito: com o padrão dentro do campo, quem digita acaba com
   // "Capítulo 2Francesa" — o padrão fica no `placeholder` e vale se ficar vazio
   const nomePadrao = `Capítulo ${count + 1}`;
   const [nome, setNome] = useState("");
-  const [origem, setOrigem] = useState<"padrao" | "fen">("padrao");
+  const [origem, setOrigem] = useState<"padrao" | "fen" | "montada">("padrao");
   const [fen, setFen] = useState("");
+  const [fenMontada, setFenMontada] = useState("");
+  const [montando, setMontando] = useState(false);
   const [modo, setModo] = useState<ChapterOut["mode"]>("gamebook");
 
   const fenLimpa = fen.trim();
   const fenValida = useMemo(() => {
     if (origem === "padrao") return true;
+    if (origem === "montada") return fenMontada !== "";
     if (fenLimpa === "") return false;
     try {
       new Chess(fenLimpa);
@@ -110,18 +114,36 @@ export function NewChapterModal({ count, saving, error, onCreate, onClose }: New
     } catch {
       return false;
     }
-  }, [origem, fenLimpa]);
+  }, [origem, fenLimpa, fenMontada]);
 
   const impedido = saving || !fenValida;
 
   const criar = () => {
     const body: ChapterIn = { name: nome.trim() || nomePadrao, mode: modo, orientation: "white" };
-    if (origem === "fen") {
-      body.fen = fenLimpa;
-      body.orientation = orientationOf(fenLimpa);
+    const escolhida = origem === "fen" ? fenLimpa : origem === "montada" ? fenMontada : "";
+    if (escolhida !== "") {
+      body.fen = escolhida;
+      body.orientation = orientationOf(escolhida);
     }
     onCreate(body);
   };
+
+  // O tabuleiro não cabe junto com o resto do formulário: enquanto monta, o
+  // modal é só o editor. O que já foi preenchido continua aqui, no estado.
+  if (montando) {
+    return (
+      <Modal open wide title="Montar posição" onClose={() => setMontando(false)}>
+        <PositionEditor
+          initialFen={fenMontada || undefined}
+          onUse={(f) => {
+            setFenMontada(f);
+            setMontando(false);
+          }}
+          onCancel={() => setMontando(false)}
+        />
+      </Modal>
+    );
+  }
 
   return (
     <Modal open title="Novo capítulo" onClose={onClose}>
@@ -155,6 +177,14 @@ export function NewChapterModal({ count, saving, error, onCreate, onClose }: New
             onChange={() => setOrigem("fen")}
           />
           <label htmlFor="pos-fen">FEN colada</label>
+          <input
+            type="radio"
+            id="pos-montada"
+            name="posicao"
+            checked={origem === "montada"}
+            onChange={() => setOrigem("montada")}
+          />
+          <label htmlFor="pos-montada">montar posição</label>
         </div>
         {origem === "fen" && (
           <>
@@ -168,8 +198,18 @@ export function NewChapterModal({ count, saving, error, onCreate, onClose }: New
             {!fenValida && fenLimpa !== "" && <div className="msg bad">FEN inválido.</div>}
           </>
         )}
+        {origem === "montada" && (
+          <div className="row" style={{ marginTop: 6 }}>
+            <button onClick={() => setMontando(true)}>
+              {fenMontada === "" ? "Montar posição" : "Editar a posição"}
+            </button>
+            <span className="muted" style={{ wordBreak: "break-all" }}>
+              {fenMontada === "" ? "nenhuma posição montada ainda" : fenMontada}
+            </span>
+          </div>
+        )}
         <div className="muted" style={{ marginTop: 6 }}>
-          Para partir de uma posição montada no tabuleiro, use "Salvar como capítulo" na Análise.
+          Uma análise inteira também vira capítulo: use "Salvar como capítulo" na Análise.
         </div>
       </div>
 

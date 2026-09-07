@@ -4,6 +4,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "../src/api/client";
 import type { ChapterDetail, ChapterOut, StudyDetail } from "../src/api/types";
+// O modal "Novo capítulo" abre a montagem de posição, que traz um tabuleiro:
+// o chessground não roda no jsdom, então o tabuleiro vira um dublê.
+vi.mock("../src/board/Board", () => ({ Board: () => <div data-testid="board" /> }));
+
 import { StudyDetailPage } from "../src/pages/StudyDetailPage";
 
 const chapter = (over: Partial<ChapterOut> = {}): ChapterOut => ({
@@ -293,4 +297,28 @@ test("apagar avisa que não pode ser desfeito e trava o botão enquanto apaga", 
   await act(async () => { liberar(); });
   await waitFor(() => expect(screen.queryByText(/Não pode ser desfeito\./)).toBeNull());
   expect(api.deleteChapter).toHaveBeenCalledWith("s1", "c1");
+});
+
+test("novo capítulo com posição montada manda a FEN do editor", async () => {
+  vi.spyOn(api, "createChapter").mockResolvedValue(detalheCapitulo());
+  renderPage();
+  await screen.findByText("Finais de torre");
+  fireEvent.click(screen.getByRole("button", { name: "Novo capítulo" }));
+  fireEvent.click(screen.getByLabelText("montar posição"));
+  // sem posição montada ainda, não dá para criar
+  expect((screen.getByRole("button", { name: "Criar capítulo" }) as HTMLButtonElement).disabled).toBe(true);
+
+  fireEvent.click(screen.getByRole("button", { name: "Montar posição" }));
+  fireEvent.change(screen.getByLabelText("FEN"), { target: { value: "8/8/8/8/8/5k2/8/7K b - - 0 1" } });
+  fireEvent.click(screen.getByRole("button", { name: "Usar posição" }));
+
+  fireEvent.click(screen.getByRole("button", { name: "Criar capítulo" }));
+  await waitFor(() =>
+    expect(api.createChapter).toHaveBeenCalledWith("s1", {
+      name: "Capítulo 3",
+      fen: "8/8/8/8/8/5k2/8/7K b - - 0 1",
+      orientation: "black",
+      mode: "gamebook",
+    }),
+  );
 });

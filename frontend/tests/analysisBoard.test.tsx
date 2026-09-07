@@ -276,3 +276,44 @@ test("árvore dentro do limite não mostra o aviso", () => {
   comProvedores(<AnalysisBoard editable tree={emptyTree(START)} />);
   expect(screen.queryByText(/Limite de 2000 lances/)).toBeNull();
 });
+
+// --- montar posição -----------------------------------------------------
+
+test("montar posição troca a análise pela posição nova", () => {
+  const { onTreeChange } = renderBoard();
+  fireEvent.click(screen.getByRole("button", { name: "Montar posição" }));
+  fireEvent.change(screen.getByLabelText("FEN"), { target: { value: "8/8/8/8/8/5k2/8/7K b - - 0 1" } });
+  fireEvent.click(screen.getByRole("button", { name: "Usar posição" }));
+  const t = lastTree(onTreeChange);
+  expect(t.fen).toBe("8/8/8/8/8/5k2/8/7K b - - 0 1");
+  expect(t.root.children).toEqual([]);
+  // voltou ao tabuleiro de análise
+  expect(screen.getByRole("button", { name: "Montar posição" })).toBeTruthy();
+});
+
+test("com lances na árvore, montar posição pede confirmação antes de apagar tudo", () => {
+  const { onTreeChange } = renderBoard();
+  play("e2e4");
+  const confirmar = vi.spyOn(window, "confirm").mockReturnValue(false);
+  fireEvent.click(screen.getByRole("button", { name: "Montar posição" }));
+  fireEvent.change(screen.getByLabelText("FEN"), { target: { value: "8/8/8/8/8/5k2/8/7K b - - 0 1" } });
+  fireEvent.click(screen.getByRole("button", { name: "Usar posição" }));
+  expect(confirmar).toHaveBeenCalledWith("Substituir a análise atual pela nova posição?");
+  // recusou: a análise continua de pé e o editor fica aberto
+  expect(lastTree(onTreeChange).root.children[0].san).toBe("e4");
+
+  confirmar.mockReturnValue(true);
+  fireEvent.click(screen.getByRole("button", { name: "Usar posição" }));
+  expect(lastTree(onTreeChange).fen).toBe("8/8/8/8/8/5k2/8/7K b - - 0 1");
+  expect(lastTree(onTreeChange).root.children).toEqual([]);
+});
+
+test("cancelar a montagem não mexe na análise", () => {
+  const { onTreeChange } = renderBoard();
+  play("e2e4");
+  const antes = lastTree(onTreeChange);
+  fireEvent.click(screen.getByRole("button", { name: "Montar posição" }));
+  fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+  expect(screen.getByRole("button", { name: "Montar posição" })).toBeTruthy();
+  expect(lastTree(onTreeChange)).toBe(antes);
+});
