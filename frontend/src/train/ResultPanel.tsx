@@ -61,7 +61,7 @@ export function ResultPanel({ puzzle, review, error, onRetry, onNext, nextLabel 
         </div>
       </div>
       {comErro && <MistakeCard puzzle={comErro} />}
-      <AnalysisBoard tree={tree} initialNodeId="last" engine={false} />
+      <AnalysisBoard tree={tree} initialNodeId="last" engine={false} allowSetup={false} />
     </>
   );
 }

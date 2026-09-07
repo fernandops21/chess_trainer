@@ -35,6 +35,8 @@ export interface AnalysisBoardProps {
   initialNodeId?: string | "last";
   /** Motor ligado desde o começo (padrão). Desligado, um botão liga a análise. */
   engine?: boolean;
+  /** Mostra o botão "Montar posição" (fora do resultado de exercício). */
+  allowSetup?: boolean;
 }
 
 /** Abas do painel lateral: o motor ou o livro de aberturas. */
@@ -69,6 +71,7 @@ export function AnalysisBoard({
   showSaveAsChapter = false,
   initialNodeId,
   engine = true,
+  allowSetup = true,
 }: AnalysisBoardProps) {
   const mt = useMoveTree(tree, initialNodeId);
   // o motor desligado só custa um botão: quem quiser a análise liga na hora
@@ -248,7 +251,7 @@ export function AnalysisBoard({
           <button onClick={prev} disabled={mt.currentId === null} aria-label="lance anterior">◀</button>
           <button onClick={next} aria-label="próximo lance">▶</button>
           <button onClick={() => setOrient((o) => (o === "white" ? "black" : "white"))}>Inverter</button>
-          <button onClick={() => setMontando(true)}>Montar posição</button>
+          {allowSetup && <button onClick={() => setMontando(true)}>Montar posição</button>}
           {onSave && <button className="primary" onClick={onSave}>Salvar</button>}
           {showSaveAsChapter && <button onClick={() => setSalvarComo(true)}>Salvar como capítulo</button>}
           {backTo && <Link to={backTo}>Voltar</Link>}

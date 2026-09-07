@@ -38,7 +38,7 @@ export function TacticResultPanel({ tactic, attempt, durationMs, error, onRetry,
           {attempt && <button className="primary" style={{ marginLeft: "auto" }} disabled={nextDisabled} onClick={onNext}>{nextDisabled ? "Carregando…" : "Próximo"}</button>}
         </div>
       </div>
-      <AnalysisBoard tree={tree} initialNodeId="last" engine={false} />
+      <AnalysisBoard tree={tree} initialNodeId="last" engine={false} allowSetup={false} />
     </>
   );
 }
