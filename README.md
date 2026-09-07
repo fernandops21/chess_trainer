@@ -137,7 +137,7 @@ diz "Sem partidas nesta posição."
 Há duas bases, no seletor do painel (a escolha fica guardada):
 
 - **Mestres** — partidas de torneio de jogadores titulados.
-- **Jogadores (Lichess)** — partidas de rapid e clássico do Lichess, entre 1600 e 2500 de rating.
+- **Jogadores (Lichess)** — partidas de rapid e clássico do Lichess, com rating a partir de 1600.
 
 Os dados vêm do explorador do Lichess, que pede um **token pessoal**. Crie um em
 <https://lichess.org/account/oauth/token> **sem marcar nenhuma permissão** e cole em

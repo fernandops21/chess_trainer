@@ -100,6 +100,8 @@ export function AnalysisBoard({
   const { prev, next, up, down, goStart } = mt;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // com o editor de posição aberto a árvore está escondida: nada de navegar nela
+      if (montando) return;
       if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {
         if (!onSave) return;
         e.preventDefault();
@@ -121,7 +123,7 @@ export function AnalysisBoard({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [prev, next, up, down, goStart, onSave]);
+  }, [prev, next, up, down, goStart, onSave, montando]);
 
   const inCheck = useMemo(() => new Chess(mt.fen).inCheck(), [mt.fen]);
   const best = data && !data.terminal ? data.lines[0] : undefined;

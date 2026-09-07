@@ -36,7 +36,7 @@ export interface Settings {
  * Corpo do `PUT /api/settings`. O token viaja à parte porque ele não volta no
  * `GET`: mandar o campo ausente mantém o que está guardado, `""` apaga.
  */
-export type SettingsIn = Partial<Settings> & { lichess_token?: string };
+export type SettingsIn = Omit<Partial<Settings>, "lichess_token_set"> & { lichess_token?: string };
 
 export interface JobStatus {
   state: "idle" | "running" | "error";

@@ -47,13 +47,16 @@ export function SettingsPage() {
   if (error) return <ErrorBox error={error} />;
   if (!form) return <p className="muted">Carregando…</p>;
   const errs = validate(form);
-  const salvar = (body: SettingsIn) =>
+  const salvar = (body: SettingsIn, opts: { soToken?: boolean } = {}) =>
     save.mutate(body, {
       onSuccess: (s) => {
-        setForm(s);
+        // "Remover" só mexe no token: não descarta edições em andamento no resto do formulário
+        setForm(opts.soToken ? { ...form, lichess_token_set: s.lichess_token_set } : s);
         setTokenDraft("");
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2500);
+        if (!opts.soToken) {
+          setSaved(true);
+          setTimeout(() => setSaved(false), 2500);
+        }
       },
     });
   const num = (k: keyof Settings) => (e: ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: Number(e.target.value) });
@@ -140,13 +143,13 @@ export function SettingsPage() {
         {form.lichess_token_set && (
           <div className="row" style={{ marginTop: 8 }}>
             <span className="msg ok">token configurado</span>
-            <button onClick={() => salvar({ lichess_token: "" })} disabled={save.isPending}>Remover</button>
+            <button onClick={() => salvar({ lichess_token: "" }, { soToken: true })} disabled={save.isPending}>Remover</button>
           </div>
         )}
       </div>
       {errs.length > 0 && <div className="msg bad">{errs.join(" · ")}</div>}
       <div className="row">
-        <button className="primary" disabled={errs.length > 0 || save.isPending} onClick={() => salvar(tokenDraft === "" ? form : { ...form, lichess_token: tokenDraft })}>Salvar</button>
+        <button className="primary" disabled={errs.length > 0 || save.isPending} onClick={() => { const { lichess_token_set: _set, ...corpo } = form; const token = tokenDraft.trim(); salvar(token === "" ? corpo : { ...corpo, lichess_token: token }); }}>Salvar</button>
         {saved && <span className="msg ok">Salvo.</span>}
         <ErrorBox error={save.error} />
       </div>
