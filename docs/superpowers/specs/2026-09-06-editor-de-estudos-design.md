@@ -39,6 +39,12 @@ para depois.
 
 ## 3. Editor (frontend)
 
+- O tabuleiro de análise (`/analise`) e o editor de capítulo são o **mesmo
+  componente**: um único tabuleiro de análise completo (árvore de variações,
+  comentários, marcações salvas, engine ao lado), com "Salvar como capítulo"
+  e "Novo estudo" disponíveis em qualquer análise. "Análise" ganha item no
+  menu, abrindo na posição inicial; a rota continua aceitando `?fen=`,
+  `?orientation=` e `?back=` (sem FEN, posição inicial).
 - Tela Estudos: "Novo estudo" (título; autor = nome configurado ou vazio),
   "Editar" nos estudos locais e nos importados (edição local; reimportar
   sobrescreve com aviso). "Exportar PGN" no estudo e no capítulo.
