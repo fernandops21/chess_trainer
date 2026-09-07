@@ -4,6 +4,7 @@ import type { Api } from "chessground/api";
 import type { Config } from "chessground/config";
 import type { DrawShape } from "chessground/draw";
 import type { Key } from "chessground/types";
+import type { Shape } from "../api/types";
 import "chessground/assets/chessground.base.css";
 import "chessground/assets/chessground.brown.css";
 import "chessground/assets/chessground.cburnett.css";
@@ -24,9 +25,16 @@ export interface BoardProps {
   onMove?: (orig: Key, dest: Key) => void;
   viewOnly?: boolean;
   coordinates?: boolean;
-  /** Botão direito (ou toque longo no celular) desenha setas/casas. Não são salvas. */
+  /** Botão direito (ou toque longo no celular) desenha setas/casas. */
   drawable?: boolean;
+  /** Marcações do usuário a mostrar no tabuleiro (o editor guarda as do nó atual). */
+  shapes?: Shape[];
+  /** Avisa quando o usuário desenha ou apaga uma marcação. Sem isto, o desenho é passageiro. */
+  onShapesChange?: (shapes: Shape[]) => void;
 }
+
+const toShape = (s: DrawShape): Shape => ({ orig: s.orig, dest: s.dest, brush: s.brush ?? "green" });
+const toDrawShape = (s: Shape): DrawShape => ({ orig: s.orig as Key, dest: s.dest as Key | undefined, brush: s.brush });
 
 /** Quanto tempo o dedo fica parado até virar desenho, e o quanto pode escorregar antes disso. */
 const LONG_PRESS_MS = 350;
@@ -83,6 +91,10 @@ export function toConfig(p: BoardProps): Config {
       // para ter uma marcação por vez e repetir o gesto nunca apagaria. Desligado, as
       // marcações ficam até a posição mudar. No computador o clique esquerdo continua limpando.
       eraseOnClick: !longPress,
+      // O chessground avisa aqui a cada seta/casa desenhada ou apagada. Ele não
+      // dispara isto no `setShapes` da API, então devolver as marcações pelo
+      // `shapes` não vira laço.
+      onChange: p.onShapesChange ? (shapes: DrawShape[]) => p.onShapesChange!(shapes.map(toShape)) : undefined,
       autoShapes: [
         ...(p.highlight ?? []).map((k) => ({ orig: k, brush: "green" })),
         ...(p.arrows ?? []).map((a) => ({ orig: a.orig, dest: a.dest, brush: a.brush ?? "green" })),
@@ -104,12 +116,14 @@ export function Board(props: BoardProps) {
   const host = useRef<HTMLDivElement>(null);
   const cg = useRef<Api | null>(null);
   const prevFen = useRef(props.fen);
+  const prevShapes = useRef(props.shapes);
   const longPress = useRef(false);
   longPress.current = boardMode(props).longPress;
 
   useEffect(() => {
     if (!host.current) return;
     cg.current = Chessground(host.current, toConfig(props));
+    if (props.shapes?.length) cg.current.setShapes(props.shapes.map(toDrawShape));
     return () => { cg.current?.destroy(); cg.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -188,9 +202,12 @@ export function Board(props: BoardProps) {
     // usuário sobrevivem aos re-renders e somem ao trocar de posição.
     if (!moved) delete config.fen;
     cg.current?.set(config);
-    if (moved) {
+    // Trocar de posição (ou receber outra lista de marcações salvas) repõe o que
+    // vem do `shapes`; sem `shapes`, o desenho do usuário some ao mudar de posição.
+    if (moved || prevShapes.current !== props.shapes) {
       prevFen.current = props.fen;
-      cg.current?.setShapes([]);
+      prevShapes.current = props.shapes;
+      cg.current?.setShapes((props.shapes ?? []).map(toDrawShape));
     }
   });
   return <div className="board"><div ref={host} /></div>;

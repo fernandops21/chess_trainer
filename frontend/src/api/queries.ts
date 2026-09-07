@@ -1,7 +1,17 @@
 import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
-import type { GamesQuery, MistakesQuery, QueueFilters, Settings, StudyImportIn } from "./types";
+import type {
+  ChapterIn,
+  ChapterSaveIn,
+  GamesQuery,
+  MistakesQuery,
+  QueueFilters,
+  Settings,
+  StudyImportIn,
+  StudyIn,
+  StudyUpdateIn,
+} from "./types";
 
 export const keys = {
   status: ["status"] as const,
@@ -15,6 +25,7 @@ export const keys = {
   puzzle: (id: string) => ["puzzle", id] as const,
   studies: ["studies"] as const,
   study: (id: string) => ["studies", id] as const,
+  chapter: (id: string, cid: string) => ["studies", id, "chapters", cid] as const,
   tacticsStatus: ["tactics", "status"] as const,
   tacticThemes: ["tactics", "themes"] as const,
   themeStats: (days: number) => ["stats", "themes", days] as const,
@@ -39,6 +50,12 @@ export const useStudies = (enabled = true) =>
   useQuery({ queryKey: keys.studies, queryFn: api.studies, enabled });
 export const useStudy = (id: string | null) =>
   useQuery({ queryKey: keys.study(id ?? ""), queryFn: () => api.study(id!), enabled: !!id });
+export const useChapter = (id: string | null, cid: string | null) =>
+  useQuery({
+    queryKey: keys.chapter(id ?? "", cid ?? ""),
+    queryFn: () => api.chapter(id!, cid!),
+    enabled: !!id && !!cid,
+  });
 export const useTacticsStatus = (enabled = true) =>
   useQuery({ queryKey: keys.tacticsStatus, queryFn: api.tacticsStatus, enabled });
 export const useTacticThemes = () =>
@@ -133,6 +150,44 @@ export function useImportStudy() {
     error: start.error,
     reset: start.reset,
   };
+}
+
+/** Criar e renomear estudos locais (o editor também reordena capítulos por aqui). */
+export function useStudyEditor() {
+  const invalidate = useInvalidate([keys.studies]);
+  const create = useMutation({ mutationFn: (body: StudyIn) => api.createStudy(body), onSettled: invalidate });
+  const update = useMutation({
+    mutationFn: (p: { id: string; body: StudyUpdateIn }) => api.updateStudy(p.id, p.body),
+    onSettled: invalidate,
+  });
+  return { create, update };
+}
+
+/** Criar, salvar, duplicar e remover capítulos. */
+export function useChapterActions(studyId: string) {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    for (const k of [keys.studies, keys.study(studyId), keys.dashboard, ["queue"], ["puzzle"]])
+      void qc.invalidateQueries({ queryKey: k });
+  };
+  const create = useMutation({
+    mutationFn: (body: ChapterIn) => api.createChapter(studyId, body),
+    onSettled: invalidate,
+  });
+  const save = useMutation({
+    mutationFn: (p: { cid: string; body: ChapterSaveIn }) => api.saveChapter(studyId, p.cid, p.body),
+    onSuccess: (ch) => qc.setQueryData(keys.chapter(studyId, ch.id), ch),
+    onSettled: invalidate,
+  });
+  const duplicate = useMutation({
+    mutationFn: (cid: string) => api.duplicateChapter(studyId, cid),
+    onSettled: invalidate,
+  });
+  const remove = useMutation({
+    mutationFn: (cid: string) => api.deleteChapter(studyId, cid),
+    onSettled: invalidate,
+  });
+  return { create, save, duplicate, remove };
 }
 
 /** Reimportar, tirar/voltar da repetição e remover um estudo. */

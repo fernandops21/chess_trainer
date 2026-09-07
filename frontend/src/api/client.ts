@@ -2,6 +2,9 @@ import type {
   AnalyseOut,
   AttemptIn,
   AttemptOut,
+  ChapterDetail,
+  ChapterIn,
+  ChapterSaveIn,
   DashboardOut,
   GameDetail,
   GameOut,
@@ -20,7 +23,9 @@ import type {
   StatusOut,
   StudyDetail,
   StudyImportIn,
+  StudyIn,
   StudyOut,
+  StudyUpdateIn,
   TacticOut,
   TacticsStatus,
   ThemeCount,
@@ -137,6 +142,28 @@ export const api = {
     request<StudyOut>(`/studies/${id}/queue`, post("", { in_queue })),
   deleteStudy: (id: string) =>
     request<void>(`/studies/${id}`, { method: "DELETE" }),
+  createStudy: (body: StudyIn) => request<StudyOut>("/studies", post("", body)),
+  updateStudy: (id: string, body: StudyUpdateIn) =>
+    request<StudyOut>(`/studies/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  chapter: (id: string, cid: string) =>
+    request<ChapterDetail>(`/studies/${id}/chapters/${cid}`),
+  createChapter: (id: string, body: ChapterIn) =>
+    request<ChapterDetail>(`/studies/${id}/chapters`, post("", body)),
+  /** Salva a árvore: o servidor valida os lances, gera o PGN e o exercício. */
+  saveChapter: (id: string, cid: string, body: ChapterSaveIn) =>
+    request<ChapterDetail>(`/studies/${id}/chapters/${cid}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  deleteChapter: (id: string, cid: string) =>
+    request<void>(`/studies/${id}/chapters/${cid}`, { method: "DELETE" }),
+  duplicateChapter: (id: string, cid: string) =>
+    request<ChapterDetail>(`/studies/${id}/chapters/${cid}/duplicate`, post("")),
   themeStats: (days = 30) =>
     request<ThemeStat[]>(`/stats/themes${qs({ days })}`),
 };
+
+/** Downloads de PGN: links comuns, o navegador salva pelo Content-Disposition. */
+export const studyPgnUrl = (id: string) => `/api/studies/${id}/pgn`;
+export const chapterPgnUrl = (id: string, cid: string) =>
+  `/api/studies/${id}/chapters/${cid}/pgn`;

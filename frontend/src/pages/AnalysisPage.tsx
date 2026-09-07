@@ -1,9 +1,11 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Chess } from "chess.js";
+import { AnalysisBoard } from "../analysis/AnalysisBoard";
+import { SaveChapterModal } from "../analysis/SaveChapterModal";
+import { emptyTree } from "../analysis/moveTree";
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-import { AnalysisBoard } from "../analysis/AnalysisBoard";
 
 export function AnalysisPage() {
   const [params] = useSearchParams();
@@ -11,6 +13,7 @@ export function AnalysisPage() {
   const fen = params.get("fen") || START_FEN;
   const orientation = params.get("orientation") === "black" ? "black" : "white";
   const back = params.get("back") || "/";
+  const [novoEstudo, setNovoEstudo] = useState(false);
 
   const valid = useMemo(() => {
     try {
@@ -20,6 +23,11 @@ export function AnalysisPage() {
       return false;
     }
   }, [fen]);
+
+  // trocar de FEN (ou de orientação) recomeça a análise numa árvore vazia
+  const inicial = useMemo(() => emptyTree(valid ? fen : START_FEN, orientation), [fen, orientation, valid]);
+  const [tree, setTree] = useState(inicial);
+  useEffect(() => setTree(inicial), [inicial]);
 
   if (!valid) {
     return (
@@ -36,7 +44,12 @@ export function AnalysisPage() {
   return (
     <>
       <h1>Análise</h1>
-      <AnalysisBoard key={fen} fenStart={fen} orientation={orientation} backTo={back} />
+      <div className="row" style={{ marginBottom: 12 }}>
+        <button onClick={() => setNovoEstudo(true)}>Novo estudo</button>
+        <span className="muted">Jogue os lances, monte as variações e salve como capítulo.</span>
+      </div>
+      <AnalysisBoard tree={tree} onTreeChange={setTree} backTo={back} showSaveAsChapter />
+      {novoEstudo && <SaveChapterModal tree={tree} newStudy onClose={() => setNovoEstudo(false)} />}
     </>
   );
 }

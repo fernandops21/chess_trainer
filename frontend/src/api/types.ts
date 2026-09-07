@@ -1,3 +1,9 @@
+// A árvore de lances é definida junto das funções que a manipulam
+// (`analysis/moveTree.ts`); aqui ela só entra no contrato do capítulo.
+// O `import type` é apagado na compilação: não há ciclo em tempo de execução.
+import type { Tree, TreeNode, TreeRoot } from "../analysis/moveTree";
+export type { Tree, TreeNode, TreeRoot };
+
 export type Color = "white" | "black";
 export type PuzzleKind = "punish" | "avoid";
 export type MistakeLevel = "mistake" | "blunder";
@@ -366,6 +372,9 @@ export interface StudyOut {
   exercise_count: number;
   in_queue: number;
   due_today: number;
+  /** Importado do Lichess ou criado aqui; ausente nas respostas anteriores ao editor. */
+  origin?: "lichess" | "local";
+  updated_at?: string | null;
 }
 
 export interface ChapterOut {
@@ -377,6 +386,42 @@ export interface ChapterOut {
   in_queue: boolean;
   puzzle_id: string | null;
   intro_comment: string;
+}
+
+/** Capítulo com a árvore: o que o editor carrega e salva. */
+export interface ChapterDetail extends ChapterOut {
+  fen: string;
+  orientation: Color;
+  tree: Tree;
+  pgn: string;
+  updated_at: string | null;
+}
+
+/** Criação do capítulo: sem árvore ainda (posição inicial e modo). */
+export interface ChapterIn {
+  name: string;
+  fen?: string;
+  orientation?: Color;
+  mode?: ChapterOut["mode"];
+}
+
+/** Salvamento do capítulo: o servidor valida a árvore, gera o PGN e o exercício. */
+export interface ChapterSaveIn {
+  name: string;
+  mode: ChapterOut["mode"];
+  orientation: Color;
+  tree: Tree;
+}
+
+export interface StudyIn {
+  title: string;
+  author: string;
+}
+
+export interface StudyUpdateIn {
+  title?: string;
+  author?: string;
+  chapter_order?: string[];
 }
 
 export interface StudyDetail extends StudyOut {

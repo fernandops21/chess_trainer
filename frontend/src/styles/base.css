@@ -60,6 +60,18 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 .promo button { font-size: 24px; min-width: var(--tap); }
 .stat { font-size: 32px; font-weight: 700; }
 
+/* árvore de lances do tabuleiro de análise: linha principal corrida, variações recuadas */
+.tree { font-family: ui-monospace, Menlo, Consolas, monospace; max-height: 55vh; overflow: auto; line-height: 2; }
+.tree .move { min-height: 28px; padding: 1px 5px; border: none; background: transparent; border-radius: 6px; }
+.tree .move:hover { background: var(--line); }
+.tree .move.cur { background: var(--accent); font-weight: 700; }
+.tree .comment { color: var(--muted); font-style: italic; margin: 0 4px; }
+.tree .variation { color: var(--muted); border-left: 2px solid var(--line); padding-left: 6px; margin: 2px 0; }
+
+.node-menu { position: fixed; z-index: 20; min-width: 220px; padding: 6px; display: flex; flex-direction: column; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.node-menu button { text-align: left; min-height: 36px; }
+.node-menu .row button { min-width: var(--tap); text-align: center; }
+
 .movelist { display: grid; grid-template-columns: 1fr; max-height: 60vh; overflow: auto; font-family: ui-monospace, Menlo, Consolas, monospace; }
 .moverow { display: grid; grid-template-columns: 36px minmax(0, 1fr) minmax(0, 1fr); gap: 4px; align-items: center; }
 .moverow .san { min-height: 32px; border: none; background: transparent; text-align: left; padding: 2px 6px; }

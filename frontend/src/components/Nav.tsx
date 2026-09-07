@@ -5,6 +5,7 @@ const items = [
   { to: "/", label: "Painel", icon: "▦", end: true },
   { to: "/treinar", label: "Treinar", icon: "♞" },
   { to: "/estudos", label: "Estudos", icon: "▤" },
+  { to: "/analise", label: "Análise", icon: "⌕" },
   { to: "/partidas", label: "Partidas", icon: "≡" },
   { to: "/erros", label: "Erros", icon: "!" },
   { to: "/config", label: "Config", icon: "⚙" },
