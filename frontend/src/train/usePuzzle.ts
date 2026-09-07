@@ -4,6 +4,7 @@ import type { Key } from "chessground/types";
 import type { ReviewIn, ReviewOut, Trainable } from "../api/types";
 import { destsFrom } from "../board/dests";
 import { uciToMove } from "../board/line";
+import { play, sanSound } from "../lib/sound";
 
 /** O mínimo que a máquina de estados precisa: serve tanto para `PuzzleOut` quanto para `TacticOut`.
  *  `fen_before`/`last_move` (só os próprios/estudo/Lichess guardado têm) ligam a
@@ -140,6 +141,7 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
   }, [puzzle.id, opts.sessionId, opts.submit, now]);
 
   const finish = useCallback((wrong: boolean, usedHint: boolean, text = "Certo!") => {
+    play("solved");
     setState(snapshot({ phase: "solved", hint: undefined, message: { text, tone: "ok" } }));
     void doSubmit(wrong, usedHint);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -161,9 +163,11 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
       // Textually matched an expected uci/alternative but chess.js rejects it
       // as an illegal move on the current position (e.g. a malformed
       // alternative). Score it as a wrong attempt instead of crashing.
+      play("wrong");
       setState((p) => ({ ...p, wrong: true, hintStage: 0, pendingPromotion: undefined, message: { text: "Lance inválido", tone: "bad" } }));
       return;
     }
+    play(sanSound(mv.san));
     const nextIdx = c.history().length;
     const last: [Key, Key] = [mv.from as Key, mv.to as Key];
     const moves = puzzle.solution.moves;
@@ -185,6 +189,7 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
           setState((p) => ({ ...p, phase: "submit_error", error: new Error("Solução inválida do servidor") }));
           return;
         }
+        play(sanSound(r.san));
         const afterReply = chessRef.current.history().length;
         const replyLast: [Key, Key] = [r.from as Key, r.to as Key];
         if (afterReply >= moves.length) {
@@ -208,6 +213,7 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
     if (!ok) {
       // erro previsto pelo autor do estudo: a mensagem vira o comentário dele
       const authored = puzzle.solution.wrong_moves?.[uci];
+      play("wrong");
       setState((p) => ({ ...p, wrong: true, pendingPromotion: undefined, message: { text: authored ?? "Não é esse. Tente de novo.", tone: "bad" } }));
       return;
     }
@@ -246,6 +252,7 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
     const expected = puzzle.solution.moves[state.idx];
     if (!expected || expected.by !== "solver") return;
     if (state.hintStage === 0) {
+      play("hint");
       setState((p) => ({
         ...p, usedHint: true, hintStage: 1, hint: expected.uci.slice(0, 2) as Key,
         message: { text: "Peça destacada. Clique de novo para jogar o lance (dica conta como erro).", tone: "bad" },

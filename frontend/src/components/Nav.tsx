@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { useDashboard } from "../api/queries";
+import { play, useSoundEnabled } from "../lib/sound";
 
 const items = [
   { to: "/", label: "Painel", icon: "▦", end: true },
@@ -14,6 +15,7 @@ const items = [
 export function Nav() {
   const { data } = useDashboard();
   const due = data?.due_today ?? 0;
+  const [som, setSom] = useSoundEnabled();
   return (
     <nav className="nav" aria-label="Principal">
       <div className="brand">Chess Trainer</div>
@@ -24,6 +26,16 @@ export function Nav() {
           {it.to === "/treinar" && due > 0 && <span className="badge">{due}</span>}
         </NavLink>
       ))}
+      <button
+        type="button"
+        className="nav-som"
+        aria-label={som ? "Som ligado" : "Som desligado"}
+        aria-pressed={som}
+        onClick={() => { const novo = !som; setSom(novo); if (novo) play("move"); }}
+      >
+        <span aria-hidden="true">{som ? "🔊" : "🔇"}</span>
+        <span>Som</span>
+      </button>
     </nav>
   );
 }

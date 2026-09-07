@@ -1,4 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+
+// só o `play` do módulo de som vira dublê
+vi.mock("../src/lib/sound", async (original) => ({
+  ...(await original<typeof import("../src/lib/sound")>()),
+  play: vi.fn(),
+}));
+
+import { play } from "../src/lib/sound";
 import { LineViewer } from "../src/train/LineViewer";
 
 const fenStart = "2r3k1/5ppp/8/8/Q7/8/8/4R1K1 w - - 0 1";
@@ -81,4 +89,38 @@ test("último lance incoerente com a linha guardada cai no comportamento de semp
   );
   expect(screen.getByText(/^24… Rxe8$/)).toBeTruthy();
   expect(screen.getByText("2/2")).toBeTruthy();
+});
+
+// --- sons ao navegar --------------------------------------------------------
+
+const sons = () => vi.mocked(play).mock.calls.map((c) => c[0]);
+
+test("avançar na linha toca o som do lance alcançado", () => {
+  vi.mocked(play).mockClear();
+  render(
+    <LineViewer fenStart={fenStart} ucis={ucis} orientation="white" startPly={1} initialPos={0} keyboard={false} />,
+  );
+  expect(sons()).toEqual([]);
+
+  fireEvent.click(screen.getByLabelText("próximo"));   // Re8+
+  fireEvent.click(screen.getByLabelText("próximo"));   // Rxe8
+  expect(sons()).toEqual(["move", "capture"]);
+
+  // voltar não toca nada
+  fireEvent.click(screen.getByLabelText("anterior"));
+  fireEvent.click(screen.getByLabelText("anterior"));
+  expect(sons()).toEqual(["move", "capture"]);
+
+  // pular direto para um lance à frente também toca
+  fireEvent.click(screen.getByText(/Qxe8#$/));
+  expect(sons()).toEqual(["move", "capture", "capture"]);
+});
+
+test("sound={false} silencia a navegação", () => {
+  vi.mocked(play).mockClear();
+  render(
+    <LineViewer fenStart={fenStart} ucis={ucis} orientation="white" startPly={1} initialPos={0} keyboard={false} sound={false} />,
+  );
+  fireEvent.click(screen.getByLabelText("próximo"));
+  expect(sons()).toEqual([]);
 });

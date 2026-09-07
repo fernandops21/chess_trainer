@@ -3,6 +3,7 @@ import type { Key } from "chessground/types";
 import type { Shape } from "../api/types";
 import { buildLine } from "../board/line";
 import { Board } from "../board/Board";
+import { play } from "../lib/sound";
 
 interface LineViewerProps {
   fenStart: string;
@@ -20,9 +21,11 @@ interface LineViewerProps {
   /** Setas e casas do autor do estudo: índice do lance (texto) ou "start". */
   shapes?: Record<string, Shape[]>;
   drawable?: boolean;
+  /** Toca o som do lance ao avançar na linha (padrão: sim). */
+  sound?: boolean;
 }
 
-export function LineViewer({ fenStart, ucis, orientation, startPly, keyboard = true, initialPos, onPos, fenBefore, lastMoveUci, shapes, drawable = true }: LineViewerProps) {
+export function LineViewer({ fenStart, ucis, orientation, startPly, keyboard = true, initialPos, onPos, fenBefore, lastMoveUci, shapes, drawable = true, sound = true }: LineViewerProps) {
   // `ucis` is often rebuilt fresh (new array, same contents) by callers that re-render on
   // every tick (e.g. a session clock). Deriving a stable string key from its contents keeps
   // `line`/`pos` from being recomputed/reset unless the moves actually changed.
@@ -46,14 +49,32 @@ export function LineViewer({ fenStart, ucis, orientation, startPly, keyboard = t
   const touchX = useRef<number | null>(null);
   const lenRef = useRef(line.fens.length);
   lenRef.current = line.fens.length;
-  useEffect(() => { setPos(opening()); }, [fenStart, key, fenBefore, lastMoveUci]);
+  // o ouvinte do teclado é registrado uma vez por linha: `posRef` evita que ele
+  // enxergue uma posição velha (e é o que decide se a navegação foi para frente)
+  const posRef = useRef(pos);
+  posRef.current = pos;
+  const soundRef = useRef(sound);
+  soundRef.current = sound;
+  // trocar de linha reposiciona sem som: não é navegação do usuário
+  useEffect(() => { const inicial = opening(); posRef.current = inicial; setPos(inicial); }, [fenStart, key, fenBefore, lastMoveUci]);
   // avisa quem mostra algo por posição (comentários do autor do estudo, por exemplo)
   const onPosRef = useRef(onPos);
   onPosRef.current = onPos;
   useEffect(() => { onPosRef.current?.(pos - offset); }, [pos, offset]);
 
-  const prev = () => setPos((p) => Math.max(0, p - 1));
-  const next = () => setPos((p) => Math.min(lenRef.current - 1, p + 1));
+  /** Navega para `to`; só avançar toca o som do lance alcançado. */
+  const irPara = (to: number) => {
+    const n = Math.max(0, Math.min(lenRef.current - 1, to));
+    if (n === posRef.current) return;
+    if (soundRef.current && n > posRef.current) {
+      const san = line.sans[n - 1];
+      if (san) play(san.includes("x") ? "capture" : "move");
+    }
+    posRef.current = n;
+    setPos(n);
+  };
+  const prev = () => irPara(posRef.current - 1);
+  const next = () => irPara(posRef.current + 1);
 
   useEffect(() => {
     if (!keyboard) return;
@@ -79,7 +100,7 @@ export function LineViewer({ fenStart, ucis, orientation, startPly, keyboard = t
         {line.sans.map((san, i) => {
           const ply = startPly - offset + i;
           const num = ply % 2 === 1 ? `${Math.ceil(ply / 2)}. ` : i === 0 ? `${Math.ceil(ply / 2)}… ` : "";
-          return <button key={i} className={`san ${i + 1 === pos ? "cur" : ""}`} onClick={() => setPos(i + 1)}>{num}{san}</button>;
+          return <button key={i} className={`san ${i + 1 === pos ? "cur" : ""}`} onClick={() => irPara(i + 1)}>{num}{san}</button>;
         })}
       </div>
       <div className="row" style={{ marginTop: 6 }}>

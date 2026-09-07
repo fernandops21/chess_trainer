@@ -1,6 +1,16 @@
 import { act, renderHook } from "@testing-library/react";
 import type { PuzzleOut, ReviewIn, ReviewOut } from "../src/api/types";
+
+// o `play` vira dublê; o resto do módulo de som (sanSound) continua o de verdade
+vi.mock("../src/lib/sound", async (original) => ({
+  ...(await original<typeof import("../src/lib/sound")>()),
+  play: vi.fn(),
+}));
+
+import { play } from "../src/lib/sound";
 import { usePuzzle, type UsePuzzleOptions } from "../src/train/usePuzzle";
+
+const sons = () => vi.mocked(play).mock.calls.map((c) => c[0]);
 
 const game = { id: "g", white: "a", black: "b", played_at: "2026-09-04T12:00:00", source_id: "https://x", my_color: "white" as const };
 const srs = { ease: 2.5, interval_days: 0, lapses: 0, due_at: null, last_reviewed_at: null };
@@ -36,7 +46,7 @@ function setup(puzzle: PuzzleOut, extra: Partial<UsePuzzleOptions<ReviewOut>> = 
   return { ...hook, submit, tick: (ms: number) => { t += ms; } };
 }
 
-beforeEach(() => vi.useFakeTimers());
+beforeEach(() => { vi.useFakeTimers(); vi.mocked(play).mockClear(); });
 afterEach(() => vi.useRealTimers());
 
 test("lance certo conclui, registra e vai para result", async () => {
@@ -300,4 +310,50 @@ test("sem `last_move` não há introdução", () => {
   const { result } = setup({ ...ONE_MOVE, fen_before: "4k3/8/8/8/3q4/2N5/7P/4K3 b - - 0 1", last_move: null });
   expect(result.current.state.phase).toBe("awaiting_move");
   expect(result.current.state.fen).toBe(ONE_MOVE.fen_start);
+});
+
+// --- sons -----------------------------------------------------------------
+
+test("lance certo com captura toca 'capture' e resolver toca 'solved'", async () => {
+  const { result } = setup(ONE_MOVE);
+  await act(async () => { result.current.tryMove("c3", "d5"); await Promise.resolve(); });
+  expect(sons()).toEqual(["capture", "solved"]);
+});
+
+test("lance certo sem captura nem xeque toca 'move'", async () => {
+  const { result } = setup(PROMO);
+  act(() => result.current.tryMove("a7", "a8"));
+  await act(async () => { result.current.choosePromotion("q"); await Promise.resolve(); });
+  expect(sons()).toEqual(["move", "solved"]);
+});
+
+test("xeque tem prioridade sobre captura, e a resposta da engine também soa", async () => {
+  const { result } = setup(MATE_IN_2);
+  act(() => result.current.tryMove("e1", "e8"));
+  expect(sons()).toEqual(["check"]);
+  await act(async () => { vi.advanceTimersByTime(100); });
+  expect(sons()).toEqual(["check", "capture"]);
+  await act(async () => { result.current.tryMove("a4", "e8"); await Promise.resolve(); });
+  expect(sons()).toEqual(["check", "capture", "check", "solved"]);
+});
+
+test("lance errado toca 'wrong'", () => {
+  const { result } = setup(ONE_MOVE);
+  act(() => result.current.tryMove("e1", "d1"));
+  expect(sons()).toEqual(["wrong"]);
+});
+
+test("alternativa ilegal também toca 'wrong'", () => {
+  const { result } = setup(BAD_ALT);
+  act(() => result.current.tryMove("e1", "e1"));
+  expect(sons()).toEqual(["wrong"]);
+});
+
+test("o primeiro estágio da dica toca 'hint'", () => {
+  const { result } = setup(MATE_IN_2);
+  act(() => result.current.useHint());
+  expect(sons()).toEqual(["hint"]);
+  // o segundo estágio joga o lance: soa como lance, não como dica
+  act(() => result.current.useHint());
+  expect(sons()).toEqual(["hint", "check"]);
 });

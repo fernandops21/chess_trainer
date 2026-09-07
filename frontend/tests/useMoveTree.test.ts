@@ -1,4 +1,12 @@
 import { act, renderHook } from "@testing-library/react";
+
+// só o `play` do módulo de som vira dublê
+vi.mock("../src/lib/sound", async (original) => ({
+  ...(await original<typeof import("../src/lib/sound")>()),
+  play: vi.fn(),
+}));
+
+import { play as tocar } from "../src/lib/sound";
 import { useMoveTree } from "../src/analysis/useMoveTree";
 import { emptyTree, findNode, insertLine, mainline } from "../src/analysis/moveTree";
 
@@ -160,4 +168,35 @@ test("setShapes não suja a árvore quando as marcações são as mesmas", () =>
   expect(result.current.tree).toBe(comMarcacao);
   expect(result.current.dirty).toBe(false);
   expect(antes).not.toBe(comMarcacao);
+});
+
+test("jogar um lance toca o som correspondente", () => {
+  vi.mocked(tocar).mockClear();
+  const { result } = renderHook(() => useMoveTree(emptyTree(START)));
+
+  // lance ilegal não soa
+  act(() => { result.current.play("e2e5"); });
+  expect(tocar).not.toHaveBeenCalled();
+
+  act(() => { result.current.play("e2e4"); });
+  expect(tocar).toHaveBeenLastCalledWith("move");
+
+  act(() => { result.current.play("d7d5"); });
+  act(() => { result.current.play("e4d5"); });
+  expect(tocar).toHaveBeenLastCalledWith("capture");
+
+  act(() => { result.current.play("d8d5"); });
+  expect(tocar).toHaveBeenLastCalledWith("capture");
+
+  // com o peão de e2 já em d5, a dama em e5 dá xeque pela coluna
+  act(() => { result.current.play("b1c3"); });
+  act(() => { result.current.play("d5e5"); });
+  expect(tocar).toHaveBeenLastCalledWith("check");
+
+  // navegar não toca nada
+  const antes = vi.mocked(tocar).mock.calls.length;
+  act(() => { result.current.prev(); });
+  act(() => { result.current.goStart(); });
+  act(() => { result.current.next(); });
+  expect(vi.mocked(tocar).mock.calls.length).toBe(antes);
 });

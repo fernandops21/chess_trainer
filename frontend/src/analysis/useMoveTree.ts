@@ -3,6 +3,8 @@ import { Chess } from "chess.js";
 import type { Key } from "chessground/types";
 import { destsFrom } from "../board/dests";
 import { uciToMove } from "../board/line";
+// `play` já é o nome do lance na árvore aqui dentro: o som entra com outro nome
+import { play as tocarSom, sanSound } from "../lib/sound";
 import {
   MAX_NODES,
   addMove,
@@ -79,6 +81,7 @@ export function useMoveTree(initial: Tree) {
     const s = ref.current;
     const r = addMove(s.tree, s.currentId, uci);
     if (!r.node) return false;
+    tocarSom(sanSound(r.node.san));
     commit({ tree: r.tree, currentId: r.node.id, dirty: s.dirty || r.created });
     return true;
   }, [commit]);

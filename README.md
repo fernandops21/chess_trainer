@@ -204,6 +204,16 @@ Qualquer exercício pode sair da repetição sem ser apagado: no resultado do tr
 (e "Voltar para a repetição" para desfazer). Uma tática do Lichess só entra na repetição quando você
 clica em "Guardar para repetir" no resultado.
 
+## Som
+
+Efeitos sonoros curtos, sintetizados na hora pela Web Audio API (sem arquivos de áudio): lance,
+captura, xeque, erro, dica e o arpejo de exercício resolvido. Valem no treino, na análise e ao
+navegar pela linha da solução.
+
+O botão 🔊/🔇 no fim da barra de navegação liga e desliga tudo; a escolha fica guardada no navegador
+(`sound.enabled`). Navegadores só liberam áudio depois de um clique ou tecla na página — o primeiro
+gesto já destrava, e o som começa ligado.
+
 ## Desenvolvimento
 
 Backend: `cd backend && uv run python -m chess_trainer` (API em :8000, docs em /docs).

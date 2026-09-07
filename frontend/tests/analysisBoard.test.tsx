@@ -18,6 +18,13 @@ vi.mock("../src/board/Board", () => ({
   },
 }));
 
+// aqui `play` já é o ajudante que joga um lance no tabuleiro: o som entra como `tocar`
+vi.mock("../src/lib/sound", async (original) => ({
+  ...(await original<typeof import("../src/lib/sound")>()),
+  play: vi.fn(),
+}));
+
+import { play as tocar } from "../src/lib/sound";
 import { MAX_NODES, emptyTree, fenAt, findNode, insertLine, setComment } from "../src/analysis/moveTree";
 import type { Tree } from "../src/analysis/moveTree";
 import { AnalysisBoard } from "../src/analysis/AnalysisBoard";
@@ -445,4 +452,14 @@ test("com a classificação desligada, a engine só é consultada para a posiç�
   expect(last().badge).toBeUndefined();
   expect(container.querySelectorAll(".class").length).toBe(0);
   expect(container.textContent).not.toMatch(/lance:/);
+});
+
+test("um lance jogado no tabuleiro toca o som do lance", () => {
+  vi.mocked(tocar).mockClear();
+  renderBoard();
+  play("e2e4");
+  expect(tocar).toHaveBeenCalledWith("move");
+  play("d7d5");
+  play("e4d5");
+  expect(tocar).toHaveBeenLastCalledWith("capture");
 });
