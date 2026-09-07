@@ -9,6 +9,10 @@ export type PuzzleKind = "punish" | "avoid";
 export type MistakeLevel = "mistake" | "blunder";
 /** De onde veio o exercício: erro de partida própria, tática guardada do Lichess ou capítulo de estudo. */
 export type PuzzleSource = "own" | "lichess" | "study";
+/** Modo da fila: revisar o que venceu, fazer novos ou treinar um estudo inteiro. */
+export type QueueMode = "review" | "new" | "study";
+/** Ordem dos novos: sorteada ou partida mais recente primeiro. */
+export type NewOrder = "random" | "recent";
 
 export interface Settings {
   chesscom_username: string;
@@ -20,6 +24,8 @@ export interface Settings {
   blunder_threshold_cp: number;
   avoid_gap_cp: number;
   new_per_day: number;
+  /** Ordem dos exercícios novos: sorteados ou pela partida mais recente. */
+  new_order: NewOrder;
   leech_lapses: number;
   analysis_seconds: number;
   puzzle_search_seconds: number;
@@ -283,6 +289,15 @@ export interface AttemptOut {
   puzzle_rating: number;
 }
 
+/** Corpo opcional de `POST /api/tactics/{id}/save`: com o resultado, a tática
+ *  guardada já entra agendada (a tentativa vale como primeira revisão). */
+export interface SaveTacticIn {
+  correct: boolean;
+  used_hint?: boolean;
+  duration_ms?: number;
+  session_id?: string | null;
+}
+
 export interface TacticsStatus {
   imported: boolean;
   count: number;
@@ -313,6 +328,8 @@ export interface ThemeStat {
 }
 
 export interface QueueFilters {
+  /** Ausente = `review` (a repetição espaçada). */
+  mode?: QueueMode;
   category?: string;
   theme?: string;
   kind?: PuzzleKind;
@@ -323,6 +340,7 @@ export interface QueueFilters {
 }
 
 export interface QueueOut {
+  mode: QueueMode;
   due_count: number;
   new_available: number;
   new_remaining_today: number;

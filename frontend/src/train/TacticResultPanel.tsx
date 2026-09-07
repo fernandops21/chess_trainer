@@ -7,8 +7,8 @@ import { QueueButtons } from "./QueueButtons";
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 
-export function TacticResultPanel({ tactic, attempt, error, onRetry, onNext, nextDisabled, clockLabel }:
-  { tactic: TacticOut; attempt?: AttemptOut; error?: unknown; onRetry: () => void; onNext: () => void; nextDisabled?: boolean; clockLabel?: string }) {
+export function TacticResultPanel({ tactic, attempt, durationMs, error, onRetry, onNext, nextDisabled, clockLabel }:
+  { tactic: TacticOut; attempt?: AttemptOut; durationMs?: number; error?: unknown; onRetry: () => void; onNext: () => void; nextDisabled?: boolean; clockLabel?: string }) {
   const ucis = tactic.solution.moves.map((m) => m.uci);
   const clean = attempt && attempt.correct && !attempt.used_hint;
   const exploreHref = `/analise?fen=${encodeURIComponent(tactic.fen_start)}&orientation=${tactic.side_to_move}&back=${encodeURIComponent("/treinar")}`;
@@ -37,7 +37,8 @@ export function TacticResultPanel({ tactic, attempt, error, onRetry, onNext, nex
         <div className="row" style={{ marginTop: 10 }}>
           <a href={tactic.lichess_url} target="_blank" rel="noopener noreferrer">ver no Lichess</a>
           <a href={exploreHref} target="_blank" rel="noopener noreferrer">Explorar</a>
-          <QueueButtons puzzle={tactic} />
+          {/* guardar leva o resultado da tentativa: a tática já entra agendada */}
+          <QueueButtons puzzle={tactic} attempt={attempt} durationMs={durationMs} />
           {attempt && <button className="primary" style={{ marginLeft: "auto" }} disabled={nextDisabled} onClick={onNext}>{nextDisabled ? "Carregando…" : "Próximo"}</button>}
         </div>
       </div>

@@ -26,7 +26,11 @@ const DEFAULT_RATING = 1200;
 function TacticPuzzle({ tactic, sessionId, clockLabel, orderInfo, onDone, nextDisabled }:
   { tactic: TacticOut; sessionId: string | null; clockLabel?: string; orderInfo?: string; onDone: (d: TacticDone) => void; nextDisabled?: boolean }) {
   const qc = useQueryClient();
+  // o tempo de resolução não volta na tentativa: guardamos o que foi enviado
+  // para que "Guardar para repetir" mande o resultado completo
+  const durationRef = useRef<number | undefined>(undefined);
   const submit = useCallback(async (body: ReviewIn) => {
+    durationRef.current = body.duration_ms;
     const out = await api.attempt(body);
     // a tentativa mexe no rating e nas estatísticas por tema
     void qc.invalidateQueries({ queryKey: ["tactics"] });
@@ -36,7 +40,7 @@ function TacticPuzzle({ tactic, sessionId, clockLabel, orderInfo, onDone, nextDi
   const ctl = usePuzzle<AttemptOut>(tactic, { sessionId, submit });
   const { state } = ctl;
   if (state.phase === "result" || state.phase === "submit_error" || state.phase === "submitting") {
-    return <TacticResultPanel tactic={tactic} attempt={state.review} error={state.error} onRetry={ctl.retrySubmit}
+    return <TacticResultPanel tactic={tactic} attempt={state.review} durationMs={durationRef.current} error={state.error} onRetry={ctl.retrySubmit}
       onNext={() => state.review && onDone({ tactic, attempt: state.review })} nextDisabled={nextDisabled} clockLabel={clockLabel} />;
   }
   return <PuzzleView puzzle={tactic} ctl={ctl} clockLabel={clockLabel} orderInfo={orderInfo} />;

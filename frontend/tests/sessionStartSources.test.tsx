@@ -57,24 +57,34 @@ test("chips escolhem as fontes e ficam guardados em train.sources", () => {
   expect(localStorage.getItem("train.sources")).toBe(JSON.stringify(["own", "lichess"]));
 });
 
-test("marcar Estudos mostra o select e manda study_id", async () => {
+test("escolher um estudo vira o modo estudo e esconde fontes e filtros", async () => {
   const onStart = renderStart();
-  expect(screen.queryByLabelText("Estudo")).toBeNull();
-  fireEvent.click(screen.getByText("Estudos"));
   await screen.findByText("Finais de torre");
-  const select = screen.getByLabelText("Estudo") as HTMLSelectElement;
-  fireEvent.change(select, { target: { value: "s2" } });
+  fireEvent.change(screen.getByLabelText("Estudo"), { target: { value: "s2" } });
+  expect(screen.queryByText("Lichess guardados")).toBeNull();
+  expect(screen.queryByLabelText("Tipo")).toBeNull();
+  expect((screen.getByLabelText("Repetição espaçada") as HTMLInputElement).checked).toBe(false);
   fireEvent.click(screen.getByText("Começar"));
-  expect(onStart.mock.calls[0][0].filters).toMatchObject({ sources: ["study"], study_id: "s2" });
+  expect(onStart.mock.calls[0][0]).toMatchObject({ source: "own", mode: "study" });
+  expect(onStart.mock.calls[0][0].filters).toMatchObject({ mode: "study", study_id: "s2" });
 });
 
-test("?study=<id> já vem com Estudos marcado e o estudo escolhido", async () => {
+test("voltar o estudo para 'nenhum' volta à repetição espaçada", async () => {
   const onStart = renderStart("/treinar?study=s1");
-  expect(screen.getByText("Estudos").getAttribute("aria-pressed")).toBe("true");
+  await screen.findByText("Finais de torre");
+  fireEvent.change(screen.getByLabelText("Estudo"), { target: { value: "" } });
+  expect((screen.getByLabelText("Repetição espaçada") as HTMLInputElement).checked).toBe(true);
+  fireEvent.click(screen.getByText("Começar"));
+  expect(onStart.mock.calls[0][0]).toMatchObject({ mode: "review" });
+  expect(onStart.mock.calls[0][0].filters.study_id).toBe(undefined);
+});
+
+test("?mode=study&study=<id> já vem com o estudo escolhido", async () => {
+  const onStart = renderStart("/treinar?mode=study&study=s1");
   await screen.findByText("Finais de torre");
   expect((screen.getByLabelText("Estudo") as HTMLSelectElement).value).toBe("s1");
   fireEvent.click(screen.getByText("Começar"));
-  expect(onStart.mock.calls[0][0].filters).toMatchObject({ sources: ["study"], study_id: "s1" });
+  expect(onStart.mock.calls[0][0].filters).toMatchObject({ mode: "study", study_id: "s1" });
 });
 
 test("train.sources guardado antes volta marcado", () => {
@@ -84,18 +94,25 @@ test("train.sources guardado antes volta marcado", () => {
   expect(screen.getByText("Meus erros").getAttribute("aria-pressed")).toBe("false");
 });
 
-test("?study=<id> força a repetição espaçada mesmo com Táticas guardado", async () => {
+test("?study=<id> força o modo estudo mesmo com Táticas guardado", async () => {
   // veio da tela Estudos ("Treinar este estudo"): a última escolha guardada não pode
   // levar para as táticas do Lichess, onde o estudo não existe
-  localStorage.setItem("train.source", JSON.stringify("tactics"));
+  localStorage.setItem("train.mode", JSON.stringify("tactics"));
   const onStart = renderStart("/treinar?study=s1");
 
-  const espacada = screen.getByLabelText("Repetição espaçada") as HTMLInputElement;
-  expect(espacada.checked).toBe(true);
   expect((screen.getByLabelText("Táticas do Lichess") as HTMLInputElement).checked).toBe(false);
-  expect(screen.getByText("Estudos").getAttribute("aria-pressed")).toBe("true");
   await screen.findByText("Finais de torre");
   expect((screen.getByLabelText("Estudo") as HTMLSelectElement).value).toBe("s1");
   fireEvent.click(screen.getByText("Começar"));
-  expect(onStart.mock.calls[0][0]).toMatchObject({ source: "own" });
+  expect(onStart.mock.calls[0][0]).toMatchObject({ source: "own", mode: "study" });
+});
+
+test("escolher um modo depois do estudo desmarca o estudo", async () => {
+  const onStart = renderStart("/treinar?study=s1");
+  await screen.findByText("Finais de torre");
+  fireEvent.click(screen.getByLabelText("Novos (meus erros)"));
+  expect((screen.getByLabelText("Estudo") as HTMLSelectElement).value).toBe("");
+  fireEvent.click(screen.getByText("Começar"));
+  expect(onStart.mock.calls[0][0].filters).toMatchObject({ mode: "new" });
+  expect(onStart.mock.calls[0][0].filters.study_id).toBe(undefined);
 });

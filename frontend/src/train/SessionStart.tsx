@@ -1,14 +1,19 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useStudies, useTacticsStatus } from "../api/queries";
-import type { PuzzleSource, QueueFilters } from "../api/types";
+import type { PuzzleSource, QueueFilters, QueueMode } from "../api/types";
 import { storage } from "../lib/storage";
 import { ThemePicker } from "./ThemePicker";
 
 export type SessionSource = "own" | "tactics";
 
+/** O que a tela de início oferece: os três modos da fila e as táticas do Lichess. */
+type Choice = QueueMode | "tactics";
+
 export interface SessionConfig {
   source: SessionSource;
+  /** Modo da fila; nas táticas do Lichess não vale (elas vêm do banco do Lichess). */
+  mode: QueueMode;
   filters: QueueFilters;
   plannedMinutes: number | null;
   themes: string[];
@@ -22,7 +27,8 @@ const SOURCES: { value: PuzzleSource; label: string }[] = [
 
 const asKind = (v: string): QueueFilters["kind"] => (v === "punish" || v === "avoid" ? v : undefined);
 const asColor = (v: string): QueueFilters["color"] => (v === "white" || v === "black" ? v : undefined);
-const asSource = (v: unknown): SessionSource => (v === "tactics" ? "tactics" : "own");
+const asChoice = (v: unknown): Choice | null =>
+  v === "review" || v === "new" || v === "study" || v === "tactics" ? v : null;
 const clampMinutes = (v: number): number => Math.min(180, Math.max(5, v || 25));
 /** Só aceita fontes conhecidas (o valor vem de `localStorage`, que pode estar velho). */
 const asSources = (v: unknown): PuzzleSource[] =>
@@ -33,41 +39,49 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
   const studyParam = params.get("study");
   const [timed, setTimed] = useState<boolean>(storage.get("train.timed", true));
   const [minutes, setMinutes] = useState<number>(storage.get("train.minutes", 25));
-  // `?study=` vem do botão "Treinar este estudo": o estudo só existe na repetição
-  // espaçada, então ele manda mais que o `?source=` e que a última escolha guardada
-  const [source, setSource] = useState<SessionSource>(() =>
-    studyParam ? "own"
-      : params.get("source") ? asSource(params.get("source"))
-        : asSource(storage.get<SessionSource>("train.source", "own")));
+  // `?study=` vem do botão "Treinar este estudo": ele manda mais que o `?mode=`,
+  // que o `?source=` e que a última escolha guardada. Sem estudo escolhido não há
+  // o que treinar, então "study" (guardado ou na URL) cai na repetição espaçada.
+  const [choice, setChoice] = useState<Choice>(() => {
+    if (studyParam) return "study";
+    const naUrl = asChoice(params.get("mode")) ?? (params.get("source") === "tactics" ? "tactics" : null);
+    const escolha = naUrl ?? asChoice(storage.get<Choice>("train.mode", "review"));
+    return escolha && escolha !== "study" ? escolha : "review";
+  });
   const [themes, setThemes] = useState<string[]>(() => storage.get<string[]>("train.themes", []));
-  // fontes da fila: vazio = todas; `?study=<id>` já chega com "study" marcado
-  const [sources, setSources] = useState<PuzzleSource[]>(() =>
-    studyParam ? ["study"] : asSources(storage.get<PuzzleSource[]>("train.sources", [])));
+  // fontes da fila (só na repetição espaçada): vazio = todas
+  const [sources, setSources] = useState<PuzzleSource[]>(() => asSources(storage.get<PuzzleSource[]>("train.sources", [])));
   const [studyId, setStudyId] = useState<string>(studyParam ?? "");
   const [kind, setKind] = useState<string>("");
   const [color, setColor] = useState<string>("");
   const [category, setCategory] = useState<string>("");
-  const byStudy = sources.includes("study");
+  const source: SessionSource = choice === "tactics" ? "tactics" : "own";
+  const mode: QueueMode = choice === "tactics" ? "review" : choice;
   // só consulta o banco de táticas quando ele importa para a escolha atual
   const { data: tactics } = useTacticsStatus(source === "tactics");
-  const { data: studies } = useStudies(source === "own" && byStudy);
+  const { data: studies } = useStudies(source === "own");
   // enquanto carrega (`undefined`) o botão continua liberado
   const missingTactics = source === "tactics" && tactics?.imported === false;
 
   const toggleSource = (s: PuzzleSource) =>
     setSources((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : SOURCES.map((o) => o.value).filter((v) => v === s || prev.includes(v))));
 
+  // escolher um modo desmarca o estudo; escolher um estudo vira o modo "study"
+  const pick = (c: Choice) => { setChoice(c); setStudyId(""); };
+  const pickStudy = (id: string) => { setStudyId(id); setChoice(id ? "study" : "review"); };
+
   const start = () => {
     const clamped = clampMinutes(minutes);
     storage.set("train.timed", timed); storage.set("train.minutes", clamped);
-    storage.set("train.source", source); storage.set("train.themes", themes);
+    storage.set("train.mode", choice); storage.set("train.themes", themes);
     storage.set("train.sources", sources);
     onStart({
       source,
-      filters: source === "tactics" ? {} : {
+      mode,
+      filters: source === "tactics" ? {} : mode === "study" ? { mode, study_id: studyId } : {
+        mode,
         kind: asKind(kind), color: asColor(color), category: category || undefined,
-        sources: sources.length ? sources : undefined,
-        study_id: byStudy && studyId ? studyId : undefined,
+        sources: mode === "review" && sources.length ? sources : undefined,
       },
       plannedMinutes: timed ? clamped : null,
       themes,
@@ -78,10 +92,20 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
     <div className="card">
       <h2 style={{ marginTop: 0 }}>Nova sessão</h2>
       <div className="row">
-        <label><input type="radio" name="source" checked={source === "own"} onChange={() => setSource("own")} /> Repetição espaçada</label>
-        <label><input type="radio" name="source" checked={source === "tactics"} onChange={() => setSource("tactics")} /> Táticas do Lichess</label>
+        <label><input type="radio" name="modo" checked={choice === "review"} onChange={() => pick("review")} /> Repetição espaçada</label>
+        <label><input type="radio" name="modo" checked={choice === "new"} onChange={() => pick("new")} /> Novos (meus erros)</label>
+        <label><input type="radio" name="modo" checked={choice === "tactics"} onChange={() => pick("tactics")} /> Táticas do Lichess</label>
       </div>
       {source === "own" && (
+        <div className="row" style={{ marginTop: 10 }}>
+          <span className="muted">ou treinar um estudo inteiro:</span>
+          <select value={studyId} onChange={(e) => pickStudy(e.target.value)} aria-label="Estudo">
+            <option value="">nenhum</option>
+            {(studies ?? []).map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+          </select>
+        </div>
+      )}
+      {source === "own" && mode === "review" && (
         <div className="row" style={{ marginTop: 10 }}>
           <span className="muted">Fontes:</span>
           {SOURCES.map((s) => (
@@ -91,17 +115,14 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
           <span className="muted">{sources.length ? "" : "(todas)"}</span>
         </div>
       )}
-      {source === "own" && byStudy && (
-        <div className="row" style={{ marginTop: 10 }}>
-          <select value={studyId} onChange={(e) => setStudyId(e.target.value)} aria-label="Estudo">
-            <option value="">todos os estudos</option>
-            {(studies ?? []).map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
-          </select>
+      {mode === "new" && (
+        <div className="muted" style={{ marginTop: 10 }}>
+          Exercícios dos seus erros que você ainda não revisou nenhuma vez, até o limite diário.
         </div>
       )}
       <div className="row" style={{ marginTop: 10 }}>
-        <label><input type="radio" name="mode" checked={!timed} onChange={() => setTimed(false)} /> até acabar a fila</label>
-        <label><input type="radio" name="mode" checked={timed} onChange={() => setTimed(true)} /> por tempo:</label>
+        <label><input type="radio" name="duracao" checked={!timed} onChange={() => setTimed(false)} /> até acabar a fila</label>
+        <label><input type="radio" name="duracao" checked={timed} onChange={() => setTimed(true)} /> por tempo:</label>
         <input type="number" min={5} max={180} value={minutes} disabled={!timed} aria-label="Minutos"
           onChange={(e) => setMinutes(clampMinutes(Number(e.target.value)))} style={{ width: 80 }} /> min
       </div>
@@ -114,7 +135,7 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
             </div>
           )}
         </div>
-      ) : (
+      ) : mode !== "study" && (
         <div className="row" style={{ marginTop: 10 }}>
           <select value={kind} onChange={(e) => setKind(e.target.value)} aria-label="Tipo">
             <option value="">punir e evitar</option><option value="punish">só punir</option><option value="avoid">só evitar</option>

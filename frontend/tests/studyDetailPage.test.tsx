@@ -387,3 +387,17 @@ test("novo capítulo com posição montada manda a FEN do editor", async () => {
     }),
   );
 });
+
+test("treinar este estudo abre a sessão no modo estudo", async () => {
+  vi.spyOn(api, "study").mockResolvedValue(detail());
+  renderPage();
+  fireEvent.click(await screen.findByRole("button", { name: "Treinar este estudo" }));
+  expect(screen.getByTestId("where").textContent).toBe("/treinar?mode=study&study=s1");
+});
+
+test("estudo só de leitura não oferece treinar o estudo inteiro", async () => {
+  vi.spyOn(api, "study").mockResolvedValue(detail({ exercise_count: 0, in_queue: 0 }));
+  renderPage();
+  await screen.findByText("Mestre X", { exact: false });
+  expect(screen.queryByRole("button", { name: "Treinar este estudo" })).toBeNull();
+});

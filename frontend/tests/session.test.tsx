@@ -34,7 +34,9 @@ const outro = { ...puzzle, id: "p2", game: { ...puzzle.game, id: "g2", white: "o
 const bodies: Record<string, unknown> = {
   "/api/sessions": { id: "s1", started_at: "2026-01-01T00:00:00Z", ended_at: null, planned_minutes: 25, filters: {}, reviews: 0, correct: 0, total_duration_ms: 0 },
   "/api/reviews": { id: "r1", puzzle_id: "p1", result: "correct", used_hint: true, ease: 2.5, interval_days: 1, due_at: "2026-01-02T00:00:00Z", lapses: 0, is_leech: false },
-  "/api/queue": { due_count: 1, new_available: 0, new_remaining_today: 0, items: [puzzle] },
+  "/api/queue": { mode: "review", due_count: 1, new_available: 0, new_remaining_today: 0, items: [puzzle] },
+  "/api/studies": [{ id: "s1", title: "Finais de torre", author: "", source_url: "", lichess_id: null, imported_at: null, chapter_count: 2, exercise_count: 2, in_queue: 2, due_today: 0 }],
+  "/api/studies/s1": { id: "s1", title: "Finais de torre", author: "", source_url: "", lichess_id: null, imported_at: null, chapter_count: 2, exercise_count: 2, in_queue: 2, due_today: 0, chapters: [] },
   "/api/dashboard": { due_today: 1, new_available: 0, new_remaining_today: 0, streak_days: 0, reviews_today: 0, last_import_at: null, games_total: 0, games_analyzed: 0, puzzles_total: 0, leeches: 0 },
   "/api/status": { engine: { available: true, path: null }, job: { state: "idle", job: null, stage: "", done: 0, total: 0, message: "", error: null, finished_at: null }, games_total: 0, games_pending: 0, last_import_at: null, local_url: "" },
 };
@@ -42,7 +44,8 @@ const bodies: Record<string, unknown> = {
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  bodies["/api/queue"] = { due_count: 1, new_available: 0, new_remaining_today: 0, items: [puzzle] };
+  localStorage.clear();
+  bodies["/api/queue"] = { mode: "review", due_count: 1, new_available: 0, new_remaining_today: 0, items: [puzzle] };
   fetchMock = vi.fn(async (url: string) => {
     const path = String(url).split("?")[0];
     const body = bodies[path];
@@ -82,7 +85,7 @@ function renderPage() {
 }
 
 test("pular manda o puzzle para o fim da lista e mostra o próximo", async () => {
-  bodies["/api/queue"] = { due_count: 2, new_available: 0, new_remaining_today: 0, items: [puzzle, outro] };
+  bodies["/api/queue"] = { mode: "review", due_count: 2, new_available: 0, new_remaining_today: 0, items: [puzzle, outro] };
   renderPage();
   fireEvent.click(screen.getByText("Começar"));
 
@@ -107,7 +110,7 @@ async function resolverEAvancar() {
 }
 
 test("pular o último não devolve um puzzle já resolvido", async () => {
-  bodies["/api/queue"] = { due_count: 2, new_available: 0, new_remaining_today: 0, items: [puzzle, outro] };
+  bodies["/api/queue"] = { mode: "review", due_count: 2, new_available: 0, new_remaining_today: 0, items: [puzzle, outro] };
   renderPage();
   fireEvent.click(screen.getByText("Começar"));
 
@@ -126,7 +129,7 @@ test("pular o último não devolve um puzzle já resolvido", async () => {
 
 test("pular pula quem já foi resolvido e devolve o pulado depois", async () => {
   const terceiro = { ...puzzle, id: "p3", game: { ...puzzle.game, id: "g3", white: "terceiro" } };
-  bodies["/api/queue"] = { due_count: 3, new_available: 0, new_remaining_today: 0, items: [puzzle, outro, terceiro] };
+  bodies["/api/queue"] = { mode: "review", due_count: 3, new_available: 0, new_remaining_today: 0, items: [puzzle, outro, terceiro] };
   renderPage();
   fireEvent.click(screen.getByText("Começar"));
 
@@ -147,7 +150,7 @@ test("pular pula quem já foi resolvido e devolve o pulado depois", async () => 
 });
 
 test("pular não registra revisão", async () => {
-  bodies["/api/queue"] = { due_count: 2, new_available: 0, new_remaining_today: 0, items: [puzzle, outro] };
+  bodies["/api/queue"] = { mode: "review", due_count: 2, new_available: 0, new_remaining_today: 0, items: [puzzle, outro] };
   renderPage();
   fireEvent.click(screen.getByText("Começar"));
 
@@ -163,4 +166,63 @@ test("com um único puzzle na lista o botão Pular fica desabilitado", async () 
 
   await screen.findByText(/jogam/);
   expect((screen.getByRole("button", { name: "Pular" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+const queueUrls = () => fetchMock.mock.calls.map((c) => String(c[0])).filter((u) => u.startsWith("/api/queue"));
+
+test("a repetição espaçada manda mode=review e mostra o título do modo", async () => {
+  renderPage();
+  fireEvent.click(screen.getByText("Começar"));
+
+  await screen.findByText(/jogam/);
+  expect(queueUrls()[0]).toContain("mode=review");
+  expect(screen.getByRole("heading", { name: "Repetição espaçada" })).toBeTruthy();
+});
+
+test("os novos mandam mode=new e mostram o título do modo", async () => {
+  renderPage();
+  fireEvent.click(screen.getByLabelText("Novos (meus erros)"));
+  fireEvent.click(screen.getByText("Começar"));
+
+  await screen.findByText(/jogam/);
+  expect(queueUrls()[0]).toContain("mode=new");
+  expect(screen.getByRole("heading", { name: "Novos (meus erros)" })).toBeTruthy();
+});
+
+test("o estudo escolhido manda mode=study, o título do estudo e o capítulo atual", async () => {
+  bodies["/api/queue"] = { mode: "study", due_count: 0, new_available: 0, new_remaining_today: 0, items: [puzzle, outro] };
+  renderPage();
+  await screen.findByRole("option", { name: "Finais de torre" });
+  fireEvent.change(screen.getByLabelText("Estudo"), { target: { value: "s1" } });
+  fireEvent.click(screen.getByText("Começar"));
+
+  await screen.findByText(/jogam/);
+  expect(queueUrls()[0]).toContain("mode=study");
+  expect(queueUrls()[0]).toContain("study_id=s1");
+  expect(await screen.findByRole("heading", { name: "Finais de torre" })).toBeTruthy();
+  expect(screen.getByText(/capítulo 1 de 2/)).toBeTruthy();
+});
+
+test("fila vazia na repetição espaçada manda fazer novos ou treinar um estudo", async () => {
+  bodies["/api/queue"] = { mode: "review", due_count: 0, new_available: 4, new_remaining_today: 0, items: [] };
+  renderPage();
+  fireEvent.click(screen.getByText("Começar"));
+  expect(await screen.findByText("Nada vencido. Faça novos ou treine um estudo.")).toBeTruthy();
+});
+
+test("fila vazia nos novos diz quantos esperam amanhã", async () => {
+  bodies["/api/queue"] = { mode: "new", due_count: 0, new_available: 7, new_remaining_today: 0, items: [] };
+  renderPage();
+  fireEvent.click(screen.getByLabelText("Novos (meus erros)"));
+  fireEvent.click(screen.getByText("Começar"));
+  expect(await screen.findByText("Sem erros novos (ou limite diário atingido: 7 esperando amanhã).")).toBeTruthy();
+});
+
+test("estudo sem exercícios na repetição avisa", async () => {
+  bodies["/api/queue"] = { mode: "study", due_count: 0, new_available: 0, new_remaining_today: 0, items: [] };
+  renderPage();
+  await screen.findByRole("option", { name: "Finais de torre" });
+  fireEvent.change(screen.getByLabelText("Estudo"), { target: { value: "s1" } });
+  fireEvent.click(screen.getByText("Começar"));
+  expect(await screen.findByText("Este estudo não tem exercícios na repetição.")).toBeTruthy();
 });

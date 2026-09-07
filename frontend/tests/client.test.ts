@@ -83,11 +83,19 @@ test("api.attempt faz POST /api/tactics/attempts com o corpo", async () => {
 });
 
 test("api.queue junta as fontes em CSV e passa o estudo", async () => {
-  const fn = mockFetch(200, { due_count: 0, new_available: 0, new_remaining_today: 0, items: [] });
+  const fn = mockFetch(200, { mode: "review", due_count: 0, new_available: 0, new_remaining_today: 0, items: [] });
   await api.queue({ sources: ["own", "lichess"], study_id: "s1", kind: "punish" });
   expect((fn.mock.calls[0] as unknown as [string])[0]).toBe("/api/queue?kind=punish&sources=own%2Clichess&study_id=s1");
   await api.queue({ sources: [] });
   expect((fn.mock.calls[1] as unknown as [string])[0]).toBe("/api/queue");
+});
+
+test("api.queue manda o modo da fila", async () => {
+  const fn = mockFetch(200, { mode: "new", due_count: 0, new_available: 0, new_remaining_today: 0, items: [] });
+  await api.queue({ mode: "new", kind: "punish" });
+  expect((fn.mock.calls[0] as unknown as [string])[0]).toBe("/api/queue?mode=new&kind=punish");
+  await api.queue({ mode: "study", study_id: "s1" });
+  expect((fn.mock.calls[1] as unknown as [string])[0]).toBe("/api/queue?mode=study&study_id=s1");
 });
 
 test("api.setQueue faz POST em /puzzles/{id}/queue", async () => {
@@ -105,6 +113,14 @@ test("api.saveTactic faz POST em /tactics/{id}/save", async () => {
   const [url, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
   expect(url).toBe("/api/tactics/00sHx/save");
   expect(init.method).toBe("POST");
+  expect(init.body).toBe(undefined);
+});
+
+test("api.saveTactic manda o resultado da tentativa quando ele existe", async () => {
+  const fn = mockFetch(201, {});
+  await api.saveTactic("00sHx", { correct: true, used_hint: false, duration_ms: 900 });
+  const [, init] = fn.mock.calls[0] as unknown as [string, RequestInit];
+  expect(JSON.parse(String(init.body))).toEqual({ correct: true, used_hint: false, duration_ms: 900 });
 });
 
 test("api.importStudy manda a URL e api.deleteStudy aceita 204 sem corpo", async () => {

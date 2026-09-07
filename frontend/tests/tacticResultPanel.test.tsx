@@ -1,17 +1,20 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
+import { api } from "../src/api/client";
 import { TacticResultPanel } from "../src/train/TacticResultPanel";
-import type { TacticOut } from "../src/api/types";
+import type { AttemptOut, TacticOut } from "../src/api/types";
 
 // o painel traz o botão "Guardar para repetir", que é uma mutation
-function renderPanel(tactic: TacticOut) {
+function renderPanel(tactic: TacticOut, extra: { attempt?: AttemptOut; durationMs?: number } = {}) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
-      <TacticResultPanel tactic={tactic} onRetry={() => {}} onNext={() => {}} />
+      <TacticResultPanel tactic={tactic} {...extra} onRetry={() => {}} onNext={() => {}} />
     </QueryClientProvider>,
   );
 }
+
+afterEach(() => vi.restoreAllMocks());
 
 const baseTactic = (over: Partial<TacticOut> = {}): TacticOut => ({
   id: "t1",
@@ -47,4 +50,15 @@ test("pretas a jogar no lance 24 mostra '24…' antes do primeiro lance", () => 
   });
   renderPanel(tactic);
   expect(screen.getByText(/^24… /)).toBeTruthy();
+});
+
+test("guardar para repetir manda o resultado da tentativa mostrada", async () => {
+  const save = vi.spyOn(api, "saveTactic").mockResolvedValue({} as never);
+  const attempt: AttemptOut = {
+    id: "a1", puzzle_id: "t1", correct: true, used_hint: false,
+    rating_before: 1200, rating_after: 1216, delta: 16, puzzle_rating: 1500,
+  };
+  renderPanel(baseTactic(), { attempt, durationMs: 2400 });
+  fireEvent.click(screen.getByText("Guardar para repetir"));
+  await waitFor(() => expect(save).toHaveBeenCalledWith("t1", { correct: true, used_hint: false, duration_ms: 2400 }));
 });

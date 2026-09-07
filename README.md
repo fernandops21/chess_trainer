@@ -174,11 +174,30 @@ trabalho. As marcações `!`/`?` do autor do estudo (NAGs) continuam como eram: 
 Dá para desligar tudo em **Configurações → Engine → "Classificar lances na Análise (usa a engine)"**;
 desligado, a engine só analisa a posição na tela.
 
+## Modos de treino
+
+A tela **Treinar** começa pela escolha do modo (ou de um estudo):
+
+- **Repetição espaçada** — só exercícios que você já revisou ao menos uma vez e que venceram.
+  Os mais atrasados vêm primeiro; os do mesmo dia vêm embaralhados. Nada de estreia aqui: um
+  exercício nunca revisado não aparece nesse modo. Os filtros de fonte, tipo, cor e categoria valem.
+- **Novos (meus erros)** — a primeira vez dos exercícios das suas partidas, até o limite diário
+  (**Configurações → puzzles novos por dia**). A ordem vem de **Configurações → Ordem dos novos**:
+  *aleatória* (padrão) ou *mais recentes primeiro* (a partida mais nova antes).
+- **Táticas do Lichess** — sessão do banco de táticas, sorteada perto do seu rating. Ao guardar uma
+  tática ("Guardar para repetir"), ela entra na repetição já agendada com o resultado da tentativa.
+- **Treinar este estudo** — escolha um estudo no seletor (ou use o botão nas telas de Estudos): todos
+  os exercícios do estudo, feitos ou não, na ordem dos capítulos e sem limite diário.
+
+No Painel, **Revisar (N)** abre a repetição espaçada com os N vencidos e **Fazer novos** abre a
+estreia dos seus erros. `?mode=review|new|study` e `?study=<id>` no endereço já chegam com a escolha
+feita, e a última escolha fica guardada para a próxima sessão.
+
 ## Fontes de exercício
 
 A repetição espaçada mistura três fontes: **seus erros** (das partidas importadas do chess.com),
-**táticas guardadas do Lichess** e **capítulos de estudos**. No início do treino dá para escolher quais
-fontes entram na sessão (e, com "Estudos", qual estudo). O cartão "Estado" do Painel mostra quantos
+**táticas guardadas do Lichess** e **capítulos de estudos**. No início do treino, na repetição
+espaçada, dá para escolher quais fontes entram na sessão. O cartão "Estado" do Painel mostra quantos
 exercícios de cada fonte estão na repetição.
 
 Qualquer exercício pode sair da repetição sem ser apagado: no resultado do treino, "Tirar da repetição"

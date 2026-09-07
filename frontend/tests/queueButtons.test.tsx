@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, expect, test, vi } from "vitest";
 import { api } from "../src/api/client";
-import type { PuzzleOut, TacticOut } from "../src/api/types";
+import type { AttemptOut, PuzzleOut, TacticOut } from "../src/api/types";
 import { QueueButtons } from "../src/train/QueueButtons";
 
 const puzzle = (over: Partial<PuzzleOut> = {}): PuzzleOut => ({
@@ -50,6 +50,11 @@ const tactic = (over: Partial<TacticOut> = {}): TacticOut => ({
   ...over,
 });
 
+const attempt = (over: Partial<AttemptOut> = {}): AttemptOut => ({
+  id: "a1", puzzle_id: "00sHx", correct: true, used_hint: false,
+  rating_before: 1200, rating_after: 1216, delta: 16, puzzle_rating: 1500, ...over,
+});
+
 function renderButtons(node: React.ReactNode) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
@@ -89,7 +94,15 @@ test("tática ainda não guardada guarda e vira Guardado", async () => {
   renderButtons(<QueueButtons puzzle={tactic()} />);
   fireEvent.click(screen.getByText("Guardar para repetir"));
   expect(await screen.findByText("Guardado ✓")).toBeTruthy();
-  expect(save).toHaveBeenCalledWith("00sHx");
+  expect(save).toHaveBeenCalledWith("00sHx", undefined);
+});
+
+test("com a tentativa na tela, guardar manda o resultado junto", async () => {
+  const save = vi.spyOn(api, "saveTactic").mockResolvedValue(puzzle({ source: "lichess" }));
+  renderButtons(<QueueButtons puzzle={tactic()} attempt={attempt({ correct: false, used_hint: true })} durationMs={1500} />);
+  fireEvent.click(screen.getByText("Guardar para repetir"));
+  expect(await screen.findByText("Guardado ✓")).toBeTruthy();
+  expect(save).toHaveBeenCalledWith("00sHx", { correct: false, used_hint: true, duration_ms: 1500 });
 });
 
 test("tática já guardada mostra o botão desabilitado", () => {

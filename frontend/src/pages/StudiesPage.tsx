@@ -106,7 +106,7 @@ export function StudiesPage() {
           </div>
           <div>{counts(s)}</div>
           <div className="row" style={{ marginTop: 10 }}>
-            <button className="primary" onClick={() => navigate(`/treinar?study=${s.id}`)}>Treinar este estudo</button>
+            <button className="primary" onClick={() => navigate(`/treinar?mode=study&study=${s.id}`)}>Treinar este estudo</button>
             {s.lichess_id && (
               <button disabled={busy} onClick={() => reimport.mutate(s.id)}>Reimportar</button>
             )}

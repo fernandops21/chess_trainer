@@ -32,14 +32,43 @@ beforeEach(() => {
   localStorage.clear();
   vi.spyOn(api, "tacticThemes").mockResolvedValue(THEMES);
   vi.spyOn(api, "tacticsStatus").mockResolvedValue(status());
+  vi.spyOn(api, "studies").mockResolvedValue([]);
 });
 afterEach(() => vi.restoreAllMocks());
 
-test("fonte padrão continua sendo os erros próprios", () => {
+test("o modo padrão é a repetição espaçada", () => {
   const onStart = renderStart();
+  expect((screen.getByLabelText("Repetição espaçada") as HTMLInputElement).checked).toBe(true);
   expect(screen.getByLabelText("Tipo")).toBeTruthy();
   fireEvent.click(screen.getByText("Começar"));
-  expect(onStart).toHaveBeenCalledWith(expect.objectContaining({ source: "own", themes: [] }));
+  expect(onStart).toHaveBeenCalledWith(expect.objectContaining({ source: "own", mode: "review", themes: [] }));
+  expect(onStart.mock.calls[0][0].filters).toMatchObject({ mode: "review" });
+});
+
+test("escolher os novos manda mode=new e esconde as fontes", () => {
+  const onStart = renderStart();
+  fireEvent.click(screen.getByLabelText("Novos (meus erros)"));
+  expect(screen.queryByText("Lichess guardados")).toBeNull();
+  // os filtros de tipo/cor/categoria continuam valendo nos novos
+  expect(screen.getByLabelText("Tipo")).toBeTruthy();
+  fireEvent.click(screen.getByText("Começar"));
+  expect(onStart).toHaveBeenCalledWith(expect.objectContaining({ source: "own", mode: "new" }));
+  expect(onStart.mock.calls[0][0].filters).toMatchObject({ mode: "new" });
+  expect(onStart.mock.calls[0][0].filters.sources).toBe(undefined);
+  expect(localStorage.getItem("train.mode")).toBe(JSON.stringify("new"));
+});
+
+test("?mode=new já vem selecionado", () => {
+  const onStart = renderStart("/treinar?mode=new");
+  expect((screen.getByLabelText("Novos (meus erros)") as HTMLInputElement).checked).toBe(true);
+  fireEvent.click(screen.getByText("Começar"));
+  expect(onStart).toHaveBeenCalledWith(expect.objectContaining({ mode: "new" }));
+});
+
+test("o modo guardado em train.mode volta selecionado", () => {
+  localStorage.setItem("train.mode", JSON.stringify("new"));
+  renderStart();
+  expect((screen.getByLabelText("Novos (meus erros)") as HTMLInputElement).checked).toBe(true);
 });
 
 test("escolher táticas mostra os temas e devolve os selecionados", async () => {
@@ -47,11 +76,13 @@ test("escolher táticas mostra os temas e devolve os selecionados", async () => 
   fireEvent.click(screen.getByLabelText("Táticas do Lichess"));
   const fork = await screen.findByText("garfo");
   expect(screen.queryByLabelText("Tipo")).toBeNull();
+  expect(screen.queryByLabelText("Estudo")).toBeNull();
   fireEvent.click(fork);
   expect(fork.getAttribute("aria-pressed")).toBe("true");
   fireEvent.click(screen.getByText("Começar"));
   expect(onStart).toHaveBeenCalledWith(expect.objectContaining({ source: "tactics", themes: ["fork"] }));
   expect(localStorage.getItem("train.themes")).toBe(JSON.stringify(["fork"]));
+  expect(localStorage.getItem("train.mode")).toBe(JSON.stringify("tactics"));
 });
 
 test("source=tactics na URL já vem selecionado", async () => {

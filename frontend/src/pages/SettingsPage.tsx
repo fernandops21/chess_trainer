@@ -103,6 +103,14 @@ export function SettingsPage() {
         {field("limiar de blunder (cp)", "blunder_threshold_cp")}
         {field("gap mínimo do puzzle evitar (cp)", "avoid_gap_cp")}
         {field("puzzles novos por dia", "new_per_day")}
+        <label className="row" style={{ justifyContent: "space-between" }}>
+          Ordem dos novos
+          <select value={form.new_order} aria-label="Ordem dos novos"
+            onChange={(e) => setForm({ ...form, new_order: e.target.value === "recent" ? "recent" : "random" })}>
+            <option value="random">aleatória</option>
+            <option value="recent">mais recentes primeiro</option>
+          </select>
+        </label>
         {field("sanguessuga após N erros", "leech_lapses")}
       </div>
       <div className="card">

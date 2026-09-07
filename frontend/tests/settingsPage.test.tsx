@@ -7,7 +7,7 @@ import { SettingsPage } from "../src/pages/SettingsPage";
 
 const SETTINGS: Settings = {
   chesscom_username: "eu", categories: ["rapid"], stockfish_path: "", analysis_depth: 18, puzzle_depth: 20,
-  mistake_threshold_cp: 100, blunder_threshold_cp: 200, avoid_gap_cp: 150, new_per_day: 10, leech_lapses: 5,
+  mistake_threshold_cp: 100, blunder_threshold_cp: 200, avoid_gap_cp: 150, new_per_day: 10, new_order: "random", leech_lapses: 5,
   analysis_seconds: 15, puzzle_search_seconds: 20, puzzle_reply_seconds: 10,
   tactics_rating: 1200, tactics_window: 150, lichess_min_plays: 2000, lichess_min_popularity: 90,
   classify_moves: true, lichess_token_set: false,
@@ -128,4 +128,13 @@ test("a caixa de classificar lances vem do servidor e vai no salvamento", async 
   fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
   await waitFor(() => expect(api.saveSettings).toHaveBeenCalled());
   expect(vi.mocked(api.saveSettings).mock.calls[0][0].classify_moves).toBe(false);
+});
+
+test("a ordem dos novos aparece e vai no salvamento", async () => {
+  renderPage();
+  const select = await screen.findByLabelText("Ordem dos novos") as HTMLSelectElement;
+  expect(select.value).toBe("random");
+  fireEvent.change(select, { target: { value: "recent" } });
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+  await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(expect.objectContaining({ new_order: "recent" })));
 });

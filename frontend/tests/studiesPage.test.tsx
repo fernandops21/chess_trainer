@@ -102,7 +102,7 @@ test("treinar este estudo abre Treinar com o estudo escolhido", async () => {
   renderPage();
   await screen.findByText("Finais de torre");
   fireEvent.click(screen.getByRole("button", { name: "Treinar este estudo" }));
-  expect(screen.getByTestId("where").textContent).toBe("/treinar?study=s1");
+  expect(screen.getByTestId("where").textContent).toBe("/treinar?mode=study&study=s1");
 });
 
 test("com capítulos na repetição o botão tira da repetição", async () => {

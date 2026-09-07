@@ -75,7 +75,7 @@ const status: TacticsStatus = {
   attempts_total: 0, attempts_today: 0, attempts_30d: 0, correct_30d: 0,
 };
 
-const config: SessionConfig = { source: "tactics", filters: {}, plannedMinutes: 25, themes: ["fork"] };
+const config: SessionConfig = { source: "tactics", mode: "review", filters: {}, plannedMinutes: 25, themes: ["fork"] };
 
 function Host() {
   const [sum, setSum] = useState<TacticSummaryData | null>(null);
@@ -214,4 +214,15 @@ test("a tática abre na posição de antes do lance do adversário e depois anim
   renderSession();
   expect(await screen.findByText(`fen:${FEN_BEFORE}`)).toBeTruthy();
   expect(await screen.findByText(`fen:${FEN_START}`)).toBeTruthy();
+});
+
+test("guardar a tática resolvida manda o resultado da tentativa", async () => {
+  vi.spyOn(api, "nextTactic").mockResolvedValue(tactic("t1"));
+  const save = vi.spyOn(api, "saveTactic").mockResolvedValue({} as never);
+  renderSession();
+  await solve();
+  fireEvent.click(await screen.findByText("Guardar para repetir"));
+  expect(await screen.findByText("Guardado ✓")).toBeTruthy();
+  expect(save).toHaveBeenCalledWith("t1", expect.objectContaining({ correct: true, used_hint: false }));
+  expect(typeof (save.mock.calls[0][1] as { duration_ms?: number }).duration_ms).toBe("number");
 });

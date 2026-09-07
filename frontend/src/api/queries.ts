@@ -9,6 +9,7 @@ import type {
   MistakesQuery,
   OpeningsDb,
   QueueFilters,
+  SaveTacticIn,
   SettingsIn,
   StudyImportIn,
   StudyIn,
@@ -151,10 +152,14 @@ export function useSetQueue() {
   });
 }
 
-/** Guardar uma tática do Lichess como exercício da repetição. */
+/** Guardar uma tática do Lichess como exercício da repetição (com o resultado
+ *  da tentativa, quando há um: aí ela já entra agendada). */
 export function useSaveTactic() {
   const invalidate = useInvalidate([["puzzle"]]);
-  return useMutation({ mutationFn: (lichessId: string) => api.saveTactic(lichessId), onSettled: invalidate });
+  return useMutation({
+    mutationFn: (p: { id: string; body?: SaveTacticIn }) => api.saveTactic(p.id, p.body),
+    onSettled: invalidate,
+  });
 }
 
 /** Importar um estudo do Lichess (URL ou PGN colado): job assíncrono. */

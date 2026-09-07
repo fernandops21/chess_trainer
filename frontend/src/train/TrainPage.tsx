@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
-import { usePuzzleQuery } from "../api/queries";
+import { usePuzzleQuery, useStudy } from "../api/queries";
 import type { PuzzleOut, QueueOut, ReviewIn, SessionOut } from "../api/types";
 import { ErrorBox } from "../components/ErrorBox";
 import { Modal } from "../components/Modal";
@@ -45,6 +45,13 @@ function SingleTrain({ id, seen }: { id: string; seen: boolean }) {
   return <SessionPuzzle key={data.id} puzzle={data} sessionId={null} presetHint={seen} nextLabel="Voltar" onDone={back} />;
 }
 
+/** Mensagem de fila vazia conforme o modo. */
+function emptyMessage(mode: SessionConfig["mode"], queue: QueueOut): string {
+  if (mode === "study") return "Este estudo não tem exercícios na repetição.";
+  if (mode === "new") return `Sem erros novos (ou limite diário atingido: ${queue.new_available} esperando amanhã).`;
+  return "Nada vencido. Faça novos ou treine um estudo.";
+}
+
 function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done: Done[], elapsedLabel: string, reason: string) => void }) {
   const qc = useQueryClient();
   const [session, setSession] = useState<SessionOut | null>(null);
@@ -62,6 +69,11 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
   // roda duas vezes e a segunda execução precisa se reinscrever no mesmo
   // request, senão o resultado cai numa closure já morta.
   const startP = useRef<Promise<[SessionOut, QueueOut]> | null>(null);
+  // o título do estudo só é buscado no modo estudo
+  const { data: study } = useStudy(config.mode === "study" ? config.filters.study_id ?? null : null);
+  const heading = config.mode === "new" ? "Novos (meus erros)"
+    : config.mode === "study" ? study?.title ?? "Estudo"
+      : "Repetição espaçada";
 
   useEffect(() => {
     startP.current ??= (async () => {
@@ -131,15 +143,22 @@ function Session({ config, onFinish }: { config: SessionConfig; onFinish: (done:
   if (error) return <ErrorBox error={error} />;
   if (!queue || !session) return <p className="muted">Preparando a sessão…</p>;
   if (items.length === 0) {
-    const reason = queue.new_available > 0 && queue.new_remaining_today === 0
-      ? `Limite diário de novos atingido; há ${queue.new_available} esperando amanhã.` : "Nada vencido e nenhum puzzle novo disponível.";
-    return <div className="card"><p>{reason}</p><Link to="/">Analisar mais partidas</Link></div>;
+    return (
+      <div className="card">
+        <h2 style={{ marginTop: 0 }}>{heading}</h2>
+        <p>{emptyMessage(config.mode, queue)}</p>
+        <Link to="/">Analisar mais partidas</Link>
+      </div>
+    );
   }
   const puzzle = items[i];
-  const orderInfo = `${done.length + 1}º da sessão · ${queue.due_count} vencidos`
+  const orderInfo = (config.mode === "study"
+    ? `capítulo ${i + 1} de ${items.length}`
+    : `${done.length + 1}º da sessão · ${queue.due_count} vencidos`)
     + (skipped > 0 ? ` · ${skipped} ${skipped === 1 ? "pulado" : "pulados"}` : "");
   return (
     <>
+      <h2 style={{ marginTop: 0 }}>{heading}</h2>
       <SessionPuzzle key={puzzle.id} puzzle={puzzle} sessionId={session.id} clockLabel={clock.label}
         orderInfo={orderInfo} onDone={advance} nextDisabled={advancing}
         onSkip={skip} skipDisabled={pendentes < 2} />

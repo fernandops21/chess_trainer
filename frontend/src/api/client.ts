@@ -19,6 +19,7 @@ import type {
   QueueOut,
   ReviewIn,
   ReviewOut,
+  SaveTacticIn,
   SessionIn,
   SessionOut,
   Settings,
@@ -122,7 +123,7 @@ export const api = {
   puzzle: (id: string) => request<PuzzleOut>(`/puzzles/${id}`),
   queue: (p: QueueFilters = {}) =>
     request<QueueOut>(`/queue${qs({
-      category: p.category, theme: p.theme, kind: p.kind, color: p.color,
+      mode: p.mode, category: p.category, theme: p.theme, kind: p.kind, color: p.color,
       sources: p.sources?.join(","), study_id: p.study_id,
     })}`),
   setQueue: (id: string, in_queue: boolean) =>
@@ -150,8 +151,9 @@ export const api = {
     ),
   attempt: (body: AttemptIn) =>
     request<AttemptOut>("/tactics/attempts", post("", body)),
-  saveTactic: (lichessId: string) =>
-    request<PuzzleOut>(`/tactics/${lichessId}/save`, post("")),
+  /** Sem corpo a tática entra sem revisão; com o resultado ela já sai agendada. */
+  saveTactic: (lichessId: string, body?: SaveTacticIn) =>
+    request<PuzzleOut>(`/tactics/${lichessId}/save`, post("", body)),
   tacticThemes: () => request<ThemeCount[]>("/tactics/themes"),
   studies: () => request<StudyOut[]>("/studies"),
   study: (id: string) => request<StudyDetail>(`/studies/${id}`),

@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "../src/api/client";
@@ -26,10 +26,15 @@ const stat = (over: Partial<ThemeStat>): ThemeStat => ({
   theme: "fork", label: "garfo", attempts: 10, correct: 8, accuracy: 0.8, own: 0, lichess: 10, ...over,
 });
 
+function Where() {
+  const loc = useLocation();
+  return <div data-testid="where">{loc.pathname + loc.search}</div>;
+}
+
 function renderPage() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter><DashboardPage /></MemoryRouter>
+      <MemoryRouter><DashboardPage /><Where /></MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -90,4 +95,16 @@ test("sem by_source o cartão Estado não mostra a linha por fonte", async () =>
   renderPage();
   expect(await screen.findByText(/8 de 10 partidas analisadas/)).toBeTruthy();
   expect(screen.queryByText(/dos seus erros/)).toBeNull();
+});
+
+test("Revisar leva à repetição espaçada com a contagem de vencidos", async () => {
+  renderPage();
+  fireEvent.click(await screen.findByRole("button", { name: "Revisar (3)" }));
+  expect(screen.getByTestId("where").textContent).toBe("/treinar?mode=review");
+});
+
+test("Fazer novos leva à sessão de novos", async () => {
+  renderPage();
+  fireEvent.click(await screen.findByRole("button", { name: "Fazer novos" }));
+  expect(screen.getByTestId("where").textContent).toBe("/treinar?mode=new");
 });

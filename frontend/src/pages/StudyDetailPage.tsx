@@ -64,6 +64,9 @@ export function StudyDetailPage() {
             <div className="msg">Estudo importado: reimportar sobrescreve as edições feitas aqui.</div>
           )}
           <div className="row" style={{ marginBottom: 12 }}>
+            {data.exercise_count > 0 && (
+              <button onClick={() => navigate(`/treinar?mode=study&study=${id}`)}>Treinar este estudo</button>
+            )}
             <button className="primary" onClick={() => setNovo(true)}>Novo capítulo</button>
             <a href={studyPgnUrl(id)} download>Exportar PGN</a>
             <Link to="/estudos" className="muted">← todos os estudos</Link>
