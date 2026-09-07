@@ -1,27 +1,55 @@
-"""Rotas dos estudos do Lichess: importar, listar, detalhar, fila e remover."""
+"""Rotas dos estudos: importar, listar, detalhar, editar, exportar e remover."""
+
+import json
+import re
+import unicodedata
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from chess_trainer.api.deps import get_db
-from chess_trainer.api.schemas import ChapterOut, QueueIn, StudyDetail, StudyImportIn, StudyOut
+from chess_trainer.api.schemas import (
+    ChapterCreateIn,
+    ChapterDetail,
+    ChapterOut,
+    ChapterSaveIn,
+    QueueIn,
+    StudyCreateIn,
+    StudyDetail,
+    StudyImportIn,
+    StudyOut,
+    StudyUpdateIn,
+)
 from chess_trainer.core.models import Puzzle, Study, StudyChapter, utcnow
 from chess_trainer.core.studies.parser import parse_study_pgn
 from chess_trainer.core.studies.service import (
     STUDY_URL,
+    ChapterOrderError,
     StudyImportCancelled,
     StudyNotFound,
+    TreeInvalid,
+    chapter_detail,
+    create_chapter,
+    create_study,
+    delete_chapter,
     delete_study,
+    duplicate_chapter,
     fetch_study_pgn,
     parse_lichess_url,
+    save_chapter,
     set_study_queue,
+    update_study,
     upsert_study,
 )
+from chess_trainer.core.studies.tree import chapter_pgn, study_pgn
 
 router = APIRouter(prefix="/api")
 
 ESTUDO_PRIVADO = "estudo privado ou inexistente; exporte o PGN no Lichess e cole aqui"
+
+_NAO_ALFANUMERICO = re.compile(r"[^a-z0-9]+")
 
 
 def _get_study(db: Session, study_id: str) -> Study:
@@ -29,6 +57,13 @@ def _get_study(db: Session, study_id: str) -> Study:
     if study is None:
         raise HTTPException(404, "estudo não encontrado")
     return study
+
+
+def _get_chapter(db: Session, study: Study, chapter_id: str) -> StudyChapter:
+    chapter = db.get(StudyChapter, chapter_id)
+    if chapter is None or chapter.study_id != study.id:
+        raise HTTPException(404, "capítulo não encontrado")
+    return chapter
 
 
 def _counts(db: Session, study: Study) -> tuple[int, int, int, int]:
@@ -54,7 +89,8 @@ def _counts(db: Session, study: Study) -> tuple[int, int, int, int]:
 def _study_out(db: Session, study: Study) -> StudyOut:
     chapters, exercises, in_queue, due = _counts(db, study)
     return StudyOut(id=study.id, title=study.title, author=study.author, source_url=study.source_url,
-                    lichess_id=study.lichess_id, imported_at=study.imported_at,
+                    lichess_id=study.lichess_id, origin=study.origin, imported_at=study.imported_at,
+                    updated_at=study.updated_at,
                     chapter_count=chapters, exercise_count=exercises, in_queue=in_queue, due_today=due)
 
 
@@ -71,7 +107,7 @@ def get_study(study_id: str, db: Session = Depends(get_db)):
     return StudyDetail(**base.model_dump(),
                        chapters=[ChapterOut(id=c.id, order=c.order, name=c.name, lichess_url=c.lichess_url,
                                             mode=c.mode, in_queue=c.in_queue, puzzle_id=c.puzzle_id,
-                                            intro_comment=c.intro_comment)
+                                            intro_comment=c.intro_comment, updated_at=c.updated_at)
                                  for c in study.chapters])
 
 
@@ -154,3 +190,110 @@ def post_queue(study_id: str, body: QueueIn, db: Session = Depends(get_db)):
 def del_study(study_id: str, db: Session = Depends(get_db)):
     delete_study(db, _get_study(db, study_id))
     return Response(status_code=204)
+
+
+# --- editor: estudos e capítulos -----------------------------------------
+
+
+@router.post("/studies", status_code=201, response_model=StudyOut)
+def post_study(body: StudyCreateIn, db: Session = Depends(get_db)):
+    return _study_out(db, create_study(db, body.title, body.author))
+
+
+@router.put("/studies/{study_id}", response_model=StudyOut)
+def put_study(study_id: str, body: StudyUpdateIn, db: Session = Depends(get_db)):
+    study = _get_study(db, study_id)
+    try:
+        update_study(db, study, body.title, body.author, body.chapter_order)
+    except ChapterOrderError as exc:
+        db.rollback()
+        raise HTTPException(400, str(exc)) from exc
+    return _study_out(db, study)
+
+
+def _chapter_response(dados: dict, status_code: int = 200) -> JSONResponse:
+    """Resposta de um capítulo.
+
+    A árvore é montada à parte de propósito: a de um capítulo longo aninha
+    centenas de dicionários, bem mais fundo do que o serializador do pydantic
+    aceita (ele acusa "circular reference"). O modelo cuida do resto dos campos
+    e continua valendo como contrato da rota.
+    """
+    modelo = ChapterDetail(**dados)
+    corpo = json.loads(modelo.model_dump_json(exclude={"tree"}))
+    corpo["tree"] = dados["tree"]
+    return JSONResponse(corpo, status_code=status_code)
+
+
+@router.get("/studies/{study_id}/chapters/{chapter_id}", response_model=ChapterDetail)
+def get_chapter(study_id: str, chapter_id: str, db: Session = Depends(get_db)):
+    chapter = _get_chapter(db, _get_study(db, study_id), chapter_id)
+    dados = chapter_detail(chapter)
+    # capítulo importado antes do editor ganha a árvore aqui, na primeira abertura
+    db.commit()
+    dados["updated_at"] = chapter.updated_at
+    return _chapter_response(dados)
+
+
+@router.post("/studies/{study_id}/chapters", status_code=201, response_model=ChapterDetail)
+def post_chapter(study_id: str, body: ChapterCreateIn, db: Session = Depends(get_db)):
+    study = _get_study(db, study_id)
+    try:
+        chapter = create_chapter(db, study, body.name, body.fen or "",
+                                 body.orientation or "white", body.mode or "read")
+    except TreeInvalid as exc:
+        db.rollback()
+        raise HTTPException(422, exc.errors) from exc
+    return _chapter_response(chapter_detail(chapter), status_code=201)
+
+
+@router.put("/studies/{study_id}/chapters/{chapter_id}", response_model=ChapterDetail)
+def put_chapter(study_id: str, chapter_id: str, body: ChapterSaveIn, db: Session = Depends(get_db)):
+    chapter = _get_chapter(db, _get_study(db, study_id), chapter_id)
+    try:
+        save_chapter(db, chapter, body.name, body.mode, body.orientation, body.tree)
+    except TreeInvalid as exc:
+        db.rollback()
+        raise HTTPException(422, exc.errors) from exc
+    return _chapter_response(chapter_detail(chapter))
+
+
+@router.delete("/studies/{study_id}/chapters/{chapter_id}", status_code=204)
+def del_chapter(study_id: str, chapter_id: str, db: Session = Depends(get_db)):
+    delete_chapter(db, _get_chapter(db, _get_study(db, study_id), chapter_id))
+    return Response(status_code=204)
+
+
+@router.post("/studies/{study_id}/chapters/{chapter_id}/duplicate", status_code=201,
+             response_model=ChapterDetail)
+def post_duplicate(study_id: str, chapter_id: str, db: Session = Depends(get_db)):
+    chapter = _get_chapter(db, _get_study(db, study_id), chapter_id)
+    return _chapter_response(chapter_detail(duplicate_chapter(db, chapter)), status_code=201)
+
+
+# --- exportação ----------------------------------------------------------
+
+
+@router.get("/studies/{study_id}/pgn")
+def get_study_pgn(study_id: str, db: Session = Depends(get_db)):
+    study = _get_study(db, study_id)
+    return _pgn_response(study_pgn(study), study.title)
+
+
+@router.get("/studies/{study_id}/chapters/{chapter_id}/pgn")
+def get_chapter_pgn(study_id: str, chapter_id: str, db: Session = Depends(get_db)):
+    study = _get_study(db, study_id)
+    chapter = _get_chapter(db, study, chapter_id)
+    return _pgn_response(chapter_pgn(chapter, study), chapter.name)
+
+
+def _pgn_response(texto: str, nome: str) -> Response:
+    """PGN como download, com um nome de arquivo que qualquer sistema aceita."""
+    return Response(content=texto, media_type="text/plain; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{_slug(nome)}.pgn"'})
+
+
+def _slug(texto: str) -> str:
+    """Título vira nome de arquivo: sem acentos, só letras, números e hífens."""
+    sem_acento = unicodedata.normalize("NFKD", texto or "").encode("ascii", "ignore").decode()
+    return _NAO_ALFANUMERICO.sub("-", sem_acento.lower())[:60].strip("-") or "estudo"

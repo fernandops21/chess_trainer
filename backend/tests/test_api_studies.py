@@ -1,4 +1,4 @@
-"""Testes das rotas de estudos: importação, detalhe, fila e remoção."""
+"""Testes das rotas de estudos: importação, detalhe, edição, exportação, fila e remoção."""
 
 from pathlib import Path
 
@@ -277,3 +277,267 @@ def test_remover_o_estudo_apaga_os_exercicios(client):
     assert client.get("/api/studies").json() == []
     assert client.get(f"/api/studies/{estudo_id}").status_code == 404
     assert client.get("/api/dashboard").json()["by_source"]["study"]["in_queue"] == 0
+
+
+# --- criação e edição local ----------------------------------------------
+
+# mate no corredor: a torre em a1 dá mate em um lance
+FEN_MATE = "6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1"
+# peão passado: dois lances do solucionador, sem mate
+FEN_PEAO = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1"
+
+ARVORE_MATE = {
+    "fen": FEN_MATE,
+    "orientation": "white",
+    "intro": "Mate em um.",
+    "root": {
+        "shapes": [{"orig": "a1", "dest": "a8", "brush": "green"}],
+        "children": [
+            {"id": "n1", "uci": "a1a8", "san": "Ra8#", "comment": "Mate!",
+             "shapes": [], "nags": [], "children": []},
+            {"id": "n2", "uci": "a1a7", "san": "Ra7", "comment": "Deixa o rei escapar.",
+             "shapes": [{"orig": "g8", "brush": "red"}], "nags": [2], "children": []},
+        ],
+    },
+}
+
+ARVORE_PEAO = {
+    "fen": FEN_PEAO,
+    "orientation": "white",
+    "intro": "A marcha do peão.",
+    "root": {"shapes": [], "children": [
+        {"id": "n1", "uci": "e2e4", "san": "e4", "comment": "", "shapes": [], "nags": [], "children": [
+            {"id": "n2", "uci": "e8d7", "san": "Kd7", "comment": "", "shapes": [], "nags": [], "children": [
+                {"id": "n3", "uci": "e4e5", "san": "e5", "comment": "Segue em frente.",
+                 "shapes": [], "nags": [], "children": []},
+            ]},
+        ]},
+    ]},
+}
+
+
+def criar_estudo(client, title="Meu estudo", author="eu") -> dict:
+    r = client.post("/api/studies", json={"title": title, "author": author})
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def criar_capitulo(client, estudo_id, **body) -> dict:
+    r = client.post(f"/api/studies/{estudo_id}/chapters", json=body)
+    assert r.status_code == 201, r.text
+    return r.json()
+
+
+def salvar_capitulo(client, estudo_id, cid, tree, name="Um", mode="gamebook", orientation="white"):
+    return client.put(f"/api/studies/{estudo_id}/chapters/{cid}",
+                      json={"name": name, "mode": mode, "orientation": orientation, "tree": tree})
+
+
+def arvores(client, estudo_id) -> list[tuple]:
+    """(nome, modo, árvore) de cada capítulo, para comparar dois estudos."""
+    detalhe = client.get(f"/api/studies/{estudo_id}").json()
+    saida = []
+    for capitulo in detalhe["chapters"]:
+        dados = client.get(f"/api/studies/{estudo_id}/chapters/{capitulo['id']}").json()
+        saida.append((dados["name"], dados["mode"], dados["tree"]))
+    return saida
+
+
+def test_criar_estudo_local(client):
+    estudo = criar_estudo(client, "Táticas do Basso", "professor")
+
+    assert estudo["origin"] == "local" and estudo["lichess_id"] is None
+    assert estudo["title"] == "Táticas do Basso" and estudo["author"] == "professor"
+    assert estudo["chapter_count"] == 0 and estudo["updated_at"] is not None
+    assert client.get("/api/studies").json()[0]["id"] == estudo["id"]
+
+
+def test_criar_capitulo_devolve_o_detalhe_com_a_arvore(client):
+    estudo = criar_estudo(client)
+
+    capitulo = criar_capitulo(client, estudo["id"], name="Um", fen=FEN_MATE,
+                              orientation="black", mode="gamebook")
+
+    assert capitulo["order"] == 1 and capitulo["name"] == "Um" and capitulo["mode"] == "gamebook"
+    assert capitulo["fen"] == FEN_MATE and capitulo["orientation"] == "black"
+    assert capitulo["tree"]["root"]["children"] == [] and capitulo["puzzle_id"] is None
+    assert capitulo["updated_at"] is not None and "[FEN " in capitulo["pgn"]
+    assert client.get(f"/api/studies/{estudo['id']}").json()["chapters"][0]["id"] == capitulo["id"]
+
+
+def test_criar_capitulo_com_fen_invalida_422(client):
+    estudo = criar_estudo(client)
+
+    r = client.post(f"/api/studies/{estudo['id']}/chapters", json={"name": "Torto", "fen": "nada"})
+
+    assert r.status_code == 422
+    assert any("FEN inválida" in erro for erro in r.json()["detail"])
+
+
+def test_salvar_o_capitulo_cria_o_exercicio(client):
+    estudo = criar_estudo(client)
+    capitulo = criar_capitulo(client, estudo["id"], name="Um", fen=FEN_MATE, mode="gamebook")
+
+    r = salvar_capitulo(client, estudo["id"], capitulo["id"], ARVORE_MATE, name="Mate no corredor")
+
+    assert r.status_code == 200, r.text
+    salvo = r.json()
+    assert salvo["name"] == "Mate no corredor" and salvo["puzzle_id"]
+    assert salvo["intro_comment"] == "Mate em um."
+    assert salvo["tree"] == ARVORE_MATE and "[%cal Ga1a8]" in salvo["pgn"]
+    resumo = client.get(f"/api/studies/{estudo['id']}").json()
+    assert resumo["exercise_count"] == 1 and resumo["in_queue"] == 1
+    fila = client.get("/api/queue", params={"study_id": estudo["id"]}).json()
+    assert [item["id"] for item in fila["items"]] == [salvo["puzzle_id"]]
+
+
+def test_salvar_arvore_com_lance_ilegal_422(client):
+    estudo = criar_estudo(client)
+    capitulo = criar_capitulo(client, estudo["id"], name="Um", fen=FEN_MATE)
+    torta = {"fen": FEN_MATE, "orientation": "white", "intro": "", "root": {"shapes": [], "children": [
+        {"id": "n1", "uci": "a1a4", "san": "Ra4", "comment": "", "shapes": [], "nags": [], "children": [
+            {"id": "n2", "uci": "h1h8", "san": "??", "comment": "", "shapes": [], "nags": [], "children": []},
+        ]},
+    ]}}
+
+    r = salvar_capitulo(client, estudo["id"], capitulo["id"], torta)
+
+    assert r.status_code == 422
+    assert any("lance ilegal" in erro for erro in r.json()["detail"])
+    # nada foi gravado: o capítulo continua com a árvore vazia
+    atual = client.get(f"/api/studies/{estudo['id']}/chapters/{capitulo['id']}").json()
+    assert atual["tree"]["root"]["children"] == []
+
+
+def test_duplicar_o_capitulo(client):
+    estudo = criar_estudo(client)
+    capitulo = criar_capitulo(client, estudo["id"], name="Um", fen=FEN_MATE, mode="gamebook")
+    salvar_capitulo(client, estudo["id"], capitulo["id"], ARVORE_MATE)
+    criar_capitulo(client, estudo["id"], name="Dois", fen=FEN_PEAO)
+
+    r = client.post(f"/api/studies/{estudo['id']}/chapters/{capitulo['id']}/duplicate")
+
+    assert r.status_code == 201, r.text
+    copia = r.json()
+    assert copia["name"] == "Um (cópia)" and copia["order"] == 2
+    # a cópia teria a mesma posição inicial: entra como leitura, sem exercício
+    assert copia["mode"] == "read" and copia["puzzle_id"] is None
+    assert copia["tree"] == ARVORE_MATE
+    ordem = [(c["name"], c["order"]) for c in client.get(f"/api/studies/{estudo['id']}").json()["chapters"]]
+    assert ordem == [("Um", 1), ("Um (cópia)", 2), ("Dois", 3)]
+
+
+def test_apagar_o_capitulo_tira_o_exercicio_da_fila(client):
+    estudo = criar_estudo(client)
+    capitulo = criar_capitulo(client, estudo["id"], name="Um", fen=FEN_MATE, mode="gamebook")
+    salvar_capitulo(client, estudo["id"], capitulo["id"], ARVORE_MATE)
+    outro = criar_capitulo(client, estudo["id"], name="Dois", fen=FEN_PEAO)
+
+    assert client.delete(f"/api/studies/{estudo['id']}/chapters/{capitulo['id']}").status_code == 204
+
+    resumo = client.get(f"/api/studies/{estudo['id']}").json()
+    assert [(c["id"], c["order"]) for c in resumo["chapters"]] == [(outro["id"], 1)]
+    assert resumo["exercise_count"] == 0 and resumo["in_queue"] == 0
+    assert client.get("/api/dashboard").json()["by_source"]["study"]["in_queue"] == 0
+
+
+def test_reordenar_e_renomear_o_estudo(client):
+    estudo = criar_estudo(client, "Antigo", "alguém")
+    ids = [criar_capitulo(client, estudo["id"], name=nome)["id"] for nome in ("Um", "Dois", "Três")]
+
+    r = client.put(f"/api/studies/{estudo['id']}",
+                   json={"title": "Novo", "author": "outro", "chapter_order": [ids[2], ids[0], ids[1]]})
+
+    assert r.status_code == 200, r.text
+    assert r.json()["title"] == "Novo" and r.json()["author"] == "outro"
+    capitulos = client.get(f"/api/studies/{estudo['id']}").json()["chapters"]
+    assert [c["id"] for c in capitulos] == [ids[2], ids[0], ids[1]]
+    assert [c["order"] for c in capitulos] == [1, 2, 3]
+
+
+def test_ordem_incompleta_400(client):
+    estudo = criar_estudo(client)
+    ids = [criar_capitulo(client, estudo["id"], name=nome)["id"] for nome in ("Um", "Dois")]
+
+    r = client.put(f"/api/studies/{estudo['id']}", json={"chapter_order": [ids[0]]})
+
+    assert r.status_code == 400 and "capítulo" in r.json()["detail"]
+    assert [c["id"] for c in client.get(f"/api/studies/{estudo['id']}").json()["chapters"]] == ids
+
+
+def test_capitulo_de_outro_estudo_404(client):
+    estudo = criar_estudo(client)
+    outro = criar_estudo(client, "Outro")
+    capitulo = criar_capitulo(client, outro["id"], name="Um")
+
+    assert client.get(f"/api/studies/{estudo['id']}/chapters/{capitulo['id']}").status_code == 404
+    assert client.delete(f"/api/studies/{estudo['id']}/chapters/{capitulo['id']}").status_code == 404
+    assert client.get(f"/api/studies/{estudo['id']}/chapters/nada/pgn").status_code == 404
+
+
+# --- exportação e round trip ---------------------------------------------
+
+
+def test_exportar_o_pgn_do_estudo_e_do_capitulo(client):
+    estudo = criar_estudo(client, "Táticas do Basso", "professor")
+    capitulo = criar_capitulo(client, estudo["id"], name="Mate no corredor", fen=FEN_MATE, mode="gamebook")
+    salvar_capitulo(client, estudo["id"], capitulo["id"], ARVORE_MATE, name="Mate no corredor")
+
+    do_estudo = client.get(f"/api/studies/{estudo['id']}/pgn")
+    do_capitulo = client.get(f"/api/studies/{estudo['id']}/chapters/{capitulo['id']}/pgn")
+
+    assert do_estudo.status_code == 200
+    assert do_estudo.headers["content-type"] == "text/plain; charset=utf-8"
+    assert do_estudo.headers["content-disposition"] == 'attachment; filename="taticas-do-basso.pgn"'
+    assert '[StudyName "Táticas do Basso"]' in do_estudo.text
+    assert '[ChapterMode "gamebook"]' in do_estudo.text and "Ra8#" in do_estudo.text
+    assert do_capitulo.headers["content-disposition"] == 'attachment; filename="mate-no-corredor.pgn"'
+    assert do_capitulo.text.strip() == do_estudo.text.strip()
+
+
+def test_round_trip_do_estudo_local(client):
+    """Exportar um estudo feito aqui e importá-lo de volta dá as mesmas árvores."""
+    estudo = criar_estudo(client, "Táticas do Basso", "professor")
+    um = criar_capitulo(client, estudo["id"], name="Um", fen=FEN_MATE, mode="gamebook")
+    salvar_capitulo(client, estudo["id"], um["id"], ARVORE_MATE, name="Um")
+    dois = criar_capitulo(client, estudo["id"], name="Dois", fen=FEN_PEAO)
+    salvar_capitulo(client, estudo["id"], dois["id"], ARVORE_PEAO, name="Dois", mode="read")
+
+    importar(client, {"pgn": client.get(f"/api/studies/{estudo['id']}/pgn").text})
+
+    estudos = client.get("/api/studies").json()
+    assert len(estudos) == 2
+    copia = next(e for e in estudos if e["id"] != estudo["id"])
+    assert copia["title"] == "Táticas do Basso" and copia["author"] == "professor"
+    assert arvores(client, copia["id"]) == arvores(client, estudo["id"])
+
+
+def test_round_trip_do_estudo_importado(client):
+    """O estudo real, exportado e reimportado, dá as mesmas árvores."""
+    importar(client)
+    original = client.get("/api/studies").json()[0]
+
+    importar(client, {"pgn": client.get(f"/api/studies/{original['id']}/pgn").text})
+
+    estudos = client.get("/api/studies").json()
+    assert len(estudos) == 2
+    copia = next(e for e in estudos if e["id"] != original["id"])
+    assert copia["chapter_count"] == 27
+    assert arvores(client, copia["id"]) == arvores(client, original["id"])
+
+
+def test_capitulo_importado_antes_do_editor_ganha_a_arvore_ao_abrir(client):
+    from chess_trainer.core.models import StudyChapter
+
+    importar(client)
+    estudo = client.get("/api/studies").json()[0]
+    cid = client.get(f"/api/studies/{estudo['id']}").json()["chapters"][0]["id"]
+    with client.app.state.session_factory() as db:
+        db.get(StudyChapter, cid).tree_json = ""
+        db.commit()
+
+    detalhe = client.get(f"/api/studies/{estudo['id']}/chapters/{cid}").json()
+
+    assert detalhe["tree"]["root"]["children"]
+    with client.app.state.session_factory() as db:
+        assert db.get(StudyChapter, cid).tree_json

@@ -269,7 +269,10 @@ class StudyOut(BaseModel):
     author: str
     source_url: str
     lichess_id: str | None
+    # "lichess" (importado) ou "local" (criado aqui)
+    origin: str = "lichess"
     imported_at: datetime | None
+    updated_at: datetime | None = None
     # contagens: capítulos do estudo, capítulos com exercício (na fila ou fora),
     # exercícios na repetição e vencidos hoje
     chapter_count: int = 0
@@ -287,6 +290,18 @@ class ChapterOut(BaseModel):
     in_queue: bool
     puzzle_id: str | None
     intro_comment: str = ""
+    # nulo nos capítulos importados antes do editor
+    updated_at: datetime | None = None
+
+
+class ChapterDetail(ChapterOut):
+    """O capítulo inteiro, como o editor precisa dele."""
+
+    fen: str
+    orientation: str
+    # árvore de lances (ver `core/studies/tree.py`)
+    tree: dict
+    pgn: str
 
 
 class StudyDetail(StudyOut):
@@ -296,6 +311,34 @@ class StudyDetail(StudyOut):
 class StudyImportIn(BaseModel):
     url: str | None = None
     pgn: str | None = None
+
+
+class StudyCreateIn(BaseModel):
+    title: str = ""
+    author: str = ""
+
+
+class StudyUpdateIn(BaseModel):
+    """Campo ausente fica como está; `chapter_order` tem de listar cada capítulo
+    do estudo exatamente uma vez."""
+
+    title: str | None = None
+    author: str | None = None
+    chapter_order: list[str] | None = None
+
+
+class ChapterCreateIn(BaseModel):
+    name: str = ""
+    fen: str | None = None
+    orientation: str | None = None
+    mode: str | None = None
+
+
+class ChapterSaveIn(BaseModel):
+    name: str = ""
+    mode: str = "read"
+    orientation: str = "white"
+    tree: dict = {}
 
 
 class TacticOut(BaseModel):

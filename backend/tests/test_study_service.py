@@ -1,4 +1,4 @@
-"""Testes do serviço de estudos: upsert, reimportação, fila e remoção."""
+"""Testes do serviço de estudos: upsert, reimportação, edição, fila e remoção."""
 
 import json
 from datetime import datetime, timedelta
@@ -11,11 +11,20 @@ from sqlalchemy import func, select
 from chess_trainer.core.models import Puzzle, Review, Study, StudyChapter, utcnow
 from chess_trainer.core.studies.parser import parse_study_pgn
 from chess_trainer.core.studies.service import (
+    ChapterOrderError,
     StudyNotFound,
+    TreeInvalid,
+    chapter_detail,
+    create_chapter,
+    create_study,
+    delete_chapter,
     delete_study,
+    duplicate_chapter,
     fetch_study_pgn,
     parse_lichess_url,
+    save_chapter,
     set_study_queue,
+    update_study,
     upsert_study,
 )
 from tests.factories import make_puzzle
@@ -331,3 +340,259 @@ def test_ensure_tree_preenche_capitulo_sem_arvore(db_session):
     db_session.commit()
     assert [n["san"] for n in tree["root"]["children"]] == ["Ra8#"]
     assert json.loads(capitulo.tree_json) == tree
+
+
+# --- edição local: estudo e capítulos ------------------------------------
+
+
+def arvore_mate():
+    """Mate em um com enunciado, seta na raiz e uma variação comentada."""
+    return {
+        "fen": FEN_MATE,
+        "orientation": "white",
+        "intro": "Mate em um.",
+        "root": {
+            "shapes": [{"orig": "a1", "dest": "a8", "brush": "green"}],
+            "children": [
+                {"id": "n1", "uci": "a1a8", "san": "Ra8#", "comment": "Mate!",
+                 "shapes": [], "nags": [], "children": []},
+                {"id": "n2", "uci": "a1a7", "san": "Ra7", "comment": "Deixa o rei escapar.",
+                 "shapes": [], "nags": [2], "children": []},
+            ],
+        },
+    }
+
+
+def arvore_linear(fen, lances, intro=""):
+    """Árvore só com a linha principal; `lances` são pares (uci, san)."""
+    raiz = {"shapes": [], "children": []}
+    atual = raiz
+    for i, (uci, san) in enumerate(lances, start=1):
+        node = {"id": f"n{i}", "uci": uci, "san": san, "comment": "",
+                "shapes": [], "nags": [], "children": []}
+        atual["children"].append(node)
+        atual = node
+    return {"fen": fen, "orientation": "white", "intro": intro, "root": raiz}
+
+
+LANCES_PEAO = [("e2e4", "e4"), ("e8d7", "Kd7"), ("e4e5", "e5")]
+
+
+def estudo_local(db, titulo=ESTUDO, autor="eu"):
+    return create_study(db, titulo, autor)
+
+
+def test_criar_estudo_local_fica_com_origin_local(db_session):
+    study = create_study(db_session, "  Meu estudo  ", "eu")
+
+    assert study.origin == "local" and study.title == "Meu estudo" and study.author == "eu"
+    assert study.lichess_id is None and study.source_url == "" and study.imported_at is None
+    assert study.updated_at is not None and study.chapters == []
+
+
+def test_criar_capitulo_comeca_com_arvore_vazia(db_session):
+    study = estudo_local(db_session)
+
+    chapter = create_chapter(db_session, study, "Um", FEN_MATE, "black", "gamebook")
+
+    assert chapter.order == 1 and chapter.name == "Um" and chapter.orientation == "black"
+    assert chapter.fen == FEN_MATE and chapter.mode == "gamebook"
+    arvore = json.loads(chapter.tree_json)
+    assert arvore["root"]["children"] == [] and arvore["orientation"] == "black"
+    # sem lances não há exercício, mesmo em gamebook
+    assert chapter.puzzle_id is None
+    assert "[FEN " in chapter.pgn and "[Orientation " in chapter.pgn
+
+
+def test_criar_capitulo_com_fen_invalida_recusa(db_session):
+    study = estudo_local(db_session)
+
+    with pytest.raises(TreeInvalid) as exc:
+        create_chapter(db_session, study, "Torto", "posição inventada")
+
+    assert exc.value.errors and "FEN inválida" in exc.value.errors[0]
+
+
+def test_salvar_capitulo_cria_o_exercicio_com_variacao_e_seta(db_session):
+    study = estudo_local(db_session)
+    chapter = create_chapter(db_session, study, "Um", FEN_MATE)
+
+    save_chapter(db_session, chapter, "Mate no corredor", "gamebook", "white", arvore_mate())
+
+    puzzle = db_session.get(Puzzle, chapter.puzzle_id)
+    assert puzzle is not None and puzzle.source == "study" and puzzle.in_queue is True
+    assert puzzle.fen_start == FEN_MATE and puzzle.side_to_move == "white"
+    assert puzzle.solver_moves == 1 and puzzle.end_reason == "mate"
+    solucao = json.loads(puzzle.solution)
+    assert [m["uci"] for m in solucao["moves"]] == ["a1a8"]
+    assert solucao["wrong_moves"] == {"a1a7": "Deixa o rei escapar."}
+    assert solucao["comments"] == {"0": "Mate!"}
+    assert solucao["shapes"] == {"start": [{"orig": "a1", "dest": "a8", "brush": "green"}]}
+    assert solucao["intro"] == "Mate em um."
+    # o capítulo guarda a árvore, o enunciado e o PGN gerado a partir dela
+    assert chapter.name == "Mate no corredor" and chapter.intro_comment == "Mate em um."
+    assert json.loads(chapter.tree_json)["root"]["children"][1]["uci"] == "a1a7"
+    assert "[%cal Ga1a8]" in chapter.pgn and "Ra8#" in chapter.pgn
+    assert chapter.updated_at is not None
+
+
+def test_salvar_de_novo_com_a_mesma_linha_mantem_id_e_historico(db_session):
+    study = estudo_local(db_session)
+    chapter = create_chapter(db_session, study, "Um", FEN_MATE)
+    save_chapter(db_session, chapter, "Um", "gamebook", "white", arvore_mate())
+    puzzle_id = chapter.puzzle_id
+    puzzle = db_session.get(Puzzle, puzzle_id)
+    puzzle.srs_ease, puzzle.srs_interval_days, puzzle.srs_due_at = 2.9, 12, AGORA
+    db_session.add(Review(puzzle_id=puzzle_id, reviewed_at=AGORA, result="ok",
+                          ease=2.9, interval_days=12, due_at=AGORA, lapses=0))
+    db_session.commit()
+
+    arvore = arvore_mate()
+    arvore["root"]["children"][0]["comment"] = "Mate no corredor!"
+    save_chapter(db_session, chapter, "Um", "gamebook", "white", arvore)
+
+    db_session.expire_all()
+    atualizado = db_session.get(Puzzle, puzzle_id)
+    assert db_session.get(StudyChapter, chapter.id).puzzle_id == puzzle_id
+    assert atualizado.srs_ease == 2.9 and atualizado.srs_interval_days == 12
+    assert atualizado.srs_due_at == AGORA
+    assert json.loads(atualizado.solution)["comments"] == {"0": "Mate no corredor!"}
+    assert db_session.scalar(select(func.count(Review.id))) == 1
+
+
+def test_mudar_a_linha_principal_troca_a_solucao_no_lugar(db_session):
+    study = estudo_local(db_session)
+    chapter = create_chapter(db_session, study, "Um", FEN_PEAO)
+    save_chapter(db_session, chapter, "Um", "gamebook", "white",
+                 arvore_linear(FEN_PEAO, LANCES_PEAO[:1]))
+    puzzle_id = chapter.puzzle_id
+
+    save_chapter(db_session, chapter, "Um", "gamebook", "white",
+                 arvore_linear(FEN_PEAO, LANCES_PEAO))
+
+    db_session.expire_all()
+    atualizado = db_session.get(Puzzle, puzzle_id)
+    assert db_session.get(StudyChapter, chapter.id).puzzle_id == puzzle_id
+    assert [m["uci"] for m in json.loads(atualizado.solution)["moves"]] == ["e2e4", "e8d7", "e4e5"]
+    assert atualizado.solver_moves == 2
+
+
+def test_virar_leitura_tira_o_exercicio_da_fila_e_voltar_devolve(db_session):
+    study = estudo_local(db_session)
+    chapter = create_chapter(db_session, study, "Um", FEN_MATE)
+    save_chapter(db_session, chapter, "Um", "gamebook", "white", arvore_mate())
+    puzzle_id = chapter.puzzle_id
+
+    save_chapter(db_session, chapter, "Um", "read", "white", arvore_mate())
+
+    db_session.expire_all()
+    assert db_session.get(Puzzle, puzzle_id).in_queue is False
+    # nada foi apagado: o capítulo continua apontando para o exercício
+    assert db_session.get(StudyChapter, chapter.id).puzzle_id == puzzle_id
+
+    save_chapter(db_session, chapter, "Um", "gamebook", "white", arvore_mate())
+
+    db_session.expire_all()
+    assert db_session.get(Puzzle, puzzle_id).in_queue is True
+
+
+def test_salvar_arvore_com_lance_ilegal_recusa_sem_gravar(db_session):
+    study = estudo_local(db_session)
+    chapter = create_chapter(db_session, study, "Um", FEN_MATE)
+    torta = arvore_linear(FEN_MATE, [("a1a8", "Ra8#"), ("g8h8", "Kh8")])
+
+    with pytest.raises(TreeInvalid) as exc:
+        save_chapter(db_session, chapter, "Um", "gamebook", "white", torta)
+
+    assert any("lance ilegal" in erro for erro in exc.value.errors)
+    assert db_session.get(StudyChapter, chapter.id).puzzle_id is None
+
+
+def test_apagar_capitulo_apaga_exercicio_revisoes_e_renumera(db_session):
+    study = estudo_local(db_session)
+    um = create_chapter(db_session, study, "Um", FEN_MATE)
+    save_chapter(db_session, um, "Um", "gamebook", "white", arvore_mate())
+    dois = create_chapter(db_session, study, "Dois", FEN_PEAO)
+    save_chapter(db_session, dois, "Dois", "gamebook", "white", arvore_linear(FEN_PEAO, LANCES_PEAO))
+    tres = create_chapter(db_session, study, "Três", FEN_PEAO_AVANCADO, mode="read")
+    for capitulo in (um, dois):
+        db_session.add(Review(puzzle_id=capitulo.puzzle_id, reviewed_at=AGORA, result="ok",
+                              ease=2.5, interval_days=1, due_at=AGORA, lapses=0))
+    db_session.commit()
+    apagado, exercicio_apagado = dois.id, dois.puzzle_id
+    um_id, tres_id, puzzle_de_um = um.id, tres.id, um.puzzle_id
+
+    delete_chapter(db_session, dois)
+
+    db_session.expire_all()
+    assert db_session.get(StudyChapter, apagado) is None
+    assert db_session.get(Puzzle, exercicio_apagado) is None
+    assert db_session.scalar(select(func.count(Review.id))) == 1
+    # o exercício do outro capítulo continua inteiro e a ordem fecha sem buracos
+    assert db_session.get(Puzzle, puzzle_de_um) is not None
+    restantes = db_session.get(Study, study.id).chapters
+    assert [(c.id, c.order) for c in restantes] == [(um_id, 1), (tres_id, 2)]
+
+
+def test_duplicar_capitulo_copia_a_arvore_como_leitura(db_session):
+    study = estudo_local(db_session)
+    um = create_chapter(db_session, study, "Um", FEN_MATE)
+    save_chapter(db_session, um, "Um", "gamebook", "white", arvore_mate())
+    create_chapter(db_session, study, "Dois", FEN_PEAO, mode="read")
+
+    copia = duplicate_chapter(db_session, um)
+
+    assert copia.name == "Um (cópia)" and copia.order == 2
+    # a cópia teria a mesma posição inicial do original: entra como leitura, sem
+    # exercício, e quem duplicou escolhe o modo depois de editá-la
+    assert copia.mode == "read" and copia.puzzle_id is None
+    assert json.loads(copia.tree_json) == json.loads(db_session.get(StudyChapter, um.id).tree_json)
+    db_session.expire_all()
+    ordens = [(c.name, c.order) for c in db_session.get(Study, study.id).chapters]
+    assert ordens == [("Um", 1), ("Um (cópia)", 2), ("Dois", 3)]
+
+
+def test_reordenar_os_capitulos(db_session):
+    study = estudo_local(db_session)
+    ids = [create_chapter(db_session, study, nome).id for nome in ("Um", "Dois", "Três")]
+
+    update_study(db_session, study, chapter_order=[ids[2], ids[0], ids[1]])
+
+    db_session.expire_all()
+    capitulos = db_session.get(Study, study.id).chapters
+    assert [c.id for c in capitulos] == [ids[2], ids[0], ids[1]]
+    assert [c.order for c in capitulos] == [1, 2, 3]
+
+
+def test_ordem_que_nao_lista_todos_os_capitulos_recusa(db_session):
+    study = estudo_local(db_session)
+    ids = [create_chapter(db_session, study, nome).id for nome in ("Um", "Dois")]
+
+    with pytest.raises(ChapterOrderError):
+        update_study(db_session, study, chapter_order=[ids[0]])
+    with pytest.raises(ChapterOrderError):
+        update_study(db_session, study, chapter_order=[ids[0], ids[0]])
+
+
+def test_atualizar_titulo_e_autor(db_session):
+    study = estudo_local(db_session, "Antigo", "alguém")
+
+    update_study(db_session, study, title="Novo", author="outro")
+
+    db_session.expire_all()
+    atualizado = db_session.get(Study, study.id)
+    assert atualizado.title == "Novo" and atualizado.author == "outro"
+
+
+def test_detalhe_do_capitulo_monta_a_arvore_de_capitulo_antigo(db_session):
+    study, _ = importar(db_session, _dois_capitulos())
+    chapter = study.chapters[0]
+    chapter.tree_json = ""
+    db_session.commit()
+
+    dados = chapter_detail(chapter)
+    db_session.commit()
+
+    assert dados["tree"]["root"]["children"], dados
+    assert dados["fen"] == chapter.fen and dados["pgn"] == chapter.pgn
+    assert json.loads(db_session.get(StudyChapter, chapter.id).tree_json) == dados["tree"]

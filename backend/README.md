@@ -39,9 +39,10 @@ uma importação cancelada.
 (útil em testes e para reimportar sem rede) ou uma **URL**. O padrão é
 `https://database.lichess.org/lichess_db_puzzle.csv.zst`.
 
-## Estudos do Lichess
+## Estudos
 
-Capítulos de estudos públicos do Lichess viram exercícios (`source = "study"`). Rotas:
+Capítulos de estudos viram exercícios (`source = "study"`). Um estudo pode vir do Lichess
+(`origin = "lichess"`) ou ser feito aqui no editor (`origin = "local"`). Rotas:
 
     GET    /api/studies                  # estudos com capítulos, quantos na repetição e vencidos hoje
     GET    /api/studies/{id}             # detalhe: capítulos em ordem, modo, puzzle_id, enunciado
@@ -49,6 +50,16 @@ Capítulos de estudos públicos do Lichess viram exercícios (`source = "study"`
     POST   /api/studies/{id}/reimport    # 202: baixa de novo pelo lichess_id guardado
     POST   /api/studies/{id}/queue       # {"in_queue": bool} para todos os capítulos do estudo
     DELETE /api/studies/{id}             # 204: apaga estudo, capítulos, puzzles e histórico
+
+    POST   /api/studies                  # 201: estudo local vazio; corpo {title, author}
+    PUT    /api/studies/{id}             # {title?, author?, chapter_order?}; ordem incompleta dá 400
+    GET    /api/studies/{id}/pgn         # PGN do estudo inteiro, como download
+    GET    /api/studies/{id}/chapters/{cid}            # capítulo completo: fen, orientation, tree, pgn
+    POST   /api/studies/{id}/chapters                  # 201: capítulo novo; corpo {name, fen?, orientation?, mode?}
+    PUT    /api/studies/{id}/chapters/{cid}            # salva {name, mode, orientation, tree}; árvore inválida dá 422
+    DELETE /api/studies/{id}/chapters/{cid}            # 204: capítulo, exercício e revisões dele
+    POST   /api/studies/{id}/chapters/{cid}/duplicate  # 201: cópia logo depois, como leitura
+    GET    /api/studies/{id}/chapters/{cid}/pgn        # PGN de um capítulo, como download
 
 O job `import_study` baixa `https://lichess.org/api/study/{id}.pgn` (redirecionamentos seguidos,
 timeout de 30 s) ou usa o PGN colado, separa os capítulos com python-chess e faz o upsert pela chave
@@ -60,6 +71,26 @@ Estudo privado ou inexistente (404 do Lichess) termina o job em `error` com
 `create_app(study_http_factory=...)` troca o cliente HTTP usado no download (o padrão é
 `httpx.Client(follow_redirects=True, timeout=30.0)`); os testes passam um `httpx.MockTransport` por
 ali, sem rede.
+
+### Editor
+
+A árvore de lances (`core/studies/tree.py`, gravada em `study_chapters.tree_json`) é a fonte da
+verdade do capítulo: ao salvar, dela saem o PGN, a FEN, a orientação, o enunciado e o exercício.
+O exercício é recriado pelas mesmas regras da reimportação — o id e o histórico da repetição
+espaçada continuam os mesmos, mesmo quando a linha principal muda. Capítulo em modo `read` (ou
+`gamebook` ainda sem lances) não tem exercício: o que havia sai da fila, sem ser apagado; voltar
+para `gamebook` o devolve à fila.
+
+Validação do servidor (mensagens em português na lista `detail` do 422): FEN válida, todos os
+lances legais, no máximo 2 000 lances por capítulo e comentários de até 4 000 caracteres.
+
+Duplicar um capítulo copia a árvore, mas a cópia entra como leitura: ela começa na mesma posição
+do original e a única `(fen_start, kind, source)` não deixa dois exercícios de estudo partirem da
+mesma FEN. Quem duplicou muda a posição (ou a linha) e escolhe `gamebook` ao salvar a cópia.
+
+Exportar dá o PGN no formato que o Lichess importa (um jogo por capítulo, com `[StudyName]`,
+`[ChapterName]`, `[ChapterMode]`, `[Orientation]`, `[FEN]`/`[SetUp]`, `[%cal]`/`[%csl]` e NAGs).
+Exportar um estudo e importá-lo de volta devolve exatamente as mesmas árvores.
 
 ## Atualização do banco
 

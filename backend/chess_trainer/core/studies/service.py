@@ -1,4 +1,4 @@
-"""Serviço dos estudos do Lichess: baixar, importar (upsert), fila e remoção.
+"""Serviço dos estudos: baixar, importar (upsert), editar, exportar e remover.
 
 O parser (`parser.py`) só interpreta texto; aqui o `ParsedStudy` vira linhas de
 `studies`, `study_chapters` e `puzzles`. Reimportar é um upsert: capítulos são
@@ -6,6 +6,11 @@ reconhecidos pela `lichess_url` (sem URL, pela ordem dentro do estudo), o
 exercício de um capítulo é atualizado no lugar — mesmo id, mesmo histórico de
 repetição espaçada — e capítulos que sumiram do estudo saem da fila sem serem
 apagados.
+
+A segunda metade do arquivo é o editor: estudos criados aqui (`origin="local"`)
+e a edição de qualquer capítulo. Ao salvar, a árvore (`tree.py`) é a fonte da
+verdade — dela saem o PGN, a FEN, o enunciado e o exercício, que é recriado
+pelas mesmas regras da reimportação.
 """
 
 from __future__ import annotations
@@ -24,7 +29,14 @@ from sqlalchemy.orm import Session
 
 from chess_trainer.core.models import Puzzle, Review, Study, StudyChapter, new_id, utcnow
 from chess_trainer.core.studies.parser import ParsedChapter, ParsedStudy
-from chess_trainer.core.studies.tree import chapter_tree
+from chess_trainer.core.studies.tree import (
+    ORIENTATIONS,
+    chapter_pgn,
+    chapter_tree,
+    empty_tree,
+    solution_from_tree,
+    validate_tree,
+)
 
 STUDY_PGN_URL = "https://lichess.org/api/study/{lichess_id}.pgn"
 STUDY_URL = "https://lichess.org/study/{lichess_id}"
@@ -38,6 +50,19 @@ DETALHE_MAX = 300
 
 class StudyNotFound(Exception):
     """O Lichess respondeu 404: estudo privado ou inexistente."""
+
+
+class TreeInvalid(Exception):
+    """A árvore não passou na validação. `errors` traz as mensagens em
+    português, prontas para o corpo da resposta 422."""
+
+    def __init__(self, errors: list[str]):
+        super().__init__("; ".join(errors))
+        self.errors = errors
+
+
+class ChapterOrderError(Exception):
+    """A nova ordem não é uma permutação dos capítulos do estudo."""
 
 
 class StudyImportCancelled(Exception):
@@ -199,12 +224,15 @@ def _upsert_chapter(db: Session, study: Study, chapter: StudyChapter | None,
         _puzzle_out_of_queue(db, chapter)
         return chapter
 
-    _upsert_puzzle(db, chapter, parsed, report)
+    _upsert_puzzle(db, chapter, parsed.fen, parsed.solution, report)
     return chapter
 
 
-def _upsert_puzzle(db: Session, chapter: StudyChapter, parsed: ParsedChapter, report: ImportReport) -> None:
-    dados = _puzzle_fields(parsed)
+def _upsert_puzzle(db: Session, chapter: StudyChapter, fen: str, solution: dict,
+                   report: ImportReport) -> None:
+    """Cria ou atualiza o exercício do capítulo. Serve tanto à importação quanto
+    ao editor: o que muda entre eles é só de onde vêm a FEN e a solução."""
+    dados = _puzzle_fields(fen, solution)
     puzzle = db.get(Puzzle, chapter.puzzle_id) if chapter.puzzle_id else None
     if puzzle is not None:
         # atualiza no lugar: id e histórico da repetição espaçada continuam
@@ -251,12 +279,12 @@ def _upsert_puzzle(db: Session, chapter: StudyChapter, parsed: ParsedChapter, re
     report.created += 1
 
 
-def _puzzle_fields(parsed: ParsedChapter) -> dict:
-    solution = parsed.solution or {}
+def _puzzle_fields(fen: str, solution: dict | None) -> dict:
+    solution = solution or {}
     moves = solution.get("moves", [])
-    board = chess.Board(parsed.fen)
+    board = chess.Board(fen)
     return {
-        "fen_start": parsed.fen,
+        "fen_start": fen,
         "side_to_move": "white" if board.turn == chess.WHITE else "black",
         "solution": json.dumps(solution, ensure_ascii=False),
         "solver_moves": sum(1 for m in moves if m.get("by") == "solver"),
@@ -300,6 +328,227 @@ def ensure_tree(chapter: StudyChapter) -> dict:
     if not chapter.tree_json:
         chapter.tree_json = json.dumps(tree, ensure_ascii=False)
     return tree
+
+
+def chapter_detail(chapter: StudyChapter) -> dict:
+    """Tudo o que o editor precisa de um capítulo. A árvore vem garantida por
+    `ensure_tree`, então quem chama tem de dar o commit."""
+    tree = ensure_tree(chapter)
+    return {
+        "id": chapter.id,
+        "order": chapter.order,
+        "name": chapter.name,
+        "lichess_url": chapter.lichess_url,
+        "mode": chapter.mode,
+        "in_queue": chapter.in_queue,
+        "puzzle_id": chapter.puzzle_id,
+        "intro_comment": chapter.intro_comment,
+        "updated_at": chapter.updated_at,
+        "fen": chapter.fen or tree["fen"],
+        "orientation": chapter.orientation or tree["orientation"],
+        "tree": tree,
+        "pgn": chapter.pgn,
+    }
+
+
+# --- editor: estudos e capítulos locais ----------------------------------
+
+MODES = ("gamebook", "read")
+
+SEM_TITULO = "Estudo sem título"
+
+
+def create_study(db: Session, title: str, author: str = "", now: datetime | None = None) -> Study:
+    """Cria um estudo vazio feito aqui (nunca baixado do Lichess)."""
+    now = now or utcnow()
+    study = Study(id=new_id(), title=(title or "").strip() or SEM_TITULO,
+                  author=(author or "").strip(), origin="local", source_url="", lichess_id=None,
+                  imported_at=None, created_at=now, updated_at=now)
+    db.add(study)
+    db.commit()
+    db.expire_all()
+    return study
+
+
+def update_study(db: Session, study: Study, title: str | None = None, author: str | None = None,
+                 chapter_order: list[str] | None = None, now: datetime | None = None) -> Study:
+    """Renomeia o estudo e/ou reordena os capítulos. Campo ausente fica como está."""
+    if title is not None and title.strip():
+        study.title = title.strip()
+    if author is not None:
+        study.author = author.strip()
+    if chapter_order is not None:
+        _reorder_chapters(study, chapter_order)
+    study.updated_at = now or utcnow()
+    db.commit()
+    db.expire_all()
+    return study
+
+
+def _reorder_chapters(study: Study, chapter_order: list[str]) -> None:
+    atuais = {c.id: c for c in study.chapters}
+    if len(chapter_order) != len(atuais) or set(chapter_order) != set(atuais):
+        raise ChapterOrderError("a nova ordem tem de listar cada capítulo do estudo exatamente uma vez")
+    for posicao, chapter_id in enumerate(chapter_order, start=1):
+        atuais[chapter_id].order = posicao
+
+
+def create_chapter(db: Session, study: Study, name: str, fen: str = "", orientation: str = "white",
+                   mode: str = "read", now: datetime | None = None) -> StudyChapter:
+    """Cria um capítulo com a árvore vazia da posição dada. FEN inválida levanta
+    `TreeInvalid` (é a mesma validação do salvamento)."""
+    now = now or utcnow()
+    tree = _normalized_tree(empty_tree(fen or chess.STARTING_FEN, orientation), orientation)
+    _check_tree(tree)
+    ordem = max((c.order for c in study.chapters), default=0) + 1
+    chapter = StudyChapter(id=new_id(), study_id=study.id, order=ordem,
+                           name=(name or "").strip() or f"Capítulo {ordem}",
+                           fen=tree["fen"], orientation=tree["orientation"], mode=_mode(mode),
+                           in_queue=True, updated_at=now)
+    db.add(chapter)
+    db.flush()
+    _write_tree(chapter, tree, study)
+    study.updated_at = now
+    db.commit()
+    db.expire_all()
+    return chapter
+
+
+def save_chapter(db: Session, chapter: StudyChapter, name: str, mode: str, orientation: str,
+                 tree: dict, now: datetime | None = None) -> StudyChapter:
+    """Salva a árvore do capítulo e recria o exercício a partir dela. Árvore
+    inválida levanta `TreeInvalid` e nada é gravado."""
+    now = now or utcnow()
+    tree = _normalized_tree(tree, orientation)
+    _check_tree(tree)
+    study = chapter.study
+    chapter.name = (name or "").strip() or chapter.name
+    chapter.mode = _mode(mode)
+    _write_tree(chapter, tree, study)
+    chapter.updated_at = now
+    study.updated_at = now
+    db.flush()
+    _recreate_exercise(db, chapter, tree)
+    db.commit()
+    db.expire_all()
+    return chapter
+
+
+def delete_chapter(db: Session, chapter: StudyChapter, now: datetime | None = None) -> None:
+    """Apaga o capítulo, o exercício dele e as revisões desse exercício, e
+    renumera os capítulos que ficam para a ordem não ter buracos."""
+    study = chapter.study
+    puzzle_ids = set(db.scalars(select(Puzzle.id).where(Puzzle.chapter_id == chapter.id)))
+    if chapter.puzzle_id:
+        puzzle_ids.add(chapter.puzzle_id)
+    chapter.puzzle_id = None
+    db.flush()
+    if puzzle_ids:
+        db.execute(delete(Review).where(Review.puzzle_id.in_(puzzle_ids)))
+        # nenhum outro capítulo pode ficar apontando para um exercício que sumiu
+        db.execute(update(StudyChapter).where(StudyChapter.puzzle_id.in_(puzzle_ids)).values(puzzle_id=None))
+        db.execute(delete(Puzzle).where(Puzzle.id.in_(puzzle_ids)))
+    db.delete(chapter)
+    db.flush()
+    restantes = db.scalars(
+        select(StudyChapter).where(StudyChapter.study_id == study.id).order_by(StudyChapter.order)
+    ).all()
+    for posicao, outro in enumerate(restantes, start=1):
+        outro.order = posicao
+    study.updated_at = now or utcnow()
+    db.commit()
+    db.expire_all()
+
+
+def duplicate_chapter(db: Session, chapter: StudyChapter, now: datetime | None = None) -> StudyChapter:
+    """Copia o capítulo logo depois dele.
+
+    A cópia entra como leitura, sem exercício: ela começa com a mesma posição
+    inicial do original e a única (fen_start, kind, source) não deixa dois
+    exercícios de estudo partirem da mesma FEN. Quem duplicou muda a posição (ou
+    a linha) e escolhe o modo gamebook ao salvar a cópia.
+    """
+    now = now or utcnow()
+    study = chapter.study
+    tree = ensure_tree(chapter)
+    for outro in study.chapters:
+        if outro.order > chapter.order:
+            outro.order += 1
+    db.flush()
+    copia = StudyChapter(id=new_id(), study_id=study.id, order=chapter.order + 1,
+                         name=f"{chapter.name} (cópia)", fen=chapter.fen,
+                         orientation=chapter.orientation, mode="read",
+                         in_queue=chapter.in_queue, updated_at=now)
+    db.add(copia)
+    db.flush()
+    _write_tree(copia, tree, study)
+    study.updated_at = now
+    db.commit()
+    db.expire_all()
+    return copia
+
+
+def _mode(mode: str) -> str:
+    return mode if mode in MODES else "read"
+
+
+def _orientation(orientation: str) -> str:
+    return orientation if orientation in ORIENTATIONS else "white"
+
+
+def _normalized_tree(tree: dict, orientation: str) -> dict:
+    """Cópia rasa da árvore com os campos do topo saneados. A orientação que o
+    editor manda vale sobre a que veio dentro da árvore: é a que está na tela."""
+    novo = dict(tree or {})
+    novo["fen"] = (novo.get("fen") or "").strip() or chess.STARTING_FEN
+    novo["orientation"] = _orientation(orientation or novo.get("orientation", ""))
+    novo["intro"] = (novo.get("intro") or "").strip()
+    if not isinstance(novo.get("root"), dict):
+        novo["root"] = {"shapes": [], "children": []}
+    return novo
+
+
+def _check_tree(tree: dict) -> None:
+    """Valida e normaliza a FEN da árvore (a mesma que vai para o exercício)."""
+    erros = validate_tree(tree)
+    if erros:
+        raise TreeInvalid(erros)
+    tree["fen"] = chess.Board(tree["fen"]).fen()
+
+
+def _write_tree(chapter: StudyChapter, tree: dict, study: Study | None) -> None:
+    """A árvore manda: dela saem `tree_json`, a FEN, a orientação, o enunciado e
+    o PGN do capítulo."""
+    chapter.tree_json = json.dumps(tree, ensure_ascii=False)
+    chapter.fen = tree["fen"]
+    chapter.orientation = tree["orientation"]
+    chapter.intro_comment = tree["intro"]
+    chapter.pgn = chapter_pgn(chapter, study)
+
+
+def _recreate_exercise(db: Session, chapter: StudyChapter, tree: dict) -> None:
+    """Recria o exercício do capítulo a partir da árvore recém-salva.
+
+    Capítulo de leitura (ou gamebook ainda sem lances) não tem exercício: o que
+    havia sai da fila, sem ser apagado, para não perder o histórico de quem já o
+    treinou. Voltar para gamebook devolve o exercício à fila do capítulo.
+
+    Se outro capítulo já usa esta posição inicial, `_upsert_puzzle` deixa este
+    sem exercício (a única (fen_start, kind, source)); o capítulo é salvo do
+    mesmo jeito e a resposta mostra `puzzle_id` nulo.
+    """
+    solution = solution_from_tree(tree) if chapter.mode == "gamebook" else None
+    if solution is None:
+        _puzzle_out_of_queue(db, chapter)
+        return
+    antes = db.get(Puzzle, chapter.puzzle_id) if chapter.puzzle_id else None
+    estava_fora = antes is not None and not antes.in_queue
+    _upsert_puzzle(db, chapter, chapter.fen, solution, ImportReport())
+    if estava_fora and chapter.in_queue and chapter.puzzle_id:
+        puzzle = db.get(Puzzle, chapter.puzzle_id)
+        if puzzle is not None:
+            puzzle.in_queue = True
+    db.flush()
 
 
 # --- fila e remoção ------------------------------------------------------
