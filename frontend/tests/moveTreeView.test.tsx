@@ -81,6 +81,29 @@ test("botão direito num lance abre o menu do nó", () => {
   expect(onContextMenu).toHaveBeenCalledWith("n3", { x: 30, y: 40 });
 });
 
+test("marca com o símbolo do livro os lances de bookIds, na principal e nas variações", () => {
+  const { container } = render(
+    <MoveTreeView tree={tree} currentId={null} onGoTo={() => {}} bookIds={new Set(["n1", "n3"])} />,
+  );
+  const livros = container.querySelectorAll(".book");
+  expect(livros.length).toBe(2);
+  expect(livros[0].textContent).toBe("📖");
+  expect(livros[0].getAttribute("title")).toBe("lance de livro (base de mestres)");
+  expect(livros[0].getAttribute("aria-label")).toBe("lance de livro (base de mestres)");
+  // o símbolo fica junto do lance, dentro do botão dele
+  // getByText olha só o texto direto do botão: o símbolo fica num span dentro dele
+  expect(screen.getByText(/^1\. e4$/).querySelector(".book")).toBeTruthy();
+  // n3 é o lance da variação
+  expect((container.querySelector(".variation") as HTMLElement).querySelector(".book")).toBeTruthy();
+  // e5 não está no livro: sem símbolo
+  expect(screen.getByText(/^e5!$/).querySelector(".book")).toBeNull();
+});
+
+test("sem bookIds nenhum lance ganha símbolo", () => {
+  const { container } = render(<MoveTreeView tree={tree} currentId={null} onGoTo={() => {}} />);
+  expect(container.querySelectorAll(".book").length).toBe(0);
+});
+
 test("árvore vazia mostra um aviso", () => {
   const vazia: Tree = { fen: START, orientation: "white", intro: "", root: { children: [] } };
   const { container } = render(<MoveTreeView tree={vazia} currentId={null} onGoTo={() => {}} />);

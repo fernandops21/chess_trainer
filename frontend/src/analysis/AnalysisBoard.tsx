@@ -12,6 +12,7 @@ import { NodeMenu } from "./NodeMenu";
 import { OpeningsPanel } from "./OpeningsPanel";
 import { PositionEditor } from "./PositionEditor";
 import { SaveChapterModal } from "./SaveChapterModal";
+import { useBookMoves } from "./useBookMoves";
 import { useMoveTree } from "./useMoveTree";
 import { storage } from "../lib/storage";
 import { MAX_NODES, countNodes, emptyTree } from "./moveTree";
@@ -67,6 +68,8 @@ export function AnalysisBoard({
     storage.get<Aba>("analysis.sidePanel", "engine") === "aberturas" ? "aberturas" : "engine",
   );
   const { data, error, isFetching } = useAnalyse(mt.fen);
+  // símbolo do livro nos lances do caminho atual que estão na base de mestres
+  const bookIds = useBookMoves(mt.tree, mt.path);
 
   // Vaivém com o pai: a árvore que chega de fora reinicia o hook e a que nasce
   // aqui sobe pelo `onTreeChange`. Um pai que guarda o que recebe devolve a
@@ -283,6 +286,7 @@ export function AnalysisBoard({
             tree={mt.tree}
             currentId={mt.currentId}
             onGoTo={mt.goTo}
+            bookIds={bookIds}
             onContextMenu={editable ? (id, pos) => setMenu({ id, ...pos }) : undefined}
           />
         </div>

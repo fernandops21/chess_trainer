@@ -13,7 +13,12 @@ export interface MoveTreeViewProps {
   onGoTo: (id: string) => void;
   /** Botão direito (ou toque longo) num lance: abre o menu do nó. */
   onContextMenu?: (id: string, pos: MenuPos) => void;
+  /** Nós que aparecem no livro de aberturas: ganham o símbolo do livro. */
+  bookIds?: Set<string>;
 }
+
+/** Símbolo do lance que está no livro de aberturas. */
+const BOOK_TITLE = "lance de livro (base de mestres)";
 
 /** Comentário na árvore é só um resumo; a caixa embaixo do tabuleiro traz ele inteiro. */
 const COMMENT_MAX = 80;
@@ -52,11 +57,12 @@ interface MoveProps {
   node: TreeNode;
   prefix: string;
   current: boolean;
+  book: boolean;
   onGoTo: (id: string) => void;
   onContextMenu?: (id: string, pos: MenuPos) => void;
 }
 
-function Move({ node, prefix, current, onGoTo, onContextMenu }: MoveProps) {
+function Move({ node, prefix, current, book, onGoTo, onContextMenu }: MoveProps) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const held = useRef(false);
 
@@ -99,6 +105,7 @@ function Move({ node, prefix, current, onGoTo, onContextMenu }: MoveProps) {
       {prefix}
       {node.san}
       {node.nags.map(nagLabel).join("")}
+      {book && <span className="book" role="img" title={BOOK_TITLE} aria-label={BOOK_TITLE}>📖</span>}
     </button>
   );
 }
@@ -106,6 +113,7 @@ function Move({ node, prefix, current, onGoTo, onContextMenu }: MoveProps) {
 interface Ctx {
   num: Numbering;
   currentId: string | null;
+  bookIds?: Set<string>;
   onGoTo: (id: string) => void;
   onContextMenu?: (id: string, pos: MenuPos) => void;
 }
@@ -129,6 +137,7 @@ function renderLine(nodes: TreeNode[], ply: number, depth: number, ctx: Ctx): Re
           node={main}
           prefix={movePrefix(ctx.num, p, force)}
           current={main.id === ctx.currentId}
+          book={ctx.bookIds?.has(main.id) ?? false}
           onGoTo={ctx.onGoTo}
           onContextMenu={ctx.onContextMenu}
         />
@@ -155,8 +164,8 @@ function renderLine(nodes: TreeNode[], ply: number, depth: number, ctx: Ctx): Re
 }
 
 /** Árvore no formato do Lichess: linha principal corrida, variações recuadas. */
-export function MoveTreeView({ tree, currentId, onGoTo, onContextMenu }: MoveTreeViewProps) {
-  const ctx: Ctx = { num: numbering(tree.fen), currentId, onGoTo, onContextMenu };
+export function MoveTreeView({ tree, currentId, onGoTo, onContextMenu, bookIds }: MoveTreeViewProps) {
+  const ctx: Ctx = { num: numbering(tree.fen), currentId, bookIds, onGoTo, onContextMenu };
   if (tree.root.children.length === 0) {
     return <div className="tree muted">Nenhum lance ainda: jogue no tabuleiro para começar a linha.</div>;
   }
