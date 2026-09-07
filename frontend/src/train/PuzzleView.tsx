@@ -100,7 +100,9 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo }: { puzzle: Tra
         {intro && <p style={{ fontWeight: 600, marginBottom: 0 }}>{intro}</p>}
         <div className={`msg ${state.message.tone}`} aria-live="polite">{state.message.text}</div>
         <div className="row" style={{ marginTop: 10 }}>
-          <button onClick={ctl.useHint} disabled={!playable || state.usedHint}>Dica</button>
+          <button onClick={ctl.useHint} disabled={!playable} aria-label="Dica">
+            {state.hintStage === 1 ? "Jogar o lance" : "Mostrar peça"}
+          </button>
           {clockLabel && <span className="muted" aria-label="relógio">{clockLabel}</span>}
         </div>
       </div>

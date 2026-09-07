@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, test } from "vitest";
 import type { AttemptOut, PuzzleOut, TacticOut } from "../src/api/types";
 import { PuzzleView } from "../src/train/PuzzleView";
@@ -122,4 +122,15 @@ test("exercício de estudo mostra estudo, capítulo e enunciado", () => {
   expect(screen.getByText(/Finais de torre · Ponte de Lucena/)).toBeTruthy();
   expect(screen.getByText("As brancas ganham a peça. Como?")).toBeTruthy();
   expect(screen.queryByText(/eu × ela/)).toBeNull();
+});
+
+test("dica em dois estágios: rótulo muda e o botão segue habilitado", () => {
+  render(<Host puzzle={own} />);
+  const btn = screen.getByRole("button", { name: "Dica" }) as HTMLButtonElement;
+  expect(btn.textContent).toBe("Mostrar peça");
+  expect(btn.disabled).toBe(false);
+  fireEvent.click(btn);
+  expect(btn.textContent).toBe("Jogar o lance");
+  expect(btn.disabled).toBe(false);
+  expect(screen.getByText(/Clique de novo para jogar o lance/)).toBeTruthy();
 });

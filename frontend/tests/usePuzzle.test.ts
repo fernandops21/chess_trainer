@@ -74,8 +74,57 @@ test("dica marca usedHint e destaca a origem", async () => {
   act(() => result.current.useHint());
   expect(result.current.state.usedHint).toBe(true);
   expect(result.current.state.hint).toBe("c3");
+  expect(result.current.state.hintStage).toBe(1);
+  expect(result.current.state.message).toEqual({ text: "Peça destacada. Clique de novo para jogar o lance (dica conta como erro).", tone: "bad" });
+  expect(result.current.state.phase).toBe("awaiting_move");
   await act(async () => { result.current.tryMove("c3", "d5"); await Promise.resolve(); });
   expect(submit).toHaveBeenCalledWith(expect.objectContaining({ correct: true, used_hint: true }));
+});
+
+test("segundo clique na dica joga o lance esperado e a engine responde", async () => {
+  const { result, submit } = setup(MATE_IN_2);
+  expect(result.current.state.hintStage).toBe(0);
+  act(() => result.current.useHint());
+  expect(result.current.state.hintStage).toBe(1);
+  expect(result.current.state.hint).toBe("e1");
+  act(() => result.current.useHint());
+  expect(result.current.state.phase).toBe("engine_replying");
+  expect(result.current.state.lastMove).toEqual(["e1", "e8"]);
+  expect(result.current.state.hintStage).toBe(0);
+  expect(result.current.state.hint).toBeUndefined();
+  await act(async () => { vi.advanceTimersByTime(100); });
+  // no lance seguinte a dica volta ao estágio 0 e pode ser usada de novo
+  expect(result.current.state.phase).toBe("awaiting_move");
+  expect(result.current.state.idx).toBe(2);
+  expect(result.current.state.hintStage).toBe(0);
+  act(() => result.current.useHint());
+  expect(result.current.state.hintStage).toBe(1);
+  expect(result.current.state.hint).toBe("a4");
+  await act(async () => { result.current.useHint(); await Promise.resolve(); });
+  expect(result.current.state.phase).toBe("result");
+  expect(submit).toHaveBeenCalledWith(expect.objectContaining({ correct: true, used_hint: true }));
+});
+
+test("dica joga a promoção da solução", async () => {
+  const { result, submit } = setup(PROMO);
+  act(() => result.current.useHint());
+  expect(result.current.state.hint).toBe("a7");
+  await act(async () => { result.current.useHint(); await Promise.resolve(); });
+  expect(result.current.state.phase).toBe("result");
+  expect(result.current.state.fen.startsWith("Q7/7k/")).toBe(true);
+  expect(result.current.state.pendingPromotion).toBeUndefined();
+  expect(submit).toHaveBeenCalledWith(expect.objectContaining({ correct: true, used_hint: true }));
+});
+
+test("um lance do usuário também zera o estágio da dica", async () => {
+  const { result } = setup(MATE_IN_2);
+  act(() => result.current.useHint());
+  expect(result.current.state.hintStage).toBe(1);
+  act(() => result.current.tryMove("e1", "e8"));
+  await act(async () => { vi.advanceTimersByTime(100); });
+  expect(result.current.state.phase).toBe("awaiting_move");
+  expect(result.current.state.hintStage).toBe(0);
+  expect(result.current.state.hint).toBeUndefined();
 });
 
 test("resposta da engine é aplicada após o atraso e o puzzle segue", async () => {

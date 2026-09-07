@@ -23,6 +23,9 @@ export interface PuzzleState<R = ReviewOut> {
   idx: number;
   wrong: boolean;
   usedHint: boolean;
+  /** Estágio da dica no lance atual: 0 = nenhuma dica ainda, 1 = peça destacada
+   *  (o próximo clique joga o lance esperado). Volta a 0 a cada lance do solver. */
+  hintStage: 0 | 1;
   message: { text: string; tone: "ok" | "bad" | "" };
   lastMove?: [Key, Key];
   check: boolean;
@@ -78,6 +81,7 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
     idx: 0,
     wrong: false,
     usedHint: !!opts.presetHint,
+    hintStage: 0,
     message: opts.presetHint ? { text: "Solução já vista: conta como dica.", tone: "bad" } : { text: "", tone: "" },
     check: introRef.current ? inCheckAt(introRef.current.fen) : chessRef.current.inCheck(),
   }));
@@ -157,20 +161,20 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
       // Textually matched an expected uci/alternative but chess.js rejects it
       // as an illegal move on the current position (e.g. a malformed
       // alternative). Score it as a wrong attempt instead of crashing.
-      setState((p) => ({ ...p, wrong: true, pendingPromotion: undefined, message: { text: "Lance inválido", tone: "bad" } }));
+      setState((p) => ({ ...p, wrong: true, hintStage: 0, pendingPromotion: undefined, message: { text: "Lance inválido", tone: "bad" } }));
       return;
     }
     const nextIdx = c.history().length;
     const last: [Key, Key] = [mv.from as Key, mv.to as Key];
     const moves = puzzle.solution.moves;
     if (nextIdx >= moves.length) {
-      setState(snapshot({ idx: nextIdx, lastMove: last, pendingPromotion: undefined }));
+      setState(snapshot({ idx: nextIdx, lastMove: last, hintStage: 0, hint: undefined, pendingPromotion: undefined }));
       finish(wrongRef.current, usedHintRef.current, okMessage(nextIdx - 1));
       return;
     }
     const reply = moves[nextIdx];
     if (reply.by === "engine") {
-      setState(snapshot({ phase: "engine_replying", idx: nextIdx, lastMove: last, hint: undefined, pendingPromotion: undefined, message: { text: okMessage(nextIdx - 1), tone: "ok" } }));
+      setState(snapshot({ phase: "engine_replying", idx: nextIdx, lastMove: last, hintStage: 0, hint: undefined, pendingPromotion: undefined, message: { text: okMessage(nextIdx - 1), tone: "ok" } }));
       timer.current = setTimeout(() => {
         let r: ReturnType<Chess["move"]>;
         try {
@@ -191,7 +195,7 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
         }
       }, opts.engineDelayMs ?? 350);
     } else {
-      setState(snapshot({ phase: "awaiting_move", idx: nextIdx, lastMove: last, hint: undefined, pendingPromotion: undefined, message: { text: okMessage(nextIdx - 1), tone: "ok" } }));
+      setState(snapshot({ phase: "awaiting_move", idx: nextIdx, lastMove: last, hintStage: 0, hint: undefined, pendingPromotion: undefined, message: { text: okMessage(nextIdx - 1), tone: "ok" } }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [puzzle.solution.moves, opts.engineDelayMs, finish, okMessage]);
@@ -233,12 +237,23 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
 
   const cancelPromotion = useCallback(() => setState((p) => ({ ...p, pendingPromotion: undefined })), []);
 
+  // Dica em dois estágios, sem limite por puzzle: o primeiro clique destaca a
+  // peça que joga; o segundo joga o lance esperado (com a promoção, se houver)
+  // e a máquina segue normalmente — a engine responde e o lance seguinte volta
+  // ao estágio 0. Qualquer estágio já marca `usedHint`, que conta como erro.
   const useHint = useCallback(() => {
     if (state.phase !== "awaiting_move") return;
     const expected = puzzle.solution.moves[state.idx];
-    if (!expected) return;
-    setState((p) => ({ ...p, usedHint: true, hint: expected.uci.slice(0, 2) as Key, message: { text: "Peça destacada (dica conta como erro).", tone: "bad" } }));
-  }, [state.phase, state.idx, puzzle.solution.moves]);
+    if (!expected || expected.by !== "solver") return;
+    if (state.hintStage === 0) {
+      setState((p) => ({
+        ...p, usedHint: true, hintStage: 1, hint: expected.uci.slice(0, 2) as Key,
+        message: { text: "Peça destacada. Clique de novo para jogar o lance (dica conta como erro).", tone: "bad" },
+      }));
+      return;
+    }
+    applySolverMove(expected.uci);
+  }, [state.phase, state.idx, state.hintStage, puzzle.solution.moves, applySolverMove]);
 
   const retrySubmit = useCallback(() => {
     if (state.phase !== "submit_error" || submittingRef.current) return;
