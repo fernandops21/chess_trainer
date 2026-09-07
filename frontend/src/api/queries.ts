@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import type {
   ChapterIn,
+  ChapterOut,
   ChapterSaveIn,
   GamesQuery,
   MistakesQuery,
@@ -202,6 +203,33 @@ export function useChapterActions(studyId: string) {
     onSettled: invalidate,
   });
   return { create, save, duplicate, remove };
+}
+
+/**
+ * Vira um capítulo de leitura em exercício (ou volta pra leitura): busca a
+ * árvore atual e salva de novo só trocando o modo. Se não sobrar exercício
+ * (sem lances), quem chama decide o que mostrar a partir do `puzzle_id` da
+ * resposta.
+ */
+export function useToggleChapterMode(studyId: string) {
+  const qc = useQueryClient();
+  const invalidate = () => {
+    for (const k of [keys.studies, keys.study(studyId), keys.dashboard, ["queue"], ["puzzle"]])
+      void qc.invalidateQueries({ queryKey: k });
+  };
+  return useMutation({
+    mutationFn: async (p: { cid: string; mode: ChapterOut["mode"] }) => {
+      const ch = await api.chapter(studyId, p.cid);
+      return api.saveChapter(studyId, p.cid, {
+        name: ch.name,
+        mode: p.mode,
+        orientation: ch.orientation,
+        tree: ch.tree,
+      });
+    },
+    onSuccess: (ch) => qc.setQueryData(keys.chapter(studyId, ch.id), ch),
+    onSettled: invalidate,
+  });
 }
 
 /** Reimportar, tirar/voltar da repetição e remover um estudo. */

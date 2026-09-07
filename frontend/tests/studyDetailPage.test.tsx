@@ -299,6 +299,71 @@ test("apagar avisa que não pode ser desfeito e trava o botão enquanto apaga", 
   expect(api.deleteChapter).toHaveBeenCalledWith("s1", "c1");
 });
 
+// --- virar exercício / virar leitura ---
+
+const detalheModo = (over: Partial<ChapterDetail> = {}): ChapterDetail => ({
+  id: "c2",
+  order: 2,
+  name: "Ponte de Lucena",
+  lichess_url: null,
+  mode: "read",
+  in_queue: false,
+  puzzle_id: null,
+  intro_comment: "",
+  updated_at: null,
+  fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  orientation: "black",
+  tree: { fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", orientation: "black", intro: "", root: { children: [] } },
+  pgn: "",
+  ...over,
+});
+
+test("virar exercício busca o capítulo e salva com o modo novo", async () => {
+  vi.spyOn(api, "chapter").mockResolvedValue(detalheModo());
+  vi.spyOn(api, "saveChapter").mockResolvedValue(detalheModo({ mode: "gamebook", puzzle_id: "p2" }));
+  renderPage();
+  await screen.findByText("Ponte de Lucena");
+  fireEvent.click(screen.getByRole("button", { name: "Treinar como exercício" }));
+  await waitFor(() => expect(api.chapter).toHaveBeenCalledWith("s1", "c2"));
+  await waitFor(() =>
+    expect(api.saveChapter).toHaveBeenCalledWith("s1", "c2", {
+      name: "Ponte de Lucena",
+      mode: "gamebook",
+      orientation: "black",
+      tree: detalheModo().tree,
+    }),
+  );
+});
+
+test("virar leitura manda mode: read", async () => {
+  vi.spyOn(api, "chapter").mockResolvedValue(
+    detalheModo({ id: "c1", name: "Torre atrás do peão", mode: "gamebook", orientation: "white" }),
+  );
+  vi.spyOn(api, "saveChapter").mockResolvedValue(
+    detalheModo({ id: "c1", name: "Torre atrás do peão", mode: "read", puzzle_id: "p1" }),
+  );
+  renderPage();
+  await screen.findByText("Torre atrás do peão");
+  fireEvent.click(screen.getByRole("button", { name: "Virar leitura" }));
+  await waitFor(() =>
+    expect(api.saveChapter).toHaveBeenCalledWith("s1", "c1", {
+      name: "Torre atrás do peão",
+      mode: "read",
+      orientation: "white",
+      tree: detalheModo().tree,
+    }),
+  );
+});
+
+test("virar exercício sem lances avisa que não vira exercício", async () => {
+  vi.spyOn(api, "chapter").mockResolvedValue(detalheModo());
+  vi.spyOn(api, "saveChapter").mockResolvedValue(detalheModo({ mode: "gamebook", puzzle_id: null }));
+  renderPage();
+  await screen.findByText("Ponte de Lucena");
+  fireEvent.click(screen.getByRole("button", { name: "Treinar como exercício" }));
+  expect(await screen.findByText("sem lances: não vira exercício")).toBeTruthy();
+});
+
 test("novo capítulo com posição montada manda a FEN do editor", async () => {
   vi.spyOn(api, "createChapter").mockResolvedValue(detalheCapitulo());
   renderPage();
