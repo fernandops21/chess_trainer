@@ -49,7 +49,7 @@ def _study_out(db: Session, study: Study) -> StudyOut:
     chapters, in_queue, due = _counts(db, study)
     return StudyOut(id=study.id, title=study.title, author=study.author, source_url=study.source_url,
                     lichess_id=study.lichess_id, imported_at=study.imported_at,
-                    chapters=chapters, in_queue=in_queue, due_today=due)
+                    chapter_count=chapters, in_queue=in_queue, due_today=due)
 
 
 @router.get("/studies", response_model=list[StudyOut])
@@ -62,7 +62,7 @@ def get_studies(db: Session = Depends(get_db)):
 def get_study(study_id: str, db: Session = Depends(get_db)):
     study = _get_study(db, study_id)
     base = _study_out(db, study)
-    return StudyDetail(**base.model_dump(exclude={"chapters"}),
+    return StudyDetail(**base.model_dump(),
                        chapters=[ChapterOut(id=c.id, order=c.order, name=c.name, lichess_url=c.lichess_url,
                                             mode=c.mode, in_queue=c.in_queue, puzzle_id=c.puzzle_id,
                                             intro_comment=c.intro_comment)

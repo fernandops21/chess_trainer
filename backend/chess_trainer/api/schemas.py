@@ -271,7 +271,7 @@ class StudyOut(BaseModel):
     lichess_id: str | None
     imported_at: datetime | None
     # contagens: capítulos do estudo, capítulos na repetição e vencidos hoje
-    chapters: int = 0
+    chapter_count: int = 0
     in_queue: int = 0
     due_today: int = 0
 
@@ -288,7 +288,6 @@ class ChapterOut(BaseModel):
 
 
 class StudyDetail(StudyOut):
-    # no detalhe `chapters` é a lista dos capítulos, não a contagem
     chapters: list[ChapterOut] = []
 
 

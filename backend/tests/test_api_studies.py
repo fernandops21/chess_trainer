@@ -73,7 +73,7 @@ def test_importar_por_url_lista_o_estudo(client):
     estudo = estudos[0]
     assert estudo["lichess_id"] == "4JKVAfaE" and estudo["author"] == "basso01"
     assert estudo["title"].startswith("#PL05A") and estudo["source_url"] == URL
-    assert estudo["chapters"] == 27 and estudo["in_queue"] == 15 and estudo["due_today"] == 0
+    assert estudo["chapter_count"] == 27 and estudo["in_queue"] == 15 and estudo["due_today"] == 0
     assert estudo["imported_at"] is not None
 
 
@@ -108,7 +108,7 @@ def test_importar_por_pgn_nao_baixa_nada():
 
     with build_client(handler) as client:
         importar(client, {"pgn": PGN})
-        assert client.get("/api/studies").json()[0]["chapters"] == 27
+        assert client.get("/api/studies").json()[0]["chapter_count"] == 27
 
 
 def test_url_invalida_400(client):
@@ -154,7 +154,7 @@ def test_reimportar_nao_duplica(client):
     assert job["state"] == "idle", job
 
     estudos = client.get("/api/studies").json()
-    assert len(estudos) == 1 and estudos[0]["chapters"] == 27 and estudos[0]["id"] == estudo_id
+    assert len(estudos) == 1 and estudos[0]["chapter_count"] == 27 and estudos[0]["id"] == estudo_id
 
 
 def test_reimportar_sem_id_do_lichess_400(client):
