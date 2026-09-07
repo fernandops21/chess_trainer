@@ -157,12 +157,13 @@ export function play(kind: SoundKind): void {
 // O contexto nasce suspenso: o primeiro gesto do usuário na página já o retoma,
 // para o primeiro som não sair mudo nem atrasado.
 function armar(): void {
-  // com o som desligado não vale criar o contexto de áudio: `play` cria quando precisar
+  // o primeiro gesto descadastra os ouvintes de qualquer forma; com o som
+  // desligado não vale criar o contexto de áudio (`play` cria quando precisar)
+  window.removeEventListener("pointerdown", armar);
+  window.removeEventListener("keydown", armar);
   if (!isEnabled()) return;
   const c = contexto();
   if (c) retomar(c);
-  window.removeEventListener("pointerdown", armar);
-  window.removeEventListener("keydown", armar);
 }
 
 if (typeof window !== "undefined") {
