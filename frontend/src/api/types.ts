@@ -28,6 +28,8 @@ export interface Settings {
   tactics_window: number;
   lichess_min_plays: number;
   lichess_min_popularity: number;
+  /** Classificar automaticamente os lances na Análise (usa a engine). */
+  classify_moves: boolean;
   /** Só diz se há um token do Lichess guardado: o valor nunca sai da API. */
   lichess_token_set: boolean;
 }
