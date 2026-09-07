@@ -6,7 +6,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { Key } from "chessground/types";
 import type { BoardProps } from "../src/board/Board";
 import { api } from "../src/api/client";
-import type { AnalyseOut, OpeningsOut } from "../src/api/types";
+import type { AnalyseOut, OpeningsOut, Settings } from "../src/api/types";
 
 // O chessground não é reproduzível no jsdom: o dublê guarda o que o
 // AnalysisBoard manda e devolve o `onMove` para o teste jogar um lance.
@@ -18,7 +18,7 @@ vi.mock("../src/board/Board", () => ({
   },
 }));
 
-import { MAX_NODES, emptyTree, findNode, insertLine, setComment } from "../src/analysis/moveTree";
+import { MAX_NODES, emptyTree, fenAt, findNode, insertLine, setComment } from "../src/analysis/moveTree";
 import type { Tree } from "../src/analysis/moveTree";
 import { AnalysisBoard } from "../src/analysis/AnalysisBoard";
 
@@ -57,11 +57,21 @@ const aberturas: OpeningsOut = {
   moves: [{ uci: "e2e4", san: "e4", games: 2000, white: 800, draws: 600, black: 600, avg_rating: 2400 }],
 };
 
+/** Configurações do teste: sem classificação, a não ser onde o teste ligar. */
+const SETTINGS: Settings = {
+  chesscom_username: "eu", categories: ["rapid"], stockfish_path: "", analysis_depth: 18, puzzle_depth: 20,
+  mistake_threshold_cp: 100, blunder_threshold_cp: 200, avoid_gap_cp: 150, new_per_day: 10, leech_lapses: 5,
+  analysis_seconds: 15, puzzle_search_seconds: 20, puzzle_reply_seconds: 10,
+  tactics_rating: 1200, tactics_window: 150, lichess_min_plays: 2000, lichess_min_popularity: 90,
+  classify_moves: false, lichess_token_set: false,
+};
+
 beforeEach(() => {
   boardProps.length = 0;
   localStorage.clear();
   vi.spyOn(api, "analyse").mockResolvedValue(analyse);
   vi.spyOn(api, "openings").mockResolvedValue(aberturas);
+  vi.spyOn(api, "settings").mockResolvedValue(SETTINGS);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -372,4 +382,66 @@ test("com o editor de posição aberto, as setas não navegam a árvore escondid
   fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
   // voltou no mesmo lance em que estava (e5 continua o lance atual)
   expect(screen.getByText("e5").closest("[aria-current]")?.getAttribute("aria-current")).toBe("true");
+});
+
+// --- classificação dos lances ------------------------------------------
+
+/** Melhor lance de cada posição do teste, para o dublê da engine. */
+const melhorDe = (fen: string) =>
+  fen === START ? "e2e4" : fen.split(" ")[1] === "b" ? "e7e5" : "g1f3";
+
+/** Engine que responde conforme a FEN pedida (o dublê padrão devolve sempre a inicial). */
+function engineDeVerdade() {
+  return vi.spyOn(api, "analyse").mockImplementation(async (fen: string) => {
+    const move = melhorDe(fen);
+    return {
+      fen,
+      turn: fen.split(" ")[1] === "b" ? "black" : "white",
+      terminal: null,
+      lines: [{ move, san: move, score: 30, pv: [move], pv_san: [move] }],
+    } as AnalyseOut;
+  });
+}
+
+/** Análise com dois lances na linha principal, para haver o que classificar. */
+const comLinha = () => insertLine(emptyTree(START), null, ["e2e4", "e7e5"]).tree;
+
+test("com a classificação ligada, os lances ganham selo na árvore e no tabuleiro", async () => {
+  vi.spyOn(api, "settings").mockResolvedValue({ ...SETTINGS, classify_moves: true });
+  engineDeVerdade();
+  const { container } = comProvedores(<AnalysisBoard tree={comLinha()} />);
+  fireEvent.click(screen.getByText("e5"));
+
+  await waitFor(() => expect(last().badge).toBeTruthy());
+  // e5 é o melhor lance da engine ali: selo sobre a casa de destino
+  expect(last().badge).toEqual({ square: "e5", text: "★", className: "class-melhor" });
+  // um selo por lance do caminho, na árvore
+  await waitFor(() => expect(container.querySelectorAll(".tree .class").length).toBe(1));
+  const selo = container.querySelector(".tree .class") as HTMLElement;
+  expect(selo.getAttribute("title")).toBe("melhor");
+  expect(selo.className).toContain("class-melhor");
+  // e4 está no livro de mestres: lá o símbolo do livro vence a classificação
+  const lances = container.querySelectorAll(".tree .move");
+  expect(lances[0].querySelector(".book")).toBeTruthy();
+  expect(lances[0].querySelector(".class")).toBeNull();
+  expect(container.textContent).toMatch(/lance: melhor/);
+});
+
+test("com a classificação desligada, a engine só é consultada para a posição na tela", async () => {
+  vi.spyOn(api, "settings").mockResolvedValue({ ...SETTINGS, classify_moves: false });
+  engineDeVerdade();
+  const arvore = comLinha();
+  const fenE4 = fenAt(arvore, arvore.root.children[0].id);
+  const fenE5 = fenAt(arvore, arvore.root.children[0].children[0].id);
+
+  const { container } = comProvedores(<AnalysisBoard tree={arvore} />);
+  fireEvent.click(screen.getByText("e5"));
+  // a engine do painel acompanha a posição na tela
+  await waitFor(() => expect(vi.mocked(api.analyse).mock.calls.some((c) => c[0] === fenE5)).toBe(true));
+
+  // a posição intermediária só interessaria à classificação
+  expect(vi.mocked(api.analyse).mock.calls.some((c) => c[0] === fenE4)).toBe(false);
+  expect(last().badge).toBeUndefined();
+  expect(container.querySelectorAll(".class").length).toBe(0);
+  expect(container.textContent).not.toMatch(/lance:/);
 });

@@ -59,7 +59,7 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 .pos-roque input { min-height: 0; }
 .pos-erros { margin: 8px 0 0; padding-left: 20px; font-weight: 400; }
 
-.board { width: 100%; aspect-ratio: 1; }
+.board { width: 100%; aspect-ratio: 1; position: relative; }
 .board > div { width: 100%; height: 100%; }
 .miniboard { width: 120px; aspect-ratio: 1; flex: none; }
 .miniboard .board { width: 120px; }
@@ -80,6 +80,28 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 /* lance que está no livro de aberturas: símbolo discreto, colado no lance */
 .tree .book { font-size: 0.8em; margin-left: 2px; opacity: 0.75; }
 .tree .variation { color: var(--muted); border-left: 2px solid var(--line); padding-left: 6px; margin: 2px 0; }
+
+/* classificação do lance: a cor de cada categoria serve à árvore e ao tabuleiro */
+.class-livro { --class-cor: var(--muted); }
+.class-brilhante { --class-cor: #1ba7b3; }
+.class-otimo { --class-cor: #3d7ebf; }
+.class-melhor, .class-excelente { --class-cor: var(--ok); }
+.class-bom { --class-cor: var(--muted); }
+.class-imprecisao { --class-cor: #b58900; }
+.class-erro { --class-cor: #d87a16; }
+.class-blunder { --class-cor: var(--bad); }
+.tree .class { font-size: 0.85em; margin-left: 3px; font-weight: 700; color: var(--class-cor); }
+/* nome da classificação no cabeçalho da Análise */
+.classe-nome { color: var(--class-cor); font-weight: 600; }
+/* selo sobre a casa de destino do lance atual, no canto de cima da casa */
+.board-badge { position: absolute; display: flex; align-items: flex-start; justify-content: flex-end; }
+.board-badge > span {
+  display: flex; align-items: center; justify-content: center;
+  min-width: 52%; height: 52%; margin: -18% -18% 0 0; padding: 0 2px;
+  border-radius: 999px; background: var(--class-cor, var(--muted)); color: #fff;
+  font-size: clamp(9px, 2.2vw, 14px); font-weight: 700; line-height: 1;
+  border: 1px solid rgba(255, 255, 255, .85); box-shadow: var(--shadow);
+}
 
 .node-menu { position: fixed; z-index: 20; min-width: 220px; padding: 6px; display: flex; flex-direction: column; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
 .node-menu button { text-align: left; min-height: 36px; }

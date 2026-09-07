@@ -325,3 +325,40 @@ test("editor com peça da paleta escolhida desliga o arrasto", () => {
   const solto = toConfig({ fen: F1, orientation: "white", editor: { onSquareClick: vi.fn(), onChange: vi.fn(), placing: false } });
   expect(solto.draggable?.enabled).toBe(true);
 });
+
+// --- selo da classificação do lance -------------------------------------
+
+const selo = { square: "e4" as Key, text: "!!", className: "class-brilhante" };
+
+test("o selo fica sobre a casa de destino, conforme a orientação", () => {
+  const { container, rerender } = render(<Board fen={F1} orientation="white" badge={selo} />);
+  const el = container.querySelector(".board-badge") as HTMLElement;
+  expect(el.textContent).toBe("!!");
+  expect(el.className).toContain("class-brilhante");
+  // e4: coluna e (índice 4) e fileira 4 (índice 3), 12,5% por casa
+  expect(el.style.left).toBe("50%");
+  expect(el.style.top).toBe("50%");
+  // enfeite: não rouba o clique do tabuleiro nem entra na leitura de tela
+  expect(el.style.pointerEvents).toBe("none");
+  expect(el.getAttribute("aria-hidden")).toBe("true");
+
+  rerender(<Board fen={F1} orientation="black" badge={selo} />);
+  const virado = container.querySelector(".board-badge") as HTMLElement;
+  expect(virado.style.left).toBe("37.5%");
+  expect(virado.style.top).toBe("37.5%");
+});
+
+test("o selo do canto do tabuleiro fica no canto certo nas duas orientações", () => {
+  const canto = { square: "a1" as Key, text: "★", className: "class-melhor" };
+  const { container, rerender } = render(<Board fen={F1} orientation="white" badge={canto} />);
+  const branco = container.querySelector(".board-badge") as HTMLElement;
+  expect([branco.style.left, branco.style.top]).toEqual(["0%", "87.5%"]);
+  rerender(<Board fen={F1} orientation="black" badge={canto} />);
+  const preto = container.querySelector(".board-badge") as HTMLElement;
+  expect([preto.style.left, preto.style.top]).toEqual(["87.5%", "0%"]);
+});
+
+test("sem `badge` o tabuleiro não tem selo", () => {
+  const { container } = render(<Board fen={F1} orientation="white" />);
+  expect(container.querySelector(".board-badge")).toBeNull();
+});

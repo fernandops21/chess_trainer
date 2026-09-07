@@ -149,6 +149,29 @@ Configurações.
 As consultas ficam em cache por 24 horas, então voltar a uma posição já vista não chama o Lichess de
 novo. Se o limite do serviço estourar, o painel avisa para tentar em instantes.
 
+## Classificação de lances
+
+Na Análise, cada lance do caminho aberto (da posição inicial até o lance na tela) ganha um selo no
+estilo do chess.com, calculado pela engine local: **livro** 📖, **brilhante** `!!`, **ótimo** `!`,
+**melhor** `★`, **excelente** `✓`, **bom** `·`, **imprecisão** `?!`, **erro** `?` e **blunder** `??`.
+O selo aparece colado ao lance na árvore (com o nome em português no `title`) e, para o lance da
+posição na tela, também num círculo colorido sobre a casa de destino, no tabuleiro. O cabeçalho do
+painel da engine mostra a linha "lance: melhor (−0.12)" com o quanto o lance perdeu.
+
+Como a conta é feita: para cada lance, a engine analisa a posição de onde ele parte e a posição a que
+ele leva; a perda é a diferença entre a melhor avaliação dali e a avaliação depois do lance. "Melhor"
+é o lance que a engine escolheria; "ótimo" é o melhor quando ele é a única boa jogada; "brilhante" é o
+melhor quando ele sacrifica material e a posição continua de pé. Os limiares de **imprecisão** e
+**erro** são os mesmos de Configurações (`mistake` e `blunder`); acima do de blunder o lance vira
+blunder. Lance que está na base de mestres é **livro** e não é medido.
+
+Só o caminho atual é classificado (no máximo 60 meios-lances) e cada posição é analisada uma única vez
+(o resultado fica em cache enquanto a página está aberta), então navegar pela árvore não repete
+trabalho. As marcações `!`/`?` do autor do estudo (NAGs) continuam como eram: são outra coisa.
+
+Dá para desligar tudo em **Configurações → Engine → "Classificar lances na Análise (usa a engine)"**;
+desligado, a engine só analisa a posição na tela.
+
 ## Fontes de exercício
 
 A repetição espaçada mistura três fontes: **seus erros** (das partidas importadas do chess.com),

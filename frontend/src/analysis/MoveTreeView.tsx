@@ -1,4 +1,5 @@
 import { Fragment, useRef, type ReactNode } from "react";
+import type { Classification } from "./classify";
 import { nagLabel } from "./moveTree";
 import type { Tree, TreeNode } from "./moveTree";
 
@@ -15,6 +16,8 @@ export interface MoveTreeViewProps {
   onContextMenu?: (id: string, pos: MenuPos) => void;
   /** Nós que aparecem no livro de aberturas: ganham o símbolo do livro. */
   bookIds?: Set<string>;
+  /** Classificação de cada lance do caminho atual (`useMoveClassification`). */
+  classes?: Map<string, Classification>;
 }
 
 /** Símbolo do lance que está no livro de aberturas. */
@@ -58,11 +61,13 @@ interface MoveProps {
   prefix: string;
   current: boolean;
   book: boolean;
+  /** Classificação do lance; o símbolo do livro vem antes dela. */
+  cls?: Classification;
   onGoTo: (id: string) => void;
   onContextMenu?: (id: string, pos: MenuPos) => void;
 }
 
-function Move({ node, prefix, current, book, onGoTo, onContextMenu }: MoveProps) {
+function Move({ node, prefix, current, book, cls, onGoTo, onContextMenu }: MoveProps) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const held = useRef(false);
 
@@ -105,7 +110,11 @@ function Move({ node, prefix, current, book, onGoTo, onContextMenu }: MoveProps)
       {prefix}
       {node.san}
       {node.nags.map(nagLabel).join("")}
-      {book && <span className="book" role="img" title={BOOK_TITLE} aria-label={BOOK_TITLE}>📖</span>}
+      {book ? (
+        <span className="book" role="img" title={BOOK_TITLE} aria-label={BOOK_TITLE}>📖</span>
+      ) : (
+        cls && <span className={`class class-${cls.kind}`} title={cls.label}>{cls.symbol}</span>
+      )}
     </button>
   );
 }
@@ -114,6 +123,7 @@ interface Ctx {
   num: Numbering;
   currentId: string | null;
   bookIds?: Set<string>;
+  classes?: Map<string, Classification>;
   onGoTo: (id: string) => void;
   onContextMenu?: (id: string, pos: MenuPos) => void;
 }
@@ -138,6 +148,7 @@ function renderLine(nodes: TreeNode[], ply: number, depth: number, ctx: Ctx): Re
           prefix={movePrefix(ctx.num, p, force)}
           current={main.id === ctx.currentId}
           book={ctx.bookIds?.has(main.id) ?? false}
+          cls={ctx.classes?.get(main.id)}
           onGoTo={ctx.onGoTo}
           onContextMenu={ctx.onContextMenu}
         />
@@ -164,8 +175,8 @@ function renderLine(nodes: TreeNode[], ply: number, depth: number, ctx: Ctx): Re
 }
 
 /** Árvore no formato do Lichess: linha principal corrida, variações recuadas. */
-export function MoveTreeView({ tree, currentId, onGoTo, onContextMenu, bookIds }: MoveTreeViewProps) {
-  const ctx: Ctx = { num: numbering(tree.fen), currentId, bookIds, onGoTo, onContextMenu };
+export function MoveTreeView({ tree, currentId, onGoTo, onContextMenu, bookIds, classes }: MoveTreeViewProps) {
+  const ctx: Ctx = { num: numbering(tree.fen), currentId, bookIds, classes, onGoTo, onContextMenu };
   if (tree.root.children.length === 0) {
     return <div className="tree muted">Nenhum lance ainda: jogue no tabuleiro para começar a linha.</div>;
   }

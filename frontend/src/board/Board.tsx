@@ -33,6 +33,16 @@ export interface BoardProps {
   onShapesChange?: (shapes: Shape[]) => void;
   /** Modo montagem: peça solta, clique na casa e arrastar para fora apaga. */
   editor?: BoardEditor;
+  /** Selo sobre uma casa (a classificação do lance atual, na Análise). */
+  badge?: BoardBadge;
+}
+
+/** Selo desenhado por cima de uma casa: só enfeite, sem clique nem leitura de tela. */
+export interface BoardBadge {
+  square: Key;
+  text: string;
+  /** Classe do selo (`class-melhor`, `class-blunder`…): a cor vem do CSS. */
+  className: string;
 }
 
 /**
@@ -48,6 +58,22 @@ export interface BoardEditor {
   /** Uma peça da paleta está escolhida: o clique coloca, então arrastar fica desligado
    *  (o chessground avisa a seleção no início do arrasto e a origem seria sobrescrita). */
   placing?: boolean;
+}
+
+/** Lado da casa, em porcentagem do tabuleiro. */
+const CASA_PCT = 12.5;
+
+/**
+ * Canto superior esquerdo de uma casa, em porcentagem do tabuleiro, conforme a
+ * orientação. Com as brancas embaixo, a coluna `a` fica à esquerda e a fileira
+ * 8 em cima; virado, é o contrário.
+ */
+export function squarePercent(square: Key, orientation: "white" | "black"): { left: number; top: number } {
+  const file = square.charCodeAt(0) - 97;
+  const rank = Number(square[1]) - 1;
+  const col = orientation === "white" ? file : 7 - file;
+  const row = orientation === "white" ? 7 - rank : rank;
+  return { left: col * CASA_PCT, top: row * CASA_PCT };
 }
 
 const toShape = (s: DrawShape): Shape => ({ orig: s.orig, dest: s.dest, brush: s.brush ?? "green" });
@@ -286,5 +312,26 @@ export function Board(props: BoardProps) {
       cg.current?.setShapes((props.shapes ?? []).map(toDrawShape));
     }
   });
-  return <div className="board"><div ref={host} /></div>;
+  const badge = props.badge;
+  const pos = badge ? squarePercent(badge.square, props.orientation) : null;
+  return (
+    <div className="board">
+      <div ref={host} />
+      {badge && pos && (
+        <span
+          className={`board-badge ${badge.className}`}
+          style={{
+            left: `${pos.left}%`,
+            top: `${pos.top}%`,
+            width: `${CASA_PCT}%`,
+            height: `${CASA_PCT}%`,
+            pointerEvents: "none",
+          }}
+          aria-hidden="true"
+        >
+          <span>{badge.text}</span>
+        </span>
+      )}
+    </div>
+  );
 }

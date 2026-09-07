@@ -115,3 +115,17 @@ test("Remover apaga o token guardado mandando string vazia", async () => {
   fireEvent.click(await screen.findByRole("button", { name: "Remover" }));
   await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith({ lichess_token: "" }));
 });
+
+// --- classificação de lances na Análise ---------------------------------
+
+test("a caixa de classificar lances vem do servidor e vai no salvamento", async () => {
+  renderPage();
+  const caixa = (await screen.findByLabelText("Classificar lances na Análise (usa a engine)")) as HTMLInputElement;
+  expect(caixa.type).toBe("checkbox");
+  expect(caixa.checked).toBe(true);
+  fireEvent.click(caixa);
+  expect(caixa.checked).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+  await waitFor(() => expect(api.saveSettings).toHaveBeenCalled());
+  expect(vi.mocked(api.saveSettings).mock.calls[0][0].classify_moves).toBe(false);
+});

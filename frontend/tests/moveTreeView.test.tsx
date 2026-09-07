@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
+import type { Classification } from "../src/analysis/classify";
 import type { Tree, TreeNode } from "../src/analysis/moveTree";
 import { MoveTreeView } from "../src/analysis/MoveTreeView";
 
@@ -108,4 +109,49 @@ test("árvore vazia mostra um aviso", () => {
   const vazia: Tree = { fen: START, orientation: "white", intro: "", root: { children: [] } };
   const { container } = render(<MoveTreeView tree={vazia} currentId={null} onGoTo={() => {}} />);
   expect(treeText(container)).toMatch(/Nenhum lance/);
+});
+
+// --- selo da classificação ----------------------------------------------
+
+const classe = (kind: string, label: string, symbol: string): Classification =>
+  ({ kind, label, symbol, loss: 0 }) as Classification;
+
+test("mostra o selo da classificação depois do lance, com o nome no title", () => {
+  const classes = new Map([
+    ["n1", classe("brilhante", "brilhante", "!!")],
+    ["n3", classe("blunder", "blunder", "??")],
+  ]);
+  const { container } = render(
+    <MoveTreeView tree={tree} currentId={null} onGoTo={() => {}} classes={classes} />,
+  );
+  const selo = screen.getByText(/^1\. e4$/).querySelector(".class") as HTMLElement;
+  expect(selo.textContent).toBe("!!");
+  expect(selo.getAttribute("title")).toBe("brilhante");
+  expect(selo.className).toContain("class-brilhante");
+  // também nas variações
+  const naVariacao = (container.querySelector(".variation") as HTMLElement).querySelector(".class") as HTMLElement;
+  expect(naVariacao.className).toContain("class-blunder");
+  // lance sem classificação não ganha selo
+  expect(screen.getByText(/^e5!$/).querySelector(".class")).toBeNull();
+});
+
+test("no lance de livro o símbolo do livro vence a classificação", () => {
+  const classes = new Map([["n1", classe("melhor", "melhor", "★")]]);
+  render(
+    <MoveTreeView
+      tree={tree}
+      currentId={null}
+      onGoTo={() => {}}
+      classes={classes}
+      bookIds={new Set(["n1"])}
+    />,
+  );
+  const lance = screen.getByText(/^1\. e4$/);
+  expect(lance.querySelector(".book")).toBeTruthy();
+  expect(lance.querySelector(".class")).toBeNull();
+});
+
+test("sem `classes` nenhum lance ganha selo", () => {
+  const { container } = render(<MoveTreeView tree={tree} currentId={null} onGoTo={() => {}} />);
+  expect(container.querySelectorAll(".class").length).toBe(0);
 });

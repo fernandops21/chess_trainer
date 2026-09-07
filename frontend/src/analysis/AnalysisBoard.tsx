@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Chess } from "chess.js";
 import type { Key } from "chessground/types";
-import { useAnalyse } from "../api/queries";
+import { useAnalyse, useSettings } from "../api/queries";
 import type { Shape } from "../api/types";
 import { Board } from "../board/Board";
 import { ErrorBox } from "../components/ErrorBox";
@@ -13,6 +13,7 @@ import { OpeningsPanel } from "./OpeningsPanel";
 import { PositionEditor } from "./PositionEditor";
 import { SaveChapterModal } from "./SaveChapterModal";
 import { useBookMoves } from "./useBookMoves";
+import { useMoveClassification } from "./useMoveClassification";
 import { useMoveTree } from "./useMoveTree";
 import { storage } from "../lib/storage";
 import { MAX_NODES, countNodes, emptyTree } from "./moveTree";
@@ -34,6 +35,10 @@ export interface AnalysisBoardProps {
 
 /** Abas do painel lateral: o motor ou o livro de aberturas. */
 type Aba = "engine" | "aberturas";
+
+/** Limiares de erro e blunder enquanto as configurações não chegam. */
+const PADRAO_MISTAKE = 100;
+const PADRAO_BLUNDER = 200;
 
 /** Lista fixa: sem ela, um `[]` novo a cada render repõe as marcações do tabuleiro à toa. */
 const SEM_MARCACOES: Shape[] = [];
@@ -68,8 +73,27 @@ export function AnalysisBoard({
     storage.get<Aba>("analysis.sidePanel", "engine") === "aberturas" ? "aberturas" : "engine",
   );
   const { data, error, isFetching } = useAnalyse(mt.fen);
+  const { data: settings } = useSettings();
   // símbolo do livro nos lances do caminho atual que estão na base de mestres
   const bookIds = useBookMoves(mt.tree, mt.path);
+  // classificação (melhor, erro, blunder…) de cada lance do caminho atual
+  const classes = useMoveClassification(mt.tree, mt.path, {
+    enabled: settings?.classify_moves ?? false,
+    thresholds: {
+      mistake: settings?.mistake_threshold_cp ?? PADRAO_MISTAKE,
+      blunder: settings?.blunder_threshold_cp ?? PADRAO_BLUNDER,
+    },
+    bookIds,
+  });
+  const classeAtual = mt.node ? classes.get(mt.node.id) : undefined;
+  // selo sobre a casa de destino do lance atual, como no chess.com
+  const badge = useMemo(
+    () =>
+      mt.node && classeAtual
+        ? { square: mt.node.uci.slice(2, 4) as Key, text: classeAtual.symbol, className: `class-${classeAtual.kind}` }
+        : undefined,
+    [mt.node, classeAtual],
+  );
 
   // Vaivém com o pai: a árvore que chega de fora reinicia o hook e a que nasce
   // aqui sobe pelo `onTreeChange`. Um pai que guarda o que recebe devolve a
@@ -207,6 +231,7 @@ export function AnalysisBoard({
           squares={squares}
           drawable
           shapes={editable ? marcacoes : undefined}
+          badge={badge}
           onShapesChange={editable ? mt.setShapes : undefined}
           onMove={onMove}
         />
@@ -258,6 +283,12 @@ export function AnalysisBoard({
               <div className="muted">avaliação (ponto de vista das brancas)</div>
             </>
           )}
+          {classeAtual && (
+            <div className="muted">
+              lance: <span className={`classe-nome class-${classeAtual.kind}`}>{classeAtual.label}</span>
+              {classeAtual.loss !== null && ` (${formatEval(-classeAtual.loss)})`}
+            </div>
+          )}
           {isFetching && <div className="muted">analisando…</div>}
           <ErrorBox error={error} />
           {data && !data.terminal && (
@@ -287,6 +318,7 @@ export function AnalysisBoard({
             currentId={mt.currentId}
             onGoTo={mt.goTo}
             bookIds={bookIds}
+            classes={classes}
             onContextMenu={editable ? (id, pos) => setMenu({ id, ...pos }) : undefined}
           />
         </div>

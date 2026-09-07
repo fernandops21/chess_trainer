@@ -84,6 +84,18 @@ export function SettingsPage() {
         {field("tempo máximo por busca da análise (s)", "analysis_seconds")}
         {field("tempo máximo por busca do puzzle (s)", "puzzle_search_seconds")}
         {field("tempo máximo da resposta do defensor (s)", "puzzle_reply_seconds")}
+        <label className="row" style={{ justifyContent: "space-between" }}>
+          Classificar lances na Análise (usa a engine)
+          <input
+            type="checkbox"
+            checked={form.classify_moves}
+            onChange={(e) => setForm({ ...form, classify_moves: e.target.checked })}
+          />
+        </label>
+        <div className="muted">
+          Cada lance do caminho aberto na Análise ganha um selo (melhor, imprecisão, erro…). Desligado, a engine
+          só analisa a posição na tela.
+        </div>
       </div>
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Erros e treino</h3>
