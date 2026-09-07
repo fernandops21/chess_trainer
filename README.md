@@ -161,12 +161,14 @@ painel da engine mostra a linha "lance: melhor (−0.12)" com o quanto o lance p
 Como a conta é feita: para cada lance, a engine analisa a posição de onde ele parte e a posição a que
 ele leva; a perda é a diferença entre a melhor avaliação dali e a avaliação depois do lance. "Melhor"
 é o lance que a engine escolheria; "ótimo" é o melhor quando ele é a única boa jogada; "brilhante" é o
-melhor quando ele sacrifica material e a posição continua de pé. Os limiares de **imprecisão** e
-**erro** são os mesmos de Configurações (`mistake` e `blunder`); acima do de blunder o lance vira
-blunder. Lance que está na base de mestres é **livro** e não é medido.
+melhor quando ele sacrifica material e a posição continua de pé (ou o mate dado com menos material
+que o adversário). Os limiares de **imprecisão** e **erro** são os mesmos de Configurações (`mistake`
+e `blunder`); acima do de blunder o lance vira blunder. Lance que está na base de mestres é **livro**
+e não é medido.
 
-Só o caminho atual é classificado (no máximo 60 meios-lances) e cada posição é analisada uma única vez
-(o resultado fica em cache enquanto a página está aberta), então navegar pela árvore não repete
+Só o caminho atual é classificado (os 60 últimos meios-lances, de modo que o lance na tela nunca fica
+de fora) e cada posição é analisada uma única vez — o resultado fica em cache enquanto a posição
+estiver em uso, mais os 5 minutos de folga do React Query —, então navegar pela árvore não repete
 trabalho. As marcações `!`/`?` do autor do estudo (NAGs) continuam como eram: são outra coisa.
 
 Dá para desligar tudo em **Configurações → Engine → "Classificar lances na Análise (usa a engine)"**;
