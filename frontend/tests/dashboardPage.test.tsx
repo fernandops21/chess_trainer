@@ -76,3 +76,18 @@ test("sem banco importado mostra o aviso com link para as configurações", asyn
   expect(screen.getByText(/Banco de táticas não importado/)).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Treinar táticas" })).toBeNull();
 });
+
+test("com by_source o cartão Estado mostra a contagem por fonte", async () => {
+  vi.spyOn(api, "dashboard").mockResolvedValue({
+    ...DASH,
+    by_source: { own: { in_queue: 12, due: 3 }, lichess: { in_queue: 4, due: 1 }, study: { in_queue: 7, due: 0 } },
+  });
+  renderPage();
+  expect(await screen.findByText("12 dos seus erros · 4 do Lichess · 7 de estudos")).toBeTruthy();
+});
+
+test("sem by_source o cartão Estado não mostra a linha por fonte", async () => {
+  renderPage();
+  expect(await screen.findByText(/8 de 10 partidas analisadas/)).toBeTruthy();
+  expect(screen.queryByText(/dos seus erros/)).toBeNull();
+});

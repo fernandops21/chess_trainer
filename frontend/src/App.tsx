@@ -7,6 +7,8 @@ import { GamesPage } from "./pages/GamesPage";
 import { GameDetailPage } from "./pages/GameDetailPage";
 import { MistakesPage } from "./pages/MistakesPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { StudiesPage } from "./pages/StudiesPage";
+import { StudyDetailPage } from "./pages/StudyDetailPage";
 import { TrainPage } from "./train/TrainPage";
 
 export function App() {
@@ -19,6 +21,8 @@ export function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/treinar" element={<TrainPage />} />
           <Route path="/analise" element={<AnalysisPage />} />
+          <Route path="/estudos" element={<StudiesPage />} />
+          <Route path="/estudos/:id" element={<StudyDetailPage />} />
           <Route path="/partidas" element={<GamesPage />} />
           <Route path="/partidas/:id" element={<GameDetailPage />} />
           <Route path="/erros" element={<MistakesPage />} />

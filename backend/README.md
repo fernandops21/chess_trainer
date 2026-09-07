@@ -39,6 +39,36 @@ uma importação cancelada.
 (útil em testes e para reimportar sem rede) ou uma **URL**. O padrão é
 `https://database.lichess.org/lichess_db_puzzle.csv.zst`.
 
+## Estudos do Lichess
+
+Capítulos de estudos públicos do Lichess viram exercícios (`source = "study"`). Rotas:
+
+    GET    /api/studies                  # estudos com capítulos, quantos na repetição e vencidos hoje
+    GET    /api/studies/{id}             # detalhe: capítulos em ordem, modo, puzzle_id, enunciado
+    POST   /api/studies/import           # 202: enfileira o job "import_study"; corpo {"url": ...} ou {"pgn": ...}
+    POST   /api/studies/{id}/reimport    # 202: baixa de novo pelo lichess_id guardado
+    POST   /api/studies/{id}/queue       # {"in_queue": bool} para todos os capítulos do estudo
+    DELETE /api/studies/{id}             # 204: apaga estudo, capítulos, puzzles e histórico
+
+O job `import_study` baixa `https://lichess.org/api/study/{id}.pgn` (redirecionamentos seguidos,
+timeout de 30 s) ou usa o PGN colado, separa os capítulos com python-chess e faz o upsert pela chave
+`lichess_url` do capítulo — reimportar atualiza a linha e mantém o id e o histórico do exercício.
+Progresso: `"i/total capítulos"`; mensagem final: `"N capítulos, M exercícios, K pulados[: nomes]"`.
+Estudo privado ou inexistente (404 do Lichess) termina o job em `error` com
+`"estudo privado ou inexistente; exporte o PGN no Lichess e cole aqui"`.
+
+`create_app(study_http_factory=...)` troca o cliente HTTP usado no download (o padrão é
+`httpx.Client(follow_redirects=True, timeout=30.0)`); os testes passam um `httpx.MockTransport` por
+ali, sem rede.
+
+## Atualização do banco
+
+O esquema de `puzzles` mudou nesta versão (`position_id`/`game_id` passaram a aceitar nulo, para
+exercícios que não vêm de uma partida). Na primeira vez que o servidor sobe, a migração faz uma **cópia
+do arquivo do banco** ao lado dele (`backend/data/chess_trainer.db.bak-<AAAAMMDD-HHMMSS>`) e reconstrói a
+tabela copiando todas as linhas — nenhum puzzle e nenhuma revisão se perde. Confira que está tudo certo
+e apague a cópia quando quiser.
+
 ## Testes
 
     uv run pytest -q            # rápidos

@@ -4,6 +4,7 @@ import { useDashboard } from "../api/queries";
 const items = [
   { to: "/", label: "Painel", icon: "▦", end: true },
   { to: "/treinar", label: "Treinar", icon: "♞" },
+  { to: "/estudos", label: "Estudos", icon: "▤" },
   { to: "/partidas", label: "Partidas", icon: "≡" },
   { to: "/erros", label: "Erros", icon: "!" },
   { to: "/config", label: "Config", icon: "⚙" },

@@ -9,12 +9,14 @@ const JOB_LABEL: Record<string, string> = {
   regenerate: "Recriação de todos os puzzles",
   regenerate_avoid: "Recriação dos puzzles evitar",
   import_lichess: "Importação das táticas do Lichess",
+  import_study: "Importação de estudo do Lichess",
 };
 
 const JOB_RUNNING_HINT: Record<string, string> = {
   regenerate: "apaga os puzzles e gera de novo com as regras atuais",
   regenerate_avoid: "apaga só os puzzles evitar e gera de novo; os punir e o histórico ficam",
   import_lichess: "baixa o banco (~300 MB) e importa as táticas filtradas; leva uns 5 minutos",
+  import_study: "baixa o PGN do estudo e cria um exercício por capítulo",
 };
 
 export function JobCard() {

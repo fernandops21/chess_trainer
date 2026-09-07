@@ -37,6 +37,11 @@ export function DashboardPage() {
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Estado</h3>
           <div>{d.games_analyzed} de {d.games_total} partidas analisadas · {d.puzzles_total} puzzles · {d.leeches} sanguessugas</div>
+          {d.by_source && (
+            <div className="muted">
+              {d.by_source.own?.in_queue ?? 0} dos seus erros · {d.by_source.lichess?.in_queue ?? 0} do Lichess · {d.by_source.study?.in_queue ?? 0} de estudos
+            </div>
+          )}
           <div className="muted">Última importação: {s.last_import_at ? formatDate(s.last_import_at) : "nunca"}</div>
           <div>Engine: {s.engine.available ? <><span className="msg ok">encontrada</span> <span className="muted" style={{ fontSize: 13 }}>{s.engine.path}</span></> : <span className="msg bad">ausente — <Link to="/config">configurar</Link></span>}</div>
         </div>
