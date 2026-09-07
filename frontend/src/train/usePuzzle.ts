@@ -44,7 +44,7 @@ const TERMINAL_TEXT: Record<string, string> = {
 };
 
 /** Texto da mensagem da refutação, montado do que já se sabe (a avaliação de antes pode faltar). */
-export function refutationMessage(r: Refutation): string {
+function refutationMessage(r: Refutation): string {
   if (r.terminal) return `${r.wrongSan}? — ${TERMINAL_TEXT[r.terminal] ?? "termina a partida"}`;
   const cabeca = r.replySan ? `${r.wrongSan}? ${r.replySan}` : `${r.wrongSan}?`;
   const avaliacao = r.evalAfter == null ? ""
@@ -154,7 +154,6 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
   const tentativaRef = useRef(0);
   // A avaliação de antes do lance errado pode chegar antes da réplica: fica aqui
   // até a refutação existir para recebê-la.
-  const evalBeforeRef = useRef<{ tentativa: number; valor: number } | null>(null);
   // Falso depois de desmontar: nenhuma resposta da engine mexe no estado então.
   const aliveRef = useRef(true);
 
@@ -317,25 +316,11 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
     const analyse = opts.analyse ?? api.analyse;
     const vale = () => aliveRef.current && tentativaRef.current === tentativa;
 
-    // A avaliação de antes só serve para a frase "cai de X para Y": se ela
-    // falhar ou demorar, a mensagem sai com a avaliação de agora e pronto.
-    void analyse(fenAntes, 1).then((out) => {
-      const linha = out.lines?.[0];
-      if (!linha || !vale()) return;
-      evalBeforeRef.current = { tentativa, valor: linha.score };
-      setState((p) => {
-        if (!p.refutation || (p.phase !== "refuting" && p.phase !== "refuted")) return p;
-        const r: Refutation = { ...p.refutation, evalBefore: linha.score };
-        return { ...p, refutation: r, message: { text: refutationMessage(r), tone: "bad" } };
-      });
-    }, () => { /* sem a avaliação de antes a mensagem continua servindo */ });
-
     void analyse(fenDepois, 1).then((out) => {
       if (!vale()) return;
-      const evalBefore = evalBeforeRef.current?.tentativa === tentativa ? evalBeforeRef.current.valor : undefined;
       if (out.terminal) {
         // o lance errado terminou a partida: não há réplica para mostrar
-        const r: Refutation = { wrongSan, pvSan: [], authored, terminal: out.terminal, evalBefore };
+        const r: Refutation = { wrongSan, pvSan: [], authored, terminal: out.terminal };
         setState((p) => ({ ...p, phase: "refuted", refutation: r, message: { text: refutationMessage(r), tone: "bad" } }));
         return;
       }
@@ -348,13 +333,25 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
       const rep = resposta;
       play(sanSound(rep.san));
       const r: Refutation = {
-        wrongSan, replySan: rep.san, evalAfter: -linha.score, evalBefore,
+        wrongSan, replySan: rep.san, evalAfter: -linha.score,
         pvSan: (linha.pv_san ?? []).slice(1, 6), authored,
       };
       setState((p) => ({
         ...p, phase: "refuted", refutation: r, fen: copia.fen(), turn: turnOf(copia), check: copia.inCheck(),
         lastMove: [rep.from as Key, rep.to as Key], message: { text: refutationMessage(r), tone: "bad" },
       }));
+      // A avaliação de antes só serve para a frase "cai de X para Y", e a engine
+      // atende uma posição por vez: pedida só depois da réplica, ela não atrasa
+      // o que interessa. Se falhar, a mensagem fica com a avaliação de agora.
+      void analyse(fenAntes, 1).then((antes) => {
+        const linhaAntes = antes.lines?.[0];
+        if (!linhaAntes || !vale()) return;
+        setState((p) => {
+          if (!p.refutation || p.phase !== "refuted") return p;
+          const comAntes: Refutation = { ...p.refutation, evalBefore: linhaAntes.score };
+          return { ...p, refutation: comAntes, message: { text: refutationMessage(comAntes), tone: "bad" } };
+        });
+      }, () => { /* sem a avaliação de antes a mensagem continua servindo */ });
     }, () => { if (vale()) recusar(authored, true); });
   }, [opts.analyse, recusar]);
 

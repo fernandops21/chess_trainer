@@ -402,6 +402,20 @@ test("lance errado com refutação entra numa cópia, a engine responde e a aval
   expect(sons()).toEqual(["wrong", "move"]);
 });
 
+test("'Tentar de novo' devolve o lance do adversário destacado quando o puzzle teve introdução", async () => {
+  const { result } = setup(ONE_MOVE_INTRO, { refute: true, analyse: engineDuble() });
+  act(() => { vi.advanceTimersByTime(400); });
+  expect(result.current.state.lastMove).toEqual(["d4", "d5"]);
+  act(() => result.current.tryMove("h2", "h3"));
+  await escoar();
+  expect(result.current.state.phase).toBe("refuted");
+  expect(result.current.state.lastMove).toEqual(["d5", "g2"]);
+
+  act(() => result.current.retryMove());
+  expect(result.current.state.phase).toBe("awaiting_move");
+  expect(result.current.state.lastMove).toEqual(["d4", "d5"]);
+});
+
 test("'Tentar de novo' volta à posição e o lance certo ainda conta como erro", async () => {
   const { result, submit } = setup(ONE_MOVE, { refute: true, analyse: engineDuble() });
   act(() => result.current.tryMove("h2", "h3"));
@@ -489,14 +503,15 @@ test("desmontar com a engine pensando não mexe mais no estado", async () => {
     : new Promise<AnalyseOut>((res) => { caixa.responder = res; })));
   const { result, unmount } = setup(ONE_MOVE, { refute: true, analyse });
   act(() => result.current.tryMove("h2", "h3"));
-  expect(analyse).toHaveBeenCalledTimes(2);
+  // só a posição depois do erro é pedida de cara; a de antes vem depois da réplica
+  expect(analyse).toHaveBeenCalledTimes(1);
   unmount();
   await act(async () => { caixa.responder?.(analiseOut(FEN_ERRO, [LINHA_DEPOIS])); await Promise.resolve(); });
   // a réplica que chegou depois do desmonte não foi aplicada: nem som de lance,
-  // nem uma nova pergunta à engine (o `result` congela em `unmount`, então o
+  // nem a pergunta seguinte à engine (o `result` congela em `unmount`, então o
   // guarda de verdade é o que a resposta atrasada deixou de fazer)
   expect(sons()).toEqual(["wrong"]);
-  expect(analyse).toHaveBeenCalledTimes(2);
+  expect(analyse).toHaveBeenCalledTimes(1);
 });
 
 // --- casos menos comuns da refutação --------------------------------------
