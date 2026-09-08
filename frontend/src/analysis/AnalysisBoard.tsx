@@ -210,6 +210,12 @@ export function AnalysisBoard({
 
   const inCheck = useMemo(() => { try { return novoChess(fenNaTela).inCheck(); } catch { return false; } }, [fenNaTela]);
   const best = data && !data.terminal ? data.lines[0] : undefined;
+  // A barra de avaliação guarda a última leitura: enquanto a engine calcula a
+  // posição nova a consulta ainda não respondeu, e voltar ao meio pareceria
+  // que a vantagem sumiu.
+  const ultimaBarra = useRef<{ score: number | null; turn: "white" | "black"; terminal: string | null }>({ score: null, turn: "white", terminal: null });
+  if (data) ultimaBarra.current = { score: best?.score ?? null, turn: data.turn as "white" | "black", terminal: data.terminal };
+  const barra = data ? { score: best?.score ?? null, turn: turnNaTela, terminal: data.terminal } : ultimaBarra.current;
 
   // marcações salvas do nó atual (as da posição inicial ficam na raiz)
   const raizShapes = mt.tree.root.shapes;
@@ -304,7 +310,7 @@ export function AnalysisBoard({
           </div>
         )}
         <div className="board-row">
-        {motor && <EvalBar score={best?.score ?? null} turn={turnNaTela} orientation={orient} terminal={data?.terminal} />}
+        {motor && <EvalBar score={barra.score} turn={barra.turn} orientation={orient} terminal={barra.terminal} />}
         <Board
           fen={fenNaTela}
           orientation={orient}

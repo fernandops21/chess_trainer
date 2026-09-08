@@ -617,3 +617,17 @@ test("no layout livro dá para aumentar e diminuir a letra, e a escolha fica gua
   const de_novo = comProvedores(<AnalysisBoard tree={{ ...arvore, intro: "Italiana." }} layout="livro" />);
   expect((de_novo.container.querySelector(".livro-pagina") as HTMLElement).style.fontSize).toBe("1.1rem");
 });
+
+test("a barra de avaliação guarda a última leitura enquanto a engine calcula a posição nova", async () => {
+  let resolver: ((o: AnalyseOut) => void) | null = null;
+  vi.spyOn(api, "analyse").mockImplementation((fen: string) =>
+    fen === START
+      ? Promise.resolve({ fen, turn: "white", terminal: null, lines: [{ move: "e2e4", san: "e4", score: 300, pv: ["e2e4"], pv_san: ["e4"] }] })
+      : new Promise<AnalyseOut>((res) => { resolver = res; }));
+  const { container } = comProvedores(<AnalysisBoard tree={insertLine(emptyTree(START), null, ["e2e4"]).tree} />);
+  await waitFor(() => expect(container.querySelector(".eval-bar")?.getAttribute("aria-label")).toBe("avaliação +3.00"));
+  // vai para o lance seguinte: a consulta fica pendente e a barra não volta ao meio
+  fireEvent.click(screen.getByRole("button", { name: /^1\. e4/ }));
+  expect(container.querySelector(".eval-bar")?.getAttribute("aria-label")).toBe("avaliação +3.00");
+  expect(resolver).not.toBeNull();
+});

@@ -68,15 +68,16 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 /* barra de vantagem à esquerda do tabuleiro (Análise com a engine ligada) */
 .board-row { display: flex; gap: 6px; align-items: stretch; }
 .board-row > .board { flex: 1 1 auto; min-width: 0; }
-.eval-bar { position: relative; width: 16px; flex: none; border-radius: 4px; overflow: hidden; background: #3d3a36;
+.eval-bar { position: relative; width: 24px; flex: none; border-radius: 4px; overflow: hidden; background: #262421;
+  border: 1px solid #8a8580; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .06);
   display: flex; flex-direction: column; justify-content: flex-end; }
 .eval-bar--invertida { justify-content: flex-start; }
-.eval-bar__brancas { width: 100%; background: #f2efe8; transition: height .4s ease; }
-.eval-bar__rotulo { position: absolute; left: 0; right: 0; bottom: 3px; text-align: center; font-size: 9px; font-weight: 700; line-height: 1;
-  color: #3d3a36; writing-mode: vertical-rl; transform: rotate(180deg); }
-.eval-bar__rotulo--pretas { bottom: auto; top: 3px; color: #f2efe8; }
-.eval-bar--invertida .eval-bar__rotulo { bottom: auto; top: 3px; }
-.eval-bar--invertida .eval-bar__rotulo--pretas { top: auto; bottom: 3px; }
+.eval-bar__brancas { width: 100%; background: #f7f4ee; transition: height .4s ease; }
+.eval-bar__rotulo { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; font-size: 11px; font-weight: 700; line-height: 1;
+  color: #262421; writing-mode: vertical-rl; transform: rotate(180deg); letter-spacing: .02em; }
+.eval-bar__rotulo--pretas { bottom: auto; top: 4px; color: #f7f4ee; }
+.eval-bar--invertida .eval-bar__rotulo { bottom: auto; top: 4px; }
+.eval-bar--invertida .eval-bar__rotulo--pretas { top: auto; bottom: 4px; }
 .board > div { width: 100%; height: 100%; }
 .miniboard { width: 120px; aspect-ratio: 1; flex: none; }
 .miniboard .board { width: 120px; }
