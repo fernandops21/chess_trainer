@@ -37,6 +37,7 @@ import chess.pgn
 
 if TYPE_CHECKING:  # pragma: no cover - só para as anotações
     from chess_trainer.core.models import Study, StudyChapter
+    from chess_trainer.core.studies.parser import ParsedExercise
 
 # limites do editor (ver o plano do ciclo): árvore e comentário de um nó
 MAX_NOS = 2000
@@ -412,9 +413,13 @@ def mainline_ucis(tree: dict) -> list[str]:
 # --- solução do exercício ------------------------------------------------
 
 
-def solution_from_tree(tree: dict) -> dict | None:
-    """Solução do exercício no formato dos puzzles, a partir da árvore. `None`
-    quando não há lances."""
+def solution_from_tree(tree: dict) -> ParsedExercise | None:
+    """Exercício (solução e lance de introdução) a partir da árvore. `None`
+    quando não há lances.
+
+    A árvore não guarda o `[Result]` da partida, então a regra do resultado não
+    entra aqui; as outras (texto do autor, último lance, lado a jogar) valem
+    igual à importação."""
     # import tardio de propósito: o parser importa este módulo
     from chess_trainer.core.studies.parser import solution_from_game
 

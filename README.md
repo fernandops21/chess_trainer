@@ -55,6 +55,21 @@ importação roda em segundo plano e o andamento ("2/5 capítulos") aparece no c
 terminar, a mensagem diz quantos capítulos e exercícios entraram e quais foram pulados (capítulo com
 lance ilegal, por exemplo).
 
+### Quem joga no exercício
+
+Nem sempre o aluno é o lado a jogar na posição inicial do capítulo: é comum o autor abrir com um lance
+do adversário e deixar o exercício a partir do segundo. Na hora de montar o exercício o app decide de
+quem ele é seguindo quatro regras, nesta ordem, e a primeira que decidir vence. Primeiro o **texto do
+autor** — o enunciado ou o comentário do primeiro lance —, quando diz "Jogam as pretas", "Brancas
+jogam", "White to move" e afins (maiúsculas e acentos não importam). Depois o **resultado** do capítulo
+(`[Result]`): `1-0` é exercício das brancas e `0-1` das pretas, enquanto `1/2-1/2` e `*` não decidem
+nada. Depois o lado que joga o **último lance** da linha principal, porque o autor costuma parar logo
+depois do lance do aluno. E, sem nenhum sinal, vale o **lado a jogar na FEN**. Quando o aluno não é o
+lado a jogar, o primeiro lance da linha vira a introdução: o exercício abre na posição do capítulo,
+anima o lance do adversário e só então libera as peças — igual às táticas do Lichess. Reimportar (ou
+salvar o capítulo no editor) corrige exercícios que entraram com os lados trocados, sem perder o
+histórico da repetição.
+
 ### Importar um arquivo PGN
 
 No mesmo cartão "Importar" há o campo **"Arquivo PGN"**: escolha um arquivo `.pgn` do computador e ele

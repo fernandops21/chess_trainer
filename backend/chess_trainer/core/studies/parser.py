@@ -22,6 +22,12 @@ Convenções das chaves de `comments` e `shapes`:
 - as setas e casas desenhadas na posição inicial (comentário do nó raiz, antes
   de qualquer lance) ficam sob a chave `"start"`, nunca sob `"0"`.
 
+Quem é o aluno (`solver`) não é necessariamente o lado a jogar na FEN: muitos
+capítulos abrem com um lance do adversário e o aluno joga a partir do segundo
+(ver `_solver_side`). Nesse caso esse primeiro lance vira o *lance de
+introdução* (`ParsedExercise.intro_move`), fora da solução: a tela de treino
+abre na FEN do capítulo, anima o lance e só então libera as peças.
+
 Cada forma é `{"orig", "dest", "brush"}` para uma seta (`[%cal …]`) e
 `{"orig", "brush"}` para o destaque de uma casa (`[%csl …]`, que o
 python-chess representa como uma seta com `tail == head`). O pincel usa os
@@ -37,6 +43,7 @@ from __future__ import annotations
 
 import io
 import re
+import unicodedata
 from dataclasses import dataclass, field
 
 import chess
@@ -58,7 +65,28 @@ PGN_IMPORTADO = "PGN importado"
 
 _STUDY_ID_RE = re.compile(r"/study/([A-Za-z0-9]+)")
 
-__all__ = ["ParsedChapter", "ParsedStudy", "clean_comment", "parse_study_pgn", "solution_from_game"]
+__all__ = [
+    "ParsedChapter",
+    "ParsedExercise",
+    "ParsedStudy",
+    "clean_comment",
+    "parse_study_pgn",
+    "solution_from_game",
+]
+
+
+@dataclass
+class ParsedExercise:
+    """O exercício de um capítulo gamebook.
+
+    `intro_move` é o lance (UCI) do adversário que abre o capítulo quando o
+    aluno não é o lado a jogar na FEN; ele fica **fora** de `solution` e o
+    exercício começa na posição depois dele. `None` quando o aluno já é o lado
+    a jogar (a maioria dos capítulos).
+    """
+
+    solution: dict
+    intro_move: str | None = None
 
 
 @dataclass
@@ -74,6 +102,8 @@ class ParsedChapter:
     pgn: str
     intro_comment: str = ""
     solution: dict | None = None
+    #: lance de introdução do adversário (UCI), quando há; ver `ParsedExercise`
+    intro_move: str | None = None
     tree: dict | None = None
     skipped_reason: str | None = None
 
@@ -205,9 +235,12 @@ def _chapter(game: chess.pgn.Game, order: int) -> ParsedChapter:
         # própria (não a inicial) e uma linha curta. Tratamos como exercício.
         mode = chapter.mode = "gamebook"
     if mode == "gamebook":
-        chapter.solution = solution_from_game(game)
-        if chapter.solution is None:
+        exercicio = solution_from_game(game)
+        if exercicio is None:
             chapter.mode = "read"
+        else:
+            chapter.solution = exercicio.solution
+            chapter.intro_move = exercicio.intro_move
     return chapter
 
 
@@ -254,17 +287,41 @@ def _chapter_name(headers, order: int) -> str:
 # --- solução -------------------------------------------------------------
 
 
-def solution_from_game(game: chess.pgn.Game) -> dict | None:
-    """Monta a solução do capítulo. Devolve None se não houver lances."""
+def solution_from_game(game: chess.pgn.Game) -> ParsedExercise | None:
+    """Monta o exercício do capítulo. Devolve None se não houver lances.
+
+    Quando o aluno não é o lado a jogar na FEN (ver `_solver_side`), o primeiro
+    lance da linha principal é do adversário: ele sai da solução e volta como
+    `intro_move`; os índices de `comments` e `shapes` acompanham o
+    deslocamento, e o que o autor escreveu e desenhou nesse lance passa a valer
+    para a posição em que o aluno começa (`intro` e `shapes["start"]`).
+
+    Uma linha que termina com um lance do adversário mantém esse lance como
+    `engine` final na solução — a tela de treino o joga e encerra o exercício.
+    """
     mainline = list(game.mainline())
     if not mainline:
         return None
+    board = game.board()
+    intro_node: chess.pgn.ChildNode | None = None
+    # com um lance só não há o que deslocar: virar tudo introdução deixaria o
+    # aluno sem nada para jogar, então a linha fica como está
+    if _solver_side(game, mainline, board) != board.turn and len(mainline) > 1:
+        intro_node, mainline = mainline[0], mainline[1:]
+
     moves: list[dict] = []
     comments: dict[str, str] = {}
     shapes: dict[str, list[dict]] = {}
     wrong_moves: dict[str, str] = {}
 
+    intro = clean_comment(game.comment)
     root_shapes = shapes_from_arrows(game.arrows())
+    if intro_node is not None:
+        # o lance de introdução já está na tela quando o aluno chega: o
+        # comentário dele é enunciado, e as marcações são as da posição inicial
+        comentario = clean_comment(intro_node.comment)
+        intro = "\n\n".join(parte for parte in (intro, comentario) if parte)
+        root_shapes = root_shapes + shapes_from_arrows(intro_node.arrows())
     if root_shapes:
         shapes["start"] = root_shapes
 
@@ -287,10 +344,61 @@ def solution_from_game(game: chess.pgn.Game) -> dict | None:
         solution["comments"] = comments
     if shapes:
         solution["shapes"] = shapes
-    intro = clean_comment(game.comment)
     if intro:
         solution["intro"] = intro
-    return solution
+    return ParsedExercise(solution=solution,
+                          intro_move=intro_node.move.uci() if intro_node is not None else None)
+
+
+# textos que dizem de quem é a vez, sem maiúsculas nem acentos
+_PRETAS_RE = re.compile(r"jogam as (pretas|negras)|(pretas|negras) jogam|black to (play|move)")
+_BRANCAS_RE = re.compile(r"jogam as brancas|brancas jogam|white to (play|move)")
+
+_RESULTADOS = {"1-0": chess.WHITE, "0-1": chess.BLACK}
+
+
+def _solver_side(game: chess.pgn.Game, mainline: list[chess.pgn.ChildNode],
+                 board: chess.Board) -> chess.Color:
+    """De quem é o exercício, na ordem; a primeira regra que decide vence.
+
+    1. o enunciado ou o comentário do primeiro lance dizem de quem é a vez
+       ("Jogam as pretas", "White to move"…);
+    2. o `[Result]` do capítulo: `1-0` é das brancas, `0-1` das pretas
+       (`1/2-1/2` e `*` não decidem);
+    3. o lado que joga o último lance da linha principal — o autor para depois
+       do lance do aluno;
+    4. sem nenhum sinal, o lado a jogar na FEN. É o que a regra 3 devolve
+       quando a linha tem um número ímpar de meios-lances.
+    """
+    pelo_texto = _lado_pelo_texto(clean_comment(game.comment))
+    if pelo_texto is None:
+        pelo_texto = _lado_pelo_texto(clean_comment(mainline[0].comment))
+    if pelo_texto is not None:
+        return pelo_texto
+    pelo_resultado = _RESULTADOS.get(game.headers.get("Result", "").strip())
+    if pelo_resultado is not None:
+        return pelo_resultado
+    # linha com número par de meios-lances termina no lado oposto ao da FEN
+    return board.turn if len(mainline) % 2 else not board.turn
+
+
+def _lado_pelo_texto(texto: str) -> chess.Color | None:
+    """Lado anunciado por um texto do autor; None quando ele não diz nada.
+    Se as duas fórmulas aparecerem, vale a primeira do texto."""
+    limpo = _sem_acentos(texto)
+    pretas = _PRETAS_RE.search(limpo)
+    brancas = _BRANCAS_RE.search(limpo)
+    if pretas is not None and (brancas is None or pretas.start() < brancas.start()):
+        return chess.BLACK
+    if brancas is not None:
+        return chess.WHITE
+    return None
+
+
+def _sem_acentos(texto: str) -> str:
+    """Minúsculas e sem acentos, para comparar texto do autor."""
+    decomposto = unicodedata.normalize("NFD", texto.lower())
+    return "".join(c for c in decomposto if not unicodedata.combining(c))
 
 
 def _wrong_moves(node: chess.pgn.ChildNode) -> dict[str, str]:

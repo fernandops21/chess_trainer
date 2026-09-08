@@ -248,7 +248,7 @@ def test_shapes_de_cal_e_csl_com_os_pinceis_certos():
     movimentos = (
         "{ Olhe a casa [%csl Ge4] } "
         "1. e4 { Avanço [%cal Ge2e4,Rd1h5][%csl Yd5] } "
-        "1... e5 { [%cal Bb8c6] } *"
+        "1... e5 { [%cal Bb8c6] } 2. Nf3 *"
     )
     texto = pgn_sintetico("Setas", movimentos, extras='[ChapterMode "gamebook"]')
     cap = parse_study_pgn(texto).chapters[0]
@@ -299,6 +299,131 @@ def test_pgn_do_capitulo_preserva_headers_e_lances():
     assert "Nota" in cap.pgn
 
 
+# --- lado do aluno (solver) ----------------------------------------------
+
+# peão passado contra o rei: dá linhas curtas e legais dos dois lados
+FEN_BRANCAS = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1"
+FEN_PRETAS = "4k3/8/8/8/8/4P3/8/4K3 b - - 0 1"
+
+
+def exercicio_sintetico(movimentos: str, fen: str = FEN_BRANCAS, extras: str = "") -> ParsedChapter:
+    """Capítulo gamebook de uma posição própria, para os casos de cada regra."""
+    cabecalho = "\n".join([f'[FEN "{fen}"]', '[SetUp "1"]', '[ChapterMode "gamebook"]'])
+    if extras:
+        cabecalho += "\n" + extras
+    return parse_study_pgn(pgn_sintetico("Exercício", movimentos, extras=cabecalho)).chapters[0]
+
+
+def lances(cap: ParsedChapter) -> list[tuple[str, str]]:
+    return [(m["uci"], m["by"]) for m in cap.solution["moves"]]
+
+
+def test_enunciado_decide_o_lado_do_aluno():
+    # regra 1: a FEN é das brancas, mas o enunciado entrega o exercício às pretas
+    cap = exercicio_sintetico("{ Jogam as pretas } 1. e4 Kd7 2. e5")
+    assert cap.intro_move == "e2e4"
+    assert lances(cap) == [("e8d7", "solver"), ("e4e5", "engine")]
+
+
+def test_comentario_do_primeiro_lance_tambem_decide():
+    # regra 1, sem depender de maiúsculas nem de acentos no resto do texto
+    cap = exercicio_sintetico("{ Atenção! } 1. e4 { NEGRAS JOGAM } Kd7 2. e5")
+    assert cap.intro_move == "e2e4"
+    assert lances(cap) == [("e8d7", "solver"), ("e4e5", "engine")]
+
+
+def test_texto_em_ingles_decide():
+    cap = exercicio_sintetico("{ White to play } 1... Kd7 2. e4 Kc6", FEN_PRETAS)
+    assert cap.intro_move == "e8d7"
+    assert lances(cap) == [("e3e4", "solver"), ("d7c6", "engine")]
+
+
+def test_resultado_decide_quando_o_texto_nao_diz():
+    # regra 2: FEN e primeiro lance das pretas, mas o 1-0 diz que o exercício é das brancas
+    cap = exercicio_sintetico("1... Kd7 2. e4 Kc6", FEN_PRETAS, extras='[Result "1-0"]')
+    assert cap.intro_move == "e8d7"
+    assert lances(cap) == [("e3e4", "solver"), ("d7c6", "engine")]
+
+
+def test_ultimo_lance_decide_sem_texto_nem_resultado():
+    # regra 3: o autor para depois do lance do aluno, então uma linha de número
+    # par de meios-lances termina no lado oposto ao da FEN
+    cap = exercicio_sintetico("1. e4 Kd7", extras='[Result "1/2-1/2"]')
+    assert cap.intro_move == "e2e4"
+    assert lances(cap) == [("e8d7", "solver")]
+
+
+def test_sem_nenhum_sinal_vale_o_lado_a_jogar_na_fen():
+    # regra 4: linha ímpar, sem texto e sem resultado — nada muda
+    cap = exercicio_sintetico("1. e4 Kd7 2. e5")
+    assert cap.intro_move is None
+    assert lances(cap) == [("e2e4", "solver"), ("e8d7", "engine"), ("e4e5", "solver")]
+
+
+def test_linha_de_um_lance_so_nao_vira_introducao():
+    # deslocar deixaria o aluno sem nada para jogar: a linha fica como está
+    cap = exercicio_sintetico("{ Jogam as pretas } 1. e4")
+    assert cap.intro_move is None
+    assert lances(cap) == [("e2e4", "solver")]
+
+
+def test_enunciado_e_marcacoes_acompanham_o_lance_de_introducao():
+    movimentos = ("{ Ache o plano [%csl Ge4] } 1. e4 { Jogam as pretas [%cal Ge2e4] } "
+                  "Kd7 { Aproxima o rei [%csl Rd7] } 2. e5")
+    cap = exercicio_sintetico(movimentos)
+    assert cap.intro_move == "e2e4"
+    # o comentário do lance de introdução vira enunciado e as setas dele passam a
+    # ser as da posição em que o aluno começa
+    assert cap.solution["intro"] == "Ache o plano\n\nJogam as pretas"
+    assert cap.solution["shapes"]["start"] == [
+        {"orig": "e4", "brush": "green"},
+        {"orig": "e2", "dest": "e4", "brush": "green"},
+    ]
+    # os índices andam junto: o comentário do lance do aluno é o "0"
+    assert cap.solution["comments"] == {"0": "Aproxima o rei"}
+    assert cap.solution["shapes"]["0"] == [{"orig": "d7", "brush": "red"}]
+
+
+def test_variacoes_comentadas_seguem_o_lado_do_aluno():
+    movimentos = "{ Jogam as pretas } 1. e4 Kd7 (1... Kf7 { Longe demais }) 2. e5"
+    cap = exercicio_sintetico(movimentos)
+    assert cap.solution["wrong_moves"] == {"e8f7": "Longe demais"}
+
+
+def test_capitulo_com_lance_de_introducao_do_adversario(estudo):
+    """QtPYhPsi: FEN das brancas, `34. Re4 { Jogam as pretas }` e resultado 0-1.
+    O exercício é das pretas e começa depois do lance das brancas."""
+    cap = capitulo_por_url(estudo, "/QtPYhPsi")
+    assert cap.fen.startswith("2r3k1/6bp/3pr1p1/2q5/1R3P2/5PP1/7K/3QBR2 w")
+    assert cap.intro_move == "b4e4"
+    moves = cap.solution["moves"]
+    assert (moves[0]["uci"], moves[0]["by"]) == ("c5h5", "solver")
+    assert (moves[-1]["uci"], moves[-1]["by"]) == ("g7d4", "solver")
+    assert [m["by"] for m in moves] == ["solver", "engine"] * 4 + ["solver"]
+    assert cap.solution["intro"] == "Jogam as pretas"
+
+
+def test_nenhum_gamebook_da_fixture_termina_no_engine(estudo):
+    """O sinal do bug: exercício que acaba com lance do adversário. Sobram só os
+    capítulos em que o texto do autor manda a linha continuar depois do aluno."""
+    invertidos = [cap.name for cap in estudo.chapters
+                  if cap.solution and cap.solution["moves"][-1]["by"] == "engine"]
+    assert invertidos == []
+
+
+def test_capitulos_da_fixture_que_ganharam_lance_de_introducao(estudo):
+    """Os 11 capítulos deste estudo em que o aluno não é o lado a jogar na FEN:
+    dez pelo texto ou pelo resultado, e o "Exemplo - Sobrecarga" (MjDMl1jz) pelo
+    último lance da linha."""
+    com_introducao = {cap.lichess_url.rsplit("/", 1)[-1]: cap.intro_move
+                      for cap in estudo.chapters if cap.intro_move}
+    assert com_introducao == {
+        "jplGgITX": "e7c5", "jqdDO7BG": "g7h6", "bdvmPuaP": "c6c5", "d5GqFvzD": "f6e8",
+        "Xsy3fEHM": "e6c5", "6bG9tWYf": "g6h5", "rLEIPsYy": "g7h6", "cn9ywxGv": "e8f8",
+        "0ROSVAVW": "d3c4", "QtPYhPsi": "b4e4", "MjDMl1jz": "a2a1",
+    }
+
+
 # --- árvore de lances ----------------------------------------------------
 
 
@@ -335,7 +460,9 @@ def test_capitulo_com_fen_invalida_fica_sem_arvore():
 
 def test_solution_from_game_e_a_funcao_publica_da_solucao(estudo, texto_do_estudo):
     game = chess.pgn.read_game(io.StringIO(texto_do_estudo))
-    assert solution_from_game(game) == estudo.chapters[0].solution
+    exercicio = solution_from_game(game)
+    assert exercicio.solution == estudo.chapters[0].solution
+    assert exercicio.intro_move is None
 
 
 def test_capitulo_comum_com_posicao_propria_e_linha_curta_vira_exercicio():

@@ -174,15 +174,21 @@ def test_tree_to_game_recusa_lance_ilegal():
 def test_solution_from_tree_igual_a_do_parser(texto_do_estudo, jogos):
     estudo = parse_study_pgn(texto_do_estudo)
     cap = estudo.chapters[0]
-    assert solution_from_tree(game_to_tree(jogos[0])) == cap.solution
+    exercicio = solution_from_tree(game_to_tree(jogos[0]))
+    assert exercicio.solution == cap.solution and exercicio.intro_move == cap.intro_move
 
 
 def test_solution_from_tree_de_todos_os_gamebooks(texto_do_estudo, jogos):
+    """A árvore não guarda o `[Result]`, mas nesta fixture as outras regras do
+    lado do aluno bastam: o exercício sai igual ao da importação, lance de
+    introdução incluído."""
     estudo = parse_study_pgn(texto_do_estudo)
     for cap, game in zip(estudo.chapters, jogos, strict=True):
         if cap.mode != "gamebook":
             continue
-        assert solution_from_tree(game_to_tree(game)) == cap.solution
+        exercicio = solution_from_tree(game_to_tree(game))
+        assert exercicio.solution == cap.solution
+        assert exercicio.intro_move == cap.intro_move
 
 
 def test_solution_from_game_e_publico(jogos):

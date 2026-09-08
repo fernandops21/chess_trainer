@@ -4,6 +4,7 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import chess
 import httpx
 import pytest
 from sqlalchemy import func, select
@@ -39,6 +40,7 @@ FEN_MATE = "6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1"
 FEN_PEAO = "4k3/8/8/8/8/8/4P3/4K3 w - - 0 1"
 # a mesma posição com o peão um lance à frente, para a reimportação com linha trocada
 FEN_PEAO_AVANCADO = "4k3/8/8/8/8/4P3/8/4K3 w - - 0 1"
+URL_CAP4 = "https://lichess.org/study/TESTE001/cap00004"
 
 
 def capitulo_pgn(nome, url, fen, lances, modo="gamebook", estudo=ESTUDO, autor="autor"):
@@ -174,14 +176,14 @@ def test_linha_alterada_atualiza_o_exercicio_no_lugar(db_session):
     puzzle.srs_ease, puzzle.srs_interval_days, puzzle.srs_due_at = 2.9, 12, AGORA
     db_session.commit()
 
-    _, report = importar(db_session, _dois_capitulos("1. e4 Kd7 2. e5 Kc6", FEN_PEAO_AVANCADO))
+    _, report = importar(db_session, _dois_capitulos("1. e4 Kd7 2. e5 Kc6 3. e6", FEN_PEAO_AVANCADO))
 
     db_session.expire_all()
     atualizado = db_session.get(Puzzle, puzzle.id)
     assert atualizado.id == puzzle.id and report.updated == 2 and report.created == 0
     ucis = [m["uci"] for m in json.loads(atualizado.solution)["moves"]]
-    assert ucis[0] == "e3e4" and len(ucis) == 4
-    assert atualizado.solver_moves == 2
+    assert ucis[0] == "e3e4" and len(ucis) == 5
+    assert atualizado.solver_moves == 3
     # a fen inicial acompanha a nova versão do capítulo
     assert atualizado.fen_start == db_session.get(StudyChapter, study.chapters[0].id).fen
     # o histórico da repetição espaçada continua intocado
@@ -208,6 +210,45 @@ def test_desfecho_mate_ou_ganho_de_material(db_session):
 
     assert peao.end_reason == "material_gain" and peao.solver_moves == 2 and peao.side_to_move == "white"
     assert mate.end_reason == "mate" and mate.solver_moves == 1 and mate.side_to_move == "white"
+
+
+def test_exercicio_do_outro_lado_comeca_depois_do_lance_de_introducao(db_session):
+    """Capítulo cujo enunciado entrega o exercício ao lado que não joga na FEN:
+    o primeiro lance é do adversário e vira a introdução — `fen_before` e
+    `last_move` guardam a posição de antes e o lance, como nas táticas do
+    Lichess, e o exercício parte da posição de depois dele."""
+    texto = capitulo_pgn("Introdução", URL_CAP4, FEN_PEAO, "{ Jogam as pretas } 1. e4 Kd7 2. e5")
+
+    study, report = importar(db_session, texto)
+
+    puzzle = db_session.get(Puzzle, study.chapters[0].puzzle_id)
+    depois = chess.Board(FEN_PEAO)
+    depois.push_uci("e2e4")
+    assert report.created == 1
+    assert puzzle.fen_before == FEN_PEAO and puzzle.last_move == "e2e4"
+    assert puzzle.fen_start == depois.fen() and puzzle.side_to_move == "black"
+    assert [m["uci"] for m in json.loads(puzzle.solution)["moves"]] == ["e8d7", "e4e5"]
+    assert puzzle.solver_moves == 1
+    # a posição inicial do capítulo continua sendo a do PGN: quem anda é o exercício
+    assert study.chapters[0].fen == FEN_PEAO
+
+
+def test_exercicio_que_muda_de_lado_e_atualizado_no_lugar(db_session):
+    """Reimportar o mesmo capítulo sem o enunciado devolve o exercício ao lado a
+    jogar na FEN: o exercício é o mesmo (o histórico fica), sem introdução."""
+    antes = capitulo_pgn("Introdução", URL_CAP4, FEN_PEAO, "{ Jogam as pretas } 1. e4 Kd7 2. e5")
+    study, _ = importar(db_session, antes)
+    puzzle_id = study.chapters[0].puzzle_id
+
+    _, report = importar(db_session, capitulo_pgn("Introdução", URL_CAP4, FEN_PEAO, "1. e4 Kd7 2. e5"))
+
+    db_session.expire_all()
+    puzzle = db_session.get(Puzzle, puzzle_id)
+    assert report.updated == 1 and report.created == 0
+    assert puzzle.fen_before is None and puzzle.last_move is None
+    assert puzzle.fen_start == FEN_PEAO and puzzle.side_to_move == "white"
+    assert [m["uci"] for m in json.loads(puzzle.solution)["moves"]] == ["e2e4", "e8d7", "e4e5"]
+    assert puzzle.solver_moves == 2
 
 
 def test_fen_repetida_em_outro_estudo_nao_mexe_no_exercicio_alheio(db_session):

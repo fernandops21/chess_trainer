@@ -266,12 +266,14 @@ def _upsert_chapter(db: Session, study: Study, chapter: StudyChapter | None,
         _puzzle_out_of_queue(db, chapter)
         return chapter
 
-    _upsert_puzzle(db, chapter, parsed.fen, parsed.solution, report)
+    _upsert_puzzle(db, chapter, parsed.fen, parsed.solution, report,
+                   intro_move=parsed.intro_move)
     return chapter
 
 
 def _upsert_puzzle(db: Session, chapter: StudyChapter, fen: str, solution: dict,
-                   report: ImportReport, editor: bool = False) -> None:
+                   report: ImportReport, editor: bool = False,
+                   intro_move: str | None = None) -> None:
     """Cria ou atualiza o exercício do capítulo. Serve tanto à importação quanto
     ao editor: o que muda entre eles é só de onde vêm a FEN e a solução — e o
     que fazer quando outro capítulo já usa esta posição inicial. Na importação
@@ -279,7 +281,7 @@ def _upsert_puzzle(db: Session, chapter: StudyChapter, fen: str, solution: dict,
     relatório, porque um estudo grande não pode parar por causa de um capítulo;
     no editor o salvamento é recusado com `TreeInvalid`, para o usuário não sair
     da tela achando que gravou um exercício que não existe."""
-    dados = _puzzle_fields(fen, solution)
+    dados = _puzzle_fields(fen, solution, intro_move)
     puzzle = db.get(Puzzle, chapter.puzzle_id) if chapter.puzzle_id else None
     if puzzle is not None:
         # atualiza no lugar: id e histórico da repetição espaçada continuam
@@ -340,12 +342,28 @@ def _upsert_puzzle(db: Session, chapter: StudyChapter, fen: str, solution: dict,
     report.created += 1
 
 
-def _puzzle_fields(fen: str, solution: dict | None) -> dict:
+def _puzzle_fields(fen: str, solution: dict | None, intro_move: str | None = None) -> dict:
+    """Campos do exercício a partir da posição inicial do capítulo e da solução.
+
+    Com `intro_move` (o lance do adversário que abre o capítulo, quando o aluno
+    não é o lado a jogar na FEN), o exercício começa **depois** dele:
+    `fen_before` e `last_move` guardam a posição de antes e o lance, que a tela
+    de treino anima antes de liberar as peças — os mesmos campos que as táticas
+    do Lichess usam. Sem lance de introdução os dois voltam a ser nulos, para
+    que reimportar um capítulo corrigido não deixe resto do que havia."""
     solution = solution or {}
     moves = solution.get("moves", [])
     board = chess.Board(fen)
+    fen_before: str | None = None
+    last_move: str | None = None
+    if intro_move:
+        fen_before, last_move = board.fen(), intro_move
+        board.push_uci(intro_move)
+        fen = board.fen()
     return {
         "fen_start": fen,
+        "fen_before": fen_before,
+        "last_move": last_move,
         "side_to_move": "white" if board.turn == chess.WHITE else "black",
         "solution": json.dumps(solution, ensure_ascii=False),
         "solver_moves": sum(1 for m in moves if m.get("by") == "solver"),
@@ -625,14 +643,15 @@ def _recreate_exercise(db: Session, chapter: StudyChapter, tree: dict, modo_ante
     `TreeInvalid` (a única (fen_start, kind, source)) — tanto ao criar quanto ao
     mudar a posição de um capítulo que já tem exercício.
     """
-    solution = solution_from_tree(tree) if chapter.mode == "gamebook" else None
-    if solution is None:
+    exercicio = solution_from_tree(tree) if chapter.mode == "gamebook" else None
+    if exercicio is None:
         _puzzle_out_of_queue(db, chapter)
         return
     antes = db.get(Puzzle, chapter.puzzle_id) if chapter.puzzle_id else None
     estava_fora = antes is not None and not antes.in_queue
     voltou_da_leitura = modo_antes != "gamebook"
-    _upsert_puzzle(db, chapter, chapter.fen, solution, ImportReport(), editor=True)
+    _upsert_puzzle(db, chapter, chapter.fen, exercicio.solution, ImportReport(), editor=True,
+                   intro_move=exercicio.intro_move)
     if estava_fora and voltou_da_leitura and chapter.in_queue and chapter.puzzle_id:
         puzzle = db.get(Puzzle, chapter.puzzle_id)
         if puzzle is not None:
