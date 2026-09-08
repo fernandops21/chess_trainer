@@ -111,7 +111,8 @@ def get_study(study_id: str, db: Session = Depends(get_db)):
                                  for c in study.chapters])
 
 
-def _submit(request: Request, *, lichess_id: str | None, pgn: str, source_url: str) -> dict:
+def _submit(request: Request, *, lichess_id: str | None, pgn: str, source_url: str,
+            title: str = "") -> dict:
     """Põe o job `import_study` na fila: baixa (ou usa o PGN colado) e faz o upsert."""
     app = request.app
 
@@ -120,6 +121,9 @@ def _submit(request: Request, *, lichess_id: str | None, pgn: str, source_url: s
         try:
             text = pgn or _download(app, lichess_id)
             parsed = parse_study_pgn(text)
+            if title:
+                # título escolhido por quem importa vence o que o PGN diz
+                parsed.title = title
             if not parsed.chapters:
                 raise RuntimeError("o PGN não tem nenhum capítulo")
             total = len(parsed.chapters)
@@ -168,7 +172,8 @@ def post_import(body: StudyImportIn, request: Request):
     if url and lichess_id is None:
         raise HTTPException(400, "URL de estudo inválida")
     source_url = STUDY_URL.format(lichess_id=lichess_id) if lichess_id else ""
-    return _submit(request, lichess_id=lichess_id, pgn=pgn, source_url=source_url)
+    return _submit(request, lichess_id=lichess_id, pgn=pgn, source_url=source_url,
+                   title=(body.title or "").strip())
 
 
 @router.post("/studies/{study_id}/reimport", status_code=202)

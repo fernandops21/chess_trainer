@@ -379,3 +379,58 @@ def test_aspas_escapadas_nos_headers_sao_desfeitas():
     estudo = parse_study_pgn(texto)
     assert estudo.chapters[0].name == 'Brancas jogam ("pegadinha")'
     assert estudo.title == 'Tática "dupla"'
+
+
+# --- PGN comum (coleção de partidas) -------------------------------------
+
+PGN_DE_PARTIDAS = """[Event "Linares"]
+[Date "1993.??.??"]
+[White "Kasparov, Garry"]
+[Black "Karpov, Anatoly"]
+[Result "*"]
+
+1. e4 e5 *
+
+[Event "?"]
+[Date "????.??.??"]
+[White "Kasparov, Garry"]
+[Black "Karpov, Anatoly"]
+[Result "*"]
+
+1. d4 d5 *
+"""
+
+
+def test_pgn_comum_titulo_vem_do_torneio_do_primeiro_jogo():
+    estudo = parse_study_pgn(PGN_DE_PARTIDAS)
+    assert estudo.title == "Linares"
+    assert estudo.author == "" and estudo.lichess_id is None
+
+
+def test_pgn_comum_um_capitulo_por_partida_com_jogadores_no_nome():
+    estudo = parse_study_pgn(PGN_DE_PARTIDAS)
+    assert [c.name for c in estudo.chapters] == [
+        "Kasparov, Garry × Karpov, Anatoly (Linares, 1993)",
+        "Kasparov, Garry × Karpov, Anatoly",
+    ]
+    # partida inteira da posição inicial: capítulo de leitura
+    assert [c.mode for c in estudo.chapters] == ["read", "read"]
+
+
+def test_pgn_comum_sem_torneio_ganha_titulo_generico():
+    texto = '[Event "?"]\n[White "?"]\n[Black "?"]\n[Result "*"]\n\n1. e4 *\n\n'
+    estudo = parse_study_pgn(texto)
+    assert estudo.title == "PGN importado"
+    assert estudo.chapters[0].name == "Capítulo 1"
+
+
+def test_pgn_comum_sem_jogadores_usa_o_torneio_como_nome_do_capitulo():
+    texto = '[Event "Linares"]\n[White "?"]\n[Black "?"]\n[Result "*"]\n\n1. e4 *\n\n'
+    assert parse_study_pgn(texto).chapters[0].name == "Linares"
+
+
+def test_pgn_comum_com_jogadores_e_so_o_ano():
+    texto = ('[Event "?"]\n[Date "1993.05.10"]\n[White "Kasparov, Garry"]\n'
+             '[Black "Karpov, Anatoly"]\n[Result "*"]\n\n1. e4 *\n\n')
+    cap = parse_study_pgn(texto).chapters[0]
+    assert cap.name == "Kasparov, Garry × Karpov, Anatoly (1993)"

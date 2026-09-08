@@ -19,6 +19,9 @@ function counts(s: StudyOut): string {
   ].join(" · ");
 }
 
+/** "livro.pgn" → "livro": o nome do arquivo vira o título do estudo. */
+const semExtensao = (nome: string) => nome.replace(/\.[^.]+$/, "") || nome;
+
 export function StudiesPage() {
   const navigate = useNavigate();
   const { data, error, isLoading } = useStudies();
@@ -42,7 +45,7 @@ export function StudiesPage() {
         <button className="primary" onClick={() => setNovo(true)}>Novo estudo</button>
       </div>
       <div className="card">
-        <h3 style={{ marginTop: 0 }}>Importar do Lichess</h3>
+        <h3 style={{ marginTop: 0 }}>Importar</h3>
         <div className="row">
           <input
             style={{ flex: "1 1 320px" }}
@@ -83,6 +86,27 @@ export function StudiesPage() {
             </div>
           </div>
         )}
+        <div style={{ marginTop: 10 }}>
+          <input
+            type="file"
+            accept=".pgn,text/plain"
+            aria-label="Arquivo PGN"
+            disabled={busy}
+            onChange={(e) => {
+              const arquivo = e.target.files?.[0];
+              // limpa a escolha para que o mesmo arquivo possa ser importado de novo
+              e.target.value = "";
+              if (!arquivo) return;
+              void arquivo.text().then((texto) => {
+                importStudy.mutate({ pgn: texto, title: semExtensao(arquivo.name) });
+              });
+            }}
+          />
+          <div className="muted">
+            Coleções de partidas em PGN (livros comprados em PGN, bases exportadas) viram um estudo
+            com um capítulo por partida.
+          </div>
+        </div>
         <ErrorBox error={importStudy.error ?? reimport.error ?? setQueue.error ?? remove.error} />
       </div>
       <JobCard />

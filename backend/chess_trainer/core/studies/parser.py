@@ -53,6 +53,9 @@ from chess_trainer.core.studies.tree import (
 
 AUTHOR_PREFIX = "https://lichess.org/@/"
 
+# título de um PGN comum que nem torneio tem
+PGN_IMPORTADO = "PGN importado"
+
 _STUDY_ID_RE = re.compile(r"/study/([A-Za-z0-9]+)")
 
 __all__ = ["ParsedChapter", "ParsedStudy", "clean_comment", "parse_study_pgn", "solution_from_game"]
@@ -86,12 +89,18 @@ class ParsedStudy:
 
 
 def parse_study_pgn(text: str) -> ParsedStudy:
-    """Interpreta o PGN de um estudo inteiro (um jogo por capítulo)."""
+    """Interpreta o PGN de um estudo inteiro (um jogo por capítulo).
+
+    Serve tanto para o export de um estudo do Lichess quanto para um PGN comum
+    (coleção de partidas): sem os headers do estudo, cada partida vira um
+    capítulo de leitura e os nomes saem dos jogadores, do torneio e do ano.
+    """
     stream = io.StringIO(text)
     chapters: list[ParsedChapter] = []
     title = ""
     author = ""
     lichess_id: str | None = None
+    primeiros_headers = None
     order = 0
     while True:
         game = chess.pgn.read_game(stream)
@@ -99,10 +108,14 @@ def parse_study_pgn(text: str) -> ParsedStudy:
             break
         order += 1
         headers = game.headers
+        if primeiros_headers is None:
+            primeiros_headers = headers
         title = title or _study_title(headers)
         author = author or _author(headers)
         lichess_id = lichess_id or _study_id(headers.get("ChapterURL", ""))
         chapters.append(_chapter(game, order))
+    if not title and primeiros_headers is not None:
+        title = _titulo_de_pgn_comum(primeiros_headers)
     return ParsedStudy(title=title, author=author, lichess_id=lichess_id, chapters=chapters)
 
 
@@ -115,12 +128,24 @@ def _unescape(text: str) -> str:
     return text.replace('\\"', '"').replace("\\\\", "\\")
 
 
+def _preenchido(valor: str) -> bool:
+    """Header com conteúdo de verdade ("?" é o valor que o PGN usa para "não sei")."""
+    return bool(valor) and valor != "?"
+
+
 def _study_title(headers) -> str:
+    """Título vindo dos headers de estudo; "" quando o PGN não diz nada."""
     name = _unescape(headers.get("StudyName", "").strip())
     if name:
         return name
     prefix, sep, _ = _unescape(headers.get("Event", "").strip()).partition(": ")
     return prefix if sep else ""
+
+
+def _titulo_de_pgn_comum(headers) -> str:
+    """PGN sem headers de estudo: vale o torneio do primeiro jogo."""
+    event = _unescape(headers.get("Event", "").strip())
+    return event if _preenchido(event) else PGN_IMPORTADO
 
 
 def _author(headers) -> str:
@@ -146,7 +171,7 @@ def _chapter(game: chess.pgn.Game, order: int) -> ParsedChapter:
     mode = "gamebook" if modo_declarado == "gamebook" else "read"
     chapter = ParsedChapter(
         order=order,
-        name=_chapter_name(headers),
+        name=_chapter_name(headers, order),
         lichess_url=url or None,
         fen=fen,
         orientation="white",
@@ -205,13 +230,25 @@ def _headers_only(game: chess.pgn.Game) -> str:
     return "\n".join(f'[{key} "{value}"]' for key, value in game.headers.items())
 
 
-def _chapter_name(headers) -> str:
+def _chapter_name(headers, order: int) -> str:
     name = _unescape(headers.get("ChapterName", "").strip())
     if name:
         return name
     event = _unescape(headers.get("Event", "").strip())
     _, sep, suffix = event.partition(": ")
-    return suffix if sep else event
+    if sep:
+        return suffix
+    # PGN comum: um capítulo por partida, com o nome tirado dos jogadores
+    white = _unescape(headers.get("White", "").strip())
+    black = _unescape(headers.get("Black", "").strip())
+    torneio = event if _preenchido(event) else ""
+    ano = _unescape(headers.get("Date", "").strip())[:4]
+    if not _preenchido(ano) or ano == "????":
+        ano = ""
+    if _preenchido(white) and _preenchido(black):
+        detalhes = ", ".join(parte for parte in (torneio, ano) if parte)
+        return f"{white} × {black}" + (f" ({detalhes})" if detalhes else "")
+    return torneio or f"Capítulo {order}"
 
 
 # --- solução -------------------------------------------------------------

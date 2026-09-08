@@ -88,6 +88,16 @@ test("colar PGN mostra a área de texto e importa o PGN", async () => {
   await waitFor(() => expect(api.importStudy).toHaveBeenCalledWith({ pgn: '[Event "Cap"]\n1. e4 *' }));
 });
 
+test("escolher um arquivo PGN importa com o nome do arquivo como título", async () => {
+  renderPage();
+  await screen.findByText("Finais de torre");
+  const pgn = '[Event "Linares"]\n\n1. e4 e5 *';
+  fireEvent.change(screen.getByLabelText("Arquivo PGN"), {
+    target: { files: [new File([pgn], "livro.pgn", { type: "text/plain" })] },
+  });
+  await waitFor(() => expect(api.importStudy).toHaveBeenCalledWith({ pgn, title: "livro" }));
+});
+
 test("remover pede confirmação antes de apagar", async () => {
   renderPage();
   await screen.findByText("Finais de torre");

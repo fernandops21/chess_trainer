@@ -60,6 +60,25 @@ PGN_SO_LEITURA = """[Event "Leitura: Um"]
 """
 
 
+# PGN comum (coleção de partidas), sem nenhum header de estudo
+PGN_DE_PARTIDAS = """[Event "Linares"]
+[Date "1993.??.??"]
+[White "Kasparov, Garry"]
+[Black "Karpov, Anatoly"]
+[Result "*"]
+
+1. e4 e5 *
+
+[Event "?"]
+[Date "????.??.??"]
+[White "Kasparov, Garry"]
+[Black "Karpov, Anatoly"]
+[Result "*"]
+
+1. d4 d5 *
+"""
+
+
 def build_client(handler):
     app = create_app(
         db_path=":memory:",
@@ -188,6 +207,28 @@ def test_importar_por_pgn_nao_baixa_nada():
     with build_client(handler) as client:
         importar(client, {"pgn": PGN})
         assert client.get("/api/studies").json()[0]["chapter_count"] == 27
+
+
+def test_importar_arquivo_pgn_vira_um_capitulo_por_partida(client):
+    importar(client, {"pgn": PGN_DE_PARTIDAS})
+    estudo = client.get("/api/studies").json()[0]
+    assert estudo["title"] == "Linares" and estudo["chapter_count"] == 2
+    detalhe = client.get(f"/api/studies/{estudo['id']}").json()
+    assert [c["name"] for c in detalhe["chapters"]] == [
+        "Kasparov, Garry × Karpov, Anatoly (Linares, 1993)",
+        "Kasparov, Garry × Karpov, Anatoly",
+    ]
+
+
+def test_titulo_do_corpo_vence_o_titulo_do_pgn(client):
+    """O nome do arquivo escolhido na importação manda no título do estudo."""
+    importar(client, {"pgn": PGN_DE_PARTIDAS, "title": "Meu livro"})
+    assert client.get("/api/studies").json()[0]["title"] == "Meu livro"
+
+
+def test_titulo_vazio_no_corpo_deixa_o_do_pgn(client):
+    importar(client, {"pgn": PGN_DE_PARTIDAS, "title": "   "})
+    assert client.get("/api/studies").json()[0]["title"] == "Linares"
 
 
 def test_url_invalida_400(client):

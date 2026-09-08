@@ -335,6 +335,9 @@ class StudyDetail(StudyOut):
 class StudyImportIn(BaseModel):
     url: str | None = None
     pgn: str | None = None
+    # título escolhido por quem importa (o nome do arquivo PGN, por exemplo);
+    # quando vem preenchido, vence o que o PGN diz
+    title: str | None = None
 
 
 class StudyCreateIn(BaseModel):

@@ -462,6 +462,8 @@ export interface StudyDetail extends StudyOut {
 export interface StudyImportIn {
   url?: string;
   pgn?: string;
+  /** Título escolhido na importação (o nome do arquivo PGN); vence o do PGN. */
+  title?: string;
 }
 
 export interface GamesQuery {

@@ -49,11 +49,23 @@ O app baixa o PGN pela API pública do Lichess, então só funciona com **estudo
 estudo privado (ou seu), exporte o PGN no Lichess (menu do estudo → "Export → Study PGN") e cole o
 texto no app.
 
-Como importar: **Estudos → "Importar do Lichess"**, cole o endereço (`lichess.org/study/<id>`, com ou
+Como importar: **Estudos → "Importar"**, cole o endereço (`lichess.org/study/<id>`, com ou
 sem o capítulo no fim) e clique em "Importar"; ou clique em "colar PGN" e cole o PGN exportado. A
 importação roda em segundo plano e o andamento ("2/5 capítulos") aparece no cartão "Tarefas". Ao
 terminar, a mensagem diz quantos capítulos e exercícios entraram e quais foram pulados (capítulo com
 lance ilegal, por exemplo).
+
+### Importar um arquivo PGN
+
+No mesmo cartão "Importar" há o campo **"Arquivo PGN"**: escolha um arquivo `.pgn` do computador e ele
+vira um estudo com **um capítulo por partida**. Serve para coleções de partidas — livros comprados em
+PGN, bases exportadas de outro programa —, não só para estudos do Lichess.
+
+Os nomes saem dos headers de cada partida: o título do estudo é o nome do arquivo (sem a extensão) e
+cada capítulo vira `"Kasparov, Garry × Karpov, Anatoly (Linares, 1993)"`, com o torneio e o ano que
+houver. Sem os jogadores fica o torneio; sem nada, "Capítulo 1", "Capítulo 2"… Partidas inteiras
+entram como **leitura**; uma partida que comece de uma posição própria e tenha linha curta vira
+exercício, como já acontece nos capítulos comuns de um estudo.
 
 Na lista, cada estudo mostra autor, quantos capítulos, quantos exercícios estão na repetição e quantos
 venceram hoje, com os botões:
