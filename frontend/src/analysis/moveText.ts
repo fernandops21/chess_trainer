@@ -24,15 +24,24 @@ export type Segmento =
 /**
  * Candidato a lance no texto.
  *
- * 1. número do lance, opcional e colado (`12.`, `12...`, `12. `);
+ * 1. número do lance, opcional: `12.`, `12...`, `12. `, e também o jeito dos
+ *    livros antigos, `12 Nf3` (número, espaço) e `12 ... Nf6` / `12....Nf6`;
  * 2. o SAN em si (roque, peça ou peão, com desambiguação e promoção);
  * 3. xeque/mate (`+`, `#`) e apreciação (`!`, `?`, `!!`, `?!`…).
  *
  * Os sufixos e o número ficam no texto do segmento, mas saem antes de o
- * chess.js julgar a legalidade.
+ * chess.js julgar a legalidade. O número (grupo 2) e as reticências (grupo 3)
+ * dizem em que lance da linha o autor está: com eles a sequência volta para
+ * essa posição em vez de encadear às cegas.
  */
 const CANDIDATO =
-  /((?:\d{1,3}\.(?:\.\.)?[ \t]*)?)(O-O-O|O-O|[KQRBN][a-h]?[1-8]?x?[a-h][1-8]|[a-h]x?[a-h]?[1-8](?:=[QRBN])?)([+#]?)([!?]{0,2})/g;
+  /((?:(\d{1,3})[ \t]*(\.{1,4})?[ \t]*)?)(O-O-O|O-O|[KQRBN][a-h]?[1-8]?x?[a-h][1-8]|[a-h]x?[a-h]?[1-8](?:=[QRBN])?)([+#]?)([!?]{0,2})/g;
+
+/** Número do lance e lado a jogar de uma FEN. */
+function ondeEsta(fen: string): { numero: number; pretas: boolean } {
+  const campos = fen.split(" ");
+  return { numero: Number(campos[5]) || 1, pretas: campos[1] === "b" };
+}
 
 /**
  * Um lance só pode nascer entre limites de palavra: nada de pescar dentro de
@@ -95,16 +104,37 @@ export function segmentar(texto: string, fenAncora: string): Segmento[] {
       continue;
     }
 
-    const san = m[2];
-    let lance = tentar(fenAtual, san);
-    let nova: LanceDaLinha[];
-    if (lance) {
-      nova = [...linha, lance];
-    } else {
-      // recomeço de sequência: o lance pode ser resposta a outro lance do texto
-      lance = fenAtual === fenAncora ? null : tentar(fenAncora, san);
-      if (!lance) continue;
-      nova = [lance];
+    const san = m[4];
+    let lance: LanceDaLinha | null = null;
+    let nova: LanceDaLinha[] = [];
+
+    // Com número, o autor diz onde está: "8 a5" é o 8º lance das brancas,
+    // "8...Bxa5" o das pretas. A linha volta até a posição com esse número
+    // (a âncora conta), e o lance parte dali — é assim que "after 7...Nf6
+    // 8 a5, play 8...Nxa5" recomeça no 8º em vez de emendar no 10º.
+    const numero = m[2] ? Number(m[2]) : null;
+    if (numero !== null) {
+      const pretas = (m[3] ?? "").length >= 2;
+      const posicoes = [fenAncora, ...linha.map((l) => l.fen)];
+      for (let i = posicoes.length - 1; i >= 0; i--) {
+        const onde = ondeEsta(posicoes[i]);
+        if (onde.numero === numero && onde.pretas === pretas) {
+          lance = tentar(posicoes[i], san);
+          if (lance) nova = [...linha.slice(0, i), lance];
+          break;
+        }
+      }
+    }
+    if (!lance) {
+      lance = tentar(fenAtual, san);
+      if (lance) {
+        nova = [...linha, lance];
+      } else {
+        // recomeço de sequência: o lance pode ser resposta a outro lance do texto
+        lance = fenAtual === fenAncora ? null : tentar(fenAncora, san);
+        if (!lance) continue;
+        nova = [lance];
+      }
     }
 
     if (m.index > pos) segs.push({ kind: "texto", text: texto.slice(pos, m.index) });

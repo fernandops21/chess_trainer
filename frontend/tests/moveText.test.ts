@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import { segmentar } from "../src/analysis/moveText";
 import type { Segmento } from "../src/analysis/moveText";
+import { novoChess } from "../src/lib/chess";
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 /** Brancas a jogar, com peão em d4 e cavalos em b1 e f4: "d5", "Nb4", "Nd5" e "Qb6" cabem
@@ -104,4 +105,24 @@ test("FEN inválida devolve tudo como texto", () => {
 
 test("texto vazio não vira segmento nenhum", () => {
   expect(segmentar("", START)).toEqual([]);
+});
+
+test("o número do lance manda a sequência de volta para a posição certa (estilo dos livros antigos)", () => {
+  // Scheve × Teichmann depois de 7.a4; comentário do Chernev com "7 ... Nf6 8 a5" e variações
+  const c = novoChess();
+  for (const m of ["e4", "e5", "Nf3", "Nc6", "Bc4", "Bc5", "c3", "Qe7", "O-O", "d6", "d4", "Bb6", "a4"]) c.move(m);
+  const texto = "by 7 ... Nf6 8 a5. If then 8....Bxa5, 9 d5 and after 9...Nd8, 10 Rxa5. Should Black play 8...Nxa5, then 9 Rxa5 Bxa5 10 Qa4+.";
+  const segs = segmentar(texto, c.fen());
+  const lances = segs.filter((s) => s.kind === "lance") as Extract<Segmento, { kind: "lance" }>[];
+  expect(lances.map((l) => l.text)).toEqual(["7 ... Nf6", "8 a5", "8....Bxa5", "9 d5", "9...Nd8", "10 Rxa5", "8...Nxa5", "9 Rxa5", "Bxa5", "10 Qa4+"]);
+  // "8...Nxa5" volta para a posição depois de 8 a5, e não emenda no 10º lance
+  expect(lances[6].linha.map((l) => l.san)).toEqual(["Nf6", "a5", "Nxa5"]);
+  expect(lances[9].linha.map((l) => l.san)).toEqual(["Nf6", "a5", "Nxa5", "Rxa5", "Bxa5", "Qa4+"]);
+});
+
+test("um número que não bate com nada na linha não impede o lance de encadear", () => {
+  const segs = segmentar("1. e4 e5 12. Nf3", START);
+  const lances = segs.filter((s) => s.kind === "lance") as Extract<Segmento, { kind: "lance" }>[];
+  expect(lances.map((l) => l.san)).toEqual(["e4", "e5", "Nf3"]);
+  expect(lances[2].linha.length).toBe(3);
 });
