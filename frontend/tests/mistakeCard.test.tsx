@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { expect, test, vi } from "vitest";
 import type { PuzzleOut } from "../src/api/types";
@@ -14,6 +14,8 @@ vi.mock("../src/board/Board", () => ({
 }));
 
 import { MistakeCard } from "../src/train/MistakeCard";
+import { PreviaContext } from "../src/analysis/previaContext";
+import type { LanceDaLinha } from "../src/analysis/moveText";
 
 const last = () => boardProps.at(-1) as unknown as BoardProps;
 
@@ -136,4 +138,26 @@ test("sem erro ou sem partida o cartão não aparece", () => {
   expect(container.textContent).toBe("");
   const semPartida = renderCard({ ...evitar, game: null });
   expect(semPartida.container.textContent).toBe("");
+});
+
+test("dentro de um tabuleiro com prévia, os lances do cartão viram links que abrem a posição", () => {
+  const linhas: LanceDaLinha[][] = [];
+  render(
+    <MemoryRouter>
+      <PreviaContext.Provider value={(l) => linhas.push(l)}>
+        <MistakeCard puzzle={punir} />
+      </PreviaContext.Provider>
+    </MemoryRouter>,
+  );
+  // o lance do adversário parte da posição de antes dele
+  fireEvent.click(screen.getByRole("button", { name: "Qd3" }));
+  expect(linhas[0][0].uci).toBe("d5d3");
+  expect(linhas[0][0].fen.split(" ").slice(0, 4)).toEqual(FEN_INICIO.split(" ").slice(0, 4));
+  expect(linhas[0][0].lastMove).toEqual(["d5", "d3"]);
+});
+
+test("sem tabuleiro com prévia, os lances do cartão ficam só em negrito", () => {
+  render(<MemoryRouter><MistakeCard puzzle={punir} /></MemoryRouter>);
+  expect(screen.queryByRole("button", { name: "Qd3" })).toBeNull();
+  expect(screen.getByText("Qd3").tagName).toBe("B");
 });

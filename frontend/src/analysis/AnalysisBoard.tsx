@@ -7,6 +7,7 @@ import type { Shape } from "../api/types";
 import { Board } from "../board/Board";
 import { ErrorBox } from "../components/ErrorBox";
 import { EvalBar } from "./EvalBar";
+import { PreviaContext } from "./previaContext";
 import { formatEval } from "../lib/format";
 import { ClassIcon } from "./classIcons";
 import { MoveTreeView } from "./MoveTreeView";
@@ -375,7 +376,7 @@ export function AnalysisBoard({
       </div>
       <div>
         {/* `painel-lateral` é só gancho de teste e de estilo futuro — sem CSS hoje, e nada de `max-height`: rolagem aqui cortaria o botão "Próximo" */}
-        {sidePanel && <div className="painel-lateral">{sidePanel}</div>}
+        {sidePanel && <PreviaContext.Provider value={setPrevia}><div className="painel-lateral">{sidePanel}</div></PreviaContext.Provider>}
         {!motor ? (
           <div className="card">
             <button onClick={() => setMotor(true)}>Analisar com a engine</button>

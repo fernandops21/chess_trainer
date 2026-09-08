@@ -7,6 +7,7 @@ import { Board } from "../board/Board";
 import { novoChess } from "../lib/chess";
 import { colorName, kindLabel, themeLabel } from "../lib/format";
 import { MistakeCard } from "./MistakeCard";
+import { PreviaContext } from "../analysis/previaContext";
 import type { PuzzleCtl } from "./usePuzzle";
 
 // `unknown` no resultado do submit: a view não lê `state.review`, então serve
@@ -219,7 +220,9 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDis
           )}
           {clockLabel && <span className="muted" aria-label="relógio">{clockLabel}</span>}
         </div>
-        {comErro && verErro && <div style={{ marginTop: 10 }}><MistakeCard puzzle={comErro} /></div>}
+        {comErro && verErro && (
+          <PreviaContext.Provider value={mostrarLinha}><div style={{ marginTop: 10 }}><MistakeCard puzzle={comErro} /></div></PreviaContext.Provider>
+        )}
       </div>
     </div>
   );
