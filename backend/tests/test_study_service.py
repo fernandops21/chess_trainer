@@ -103,6 +103,22 @@ def test_upsert_da_fixture_cria_capitulos_e_exercicios(db_session, texto_da_fixt
     assert len(leitura) == 11 and all(c.puzzle_id is None for c in leitura)
 
 
+def test_exercicio_da_fixture_com_lance_de_introducao(db_session, texto_da_fixture):
+    """QtPYhPsi: o aluno é das pretas e o capítulo abre com `34. Re4` das brancas.
+    O exercício começa depois desse lance, que a tela de treino anima."""
+    study, _ = importar(db_session, texto_da_fixture)
+    chapter = next(c for c in study.chapters if (c.lichess_url or "").endswith("/QtPYhPsi"))
+
+    puzzle = db_session.get(Puzzle, chapter.puzzle_id)
+    assert puzzle.last_move == "b4e4"
+    assert puzzle.side_to_move == "black"
+    assert puzzle.fen_before == chapter.fen
+    depois = chess.Board(chapter.fen)
+    depois.push_uci("b4e4")
+    # o exercício começa na posição de depois do lance de introdução
+    assert puzzle.fen_start == depois.fen()
+
+
 def test_reimportar_o_mesmo_pgn_nao_duplica(db_session, texto_da_fixture):
     study, _ = importar(db_session, texto_da_fixture)
     antes = {c.lichess_url: c.puzzle_id for c in study.chapters}
@@ -580,6 +596,47 @@ def test_exercicio_tirado_da_fila_na_mao_continua_fora_ao_salvar_o_capitulo(db_s
 
     db_session.expire_all()
     assert db_session.get(Puzzle, puzzle_id).in_queue is False
+
+
+# capítulo em que o resultado (regra 3) e o último lance da linha (regra 4) apontam
+# lados diferentes: a FEN e o `0-1` são das pretas, mas a linha tem dois meios-lances
+FEN_PRETAS_PEAO = "4k3/8/8/8/8/4P3/8/4K3 b - - 0 1"
+CAPITULO_REGRA_3 = "\n".join([
+    '[Event "Estudo de teste: Um"]',
+    '[Result "0-1"]',
+    '[StudyName "Estudo de teste"]',
+    '[ChapterName "Um"]',
+    '[ChapterURL "https://lichess.org/study/TESTE002/cap00001"]',
+    '[ChapterMode "gamebook"]',
+    '[Annotator "https://lichess.org/@/autor"]',
+    '[SetUp "1"]',
+    f'[FEN "{FEN_PRETAS_PEAO}"]',
+    "",
+    "1... Kd7 2. e4 0-1",
+    "",
+])
+
+
+def test_salvar_sem_editar_nada_mantem_o_lado_do_aluno(db_session):
+    """A árvore não guarda o `[Result]`, então salvar no editor um capítulo
+    importado por ele não pode inverter o exercício: o lado do aluno vem do
+    exercício que já está gravado."""
+    study, _ = importar(db_session, CAPITULO_REGRA_3)
+    chapter = study.chapters[0]
+    puzzle_id = chapter.puzzle_id
+    antes = db_session.get(Puzzle, puzzle_id)
+    esperado = (antes.fen_start, antes.fen_before, antes.last_move, antes.side_to_move,
+                [m["uci"] for m in json.loads(antes.solution)["moves"]])
+    assert esperado[3] == "black" and esperado[1] is None
+
+    # a mesma árvore que o editor carregou, sem nenhuma edição
+    save_chapter(db_session, chapter, chapter.name, chapter.mode, chapter.orientation,
+                 json.loads(chapter.tree_json))
+
+    db_session.expire_all()
+    depois = db_session.get(Puzzle, puzzle_id)
+    assert (depois.fen_start, depois.fen_before, depois.last_move, depois.side_to_move,
+            [m["uci"] for m in json.loads(depois.solution)["moves"]]) == esperado
 
 
 def test_mudar_a_posicao_inicial_para_a_de_outro_capitulo_recusa(db_session):

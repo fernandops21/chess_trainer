@@ -83,6 +83,9 @@ class ParsedExercise:
     aluno não é o lado a jogar na FEN; ele fica **fora** de `solution` e o
     exercício começa na posição depois dele. `None` quando o aluno já é o lado
     a jogar (a maioria dos capítulos).
+
+    Numa linha de um lance só o lance fica sempre como `solver`, mesmo quando a
+    detecção aponta o outro lado: a alternativa seria um exercício vazio.
     """
 
     solution: dict
@@ -241,6 +244,14 @@ def _chapter(game: chess.pgn.Game, order: int) -> ParsedChapter:
         else:
             chapter.solution = exercicio.solution
             chapter.intro_move = exercicio.intro_move
+            if exercicio.intro_move and not headers.get("Orientation", "").strip():
+                # sem orientação declarada, o tabuleiro abre do lado do aluno —
+                # que aqui é o oposto do lado a jogar na FEN do capítulo
+                chapter.orientation = "black" if board.turn == chess.WHITE else "white"
+                if chapter.tree is not None:
+                    # a árvore vai para o editor e é dela que sai a orientação
+                    # salva depois: as duas têm de dizer a mesma coisa
+                    chapter.tree["orientation"] = chapter.orientation
     return chapter
 
 
@@ -287,8 +298,12 @@ def _chapter_name(headers, order: int) -> str:
 # --- solução -------------------------------------------------------------
 
 
-def solution_from_game(game: chess.pgn.Game) -> ParsedExercise | None:
+def solution_from_game(game: chess.pgn.Game,
+                       solver: chess.Color | None = None) -> ParsedExercise | None:
     """Monta o exercício do capítulo. Devolve None se não houver lances.
+
+    Com `solver` o lado do aluno vem de fora (o exercício que já estava gravado)
+    e só o texto do autor pode contrariá-lo; ver `_solver_side`.
 
     Quando o aluno não é o lado a jogar na FEN (ver `_solver_side`), o primeiro
     lance da linha principal é do adversário: ele sai da solução e volta como
@@ -306,7 +321,7 @@ def solution_from_game(game: chess.pgn.Game) -> ParsedExercise | None:
     intro_node: chess.pgn.ChildNode | None = None
     # com um lance só não há o que deslocar: virar tudo introdução deixaria o
     # aluno sem nada para jogar, então a linha fica como está
-    if _solver_side(game, mainline, board) != board.turn and len(mainline) > 1:
+    if _solver_side(game, mainline, board, solver) != board.turn and len(mainline) > 1:
         intro_node, mainline = mainline[0], mainline[1:]
 
     moves: list[dict] = []
@@ -358,16 +373,19 @@ _RESULTADOS = {"1-0": chess.WHITE, "0-1": chess.BLACK}
 
 
 def _solver_side(game: chess.pgn.Game, mainline: list[chess.pgn.ChildNode],
-                 board: chess.Board) -> chess.Color:
+                 board: chess.Board, solver: chess.Color | None = None) -> chess.Color:
     """De quem é o exercício, na ordem; a primeira regra que decide vence.
 
     1. o enunciado ou o comentário do primeiro lance dizem de quem é a vez
        ("Jogam as pretas", "White to move"…);
-    2. o `[Result]` do capítulo: `1-0` é das brancas, `0-1` das pretas
+    2. o `solver` recebido de fora: o lado que o exercício já tinha gravado.
+       Salvar no editor não pode inverter o exercício só porque a árvore não
+       guarda o `[Result]` e a regra 3 decidiria diferente;
+    3. o `[Result]` do capítulo: `1-0` é das brancas, `0-1` das pretas
        (`1/2-1/2` e `*` não decidem);
-    3. o lado que joga o último lance da linha principal — o autor para depois
+    4. o lado que joga o último lance da linha principal — o autor para depois
        do lance do aluno;
-    4. sem nenhum sinal, o lado a jogar na FEN. É o que a regra 3 devolve
+    5. sem nenhum sinal, o lado a jogar na FEN. É o que a regra 4 devolve
        quando a linha tem um número ímpar de meios-lances.
     """
     pelo_texto = _lado_pelo_texto(clean_comment(game.comment))
@@ -375,6 +393,8 @@ def _solver_side(game: chess.pgn.Game, mainline: list[chess.pgn.ChildNode],
         pelo_texto = _lado_pelo_texto(clean_comment(mainline[0].comment))
     if pelo_texto is not None:
         return pelo_texto
+    if solver is not None:
+        return solver
     pelo_resultado = _RESULTADOS.get(game.headers.get("Result", "").strip())
     if pelo_resultado is not None:
         return pelo_resultado

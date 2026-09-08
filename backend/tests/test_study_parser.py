@@ -339,22 +339,64 @@ def test_texto_em_ingles_decide():
 
 
 def test_resultado_decide_quando_o_texto_nao_diz():
-    # regra 2: FEN e primeiro lance das pretas, mas o 1-0 diz que o exercício é das brancas
+    # regra 3: FEN e primeiro lance das pretas, mas o 1-0 diz que o exercício é das brancas
     cap = exercicio_sintetico("1... Kd7 2. e4 Kc6", FEN_PRETAS, extras='[Result "1-0"]')
     assert cap.intro_move == "e8d7"
     assert lances(cap) == [("e3e4", "solver"), ("d7c6", "engine")]
 
 
 def test_ultimo_lance_decide_sem_texto_nem_resultado():
-    # regra 3: o autor para depois do lance do aluno, então uma linha de número
+    # regra 4: o autor para depois do lance do aluno, então uma linha de número
     # par de meios-lances termina no lado oposto ao da FEN
     cap = exercicio_sintetico("1. e4 Kd7", extras='[Result "1/2-1/2"]')
     assert cap.intro_move == "e2e4"
     assert lances(cap) == [("e8d7", "solver")]
 
 
+# torre contra rei encurralado: duas linhas curtas e legais sem resultado declarado
+FEN_TORRE = "6k1/8/8/8/8/8/8/R3K3 w - - 0 1"
+
+
+def test_linha_de_dois_meios_lances_sem_texto_nem_resultado_vira_introducao():
+    """Regra 4 com `Result "*"`: a linha para depois do lance das pretas, então o
+    exercício é delas e `Ra8+` vira introdução. Decisão registrada de propósito —
+    é ela que o salvamento no editor não pode desfazer sozinho (regra 2)."""
+    cap = exercicio_sintetico("1. Ra8+ Kh7", FEN_TORRE, extras='[Result "*"]')
+    assert cap.intro_move == "a1a8"
+    assert lances(cap) == [("g8h7", "solver")]
+    # e o tabuleiro abre do lado do aluno
+    assert cap.orientation == "black"
+
+
+def test_lado_recebido_de_fora_vence_o_resultado_e_o_ultimo_lance():
+    """Regra 2: com o lado do aluno vindo de fora (o exercício já gravado), nem o
+    `[Result]` nem o último lance da linha invertem o exercício."""
+    texto = pgn_sintetico("Exercício", '1... Kd7 2. e4 Kc6',
+                          extras="\n".join([f'[FEN "{FEN_PRETAS}"]', '[SetUp "1"]',
+                                             '[ChapterMode "gamebook"]', '[Result "1-0"]']))
+    game = chess.pgn.read_game(io.StringIO(texto))
+    # sem o lado de fora, o 1-0 entrega o exercício às brancas (regra 3)
+    assert solution_from_game(game).intro_move == "e8d7"
+    # com ele, as pretas continuam donas do exercício
+    exercicio = solution_from_game(game, chess.BLACK)
+    assert exercicio.intro_move is None
+    assert [(m["uci"], m["by"]) for m in exercicio.solution["moves"]] == [
+        ("e8d7", "solver"), ("e3e4", "engine"), ("d7c6", "solver"),
+    ]
+
+
+def test_texto_do_autor_vence_o_lado_recebido_de_fora():
+    """Regra 1 continua acima da 2: o autor corrigiu o enunciado no editor."""
+    texto = pgn_sintetico("Exercício", '{ Jogam as pretas } 1. e4 Kd7 2. e5',
+                          extras="\n".join([f'[FEN "{FEN_BRANCAS}"]', '[SetUp "1"]',
+                                             '[ChapterMode "gamebook"]']))
+    game = chess.pgn.read_game(io.StringIO(texto))
+    exercicio = solution_from_game(game, chess.WHITE)
+    assert exercicio.intro_move == "e2e4"
+
+
 def test_sem_nenhum_sinal_vale_o_lado_a_jogar_na_fen():
-    # regra 4: linha ímpar, sem texto e sem resultado — nada muda
+    # regra 5: linha ímpar, sem texto e sem resultado — nada muda
     cap = exercicio_sintetico("1. e4 Kd7 2. e5")
     assert cap.intro_move is None
     assert lances(cap) == [("e2e4", "solver"), ("e8d7", "engine"), ("e4e5", "solver")]
@@ -401,6 +443,15 @@ def test_capitulo_com_lance_de_introducao_do_adversario(estudo):
     assert (moves[-1]["uci"], moves[-1]["by"]) == ("g7d4", "solver")
     assert [m["by"] for m in moves] == ["solver", "engine"] * 4 + ["solver"]
     assert cap.solution["intro"] == "Jogam as pretas"
+
+
+def test_orientacao_segue_o_aluno_quando_ha_lance_de_introducao(estudo):
+    """QtPYhPsi não declara `[Orientation]` e a FEN é das brancas, mas o aluno é
+    das pretas: o tabuleiro abre do lado dele."""
+    cap = capitulo_por_url(estudo, "/QtPYhPsi")
+    assert cap.intro_move == "b4e4"
+    assert cap.orientation == "black"
+    assert cap.tree["orientation"] == "black"
 
 
 def test_nenhum_gamebook_da_fixture_termina_no_engine(estudo):

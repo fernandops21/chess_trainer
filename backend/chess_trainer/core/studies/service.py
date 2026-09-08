@@ -643,11 +643,16 @@ def _recreate_exercise(db: Session, chapter: StudyChapter, tree: dict, modo_ante
     `TreeInvalid` (a única (fen_start, kind, source)) — tanto ao criar quanto ao
     mudar a posição de um capítulo que já tem exercício.
     """
-    exercicio = solution_from_tree(tree) if chapter.mode == "gamebook" else None
+    antes = db.get(Puzzle, chapter.puzzle_id) if chapter.puzzle_id else None
+    # a árvore não guarda o `[Result]`, então salvar sem editar nada poderia
+    # inverter o lado do aluno: o exercício que já existe manda quem ele é
+    solver = None
+    if antes is not None:
+        solver = chess.WHITE if antes.side_to_move == "white" else chess.BLACK
+    exercicio = solution_from_tree(tree, solver) if chapter.mode == "gamebook" else None
     if exercicio is None:
         _puzzle_out_of_queue(db, chapter)
         return
-    antes = db.get(Puzzle, chapter.puzzle_id) if chapter.puzzle_id else None
     estava_fora = antes is not None and not antes.in_queue
     voltou_da_leitura = modo_antes != "gamebook"
     _upsert_puzzle(db, chapter, chapter.fen, exercicio.solution, ImportReport(), editor=True,
