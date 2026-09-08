@@ -154,5 +154,9 @@ test("o painel do motor mostra por que a engine não analisa o diagrama", async 
   capituloSemReis();
   vi.spyOn(api, "analyse").mockRejectedValue(new ApiError(400, MSG_ENGINE));
   renderPage();
+  // lendo um capítulo a engine começa desligada: nada de seta nem de análise até o leitor pedir
+  expect(await screen.findByRole("button", { name: "Analisar com a engine" })).toBeTruthy();
+  expect(api.analyse).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Analisar com a engine" }));
   expect(await screen.findByText(MSG_ENGINE)).toBeTruthy();
 });

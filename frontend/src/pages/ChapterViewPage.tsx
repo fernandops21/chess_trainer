@@ -48,7 +48,8 @@ export function ChapterViewPage() {
               <a href={data.lichess_url} target="_blank" rel="noreferrer">ver no Lichess</a>
             )}
           </div>
-          <AnalysisBoard tree={tree} />
+          {/* lendo um capítulo, a sugestão da engine (seta e linhas) brigaria com os lances do autor: começa desligada, e quem quiser liga */}
+          <AnalysisBoard tree={tree} engine={false} />
         </>
       )}
     </>
