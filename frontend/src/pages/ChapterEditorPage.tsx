@@ -199,6 +199,7 @@ export function ChapterEditorPage() {
 
           <AnalysisBoard
             editable
+            engine={false}
             tree={tree}
             onTreeChange={aoMudarArvore}
             onSave={salvar}
