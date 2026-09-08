@@ -78,6 +78,20 @@ test("um lance dentro de outra palavra não conta", () => {
   expect(segs).toEqual([{ kind: "texto", text: "xe4x e um Nc3z" }]);
 });
 
+test("candidato colado numa palavra não engole o lance seguinte", () => {
+  // o número "12." é parte do match recusado: pular o match inteiro perderia o "e4"
+  const segs = segmentar("no12. e4 segue", START);
+  expect(lances(segs)).toEqual(["e4"]);
+  expect(prosa(segs)).toEqual(["no12. ", " segue"]);
+});
+
+test("notação longa não vira dois links encadeados", () => {
+  // dama em d5 e peão em h4: soltos, "Qd1" e "h5" seriam legais
+  const fen = "4k3/8/8/3Q4/7P/8/8/4K3 w - - 0 1";
+  expect(lances(segmentar("Qd1-h5 é notação longa", fen))).toEqual([]);
+  expect(lances(segmentar("Qd1 e h5", fen))).toEqual(["Qd1", "h5"]);
+});
+
 test("texto sem lance nenhum sai como um segmento só", () => {
   expect(segmentar("As brancas ganham a peça.", START)).toEqual([
     { kind: "texto", text: "As brancas ganham a peça." },

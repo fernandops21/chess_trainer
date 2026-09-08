@@ -101,7 +101,8 @@ export function AnalysisBoard({
   const { data: settings } = useSettings();
   // símbolo do livro nos lances do caminho atual que estão na base de mestres
   // sem engine (resultado do exercício) o livro também espera o usuário pedir análise
-  const bookIds = useBookMoves(mt.tree, motor && !naPrevia ? mt.path : []);
+  // (a prévia não mexe no caminho: os símbolos da árvore não somem por causa dela)
+  const bookIds = useBookMoves(mt.tree, motor ? mt.path : []);
   // classificação (melhor, erro, blunder…) de cada lance do caminho atual
   const classes = useMoveClassification(mt.tree, mt.path, {
     enabled: motor && (settings?.classify_moves ?? false),
@@ -135,6 +136,8 @@ export function AnalysisBoard({
         enviada.current = tree;
         setTree(tree);
         setOrient(tree.orientation);
+        // outra análise na tela: a prévia da anterior não tem mais onde morar
+        setPrevia(null);
         return;
       }
     }
@@ -219,12 +222,14 @@ export function AnalysisBoard({
     return fn(...args);
   }, []);
 
-  // no editor a caixa de texto continua sendo texto: os lances escritos nela
-  // ganham uma fila de botões embaixo, para abrir a prévia e virar variação
-  const temLance = useMemo(
-    () => (editable && comentario !== "" ? segmentar(comentario, mt.fen).some((seg) => seg.kind === "lance") : false),
-    [editable, comentario, mt.fen],
+  // O texto do comentário quebrado em prosa e lances, uma vez só: no editor ele
+  // serve tanto para saber se há lance quanto para a fila de botões embaixo da
+  // caixa (segmentar de novo ali custaria uma segunda leitura por tecla).
+  const segsComentario = useMemo(
+    () => (comentario === "" ? [] : segmentar(comentario, mt.fen)),
+    [comentario, mt.fen],
   );
+  const temLance = segsComentario.some((seg) => seg.kind === "lance");
 
   const trocarAba = (nova: Aba) => {
     setAba(nova);
@@ -243,6 +248,7 @@ export function AnalysisBoard({
   const usarPosicao = (fen: string) => {
     if (countNodes(mt.tree) > 0 && !window.confirm("Substituir a análise atual pela nova posição?")) return;
     mt.setTree(emptyTree(fen, orient));
+    setPrevia(null);
     setMontando(false);
   };
 
@@ -308,7 +314,7 @@ export function AnalysisBoard({
             />
             {temLance && (
               <div className="muted">
-                Lances do comentário: <TextoComLances texto={comentario} fen={mt.fen} onPrevia={setPrevia} apenasLances />
+                Lances do comentário: <TextoComLances texto={comentario} fen={mt.fen} segmentos={segsComentario} onPrevia={setPrevia} apenasLances />
               </div>
             )}
             <div className="muted">Botão direito no tabuleiro desenha setas e casas: elas ficam salvas neste lance.</div>
@@ -319,7 +325,7 @@ export function AnalysisBoard({
             <div className="card" style={{ marginTop: 12 }}>
               <div className="muted">{tituloComentario}</div>
               <div style={{ whiteSpace: "pre-wrap" }}>
-                <TextoComLances texto={comentario} fen={mt.fen} onPrevia={setPrevia} />
+                <TextoComLances texto={comentario} fen={mt.fen} segmentos={segsComentario} onPrevia={setPrevia} />
               </div>
             </div>
           )
@@ -349,7 +355,7 @@ export function AnalysisBoard({
               <div className="muted">avaliação (ponto de vista das brancas)</div>
             </>
           )}
-          {classeAtual && (
+          {classeAtual && !naPrevia && (
             <div className="muted">
               lance: <span className={`classe-nome class-${classeAtual.kind}`}>{classeAtual.label}</span>
               {classeAtual.loss !== null && ` (${formatEval(-classeAtual.loss)})`}

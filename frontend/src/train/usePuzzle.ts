@@ -197,10 +197,11 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
   };
 
   /** Volta o tabuleiro à posição do exercício, desfazendo o lance errado e o
-   *  que a refutação tinha posto na tela ("Tentar de novo" e a engine que falhou). */
+   *  que a refutação tinha posto na tela ("Tentar de novo" e a engine que falhou).
+   *  Quem chama limpa antes o `refutaRef`: mexer no ref dentro do atualizador de
+   *  `setState`, que deve ser puro, o faria correr duas vezes no modo estrito. */
   const restaurar = (): Partial<PuzzleState<R>> => {
     const c = chessRef.current;
-    refutaRef.current = [];
     return {
       fen: c.fen(), turn: turnOf(c), check: c.inCheck(), lastMove: antesRef.current,
       refutation: undefined, hintStage: 0, hint: undefined, pendingPromotion: undefined,
@@ -302,6 +303,7 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
   // volta ao estágio 0 nos dois casos, para o lance errado se comportar igual
   // com a refutação ligada ou desligada.
   const recusar = useCallback((authored?: string, voltar = false) => {
+    if (voltar) refutaRef.current = [];
     setState((p) => ({
       ...p,
       ...(voltar ? { phase: "awaiting_move" as Phase, ...restaurar() } : null),
@@ -448,6 +450,7 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
   const retryMove = useCallback(() => {
     if (state.phase !== "refuting" && state.phase !== "refuted") return;
     tentativaRef.current++;
+    refutaRef.current = [];
     setState((p) => ({
       ...p, phase: "awaiting_move", ...restaurar(),
       message: { text: "Tente de novo.", tone: "bad" },

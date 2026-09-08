@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Key } from "chessground/types";
 import { TextoComLances } from "../analysis/TextoComLances";
 import type { LanceDaLinha } from "../analysis/moveText";
@@ -91,19 +91,25 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDis
   // Qualquer mudança na posição viva (lance certo, réplica, refutação) desfaz a
   // prévia. A conferência é no render, e não num efeito: o efeito de um estado
   // que chegou por promessa só corre no próximo `act`, apagando uma prévia que o
-  // usuário tinha acabado de abrir.
-  const fenVivo = useRef(state.fen);
-  const mudouAPosicao = fenVivo.current !== state.fen;
-  if (mudouAPosicao) fenVivo.current = state.fen;
-  if (mudouAPosicao && previaAberta) setPrevia(null);
+  // usuário tinha acabado de abrir. Guardar a posição em estado (e não num ref
+  // mutado no render) é o jeito suportado de ajustar estado durante o render.
+  const [fenVivo, setFenVivo] = useState(state.fen);
+  const mudouAPosicao = fenVivo !== state.fen;
+  if (mudouAPosicao) {
+    setFenVivo(state.fen);
+    if (previaAberta) setPrevia(null);
+  }
   const previa = mudouAPosicao ? null : previaAberta;
   const viva = history.length - 1;
   const atual = previa?.idx ?? viva;
   const irPara = useCallback((i: number) => {
-    if (i >= history.length - 1) { setPrevia(null); return; }
-    const alvo = history[Math.max(0, i)];
+    // o clamp vem antes do teste de extremo: com uma posição só no histórico,
+    // `irPara(-1)` abriria uma prévia falsa ("posição 1 de 1") e travaria o tabuleiro
+    const j = Math.max(0, i);
+    if (j >= history.length - 1) { setPrevia(null); return; }
+    const alvo = history[j];
     if (!alvo) return;
-    setPrevia({ fen: alvo.fen, lastMove: alvo.lastMove, rotulo: `posição ${Math.max(0, i) + 1} de ${history.length} · `, idx: Math.max(0, i) });
+    setPrevia({ fen: alvo.fen, lastMove: alvo.lastMove, rotulo: `posição ${j + 1} de ${history.length} · `, idx: j });
   }, [history]);
   // a linha clicada no texto: o tabuleiro mostra a posição do último lance dela
   const mostrarLinha = useCallback((linha: LanceDaLinha[]) => {
@@ -172,8 +178,9 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDis
         <div className="row" style={{ marginTop: 8 }}>
           <button onClick={() => irPara(0)} disabled={atual === 0} aria-label="Início">⏮</button>
           <button onClick={() => irPara(atual - 1)} disabled={atual === 0} aria-label="Lance anterior">◀</button>
-          <button onClick={() => irPara(atual + 1)} disabled={atual >= viva} aria-label="Próximo lance">▶</button>
-          <button onClick={() => setPrevia(null)} disabled={atual >= viva} aria-label="Posição atual">⏭</button>
+          {/* com a prévia de um link do texto (sem `idx`) elas voltam à posição viva */}
+          <button onClick={() => irPara(atual + 1)} disabled={!previa && atual >= viva} aria-label="Próximo lance">▶</button>
+          <button onClick={() => setPrevia(null)} disabled={!previa && atual >= viva} aria-label="Posição atual">⏭</button>
         </div>
         {state.pendingPromotion && (
           <div className="card row" style={{ marginTop: 8 }}>

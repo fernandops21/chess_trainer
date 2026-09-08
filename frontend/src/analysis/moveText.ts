@@ -34,8 +34,13 @@ export type Segmento =
 const CANDIDATO =
   /((?:\d{1,3}\.(?:\.\.)?[ \t]*)?)(O-O-O|O-O|[KQRBN][a-h]?[1-8]?x?[a-h][1-8]|[a-h]x?[a-h]?[1-8](?:=[QRBN])?)([+#]?)([!?]{0,2})/g;
 
-/** Um lance só pode nascer entre limites de palavra: nada de pescar dentro de "Nc3x". */
-const ALFANUM = /[A-Za-z0-9]/;
+/**
+ * Um lance só pode nascer entre limites de palavra: nada de pescar dentro de
+ * "Nc3x". O hífen conta como vizinho para a notação longa ("Qd1-h5") não virar
+ * dois links encadeados; o roque não sofre porque `O-O-O` e `O-O` casam
+ * inteiros na alternância do candidato.
+ */
+const VIZINHO = /[A-Za-z0-9-]/;
 
 /** Tenta o SAN na posição; devolve o lance com a posição nova, ou `null` se for ilegal. */
 function tentar(fen: string, san: string): LanceDaLinha | null {
@@ -83,7 +88,12 @@ export function segmentar(texto: string, fenAncora: string): Segmento[] {
     const fim = m.index + m[0].length;
     const antes = texto[m.index - 1];
     const depois = texto[fim];
-    if ((antes && ALFANUM.test(antes)) || (depois && ALFANUM.test(depois))) continue;
+    if ((antes && VIZINHO.test(antes)) || (depois && VIZINHO.test(depois))) {
+      // Recomeça um caractere adiante, e não depois do match inteiro: um lance
+      // legítimo pode estar dentro dele ("no12. e4" perderia o "e4").
+      CANDIDATO.lastIndex = m.index + 1;
+      continue;
+    }
 
     const san = m[2];
     let lance = tentar(fenAtual, san);

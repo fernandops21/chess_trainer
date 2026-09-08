@@ -509,6 +509,30 @@ test("com a classificação desligada, a engine só é consultada para a posiç�
   expect(container.textContent).not.toMatch(/lance:/);
 });
 
+test("na prévia a engine analisa a posição dela e o lance atual perde o selo", async () => {
+  vi.spyOn(api, "settings").mockResolvedValue({ ...SETTINGS, classify_moves: true });
+  engineDeVerdade();
+  const arvore = comLinha();
+  const e5 = arvore.root.children[0].children[0];
+  const { container } = comProvedores(<AnalysisBoard tree={setComment(arvore, e5.id, "Agora Nf3.")} />);
+  fireEvent.click(screen.getByText("e5"));
+  await waitFor(() => expect(last().badge).toBeTruthy());
+  expect(container.textContent).toMatch(/lance: melhor/);
+
+  // o lance do comentário põe outra posição no tabuleiro: o selo e a linha
+  // "lance: …" são do lance atual, que não é o que está na tela
+  fireEvent.click(screen.getByRole("button", { name: "Nf3" }));
+  const fenPrevia = last().fen;
+  expect(last().badge).toBeUndefined();
+  expect(container.textContent).not.toMatch(/lance:/);
+  await waitFor(() => expect(vi.mocked(api.analyse).mock.calls.some((c) => c[0] === fenPrevia)).toBe(true));
+
+  // de volta ao lance atual, tudo volta
+  fireEvent.click(screen.getByRole("button", { name: "voltar" }));
+  await waitFor(() => expect(last().badge).toBeTruthy());
+  expect(container.textContent).toMatch(/lance: melhor/);
+});
+
 test("um lance jogado no tabuleiro toca o som do lance", () => {
   vi.mocked(tocar).mockClear();
   renderBoard();

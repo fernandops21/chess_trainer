@@ -244,6 +244,8 @@ test("com o lance errado no tabuleiro a dica dá lugar ao 'Tentar de novo'", asy
   // o "Pular" continua onde estava
   expect(screen.getByRole("button", { name: "Pular" })).toBeTruthy();
   // a mensagem vem quebrada em links: o texto inteiro está no `.msg`
+  // (o botão aparece já em `refuting`: a frase inteira só chega com a réplica)
+  await screen.findByText(/cai de/);
   expect(document.querySelector(".msg")!.textContent).toBe("h3? Qg2 — avaliação cai de +9.00 para -5.00");
 });
 
@@ -297,7 +299,8 @@ const FEN_DEPOIS_DO_ERRO = "4k3/8/8/3q4/8/2N4P/8/4K3 b - - 0 1";
 test("os lances da refutação viram links e a prévia entra no tabuleiro", async () => {
   render(<RefutaHost />);
   fireEvent.click(screen.getByText("errar"));
-  await screen.findByRole("button", { name: "Tentar de novo" });
+  // a réplica é que fecha a mensagem: esperar por ela, e não pelo botão
+  await screen.findByRole("button", { name: "Qg2" });
   const viva = last().fen;
 
   // "h3? Qg2" é a linha inteira: clicar na réplica para na posição de agora
@@ -317,10 +320,54 @@ test("os lances da refutação viram links e a prévia entra no tabuleiro", asyn
   expect(last().fen).toBe(viva);
 });
 
+test("com a prévia de um link do texto, ▶ e ⏭ voltam à posição viva", async () => {
+  render(<RefutaHost />);
+  fireEvent.click(screen.getByText("errar"));
+  await screen.findByRole("button", { name: "Qg2" });
+  const viva = last().fen;
+
+  // a prévia do texto não tem lugar no histórico: as setas da frente valem
+  // assim mesmo, para voltar ao lance atual
+  fireEvent.click(screen.getByRole("button", { name: "h3?" }));
+  expect(last().fen).toBe(FEN_DEPOIS_DO_ERRO);
+  expect(setas().proximo.disabled).toBe(false);
+  expect(setas().atual.disabled).toBe(false);
+
+  fireEvent.click(setas().atual);
+  expect(screen.queryByText(/^prévia:/)).toBeNull();
+  expect(last().fen).toBe(viva);
+});
+
+test("a prévia aberta na espera da réplica some quando ela chega", async () => {
+  let responder: (out: AnalyseOut) => void = () => {};
+  const espera = new Promise<AnalyseOut>((r) => { responder = r; });
+  // a engine só responde ao lance errado quando o teste mandar
+  const lenta = async (fen: string) => (fen === own.fen_start ? analiseOut(fen, "c3d5", "Nxd5", 900) : espera);
+  function LentaHost() {
+    const ctl = usePuzzle(own, { sessionId: null, submit: async () => ({}) as never, refute: true, analyse: lenta });
+    return (
+      <>
+        <button onClick={() => ctl.tryMove("h2", "h3")}>errar</button>
+        <PuzzleView puzzle={own} ctl={ctl} />
+      </>
+    );
+  }
+  render(<LentaHost />);
+  fireEvent.click(screen.getByText("errar"));
+  // enquanto a engine pensa, o lance errado já é um link: a prévia abre nele
+  fireEvent.click(await screen.findByRole("button", { name: "h3?" }));
+  expect(screen.getByText(/prévia: h3 ·/)).toBeTruthy();
+
+  responder(analiseOut(FEN_ERRO, "d5g2", "Qg2", 500));
+  // a réplica muda a posição viva: a prévia sai da frente sozinha
+  await waitFor(() => expect(screen.queryByText(/^prévia:/)).toBeNull());
+});
+
 test("'Tentar de novo' limpa a prévia", async () => {
   render(<RefutaHost />);
   fireEvent.click(screen.getByText("errar"));
-  const voltar = await screen.findByRole("button", { name: "Tentar de novo" });
+  await screen.findByText(/cai de/);
+  const voltar = screen.getByRole("button", { name: "Tentar de novo" });
   fireEvent.click(screen.getByRole("button", { name: "h3?" }));
   expect(screen.getByText(/^prévia:/)).toBeTruthy();
 
@@ -400,6 +447,27 @@ test("sem histórico anterior as setas ficam desabilitadas", () => {
   expect(b.atual.disabled).toBe(true);
 });
 
+test("no exercício sem posição anterior, ← não abre prévia nenhuma", () => {
+  render(<Host puzzle={own} />);
+  fireEvent.keyDown(window, { key: "ArrowLeft" });
+  // com uma posição só no histórico o extremo é o próprio lance atual
+  expect(screen.queryByText(/posição 1 de 1/)).toBeNull();
+  expect(last().fen).toBe(own.fen_start);
+  expect(last().movableColor).toBe("white");
+});
+
+test("pedir dica desfaz a prévia do histórico", async () => {
+  render(<IntroHost />);
+  await waitFor(() => expect(last().lastMove).toEqual(["d4", "d5"]));
+  fireEvent.click(setas().anterior);
+  expect(screen.getByText(/posição 1 de 2/)).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("button", { name: "Dica" }));
+  expect(screen.queryByText(/posição 1 de 2/)).toBeNull();
+  expect(last().fen).toBe(own.fen_start);
+  expect(last().movableColor).toBe("white");
+});
+
 test("depois de um lance certo com resposta da engine, ⏮ vai ao começo e ⏭ à viva", async () => {
   function MateHost() {
     const ctl = usePuzzle(mate, { sessionId: null, submit: async () => ({}) as never, engineDelayMs: 5 });
@@ -429,7 +497,8 @@ test("depois de um lance certo com resposta da engine, ⏮ vai ao começo e ⏭ 
 test("durante a refutação ◀ mostra a posição de antes do lance errado", async () => {
   render(<RefutaHost />);
   fireEvent.click(screen.getByText("errar"));
-  await screen.findByRole("button", { name: "Tentar de novo" });
+  // só com a réplica o histórico ganha a terceira posição
+  await screen.findByText(/cai de/);
 
   // a réplica da engine está no tabuleiro; o histórico tem 3 posições
   fireEvent.click(setas().anterior);
