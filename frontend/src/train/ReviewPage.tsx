@@ -38,7 +38,7 @@ export function ReviewPage() {
       <h1>Revisar</h1>
       {summary
         ? <SessionSummary {...summary} onNew={novaSessao} />
-        : <Session key={rodada} config={config} emptyActions={<SemVencidos />}
+        : <Session key={rodada} config={config} heading={false} emptyActions={<SemVencidos />}
           onFinish={(done, elapsedLabel, reason) => setSummary({ done, elapsedLabel, reason })} />}
     </>
   );

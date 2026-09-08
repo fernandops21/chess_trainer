@@ -67,6 +67,39 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
+function renderPage() {
+  return render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter>
+        <TrainPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+const endCalls = () => fetchMock.mock.calls.filter((c) => String(c[0]) === "/api/sessions/s1/end").length;
+/** Deixa o tique do encerramento agendado na saída da tela rodar. */
+const proximoTique = () => new Promise((r) => setTimeout(r, 0));
+
+/** Dublê de `navigator.sendBeacon`, que o jsdom não implementa. Devolve como desinstalar. */
+function dubleDeBeacon() {
+  const beacon = vi.fn((url: string) => url.length > 0);
+  const nav = navigator as unknown as Record<string, unknown>;
+  const antes = Object.getOwnPropertyDescriptor(nav, "sendBeacon");
+  nav.sendBeacon = beacon;
+  return {
+    beacon,
+    restaurar: () => { if (antes) Object.defineProperty(nav, "sendBeacon", antes); else delete nav.sendBeacon; },
+  };
+}
+
+/** `pagehide` como o navegador manda; jsdom sem `PageTransitionEvent` cai no `Event` cru. */
+function dispararPagehide(persisted: boolean) {
+  const Ctor = (globalThis as { PageTransitionEvent?: typeof PageTransitionEvent }).PageTransitionEvent;
+  const e = Ctor ? new Ctor("pagehide", { persisted }) : Object.assign(new Event("pagehide"), { persisted });
+  window.dispatchEvent(e);
+}
+
 test("a sessão inicia sob StrictMode e cria apenas uma sessão", async () => {
   render(
     <React.StrictMode>
@@ -112,19 +145,62 @@ test("quem já terminou a sessão não a encerra de novo ao sair da tela", async
   expect(endCalls()).toBe(1);
 });
 
-function renderPage() {
-  return render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter>
-        <TrainPage />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
-}
+test("fechar a aba encerra a sessão pelo beacon, e sair depois não encerra de novo", async () => {
+  const { beacon, restaurar } = dubleDeBeacon();
+  try {
+    const { unmount } = renderPage();
+    fireEvent.click(screen.getByText("Começar"));
+    await screen.findByText(/jogam/);
 
-const endCalls = () => fetchMock.mock.calls.filter((c) => String(c[0]) === "/api/sessions/s1/end").length;
-/** Deixa o tique do encerramento agendado na saída da tela rodar. */
-const proximoTique = () => new Promise((r) => setTimeout(r, 0));
+    dispararPagehide(false);
+    expect(beacon.mock.calls.length).toBe(1);
+    expect(String(beacon.mock.calls[0][0])).toBe("/api/sessions/s1/end");
+
+    // o beacon já encerrou: a saída da tela não pode encerrar uma segunda vez
+    unmount();
+    await proximoTique();
+    expect(endCalls()).toBe(0);
+  } finally {
+    restaurar();
+  }
+});
+
+// `pagehide` com `persisted` também é a página indo para o bfcache (Safari móvel,
+// aba em segundo plano): ela continua viva e pode voltar, então a sessão fica
+test("ir para o bfcache não encerra a sessão", async () => {
+  const { beacon, restaurar } = dubleDeBeacon();
+  try {
+    renderPage();
+    fireEvent.click(screen.getByText("Começar"));
+    await screen.findByText(/jogam/);
+
+    dispararPagehide(true);
+    expect(beacon.mock.calls.length).toBe(0);
+  } finally {
+    restaurar();
+  }
+});
+
+test("sair antes da resposta do POST /api/sessions encerra a sessão assim que ela chega", async () => {
+  let liberar = () => { };
+  const criacaoPresa = new Promise<void>((r) => { liberar = r; });
+  fetchMock.mockImplementation(async (url: string) => {
+    const path = String(url).split("?")[0];
+    if (path === "/api/sessions") await criacaoPresa;
+    const body = bodies[path];
+    if (body === undefined) throw new Error(`sem stub para ${url}`);
+    return { ok: true, status: 200, json: async () => body };
+  });
+
+  const { unmount } = renderPage();
+  fireEvent.click(screen.getByText("Começar"));
+  unmount();
+  await proximoTique();
+  expect(endCalls()).toBe(0); // ainda não há id de sessão para encerrar
+
+  liberar();
+  await waitFor(() => expect(endCalls()).toBe(1));
+});
 
 test("pular manda o puzzle para o fim da lista e mostra o próximo", async () => {
   bodies["/api/queue"] = { mode: "review", due_count: 2, new_available: 0, new_remaining_today: 0, items: [puzzle, outro] };

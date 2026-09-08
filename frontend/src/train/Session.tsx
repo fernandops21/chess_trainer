@@ -47,8 +47,9 @@ export function emptyMessage(mode: SessionConfig["mode"], queue: QueueOut): stri
   return "Nada vencido. Faça novos ou treine um estudo.";
 }
 
-export function Session({ config, onFinish, emptyActions }:
-  { config: SessionConfig; onFinish: (done: Done[], elapsedLabel: string, reason: string) => void; emptyActions?: ReactNode }) {
+/** `heading={false}` some com o `<h2>` do modo: quem já tem título próprio na tela (a Revisar) não quer dois. */
+export function Session({ config, onFinish, emptyActions, heading }:
+  { config: SessionConfig; onFinish: (done: Done[], elapsedLabel: string, reason: string) => void; emptyActions?: ReactNode; heading?: false }) {
   const qc = useQueryClient();
   const [session, setSession] = useState<SessionOut | null>(null);
   const [queue, setQueue] = useState<QueueOut | null>(null);
@@ -69,15 +70,18 @@ export function Session({ config, onFinish, emptyActions }:
   // e terminar normalmente também — nenhuma das duas pode encerrar duas vezes
   const sessionRef = useRef<SessionOut | null>(null);
   const endedRef = useRef(false);
-  useEndOnExit(sessionRef, endedRef);
+  // sair antes da resposta do `POST /api/sessions` não pode deixar a sessão aberta:
+  // o encerramento espera a criação terminar para saber o id
+  useEndOnExit(sessionRef, endedRef, () => startP.current?.then(([s]) => s) ?? null);
   // posição de cada puzzle na primeira carga: usada para o "capítulo N de M" do
   // estudo continuar certo depois de um pulo reordenar `items`
   const ordemInicial = useRef<Map<string, number>>(new Map());
   // o título do estudo só é buscado no modo estudo
   const { data: study } = useStudy(config.mode === "study" ? config.filters.study_id ?? null : null);
-  const heading = config.mode === "new" ? "Novos (meus erros)"
+  const titulo = config.mode === "new" ? "Novos (meus erros)"
     : config.mode === "study" ? study?.title ?? "Estudo"
       : "Repetição espaçada";
+  const mostrarTitulo = heading !== false;
 
   useEffect(() => {
     startP.current ??= (async () => {
@@ -170,7 +174,7 @@ export function Session({ config, onFinish, emptyActions }:
   if (items.length === 0) {
     return (
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>{heading}</h2>
+        {mostrarTitulo && <h2 style={{ marginTop: 0 }}>{titulo}</h2>}
         <p>{emptyMessage(config.mode, queue)}</p>
         {emptyActions ?? <Link to="/">Analisar mais partidas</Link>}
       </div>
@@ -186,7 +190,7 @@ export function Session({ config, onFinish, emptyActions }:
     + (skipped > 0 ? ` · ${skipped} ${skipped === 1 ? "pulado" : "pulados"}` : "");
   return (
     <>
-      <h2 style={{ marginTop: 0 }}>{heading}</h2>
+      {mostrarTitulo && <h2 style={{ marginTop: 0 }}>{titulo}</h2>}
       <SessionPuzzle key={puzzle.id} puzzle={puzzle} sessionId={session.id} clockLabel={clock.label}
         orderInfo={orderInfo} onDone={advance} nextDisabled={advancing}
         onSkip={skip} skipDisabled={pendentes < 2} />

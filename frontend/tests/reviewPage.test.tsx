@@ -84,7 +84,7 @@ test("abre direto na sessão de vencidos, sem tela de início e sem outros filtr
   expect(urls("/api/queue")).toEqual(["/api/queue?mode=review"]);
 });
 
-test("a sessão vai até acabar a fila: sem relógio e sem tempo planejado", async () => {
+test("a sessão vai até acabar a fila, sem tempo planejado", async () => {
   renderPage();
   await screen.findByText(/eu × ele/);
   const criada = fetchMock.mock.calls.find((c) => String(c[0]) === "/api/sessions")!;
