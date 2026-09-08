@@ -97,3 +97,9 @@ test("sem ?position= nenhum modal abre sozinho", async () => {
   await screen.findByText("Ra2");
   expect(screen.queryByText("Lance 6: Ra2")).toBeNull();
 });
+
+test("o melhor lance sai em notação, não em UCI", async () => {
+  renderPage();
+  await waitFor(() => expect(document.body.textContent).toContain("melhor Ra8#"));
+  expect(document.body.textContent).not.toContain("a1a8");
+});

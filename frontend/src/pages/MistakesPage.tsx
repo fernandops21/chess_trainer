@@ -5,11 +5,17 @@ import { useLeeches, useMistakes, usePuzzleQuery, useUnleech } from "../api/quer
 import type { MistakeOut, MistakesQuery, PuzzleOut, PuzzleRef } from "../api/types";
 import { Board } from "../board/Board";
 import { MiniBoard } from "../board/MiniBoard";
-import { mesmaPosicao, uciToMove } from "../board/line";
+import { buildLine, mesmaPosicao, uciToMove } from "../board/line";
 import { ErrorBox } from "../components/ErrorBox";
 import { Modal } from "../components/Modal";
 import { formatDate, formatEval, levelLabel, puzzleTitle, themeLabel } from "../lib/format";
 import { LineViewer } from "../train/LineViewer";
+
+/** O melhor lance vem em UCI da análise; na tela ele sai em notação ("Kf8", não "e8f8"). */
+function melhorSan(m: MistakeOut): string | null {
+  if (!m.best_move) return null;
+  return buildLine(m.fen, [m.best_move]).sans[0] ?? m.best_move;
+}
 
 function MistakeDetail({ m, onClose }: { m: MistakeOut; onClose: () => void }) {
   const nav = useNavigate();
@@ -24,7 +30,7 @@ function MistakeDetail({ m, onClose }: { m: MistakeOut; onClose: () => void }) {
         <Board fen={m.fen} orientation={m.my_color} lastMove={[played.from as Key, played.to as Key]} viewOnly />
       )}
       <div className="muted" style={{ marginTop: 8 }}>
-        Você jogou <b>{m.move_played}</b> ({formatEval(m.eval_before)} → {formatEval(m.eval_after)}); melhor era <b>{m.best_move}</b>.
+        Você jogou <b>{m.move_played}</b> ({formatEval(m.eval_before)} → {formatEval(m.eval_after)}); melhor era <b>{melhorSan(m)}</b>.
         {puzzle && <> Refutação acima ({themeLabel(puzzle.theme)}).</>}
         {m.puzzles.length === 0 && m.mistake_by === "me" && <> Sem puzzle: posicional ou trivial.</>}
       </div>
@@ -117,7 +123,7 @@ export function MistakesPage() {
             <MiniBoard fen={m.fen} orientation={m.my_color} />
             <div style={{ flex: 1, textAlign: "left" }}>
               <div><b>{m.move_played}</b> <span className={`tag ${m.mistake_level}`}>{levelLabel(m.mistake_level)}</span>{m.mistake_by === "opponent" && <span className="tag">adversário</span>}{m.puzzles.length === 0 && m.mistake_by === "me" && <span className="tag">posicional</span>}<OutOfQueueTags puzzles={m.puzzles} /></div>
-              <div className="muted">{formatEval(m.eval_before)} → {formatEval(m.eval_after)} · melhor {m.best_move} {m.puzzles[0] && `· ${themeLabel(m.puzzles[0].theme)}`}</div>
+              <div className="muted">{formatEval(m.eval_before)} → {formatEval(m.eval_after)} · melhor {melhorSan(m)} {m.puzzles[0] && `· ${themeLabel(m.puzzles[0].theme)}`}</div>
               <div className="muted">{m.white} × {m.black} · {formatDate(m.played_at)} · {m.category}</div>
             </div>
           </button>
