@@ -95,6 +95,7 @@ export function StudiesPage() {
             aria-label="Arquivo PGN"
             disabled={busy}
             onChange={(e) => {
+              setErroArquivo(null);
               const arquivo = e.target.files?.[0];
               // limpa a escolha para que o mesmo arquivo possa ser importado de novo
               e.target.value = "";

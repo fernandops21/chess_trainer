@@ -48,7 +48,8 @@ const PINCEIS: Record<string, { color: string; opacity: number; lineWidth: numbe
 };
 
 function pincel(nome: string | undefined) {
-  return PINCEIS[nome ?? ""] ?? PINCEIS.green;
+  const chave = nome ?? "";
+  return Object.hasOwn(PINCEIS, chave) ? PINCEIS[chave] : PINCEIS.green;
 }
 
 /** Coluna (0–7) e fileira (0–7) de uma casa; `undefined` fora do tabuleiro. */
