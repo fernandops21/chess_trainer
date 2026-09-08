@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -104,7 +104,13 @@ beforeEach(() => {
   vi.spyOn(api, "endSession").mockResolvedValue({ ...session, ended_at: "2026-01-01T00:25:00Z" });
   vi.spyOn(api, "attempt").mockResolvedValue(attempt());
 });
-afterEach(() => { vi.restoreAllMocks(); expired.on = false; localStorage.clear(); });
+// desmonta antes de restaurar os dublês: o encerramento que a saída da tela agenda
+// roda no próximo tique e não pode vazar para o teste seguinte
+afterEach(async () => {
+  cleanup();
+  await new Promise((r) => setTimeout(r, 0));
+  vi.restoreAllMocks(); expired.on = false; localStorage.clear();
+});
 
 test("cria a sessão de táticas e busca a primeira com os temas", async () => {
   const next = vi.spyOn(api, "nextTactic").mockResolvedValue(tactic("t1"));
@@ -189,6 +195,22 @@ test("Continuar do tempo esgotado bloqueia o Próximo até a próxima tática ch
   expect(next).toHaveBeenCalledTimes(2);
   resolveNext(tactic("t2"));
   expect(await screen.findByText("2ª tática · rating 1216")).toBeTruthy();
+});
+
+test("sair da tela no meio encerra a sessão de táticas uma vez só", async () => {
+  vi.spyOn(api, "nextTactic").mockResolvedValue(tactic("t1"));
+  const { unmount } = render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter><Host /></MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await screen.findByText("resolver");
+  expect(api.endSession).not.toHaveBeenCalled();
+
+  unmount();
+  await waitFor(() => expect(api.endSession).toHaveBeenCalledWith("s1"));
+  await new Promise((r) => setTimeout(r, 0));
+  expect(vi.mocked(api.endSession).mock.calls.length).toBe(1);
 });
 
 test("sem candidatos, o resumo oferece uma nova sessão sem temas", () => {

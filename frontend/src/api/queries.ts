@@ -45,7 +45,9 @@ export const useSettings = () => useQuery({ queryKey: keys.settings, queryFn: ap
 export const useGames = (q: GamesQuery) => useQuery({ queryKey: keys.games(q), queryFn: () => api.games(q) });
 export const useGame = (id: string) => useQuery({ queryKey: keys.game(id), queryFn: () => api.game(id) });
 export const useMistakes = (q: MistakesQuery) => useQuery({ queryKey: keys.mistakes(q), queryFn: () => api.mistakes(q) });
-export const useQueue = (f: QueueFilters, enabled = true) => useQuery({ queryKey: keys.queue(f), queryFn: () => api.queue(f), enabled });
+/** Contagem/itens da fila com esses filtros; meio minuto de cache basta para mexer nos filtros sem consultar a cada clique. */
+export const useQueue = (f: QueueFilters, enabled = true) =>
+  useQuery({ queryKey: keys.queue(f), queryFn: () => api.queue(f), enabled, staleTime: 30_000 });
 export const useLeeches = () => useQuery({ queryKey: keys.leeches, queryFn: api.leeches });
 export const usePuzzleQuery = (id: string | null) =>
   useQuery({ queryKey: keys.puzzle(id ?? ""), queryFn: () => api.puzzle(id!), enabled: !!id });

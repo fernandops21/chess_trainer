@@ -4,6 +4,7 @@ import { play, useSoundEnabled } from "../lib/sound";
 
 const items = [
   { to: "/", label: "Painel", icon: "▦", end: true },
+  { to: "/revisar", label: "Revisar", icon: "↻" },
   { to: "/treinar", label: "Treinar", icon: "♞" },
   { to: "/estudos", label: "Estudos", icon: "▤" },
   { to: "/analise", label: "Análise", icon: "⌕" },
@@ -15,6 +16,8 @@ const items = [
 export function Nav() {
   const { data } = useDashboard();
   const due = data?.due_today ?? 0;
+  // o número sozinho não diz o que é: o rótulo explica que são os vencidos da repetição
+  const vencidos = `${due} vencido${due === 1 ? "" : "s"} na repetição`;
   const [som, setSom] = useSoundEnabled();
   return (
     <nav className="nav" aria-label="Principal">
@@ -23,7 +26,7 @@ export function Nav() {
         <NavLink key={it.to} to={it.to} end={it.end} className={({ isActive }) => (isActive ? "active" : "")}>
           <span aria-hidden="true">{it.icon}</span>
           <span>{it.label}</span>
-          {it.to === "/treinar" && due > 0 && <span className="badge">{due}</span>}
+          {it.to === "/revisar" && due > 0 && <span className="badge" title={vencidos} aria-label={vencidos}>{due}</span>}
         </NavLink>
       ))}
       <button

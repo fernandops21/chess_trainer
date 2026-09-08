@@ -3,13 +3,18 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "../src/api/client";
-import type { TacticsStatus, ThemeCount } from "../src/api/types";
+import type { DashboardOut, TacticsStatus, ThemeCount } from "../src/api/types";
 import { SessionStart } from "../src/train/SessionStart";
 
 const THEMES: ThemeCount[] = [
   { theme: "fork", label: "garfo", count: 120 },
   { theme: "pin", label: "cravada", count: 80 },
 ];
+
+const DASH: DashboardOut = {
+  due_today: 4, new_available: 0, new_remaining_today: 0, streak_days: 0, reviews_today: 0,
+  last_import_at: null, games_total: 0, games_analyzed: 0, puzzles_total: 0, leeches: 0,
+};
 
 const status = (over: Partial<TacticsStatus> = {}): TacticsStatus => ({
   imported: true, count: 100, imported_at: null, source_rows: null, rating: 1200, window: 200,
@@ -33,6 +38,7 @@ beforeEach(() => {
   vi.spyOn(api, "tacticThemes").mockResolvedValue(THEMES);
   vi.spyOn(api, "tacticsStatus").mockResolvedValue(status());
   vi.spyOn(api, "studies").mockResolvedValue([]);
+  vi.spyOn(api, "dashboard").mockResolvedValue(DASH);
 });
 afterEach(() => vi.restoreAllMocks());
 

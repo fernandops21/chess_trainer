@@ -97,10 +97,10 @@ test("sem by_source o cartão Estado não mostra a linha por fonte", async () =>
   expect(screen.queryByText(/dos seus erros/)).toBeNull();
 });
 
-test("Revisar leva à repetição espaçada com a contagem de vencidos", async () => {
+test("Revisar leva à tela de revisar com a contagem de vencidos", async () => {
   renderPage();
   fireEvent.click(await screen.findByRole("button", { name: "Revisar (3)" }));
-  expect(screen.getByTestId("where").textContent).toBe("/treinar?mode=review");
+  expect(screen.getByTestId("where").textContent).toBe("/revisar");
 });
 
 test("Fazer novos leva à sessão de novos", async () => {

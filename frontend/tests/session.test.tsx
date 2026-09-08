@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -32,8 +32,11 @@ const puzzle = {
 
 const outro = { ...puzzle, id: "p2", game: { ...puzzle.game, id: "g2", white: "outro" } };
 
+const SESSION = { id: "s1", started_at: "2026-01-01T00:00:00Z", ended_at: null, planned_minutes: 25, filters: {}, reviews: 0, correct: 0, total_duration_ms: 0 };
+
 const bodies: Record<string, unknown> = {
-  "/api/sessions": { id: "s1", started_at: "2026-01-01T00:00:00Z", ended_at: null, planned_minutes: 25, filters: {}, reviews: 0, correct: 0, total_duration_ms: 0 },
+  "/api/sessions": SESSION,
+  "/api/sessions/s1/end": { ...SESSION, ended_at: "2026-01-01T00:10:00Z" },
   "/api/reviews": { id: "r1", puzzle_id: "p1", result: "correct", used_hint: true, ease: 2.5, interval_days: 1, due_at: "2026-01-02T00:00:00Z", lapses: 0, is_leech: false },
   "/api/queue": { mode: "review", due_count: 1, new_available: 0, new_remaining_today: 0, items: [puzzle] },
   "/api/studies": [{ id: "s1", title: "Finais de torre", author: "", source_url: "", lichess_id: null, imported_at: null, chapter_count: 2, exercise_count: 2, in_queue: 2, due_today: 0 }],
@@ -56,7 +59,13 @@ beforeEach(() => {
   });
   vi.stubGlobal("fetch", fetchMock);
 });
-afterEach(() => vi.unstubAllGlobals());
+// desmonta antes de tirar o dublê do `fetch`: o encerramento que a saída da tela
+// agenda roda no próximo tique e não pode vazar para o teste seguinte
+afterEach(async () => {
+  cleanup();
+  await new Promise((r) => setTimeout(r, 0));
+  vi.unstubAllGlobals();
+});
 
 test("a sessão inicia sob StrictMode e cria apenas uma sessão", async () => {
   render(
@@ -74,10 +83,37 @@ test("a sessão inicia sob StrictMode e cria apenas uma sessão", async () => {
   expect(await screen.findByText(/jogam/)).toBeTruthy();
   const sessionCalls = fetchMock.mock.calls.filter((c) => String(c[0]) === "/api/sessions");
   expect(sessionCalls.length).toBe(1);
+  // a desmontagem falsa do StrictMode não pode encerrar a sessão recém-criada
+  await proximoTique();
+  expect(endCalls()).toBe(0);
+});
+
+test("sair da tela no meio da sessão encerra a sessão no servidor", async () => {
+  const { unmount } = renderPage();
+  fireEvent.click(screen.getByText("Começar"));
+  await screen.findByText(/jogam/);
+  expect(endCalls()).toBe(0);
+
+  unmount();
+  await waitFor(() => expect(endCalls()).toBe(1));
+});
+
+test("quem já terminou a sessão não a encerra de novo ao sair da tela", async () => {
+  const { unmount } = renderPage();
+  fireEvent.click(screen.getByText("Começar"));
+  await screen.findByText(/jogam/);
+  // resolvido o único puzzle, a fila recarregada só traz o que já foi feito: a sessão acaba
+  await resolverEAvancar();
+  expect(await screen.findByText("Fila vazia por hoje.")).toBeTruthy();
+  expect(endCalls()).toBe(1);
+
+  unmount();
+  await proximoTique();
+  expect(endCalls()).toBe(1);
 });
 
 function renderPage() {
-  render(
+  return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter>
         <TrainPage />
@@ -85,6 +121,10 @@ function renderPage() {
     </QueryClientProvider>,
   );
 }
+
+const endCalls = () => fetchMock.mock.calls.filter((c) => String(c[0]) === "/api/sessions/s1/end").length;
+/** Deixa o tique do encerramento agendado na saída da tela rodar. */
+const proximoTique = () => new Promise((r) => setTimeout(r, 0));
 
 test("pular manda o puzzle para o fim da lista e mostra o próximo", async () => {
   bodies["/api/queue"] = { mode: "review", due_count: 2, new_available: 0, new_remaining_today: 0, items: [puzzle, outro] };

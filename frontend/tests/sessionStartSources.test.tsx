@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "../src/api/client";
-import type { StudyOut, TacticsStatus } from "../src/api/types";
+import type { DashboardOut, QueueOut, StudyOut, TacticsStatus } from "../src/api/types";
 import { SessionStart } from "../src/train/SessionStart";
 
 const STUDIES: StudyOut[] = [
@@ -28,11 +28,20 @@ function renderStart(entry = "/treinar") {
   return onStart;
 }
 
+const DASH: DashboardOut = {
+  due_today: 9, new_available: 0, new_remaining_today: 0, streak_days: 0, reviews_today: 0,
+  last_import_at: null, games_total: 0, games_analyzed: 0, puzzles_total: 0, leeches: 0,
+};
+
+const FILA: QueueOut = { mode: "review", due_count: 2, new_available: 0, new_remaining_today: 0, items: [] };
+
 beforeEach(() => {
   localStorage.clear();
   vi.spyOn(api, "tacticsStatus").mockResolvedValue(status);
   vi.spyOn(api, "tacticThemes").mockResolvedValue([]);
   vi.spyOn(api, "studies").mockResolvedValue(STUDIES);
+  vi.spyOn(api, "dashboard").mockResolvedValue(DASH);
+  vi.spyOn(api, "queue").mockResolvedValue(FILA);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -47,14 +56,14 @@ test("sem nenhuma fonte marcada a sessão não filtra por fonte", () => {
   expect(cfg.filters.study_id).toBe(undefined);
 });
 
-test("chips escolhem as fontes e ficam guardados em train.sources", () => {
+test("chips escolhem as fontes, e a escolha não fica guardada", () => {
   const onStart = renderStart();
   fireEvent.click(screen.getByText("Meus erros"));
   fireEvent.click(screen.getByText("Lichess guardados"));
   expect(screen.getByText("Meus erros").getAttribute("aria-pressed")).toBe("true");
   fireEvent.click(screen.getByText("Começar"));
   expect(onStart.mock.calls[0][0].filters.sources).toEqual(["own", "lichess"]);
-  expect(localStorage.getItem("train.sources")).toBe(JSON.stringify(["own", "lichess"]));
+  expect(localStorage.getItem("train.sources")).toBeNull();
 });
 
 test("escolher um estudo vira o modo estudo e esconde fontes e filtros", async () => {
@@ -96,11 +105,36 @@ test("?mode=study sem ?study= cai na repetição espaçada (sem study_id)", asyn
   expect(onStart.mock.calls[0][0].filters.study_id).toBe(undefined);
 });
 
-test("train.sources guardado antes volta marcado", () => {
+test("um train.sources velho é ignorado: a sessão começa sem filtro de fonte", () => {
   localStorage.setItem("train.sources", JSON.stringify(["lichess"]));
-  renderStart();
-  expect(screen.getByText("Lichess guardados").getAttribute("aria-pressed")).toBe("true");
+  const onStart = renderStart();
+  expect(screen.getByText("Lichess guardados").getAttribute("aria-pressed")).toBe("false");
   expect(screen.getByText("Meus erros").getAttribute("aria-pressed")).toBe("false");
+  expect(screen.getByText("(todas)")).toBeTruthy();
+  fireEvent.click(screen.getByText("Começar"));
+  expect(onStart.mock.calls[0][0].filters.sources).toBe(undefined);
+});
+
+test("com filtro ativo aparece a contagem de vencidos com esses filtros", async () => {
+  renderStart();
+  expect(screen.queryByText(/com estes filtros/)).toBeNull();
+  fireEvent.click(screen.getByText("Lichess guardados"));
+  expect(await screen.findByText("2 vencido(s) com estes filtros · 9 no total")).toBeTruthy();
+  expect(api.queue).toHaveBeenCalledWith(expect.objectContaining({ mode: "review", sources: ["lichess"] }));
+});
+
+test("o tipo sozinho já conta como filtro; desfazer some com a contagem", async () => {
+  renderStart();
+  fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "punish" } });
+  expect(await screen.findByText(/com estes filtros/)).toBeTruthy();
+  fireEvent.change(screen.getByLabelText("Tipo"), { target: { value: "" } });
+  expect(screen.queryByText(/com estes filtros/)).toBeNull();
+});
+
+test("sem filtro nenhum a fila não é consultada", () => {
+  renderStart();
+  expect(screen.getByText("(todas)")).toBeTruthy();
+  expect(api.queue).not.toHaveBeenCalled();
 });
 
 test("?study=<id> força o modo estudo mesmo com Táticas guardado", async () => {

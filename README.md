@@ -176,11 +176,19 @@ desligado, a engine só analisa a posição na tela.
 
 ## Modos de treino
 
-A tela **Treinar** começa pela escolha do modo (ou de um estudo):
+A tela **Revisar** (item do menu, `/revisar`) não tem escolha nenhuma: entra direto na fila de
+vencidos, de todas as fontes, sem filtro e sem tempo planejado — vai até a fila acabar. É o modo do
+dia a dia, e o número no badge do menu ao lado de "Revisar" é exatamente essa fila (os vencidos de
+hoje na repetição espaçada). Fila vazia, a tela oferece **Fazer novos** e **Estudos**.
+
+A tela **Treinar** é a das sessões com escolha — modo (ou estudo), filtros e tempo:
 
 - **Repetição espaçada** — só exercícios que você já revisou ao menos uma vez e que venceram.
   Os mais atrasados vêm primeiro; os do mesmo dia vêm embaralhados. Nada de estreia aqui: um
   exercício nunca revisado não aparece nesse modo. Os filtros de fonte, tipo, cor e categoria valem.
+  Com algum filtro marcado a tela mostra `N vencido(s) com estes filtros · M no total`: assim dá
+  para ver na hora quanto o filtro corta em relação ao badge do menu. Os filtros não ficam
+  guardados — cada sessão começa sem nenhum, para um filtro esquecido não esconder vencidos.
 - **Novos (meus erros)** — a primeira vez dos exercícios das suas partidas, até o limite diário
   (**Configurações → puzzles novos por dia**). A ordem vem de **Configurações → Ordem dos novos**:
   *aleatória* (padrão) ou *mais recentes primeiro* (a partida mais nova antes).
@@ -189,9 +197,12 @@ A tela **Treinar** começa pela escolha do modo (ou de um estudo):
 - **Treinar este estudo** — escolha um estudo no seletor (ou use o botão nas telas de Estudos): todos
   os exercícios do estudo, feitos ou não, na ordem dos capítulos e sem limite diário.
 
-No Painel, **Revisar (N)** abre a repetição espaçada com os N vencidos e **Fazer novos** abre a
-estreia dos seus erros. `?mode=review|new|study` e `?study=<id>` no endereço já chegam com a escolha
-feita, e a última escolha fica guardada para a próxima sessão.
+No Painel, **Revisar (N)** abre a tela Revisar com os N vencidos e **Fazer novos** abre a estreia dos
+seus erros. `?mode=review|new|study` e `?study=<id>` no endereço já chegam com a escolha feita, e a
+última escolha de modo fica guardada para a próxima sessão.
+
+Sair da tela no meio de uma sessão (trocar de menu, voltar no navegador) ou fechar a aba encerra a
+sessão no servidor: ela não fica aberta contando tempo que ninguém treinou.
 
 ### Refutação do lance errado
 

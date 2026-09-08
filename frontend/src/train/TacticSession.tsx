@@ -9,6 +9,7 @@ import { PuzzleView } from "./PuzzleView";
 import type { SessionConfig } from "./SessionStart";
 import { TacticResultPanel } from "./TacticResultPanel";
 import type { TacticDone } from "./TacticSummary";
+import { useEndOnExit } from "./useEndOnExit";
 import { usePuzzle } from "./usePuzzle";
 import { mmss, useSessionClock } from "./useSessionClock";
 
@@ -63,6 +64,9 @@ export function TacticSession({ config, onFinish }: { config: SessionConfig; onF
   const seen = useRef<string[]>([]);
   const sessionRef = useRef<SessionOut | null>(null);
   const finished = useRef(false);
+  // trava do encerramento no servidor, compartilhada com a saída da tela
+  const endedRef = useRef(false);
+  useEndOnExit(sessionRef, endedRef);
   // `finish` é chamado a partir de closures async (efeito de início, `goNext`) que podem ter
   // capturado uma versão antiga de `finish`/`startRating`; o ref garante que ele sempre lê o
   // rating do status mais recente, mesmo que o status só tenha chegado depois do começo.
@@ -84,7 +88,9 @@ export function TacticSession({ config, onFinish }: { config: SessionConfig; onF
     if (finished.current) return;
     finished.current = true;
     clock.stop();
-    try { if (sessionRef.current) await api.endSession(sessionRef.current.id); } catch { /* resumo mesmo assim */ }
+    try {
+      if (sessionRef.current && !endedRef.current) { endedRef.current = true; await api.endSession(sessionRef.current.id); }
+    } catch { /* resumo mesmo assim */ }
     void qc.invalidateQueries();
     onFinish({
       done: all,

@@ -32,7 +32,7 @@ export function DashboardPage() {
       )}
       <div className="row" style={{ margin: "6px 0 14px" }}>
         {/* revisar só serve o que venceu; a primeira vez de cada exercício é em "Fazer novos" */}
-        <button className="primary" onClick={() => navigate("/treinar?mode=review")}>Revisar{d ? ` (${d.due_today})` : ""}</button>
+        <button className="primary" onClick={() => navigate("/revisar")}>Revisar{d ? ` (${d.due_today})` : ""}</button>
         <button onClick={() => navigate("/treinar?mode=new")}>Fazer novos</button>
       </div>
       {s && d && (

@@ -1,4 +1,4 @@
-import { beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -10,7 +10,14 @@ vi.mock("../src/lib/sound", async (original) => ({
 }));
 
 import { play, setEnabled } from "../src/lib/sound";
+import { api } from "../src/api/client";
+import type { DashboardOut } from "../src/api/types";
 import { Nav } from "../src/components/Nav";
+
+const dash = (due_today: number): DashboardOut => ({
+  due_today, new_available: 0, new_remaining_today: 0, streak_days: 0, reviews_today: 0,
+  last_import_at: null, games_total: 0, games_analyzed: 0, puzzles_total: 0, leeches: 0,
+});
 
 function renderNav() {
   return render(
@@ -25,6 +32,39 @@ beforeEach(() => {
   setEnabled(true);
   localStorage.clear();
   vi.mocked(play).mockClear();
+  vi.spyOn(api, "dashboard").mockResolvedValue(dash(0));
+});
+afterEach(() => vi.restoreAllMocks());
+
+test("Revisar vem logo depois do Painel", () => {
+  renderNav();
+  const rotulos = screen.getAllByRole("link").map((a) => a.textContent);
+  expect(rotulos[0]).toContain("Painel");
+  expect(rotulos[1]).toContain("Revisar");
+  expect(screen.getByText("Revisar").closest("a")!.getAttribute("href")).toBe("/revisar");
+});
+
+test("o badge de vencidos fica em Revisar, explicado, e não em Treinar", async () => {
+  vi.spyOn(api, "dashboard").mockResolvedValue(dash(3));
+  renderNav();
+  const badge = await screen.findByText("3");
+  expect(badge.className).toBe("badge");
+  expect(badge.getAttribute("title")).toBe("3 vencidos na repetição");
+  expect(badge.getAttribute("aria-label")).toBe("3 vencidos na repetição");
+  expect(badge.closest("a")!.getAttribute("href")).toBe("/revisar");
+  expect(screen.getByText("Treinar").closest("a")!.querySelector(".badge")).toBeNull();
+});
+
+test("um vencido só fala no singular", async () => {
+  vi.spyOn(api, "dashboard").mockResolvedValue(dash(1));
+  renderNav();
+  expect((await screen.findByText("1")).getAttribute("title")).toBe("1 vencido na repetição");
+});
+
+test("sem vencidos não há badge nenhum", async () => {
+  const { container } = renderNav();
+  await screen.findByText("Revisar");
+  expect(container.querySelector(".badge")).toBeNull();
 });
 
 test("o botão de som começa ligado", () => {

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { useStudies, useTacticsStatus } from "../api/queries";
+import { useDashboard, useQueue, useStudies, useTacticsStatus } from "../api/queries";
 import type { PuzzleSource, QueueFilters, QueueMode } from "../api/types";
 import { storage } from "../lib/storage";
 import { ThemePicker } from "./ThemePicker";
@@ -30,9 +30,6 @@ const asColor = (v: string): QueueFilters["color"] => (v === "white" || v === "b
 const asChoice = (v: unknown): Choice | null =>
   v === "review" || v === "new" || v === "study" || v === "tactics" ? v : null;
 const clampMinutes = (v: number): number => Math.min(180, Math.max(5, v || 25));
-/** Só aceita fontes conhecidas (o valor vem de `localStorage`, que pode estar velho). */
-const asSources = (v: unknown): PuzzleSource[] =>
-  Array.isArray(v) ? SOURCES.map((s) => s.value).filter((s) => v.includes(s)) : [];
 
 export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void }) {
   const [params] = useSearchParams();
@@ -49,8 +46,9 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
     return escolha && escolha !== "study" ? escolha : "review";
   });
   const [themes, setThemes] = useState<string[]>(() => storage.get<string[]>("train.themes", []));
-  // fontes da fila (só na repetição espaçada): vazio = todas
-  const [sources, setSources] = useState<PuzzleSource[]>(() => asSources(storage.get<PuzzleSource[]>("train.sources", [])));
+  // fontes da fila (só na repetição espaçada): vazio = todas. Não fica guardado —
+  // toda sessão nova começa sem filtro, senão um filtro velho esconde vencidos sem aviso.
+  const [sources, setSources] = useState<PuzzleSource[]>([]);
   const [studyId, setStudyId] = useState<string>(studyParam ?? "");
   const [kind, setKind] = useState<string>("");
   const [color, setColor] = useState<string>("");
@@ -62,6 +60,15 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
   const { data: studies } = useStudies(source === "own");
   // enquanto carrega (`undefined`) o botão continua liberado
   const missingTactics = source === "tactics" && tactics?.imported === false;
+  // Com filtro na repetição espaçada dá para acabar numa fila menor que a do menu sem
+  // entender por quê: a contagem filtrada aparece ao lado do total de vencidos.
+  const filtrando = source === "own" && mode === "review" && (sources.length > 0 || !!kind || !!color || !!category);
+  const filtrosFila: QueueFilters = {
+    mode: "review", sources: sources.length ? sources : undefined,
+    kind: asKind(kind), color: asColor(color), category: category || undefined,
+  };
+  const { data: filaFiltrada } = useQueue(filtrosFila, filtrando);
+  const totalVencidos = useDashboard().data?.due_today;
 
   const toggleSource = (s: PuzzleSource) =>
     setSources((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : SOURCES.map((o) => o.value).filter((v) => v === s || prev.includes(v))));
@@ -74,7 +81,6 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
     const clamped = clampMinutes(minutes);
     storage.set("train.timed", timed); storage.set("train.minutes", clamped);
     storage.set("train.mode", choice); storage.set("train.themes", themes);
-    storage.set("train.sources", sources);
     onStart({
       source,
       mode,
@@ -113,6 +119,12 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
               onClick={() => toggleSource(s.value)}>{s.label}</button>
           ))}
           <span className="muted">{sources.length ? "" : "(todas)"}</span>
+          {filtrando && filaFiltrada && (
+            <span className="muted">
+              {filaFiltrada.due_count} vencido(s) com estes filtros
+              {totalVencidos === undefined ? "" : ` · ${totalVencidos} no total`}
+            </span>
+          )}
         </div>
       )}
       {mode === "new" && (

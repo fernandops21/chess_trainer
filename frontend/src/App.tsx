@@ -11,6 +11,7 @@ import { StudiesPage } from "./pages/StudiesPage";
 import { StudyDetailPage } from "./pages/StudyDetailPage";
 import { ChapterEditorPage } from "./pages/ChapterEditorPage";
 import { ChapterViewPage } from "./pages/ChapterViewPage";
+import { ReviewPage } from "./train/ReviewPage";
 import { TrainPage } from "./train/TrainPage";
 
 export function App() {
@@ -21,6 +22,7 @@ export function App() {
       <main className="content">
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/revisar" element={<ReviewPage />} />
           <Route path="/treinar" element={<TrainPage />} />
           <Route path="/analise" element={<AnalysisPage />} />
           <Route path="/estudos" element={<StudiesPage />} />
