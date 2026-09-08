@@ -1,6 +1,8 @@
 import { render } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { Key } from "chessground/types";
+import type { DrawShape } from "chessground/draw";
+import type { KnightShape } from "../src/board/knightArrow";
 
 // O tabuleiro real do chessground não expõe a API para o teste; um dublê deixa
 // checar o que o Board manda para ele (config, marcações e o toque longo).
@@ -383,4 +385,74 @@ test("o selo do canto perde a margem que o jogaria para fora do tabuleiro", () =
 test("sem `badge` o tabuleiro não tem selo", () => {
   const { container } = render(<Board fen={F1} orientation="white" />);
   expect(container.querySelector(".board-badge")).toBeNull();
+});
+
+// --- seta do cavalo em "L" ----------------------------------------------
+
+/** O que o Board instalou no `drawable.onChange` do chessground. */
+function onChangeDoTabuleiro() {
+  const cfg = api.set.mock.calls.at(-1)![0] as { drawable?: { onChange?: (s: DrawShape[]) => void } };
+  return cfg.drawable!.onChange!;
+}
+const ultimasShapes = () => api.setShapes.mock.calls.at(-1)![0] as KnightShape[];
+
+test("a seta do autor de um salto de cavalo chega ao chessground em L", () => {
+  const cfg = toConfig({ fen: F1, orientation: "white", arrows: [{ orig: "g1" as Key, dest: "f3" as Key }] });
+  const seta = cfg.drawable!.autoShapes![0] as KnightShape;
+  // sem `brush` o chessground não desenha a reta; o desenho é o nosso
+  expect(seta.brush).toBeUndefined();
+  expect(seta.cavalo).toBe("green");
+  expect(seta.customSvg?.center).toBe("orig");
+  expect(seta.customSvg?.html).toContain("M50 50 L50 -150 L-34.4 -150");
+});
+
+test("a seta do autor que não é de cavalo continua reta", () => {
+  const cfg = toConfig({ fen: F1, orientation: "white", arrows: [{ orig: "e2" as Key, dest: "e4" as Key }] });
+  expect(cfg.drawable!.autoShapes![0]).toEqual({ orig: "e2", dest: "e4", brush: "green" });
+});
+
+test("o usuário desenhando um salto de cavalo recebe a seta em L de volta", () => {
+  const onShapesChange = vi.fn();
+  render(<Board fen={F1} orientation="white" drawable onShapesChange={onShapesChange} />);
+  const onChange = onChangeDoTabuleiro();
+  api.setShapes.mockClear();
+
+  // o chessground devolve a marcação crua, com pincel e sem desenho
+  onChange([{ orig: "g1" as Key, dest: "f3" as Key, brush: "green" }]);
+
+  const decorada = ultimasShapes()[0];
+  expect(decorada.brush).toBeUndefined();
+  expect(decorada.cavalo).toBe("green");
+  expect(decorada.customSvg?.center).toBe("orig");
+  // a árvore do estudo continua guardando só `{orig, dest, brush}`
+  expect(onShapesChange).toHaveBeenCalledWith([{ orig: "g1", dest: "f3", brush: "green" }]);
+});
+
+test("redesenhar a mesma seta de cavalo apaga a marcação", () => {
+  const onShapesChange = vi.fn();
+  render(<Board fen={F1} orientation="white" drawable onShapesChange={onShapesChange} />);
+  const onChange = onChangeDoTabuleiro();
+  onChange([{ orig: "g1" as Key, dest: "f3" as Key, brush: "green" }]);
+
+  // o chessground tira a decorada (pincel `undefined`) e põe uma crua no lugar:
+  // sem a nossa ajuda o segundo desenho viraria marcação nova em vez de sumir
+  onChange([{ orig: "g1" as Key, dest: "f3" as Key, brush: "green" }]);
+  expect(ultimasShapes()).toEqual([]);
+  expect(onShapesChange).toHaveBeenLastCalledWith([]);
+});
+
+test("redesenhar com outro pincel troca a cor da seta de cavalo", () => {
+  render(<Board fen={F1} orientation="white" drawable onShapesChange={vi.fn()} />);
+  const onChange = onChangeDoTabuleiro();
+  onChange([{ orig: "g1" as Key, dest: "f3" as Key, brush: "green" }]);
+  onChange([{ orig: "g1" as Key, dest: "f3" as Key, brush: "red" }]);
+  expect(ultimasShapes()[0].cavalo).toBe("red");
+});
+
+test("virar o tabuleiro refaz o L da seta de cavalo sem perder o desenho", () => {
+  const shapes = [{ orig: "g1", dest: "f3", brush: "green" }];
+  const { rerender } = render(<Board fen={F1} orientation="white" drawable shapes={shapes} />);
+  expect(ultimasShapes()[0].customSvg?.html).toContain("M50 50 L50 -150 L-34.4 -150");
+  rerender(<Board fen={F1} orientation="black" drawable shapes={shapes} />);
+  expect(ultimasShapes()[0].customSvg?.html).toContain("M50 50 L50 250 L134.4 250");
 });

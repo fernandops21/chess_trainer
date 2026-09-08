@@ -5,6 +5,7 @@ import type { Config } from "chessground/config";
 import type { DrawShape } from "chessground/draw";
 import type { Key } from "chessground/types";
 import type { Shape } from "../api/types";
+import { decorarCavalo, ehLanceDeCavalo, type KnightShape } from "./knightArrow";
 import "chessground/assets/chessground.base.css";
 import "chessground/assets/chessground.brown.css";
 import "chessground/assets/chessground.cburnett.css";
@@ -79,8 +80,34 @@ export function squarePercent(square: Key, orientation: "white" | "black"): { le
   return { left: col * CASA_PCT, top: row * CASA_PCT, topo: row === 0, direita: col === 7 };
 }
 
-const toShape = (s: DrawShape): Shape => ({ orig: s.orig, dest: s.dest, brush: s.brush ?? "green" });
-const toDrawShape = (s: Shape): DrawShape => ({ orig: s.orig as Key, dest: s.dest as Key | undefined, brush: s.brush });
+// A árvore do estudo guarda só `{orig, dest, brush}`: o `customSvg` da seta de
+// cavalo fica no tabuleiro e o pincel original volta do campo `cavalo`.
+const toShape = (s: KnightShape): Shape => ({ orig: s.orig, dest: s.dest, brush: s.cavalo ?? s.brush ?? "green" });
+const toDrawShape = (s: Shape, orientation: "white" | "black"): KnightShape =>
+  decorarCavalo({ orig: s.orig as Key, dest: s.dest as Key | undefined, brush: s.brush }, orientation);
+
+/**
+ * Ajusta a lista que o chessground devolve no `drawable.onChange`, decorando os
+ * saltos de cavalo.
+ *
+ * O toggle precisa de ajuda: ao terminar um desenho com a mesma `orig`/`dest` de
+ * uma marcação existente, o chessground remove a antiga e só deixa de reinserir
+ * se o `brush` for igual — e o da seta de cavalo decorada é `undefined`. Sem
+ * isto, redesenhar a mesma seta de cavalo chegaria aqui como marcação nova em
+ * vez de sumir. Por isso comparamos com a lista decorada anterior: mesmo
+ * `cavalo`, apaga; pincel diferente, substitui.
+ */
+function ajustarCavalos(cruas: DrawShape[], anteriores: KnightShape[], orientation: "white" | "black"): KnightShape[] {
+  const novas: KnightShape[] = [];
+  for (const s of cruas) {
+    if (s.brush && ehLanceDeCavalo(s.orig, s.dest)) {
+      const antes = anteriores.find((a) => a.orig === s.orig && a.dest === s.dest);
+      if (antes?.cavalo === s.brush) continue;
+    }
+    novas.push(decorarCavalo(s, orientation));
+  }
+  return novas;
+}
 
 /** Quanto tempo o dedo fica parado até virar desenho, e o quanto pode escorregar antes disso. */
 const LONG_PRESS_MS = 350;
@@ -171,7 +198,7 @@ export function toConfig(p: BoardProps): Config {
       onChange: p.onShapesChange ? (shapes: DrawShape[]) => p.onShapesChange!(shapes.map(toShape)) : undefined,
       autoShapes: [
         ...(p.highlight ?? []).map((k) => ({ orig: k, brush: "green" })),
-        ...(p.arrows ?? []).map((a) => ({ orig: a.orig, dest: a.dest, brush: a.brush ?? "green" })),
+        ...(p.arrows ?? []).map((a) => decorarCavalo({ orig: a.orig, dest: a.dest, brush: a.brush ?? "green" }, p.orientation)),
         ...(p.squares ?? []).map((s) => ({ orig: s.orig, brush: s.brush ?? "green" })),
       ],
     },
@@ -183,13 +210,23 @@ export function toConfig(p: BoardProps): Config {
  * pai: o `setShapes` da API não dispara o `drawable.onChange` do chessground,
  * então sem este aviso o desenho do toque longo nunca chegaria à árvore.
  */
-function toggleShape(api: Api, orig: Key, dest: Key | undefined, avisar?: (shapes: Shape[]) => void) {
+function toggleShape(
+  api: Api,
+  orig: Key,
+  dest: Key | undefined,
+  orientation: "white" | "black",
+  avisar?: (shapes: Shape[]) => void,
+): KnightShape[] {
   const shape: DrawShape = dest && dest !== orig ? { orig, dest, brush: "green" } : { orig, brush: "green" };
-  const shapes = api.state.drawable.shapes ?? [];
-  const kept = shapes.filter((s) => !(s.orig === shape.orig && s.dest === shape.dest && s.brush === shape.brush));
-  const novas = kept.length === shapes.length ? [...shapes, shape] : kept;
+  const shapes = (api.state.drawable.shapes ?? []) as KnightShape[];
+  // a seta de cavalo decorada não tem `brush`: o pincel dela está no `cavalo`
+  const mesma = (s: KnightShape) =>
+    s.orig === shape.orig && s.dest === shape.dest && (s.cavalo ?? s.brush) === shape.brush;
+  const kept = shapes.filter((s) => !mesma(s));
+  const novas = kept.length === shapes.length ? [...shapes, decorarCavalo(shape, orientation)] : kept;
   api.setShapes(novas);
   avisar?.(novas.map(toShape));
+  return novas;
 }
 
 export function Board(props: BoardProps) {
@@ -199,16 +236,45 @@ export function Board(props: BoardProps) {
   // true entre um lance feito no tabuleiro e a próxima sincronização da `fen`
   const pendingSync = useRef(false);
   const prevShapes = useRef(props.shapes);
+  const prevOrientation = useRef(props.orientation);
   const longPress = useRef(false);
   longPress.current = boardMode(props).longPress;
-  // o gesto do toque longo é registrado uma vez só: a props mais nova vem daqui
+  // o gesto do toque longo é registrado uma vez só: as props mais novas vêm daqui
   const aoMudarMarcacoes = useRef(props.onShapesChange);
   aoMudarMarcacoes.current = props.onShapesChange;
+  const orientacao = useRef(props.orientation);
+  orientacao.current = props.orientation;
+  // última lista já decorada que entregamos ao chessground: é com ela que o
+  // `onChange` descobre se um salto de cavalo redesenhado é para apagar
+  const decoradas = useRef<KnightShape[]>([]);
+
+  /** Entrega a lista ao chessground e guarda o que foi entregue. */
+  const aplicar = (shapes: KnightShape[]) => {
+    decoradas.current = shapes;
+    cg.current?.setShapes(shapes);
+  };
+
+  /**
+   * Handler do `drawable.onChange`: decora os saltos de cavalo do que o usuário
+   * desenhou e devolve a lista ao chessground antes de avisar o pai. O
+   * `setShapes` não dispara o `onChange`, então isto não vira laço.
+   */
+  const aoDesenhar = (cruas: DrawShape[]) => {
+    const novas = ajustarCavalos(cruas, decoradas.current, orientacao.current);
+    aplicar(novas);
+    aoMudarMarcacoes.current?.(novas.map(toShape));
+  };
+
+  /** Config com o nosso `onChange` no lugar do que o `toConfig` monta. */
+  const comDesenho = (config: Config): Config => {
+    if (config.drawable) config.drawable.onChange = aoDesenhar;
+    return config;
+  };
 
   useEffect(() => {
     if (!host.current) return;
-    cg.current = Chessground(host.current, toConfig(props));
-    if (props.shapes?.length) cg.current.setShapes(props.shapes.map(toDrawShape));
+    cg.current = Chessground(host.current, comDesenho(toConfig(props)));
+    if (props.shapes?.length) aplicar(props.shapes.map((s) => toDrawShape(s, props.orientation)));
     return () => { cg.current?.destroy(); cg.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -260,7 +326,8 @@ export function Board(props: BoardProps) {
       const api = cg.current;
       if (drawing && orig && api) {
         const t = e.changedTouches[0];
-        toggleShape(api, orig, t ? api.getKeyAtDomPos([t.clientX, t.clientY]) : undefined, aoMudarMarcacoes.current);
+        const dest = t ? api.getKeyAtDomPos([t.clientX, t.clientY]) : undefined;
+        decoradas.current = toggleShape(api, orig, dest, orientacao.current, aoMudarMarcacoes.current);
       }
       reset();
     };
@@ -279,7 +346,7 @@ export function Board(props: BoardProps) {
   }, []);
 
   useEffect(() => {
-    const config = toConfig(props);
+    const config = comDesenho(toConfig(props));
     // Um lance que o app recusou (errado no puzzle, ilegal na análise) deixa a
     // peça deslocada dentro do chessground enquanto a `fen` do app não muda;
     // nesse caso a `fen` precisa ir junto para a peça voltar ao lugar.
@@ -303,16 +370,22 @@ export function Board(props: BoardProps) {
     if (!moved) delete config.fen;
     // ao repor a posição depois de um lance recusado, as marcações do usuário
     // seriam zeradas pela `fen`; guardamos e devolvemos.
-    const keep = pendingSync.current && !fenChanged ? cg.current?.state.drawable.shapes ?? [] : null;
+    const keep = pendingSync.current && !fenChanged ? (cg.current?.state.drawable.shapes ?? []) as KnightShape[] : null;
     cg.current?.set(config);
     pendingSync.current = false;
-    if (keep && keep.length) cg.current?.setShapes(keep);
+    if (keep && keep.length) aplicar(keep);
     // Trocar de posição (ou receber outra lista de marcações salvas) repõe o que
     // vem do `shapes`; sem `shapes`, o desenho do usuário some ao mudar de posição.
     if (fenChanged || prevShapes.current !== props.shapes) {
       prevFen.current = props.fen;
       prevShapes.current = props.shapes;
-      cg.current?.setShapes((props.shapes ?? []).map(toDrawShape));
+      prevOrientation.current = props.orientation;
+      aplicar((props.shapes ?? []).map((s) => toDrawShape(s, props.orientation)));
+    } else if (prevOrientation.current !== props.orientation) {
+      // Virar o tabuleiro refaz o "L" da seta de cavalo (o caminho depende da
+      // orientação), sem perder o que já estava desenhado.
+      prevOrientation.current = props.orientation;
+      aplicar(decoradas.current.map((s) => decorarCavalo(s, props.orientation)));
     }
   });
   const badge = props.badge;
