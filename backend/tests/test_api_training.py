@@ -168,7 +168,15 @@ def test_punir_no_ultimo_lance_da_partida_nao_tem_resposta(ready):
 def test_evitar_nao_tem_resposta_da_partida(ready):
     """No "evitar" o erro é do próprio usuário: não há o que ele respondeu."""
     app, client = ready
-    avoid_id = _make_puzzle(app, _positions(app)[4], "avoid")
+    from chess_trainer.core.models import Position
+
+    pos = _positions(app)[4]
+    # a posição da fixture não é erro de ninguém: marca como erro do usuário, o caso do "evitar"
+    with app.state.session_factory() as db:
+        row = db.get(Position, pos["id"])
+        row.is_mistake, row.mistake_by, row.mistake_level = True, "me", "mistake"
+        db.commit()
+    avoid_id = _make_puzzle(app, pos, "avoid")
     assert client.get(f"/api/puzzles/{avoid_id}").json()["mistake"]["my_reply"] is None
 
 

@@ -120,7 +120,8 @@ test("a alternativa da solução também conta como achada", () => {
     solution: { moves: [{ uci: "c3d5", by: "solver", alternatives: ["c3e4"] }], explanation_pv: [] },
     mistake: { ...punir.mistake!, my_reply: RESPOSTA },
   };
-  expect(renderCard(alternativa).container.textContent).toMatch(/Você achou\s*Nd5\s*na partida\./);
+  // o lance mostrado é o que o usuário jogou de fato (a alternativa), não o principal da solução
+  expect(renderCard(alternativa).container.textContent).toMatch(/Você achou\s*Ne4\s*na partida\./);
 });
 
 test("evitar não usa a resposta da partida nem com ela na API", () => {

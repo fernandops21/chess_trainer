@@ -43,8 +43,8 @@ export function MistakeCard({ puzzle }: { puzzle: PuzzleOut }) {
             Na partida {meu ? "você jogou" : "o adversário jogou"} <b>{mistake.move_played}</b>{" "}
             ({formatEval(mistake.eval_before)} → {formatEval(mistake.eval_after)})
             {mistake.mistake_level && <> <span className={`tag ${mistake.mistake_level}`}>{levelLabel(mistake.mistake_level)}</span></>}
-            {resposta && (achou && solucaoSan
-              ? <>. Você achou <b>{solucaoSan}</b> na partida.</>
+            {resposta && (achou
+              ? <>. Você achou <b>{resposta.move_played}</b> na partida.</>
               : <>
                   . Você respondeu <b>{resposta.move_played}</b>{" "}
                   ({formatEval(resposta.eval_before)} → {formatEval(resposta.eval_after)})
