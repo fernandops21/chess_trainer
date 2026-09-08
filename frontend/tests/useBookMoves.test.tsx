@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api, ApiError } from "../src/api/client";
@@ -116,7 +116,7 @@ const SEM_REIS: Tree = {
   root: { children: [node("d1", "b6c8", "Nxc8+")] },
 };
 
-test("diagrama sem os dois reis não consulta o livro", () => {
+test("diagrama sem os dois reis não consulta o livro", async () => {
   // posição que não vem de partida nenhuma: o livro de mestres não teria o que dizer
   porFen({});
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -124,6 +124,8 @@ test("diagrama sem os dois reis não consulta o livro", () => {
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
   const { result } = renderHook(() => useBookMoves(SEM_REIS, pathTo(SEM_REIS, "d1")), { wrapper });
+  // deixa os efeitos rodarem: sem isto o teste passaria mesmo sem o guarda
+  await act(async () => {});
   expect(result.current.size).toBe(0);
   expect(api.openings).not.toHaveBeenCalled();
 });

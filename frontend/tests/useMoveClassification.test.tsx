@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "../src/api/client";
@@ -257,10 +257,12 @@ const SEM_REIS: Tree = {
   root: { children: [node("n1", "b6c8", "Nxc8+")] },
 };
 
-test("diagrama sem os dois reis não consulta a engine", () => {
+test("diagrama sem os dois reis não consulta a engine", async () => {
   // a engine do servidor recusa a posição: nada de encher a fila com 400
   mockar();
   const { result } = montarArvore(SEM_REIS, "n1");
+  // deixa os efeitos rodarem: sem isto o teste passaria mesmo sem o guarda
+  await act(async () => {});
   expect(result.current.size).toBe(0);
   expect(api.analyse).not.toHaveBeenCalled();
 });

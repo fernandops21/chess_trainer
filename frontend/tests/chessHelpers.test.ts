@@ -30,6 +30,25 @@ test("FEN que não é tabuleiro continua lançando", () => {
   expect(() => novoChess("rnbqkbnr/pppppppp/8/8/8 w KQkq - 0 1")).toThrow();
 });
 
+test("diagrama sem rei com peão na borda continua lançando", () => {
+  // com `skipValidation` o chess.js aceitaria, e depois `moves()` estouraria
+  // com "Cannot mix BigInt and other types" no meio de um render
+  expect(() => novoChess("Pnbq4/8/8/8/8/8/8/4K3 w - - 0 1")).toThrow();
+  expect(() => novoChess("4K3/8/8/8/8/8/8/4p3 w - - 0 1")).toThrow();
+});
+
+test("diagrama sem rei perde as flags de roque da cor sem rei", () => {
+  // roque sem rei sairia da casa -1 e `moves()` quebraria ao ler a origem
+  const chess = novoChess("8/8/1N6/8/8/8/5N2/3k3q w KQ - 0 1");
+  expect(chess.moves().length).toBeGreaterThan(0);
+  expect(chess.fen().split(" ")[2]).toBe("-");
+});
+
+test("diagrama com rei repetido continua lançando", () => {
+  // o chess.js guarda uma casa por cor e apagaria o primeiro rei em silêncio
+  expect(() => novoChess("r1r5/8/1N6/8/2k5/8/5N2/3k3q w - - 0 1")).toThrow();
+});
+
 test("temOsDoisReis olha só o campo das peças", () => {
   expect(temOsDoisReis(SEM_REI_BRANCO)).toBe(false);
   expect(temOsDoisReis(START)).toBe(true);

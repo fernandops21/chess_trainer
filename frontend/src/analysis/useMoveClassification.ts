@@ -72,10 +72,6 @@ export function useMoveClassification(
   path: TreeNode[],
   { enabled, thresholds, bookIds }: MoveClassificationOptions,
 ): ReadonlyMap<string, Classification> {
-  // Diagrama sem os dois reis (comum em aulas): a engine do servidor recusa
-  // essas posições, e como nenhum lance da árvore faz um rei aparecer, basta
-  // olhar a posição inicial para desligar o hook inteiro.
-  const ligado = enabled && temOsDoisReis(tree.fen);
   // O teto corta a cabeça do caminho, não a cauda: o que interessa é o lance
   // na tela e os que vieram logo antes dele.
   const inicio = Math.max(0, path.length - MAX_LANCES);
@@ -105,6 +101,11 @@ export function useMoveClassification(
 
   const client = useQueryClient();
   const janela = janelaEmVoo(fens, ordem, (fen) => {
+    // Diagrama sem os dois reis (comum em aulas): a engine do servidor recusa
+    // a posição. O guarda é por posição, como em `useBookMoves`, porque uma
+    // captura de rei faz um rei sumir no meio do caminho. Ficar de fora da
+    // janela é o que desliga a consulta — e assim ela também não ocupa vaga.
+    if (!temOsDoisReis(fen)) return true;
     // resposta ou erro já em mãos: a posição não ocupa vaga (erro não repete,
     // então segurar a vaga dele travaria o resto do caminho para sempre)
     const estado = client.getQueryState(["analyse", fen]);
@@ -115,7 +116,7 @@ export function useMoveClassification(
     queries: ordem.map((i) => ({
       queryKey: ["analyse", fens[i]],
       queryFn: () => api.analyse(fens[i]),
-      enabled: ligado && janela.has(i),
+      enabled: enabled && janela.has(i),
       staleTime: Infinity,
       retry: 0,
       // consulta que deu erro (engine indisponível) não volta a rodar quando o nó reaparece
