@@ -88,7 +88,8 @@ test("marca com o símbolo do livro os lances de bookIds, na principal e nas var
   );
   const livros = container.querySelectorAll(".book");
   expect(livros.length).toBe(2);
-  expect(livros[0].textContent).toBe("📖");
+  expect(livros[0].getAttribute("aria-label")).toBe("lance de livro (base de mestres)");
+  expect(livros[0].querySelector("svg")).not.toBeNull();
   expect(livros[0].getAttribute("title")).toBe("lance de livro (base de mestres)");
   expect(livros[0].getAttribute("aria-label")).toBe("lance de livro (base de mestres)");
   // o símbolo fica junto do lance, dentro do botão dele
@@ -125,7 +126,9 @@ test("mostra o selo da classificação depois do lance, com o nome no title", ()
     <MoveTreeView tree={tree} currentId={null} onGoTo={() => {}} classes={classes} />,
   );
   const selo = screen.getByText(/^1\. e4$/).querySelector(".class") as HTMLElement;
+  // o selo é um ícone desenhado; o texto do glifo continua dentro do SVG
   expect(selo.textContent).toBe("!!");
+  expect(selo.querySelector("svg")).not.toBeNull();
   expect(selo.getAttribute("title")).toBe("brilhante");
   // leitura de tela: o símbolo sozinho não diz nada
   expect(selo.getAttribute("role")).toBe("img");

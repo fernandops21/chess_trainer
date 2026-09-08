@@ -81,19 +81,21 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 .tree .move.cur { background: var(--accent); font-weight: 700; }
 .tree .comment { color: var(--muted); font-style: italic; margin: 0 4px; }
 /* lance que está no livro de aberturas: símbolo discreto, colado no lance */
-.tree .book { font-size: 0.8em; margin-left: 2px; opacity: 0.75; }
+.tree .book { margin-left: 3px; vertical-align: -0.15em; }
+.tree .book svg, .tree .class svg { width: 1.05em; height: 1.05em; vertical-align: -0.15em; }
 .tree .variation { color: var(--muted); border-left: 2px solid var(--line); padding-left: 6px; margin: 2px 0; }
 
 /* classificação do lance: a cor de cada categoria serve à árvore e ao tabuleiro */
-.class-livro { --class-cor: var(--muted); }
-.class-brilhante { --class-cor: #1ba7b3; }
-.class-otimo { --class-cor: #3d7ebf; }
-.class-melhor, .class-excelente { --class-cor: var(--ok); }
-.class-bom { --class-cor: var(--muted); }
-.class-imprecisao { --class-cor: #b58900; }
-.class-erro { --class-cor: #d87a16; }
-.class-blunder { --class-cor: var(--bad); }
-.tree .class { font-size: 0.85em; margin-left: 3px; font-weight: 700; color: var(--class-cor); }
+/* mesmas cores dos ícones em classIcons.tsx (padrão do chess.com) */
+.class-livro { --class-cor: #a88865; }
+.class-brilhante { --class-cor: #1baca6; }
+.class-otimo { --class-cor: #5c8bb0; }
+.class-melhor, .class-excelente { --class-cor: #81b64c; }
+.class-bom { --class-cor: #95b776; }
+.class-imprecisao { --class-cor: #d9a800; }
+.class-erro { --class-cor: #e8843a; }
+.class-blunder { --class-cor: #fa412d; }
+.tree .class { margin-left: 3px; color: var(--class-cor); }
 /* nome da classificação no cabeçalho da Análise */
 .classe-nome { color: var(--class-cor); font-weight: 600; }
 /* selo sobre a casa de destino do lance atual, no canto de cima da casa */
@@ -107,8 +109,10 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 }
 /* No canto do tabuleiro a margem negativa jogaria o selo para fora: na fileira
    de cima ele perde a de cima, na coluna da direita a da direita. */
-.board-badge--topo > span { margin-top: 0; }
-.board-badge--direita > span { margin-right: 0; }
+.board-badge--topo > span, .board-badge--topo > svg { margin-top: 0; }
+.board-badge--direita > span, .board-badge--direita > svg { margin-right: 0; }
+/* o ícone em SVG ocupa o mesmo lugar do círculo de texto, com a sombra por fora */
+.board-badge > svg { width: 56%; height: 56%; margin: -18% -18% 0 0; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35)); }
 
 .node-menu { position: fixed; z-index: 20; min-width: 220px; padding: 6px; display: flex; flex-direction: column; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
 .node-menu button { text-align: left; min-height: 36px; }

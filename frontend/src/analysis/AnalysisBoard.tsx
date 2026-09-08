@@ -7,6 +7,7 @@ import type { Shape } from "../api/types";
 import { Board } from "../board/Board";
 import { ErrorBox } from "../components/ErrorBox";
 import { formatEval } from "../lib/format";
+import { ClassIcon } from "./classIcons";
 import { MoveTreeView } from "./MoveTreeView";
 import { NodeMenu } from "./NodeMenu";
 import { OpeningsPanel } from "./OpeningsPanel";
@@ -102,7 +103,7 @@ export function AnalysisBoard({
   const badge = useMemo(
     () =>
       mt.node && classeAtual
-        ? { square: mt.node.uci.slice(2, 4) as Key, text: classeAtual.symbol, className: `class-${classeAtual.kind}` }
+        ? { square: mt.node.uci.slice(2, 4) as Key, text: classeAtual.symbol, className: `class-${classeAtual.kind}`, icon: <ClassIcon kind={classeAtual.kind} size="100%" /> }
         : undefined,
     [mt.node, classeAtual],
   );

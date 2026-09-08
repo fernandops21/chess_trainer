@@ -421,7 +421,8 @@ test("com a classificação ligada, os lances ganham selo na árvore e no tabule
 
   await waitFor(() => expect(last().badge).toBeTruthy());
   // e5 é o melhor lance da engine ali: selo sobre a casa de destino
-  expect(last().badge).toEqual({ square: "e5", text: "★", className: "class-melhor" });
+  expect(last().badge).toMatchObject({ square: "e5", text: "★", className: "class-melhor" });
+  expect(last().badge?.icon).toBeTruthy();
   // um selo por lance do caminho, na árvore
   await waitFor(() => expect(container.querySelectorAll(".tree .class").length).toBe(1));
   const selo = container.querySelector(".tree .class") as HTMLElement;

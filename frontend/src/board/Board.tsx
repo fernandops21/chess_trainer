@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { Chessground } from "chessground";
 import type { Api } from "chessground/api";
 import type { Config } from "chessground/config";
@@ -44,6 +44,8 @@ export interface BoardBadge {
   text: string;
   /** Classe do selo (`class-melhor`, `class-blunder`…): a cor vem do CSS. */
   className: string;
+  /** Ícone desenhado (SVG) no lugar do texto; o texto fica como alternativa. */
+  icon?: ReactNode;
 }
 
 /**
@@ -403,7 +405,7 @@ export function Board(props: BoardProps) {
           }}
           aria-hidden="true"
         >
-          <span>{badge.text}</span>
+          {badge.icon ?? <span>{badge.text}</span>}
         </span>
       )}
     </div>

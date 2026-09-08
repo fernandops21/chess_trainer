@@ -1,4 +1,5 @@
 import { Fragment, useRef, type ReactNode } from "react";
+import { ClassIcon } from "./classIcons";
 import type { Classification } from "./classify";
 import { nagLabel } from "./moveTree";
 import type { Tree, TreeNode } from "./moveTree";
@@ -111,9 +112,9 @@ function Move({ node, prefix, current, book, cls, onGoTo, onContextMenu }: MoveP
       {node.san}
       {node.nags.map(nagLabel).join("")}
       {book ? (
-        <span className="book" role="img" title={BOOK_TITLE} aria-label={BOOK_TITLE}>📖</span>
+        <span className="book" role="img" title={BOOK_TITLE} aria-label={BOOK_TITLE}><ClassIcon kind="livro" /></span>
       ) : (
-        cls && <span className={`class class-${cls.kind}`} role="img" title={cls.label} aria-label={cls.label}>{cls.symbol}</span>
+        cls && <span className={`class class-${cls.kind}`} role="img" title={cls.label} aria-label={cls.label}><ClassIcon kind={cls.kind} /></span>
       )}
     </button>
   );
