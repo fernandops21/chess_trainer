@@ -130,7 +130,8 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 
 /* modo livro (leitura do capítulo): cada lance é uma página — o comentário do
    lance atual sozinho, em fonte de leitura; a lista de lances fica sob o tabuleiro */
-.livro-pagina { font-family: Georgia, "Times New Roman", serif; font-size: 1.1rem; line-height: 1.65; max-height: 70vh; overflow: auto; }
+.livro-pagina { font-family: Georgia, "Times New Roman", serif; font-size: 1rem; line-height: 1.65; max-height: 70vh; overflow: auto; }
+.livro-letra button { min-height: 0; padding: 2px 8px; margin-left: 4px; font-size: .85rem; }
 .livro-pagina > .muted { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: .9rem; margin-bottom: 6px; }
 /* marca discreta nos lances que têm comentário (lista sem os resumos) */
 .tree .tem-comentario { color: var(--brand); margin-left: 2px; font-weight: 700; }

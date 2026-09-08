@@ -601,3 +601,19 @@ test("no layout livro a página mostra o comentário do lance atual e a lista fi
   fireEvent.click(screen.getByRole("button", { name: /^1\. e4/ }));
   expect(container.querySelector(".livro-pagina")!.textContent).toContain("Abre a diagonal.");
 });
+
+test("no layout livro dá para aumentar e diminuir a letra, e a escolha fica guardada", () => {
+  const arvore = insertLine(emptyTree(START), null, ["e2e4"]).tree;
+  const { container, unmount } = comProvedores(<AnalysisBoard tree={{ ...arvore, intro: "Italiana." }} layout="livro" />);
+  const pagina = () => container.querySelector(".livro-pagina") as HTMLElement;
+  expect(pagina().style.fontSize).toBe("1rem");
+  fireEvent.click(screen.getByRole("button", { name: "Aumentar a letra" }));
+  fireEvent.click(screen.getByRole("button", { name: "Aumentar a letra" }));
+  expect(pagina().style.fontSize).toBe("1.2rem");
+  fireEvent.click(screen.getByRole("button", { name: "Diminuir a letra" }));
+  expect(pagina().style.fontSize).toBe("1.1rem");
+  unmount();
+  // remontar lê o tamanho guardado
+  const de_novo = comProvedores(<AnalysisBoard tree={{ ...arvore, intro: "Italiana." }} layout="livro" />);
+  expect((de_novo.container.querySelector(".livro-pagina") as HTMLElement).style.fontSize).toBe("1.1rem");
+});

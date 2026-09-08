@@ -51,6 +51,9 @@ export interface AnalysisBoardProps {
 
 /** Abas do painel lateral: o motor ou o livro de aberturas. */
 type Aba = "engine" | "aberturas";
+/** Limites do tamanho da letra da página do livro, em rem. */
+const LETRA_MIN = 0.8;
+const LETRA_MAX = 1.6;
 
 /** Limiares de erro e blunder enquanto as configurações não chegam. */
 const PADRAO_MISTAKE = 100;
@@ -97,6 +100,16 @@ export function AnalysisBoard({
   // árvore. Enquanto ela está na tela o tabuleiro é só de leitura.
   const [previa, setPrevia] = useState<LanceDaLinha[] | null>(null);
   const naPrevia = previa && previa.length > 0 ? previa[previa.length - 1] : null;
+  // tamanho da letra da página do livro (rem), guardado no navegador
+  const [letra, setLetra] = useState<number>(() => {
+    const v = Number(storage.get<number>("livro.letra", 1));
+    return Number.isFinite(v) ? Math.min(LETRA_MAX, Math.max(LETRA_MIN, v)) : 1;
+  });
+  const mudarLetra = (delta: number) => setLetra((atual) => {
+    const novo = Math.round(Math.min(LETRA_MAX, Math.max(LETRA_MIN, atual + delta)) * 10) / 10;
+    storage.set("livro.letra", novo);
+    return novo;
+  });
   const [aba, setAba] = useState<Aba>(() =>
     storage.get<Aba>("analysis.sidePanel", "engine") === "aberturas" ? "aberturas" : "engine",
   );
@@ -413,8 +426,14 @@ export function AnalysisBoard({
           {livro ? (
             // a página do lance atual: o comentário do autor inteiro, em fonte de
             // leitura; sem lance escolhido, o enunciado do capítulo
-            <div className="livro-pagina">
-              <div className="muted">{mt.node ? mt.node.san : "Início"}</div>
+            <div className="livro-pagina" style={{ fontSize: `${letra}rem` }}>
+              <div className="muted row" style={{ justifyContent: "space-between" }}>
+                <span>{mt.node ? mt.node.san : "Início"}</span>
+                <span className="livro-letra">
+                  <button type="button" aria-label="Diminuir a letra" title="Diminuir a letra" onClick={() => mudarLetra(-0.1)} disabled={letra <= LETRA_MIN}>A−</button>
+                  <button type="button" aria-label="Aumentar a letra" title="Aumentar a letra" onClick={() => mudarLetra(0.1)} disabled={letra >= LETRA_MAX}>A+</button>
+                </span>
+              </div>
               {comentario !== "" ? (
                 <TextoComLances texto={comentario} fen={mt.fen} segmentos={segsComentario} onPrevia={setPrevia} />
               ) : (
