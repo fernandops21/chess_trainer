@@ -15,7 +15,7 @@ vi.mock("../src/board/Board", () => ({
   },
 }));
 
-import { emptyTree, insertLine } from "../src/analysis/moveTree";
+import { emptyTree, insertLine, mainline, setComment } from "../src/analysis/moveTree";
 import { ChapterViewPage } from "../src/pages/ChapterViewPage";
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -46,7 +46,7 @@ function Where() {
 }
 
 function renderPage() {
-  render(
+  return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={["/estudos/s1/capitulos/c1"]}>
         <Routes>
@@ -78,6 +78,29 @@ test("é só leitura: sem caixa de comentário e sem botão Salvar", async () =>
   await screen.findByText("Torre atrás do peão");
   expect(screen.queryByLabelText("Comentário")).toBeNull();
   expect(screen.queryByRole("button", { name: "Salvar" })).toBeNull();
+});
+
+/** Comentário maior que o resumo da lista de lances (que corta em 80 e põe reticências). */
+const COMENTARIO_LONGO =
+  "Este lance abre a diagonal do bispo e a da dama, e é assim que o Chernev explica a partida no Logical Chess: cada lance com um porquê, sem pular nada.";
+
+test("a leitura usa o modo livro, e não a lista de lances", async () => {
+  const { container } = renderPage();
+  await screen.findByText("Torre atrás do peão");
+  expect(container.querySelector(".livro")).toBeTruthy();
+  expect(container.querySelector(".tree")).toBeNull();
+});
+
+test("o comentário do autor sai inteiro no livro, sem reticências", async () => {
+  const comentada = setComment(arvore, mainline(arvore)[0].id, COMENTARIO_LONGO);
+  vi.spyOn(api, "chapter").mockResolvedValue(
+    capitulo({ tree: { ...comentada, intro: "Brancas jogam e ganham." } }),
+  );
+  const { container } = renderPage();
+  await screen.findByText("Torre atrás do peão");
+  const livro = container.querySelector(".livro")!;
+  expect(livro.textContent).toContain(COMENTARIO_LONGO);
+  expect(livro.textContent).not.toContain("…");
 });
 
 test("Treinar este abre o exercício do capítulo", async () => {

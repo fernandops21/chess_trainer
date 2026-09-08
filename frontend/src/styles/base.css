@@ -116,6 +116,29 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 /* o ícone em SVG ocupa o mesmo lugar do círculo de texto, com a sombra por fora */
 .board-badge > svg { width: 56%; height: 56%; margin: -18% -18% 0 0; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35)); }
 
+/* modo livro (leitura do capítulo): a coluna da direita vira texto corrido,
+   com a fonte serifada de leitura — enunciado, lances e comentários do autor */
+.livro { font-family: Georgia, "Times New Roman", serif; font-size: 1.05rem; line-height: 1.6; max-height: 55vh; overflow: auto; }
+.livro p { margin: 0 0 .7em; }
+.livro p:last-child { margin-bottom: 0; }
+/* o lance é o osso do texto: negrito, sem cara de botão, clicável para navegar */
+button.livro-lance {
+  min-height: 0; padding: 0 2px; border: none; border-radius: 4px; background: none;
+  color: inherit; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer;
+}
+button.livro-lance:hover { color: var(--brand); }
+button.livro-lance.atual { background: var(--accent); }
+/* corrida de lances sem comentário: mais discreta que a prosa do autor */
+.livro-lances { color: var(--muted); }
+.livro-variacao { margin-left: 1.2em; border-left: 2px solid var(--line); padding-left: .6em; font-size: .95em; }
+.livro .book, .livro .class { margin-left: 3px; vertical-align: -0.15em; }
+.livro .book svg, .livro .class svg { width: 1.05em; height: 1.05em; vertical-align: -0.15em; }
+.livro .class { color: var(--class-cor); }
+/* em tela larga o comentário já está no texto ao lado; o cartão abaixo do
+   tabuleiro só serve à tela estreita, onde a coluna do livro cai para baixo */
+.livro-atual { display: none; }
+@media (max-width: 899px) { .livro-atual { display: block; } }
+
 /* lances escritos no texto do autor viram links: clicar mostra a posição no tabuleiro */
 .texto-com-lances { white-space: pre-wrap; }
 button.lance-no-texto {

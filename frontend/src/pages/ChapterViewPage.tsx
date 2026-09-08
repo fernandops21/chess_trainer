@@ -11,8 +11,9 @@ import { chapterPgnUrl } from "../api/client";
  * comentários e as marcações do autor aparecem enquanto se navega pelos
  * lances (é assim que se lê uma partida anotada importada do Lichess).
  *
- * O enunciado não sai aqui: quem o mostra é o cartão de leitura do próprio
- * tabuleiro, junto com o comentário do lance atual.
+ * A coluna da direita vem no modo livro: enunciado, lances e comentários em
+ * texto corrido, como a página de um livro de xadrez. O enunciado não sai
+ * aqui, portanto: quem o mostra é o primeiro parágrafo desse texto.
  */
 export function ChapterViewPage() {
   const { id = "", cid = "" } = useParams();
@@ -49,7 +50,7 @@ export function ChapterViewPage() {
             )}
           </div>
           {/* lendo um capítulo, a sugestão da engine (seta e linhas) brigaria com os lances do autor: começa desligada, e quem quiser liga */}
-          <AnalysisBoard tree={tree} engine={false} />
+          <AnalysisBoard tree={tree} engine={false} layout="livro" />
         </>
       )}
     </>

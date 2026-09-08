@@ -581,3 +581,21 @@ test("com engine desligada nada é consultado até apertar o botão", async () =
   expect(api.analyse).toHaveBeenCalled();
   expect(screen.queryByRole("button", { name: "Analisar com a engine" })).toBeNull();
 });
+
+test("o layout padrão continua sendo a lista de lances", () => {
+  const { container } = comProvedores(
+    <AnalysisBoard tree={insertLine(emptyTree(START), null, ["e2e4"]).tree} />,
+  );
+  expect(container.querySelector(".tree")).toBeTruthy();
+  expect(container.querySelector(".livro")).toBeNull();
+});
+
+test("no layout livro o texto substitui a lista e a caixa de comentário some", () => {
+  const arvore = setComment(insertLine(emptyTree(START), null, ["e2e4"]).tree, "n1", "Abre a diagonal.");
+  const { container } = comProvedores(<AnalysisBoard tree={{ ...arvore, intro: "Italiana." }} layout="livro" />);
+  expect(container.querySelector(".livro")).toBeTruthy();
+  expect(container.querySelector(".tree")).toBeNull();
+  // o comentário está no texto do livro: nada de cartão de leitura embaixo do tabuleiro
+  expect(screen.getByText("Italiana.")).toBeTruthy();
+  expect(screen.queryByText("Comentário de e4")).toBeNull();
+});

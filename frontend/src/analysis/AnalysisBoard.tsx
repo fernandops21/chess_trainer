@@ -19,6 +19,7 @@ import { SaveChapterModal } from "./SaveChapterModal";
 import { useBookMoves } from "./useBookMoves";
 import { useMoveClassification } from "./useMoveClassification";
 import { useMoveTree } from "./useMoveTree";
+import { BookView } from "../studies/BookView";
 import { storage } from "../lib/storage";
 import { MAX_NODES, countNodes, emptyTree } from "./moveTree";
 import type { Tree } from "./moveTree";
@@ -44,6 +45,8 @@ export interface AnalysisBoardProps {
   /** Cartões do dono do tabuleiro, no topo da coluna da direita (o resultado do
    *  exercício, por exemplo), acima do painel do motor e da lista de lances. */
   sidePanel?: ReactNode;
+  /** `"livro"` troca a lista de lances por texto corrido (leitura do capítulo). */
+  layout?: "analise" | "livro";
 }
 
 /** Abas do painel lateral: o motor ou o livro de aberturas. */
@@ -80,7 +83,9 @@ export function AnalysisBoard({
   engine = true,
   allowSetup = true,
   sidePanel,
+  layout = "analise",
 }: AnalysisBoardProps) {
+  const livro = layout === "livro";
   const mt = useMoveTree(tree, initialNodeId);
   // o motor desligado só custa um botão: quem quiser a análise liga na hora
   const [motor, setMotor] = useState(engine);
@@ -303,7 +308,17 @@ export function AnalysisBoard({
           {showSaveAsChapter && <button onClick={() => setSalvarComo(true)}>Salvar como capítulo</button>}
           {backTo && <Link to={backTo}>Voltar</Link>}
         </div>
-        {editable ? (
+        {livro ? (
+          // No modo livro o comentário já está no texto da coluna da direita. Em
+          // tela estreita, porém, essa coluna cai para baixo do tabuleiro: este
+          // cartão repete o comentário do lance atual junto das peças (o CSS o
+          // esconde em tela larga).
+          mt.node && mt.node.comment !== "" && (
+            <div className="card livro-atual" style={{ marginTop: 12 }}>
+              <TextoComLances texto={mt.node.comment} fen={mt.fen} segmentos={segsComentario} onPrevia={setPrevia} />
+            </div>
+          )
+        ) : editable ? (
           <div className="card" style={{ marginTop: 12 }}>
             <div className="muted">{tituloComentario}</div>
             <textarea
@@ -387,14 +402,25 @@ export function AnalysisBoard({
               Limite de {MAX_NODES} lances por capítulo: apague alguma variação para entrar com outro lance.
             </div>
           )}
-          <MoveTreeView
-            tree={mt.tree}
-            currentId={mt.currentId}
-            onGoTo={semPrevia(mt.goTo)}
-            bookIds={bookIds}
-            classes={classes}
-            onContextMenu={editable ? (id, pos) => setMenu({ id, ...pos }) : undefined}
-          />
+          {livro ? (
+            <BookView
+              tree={mt.tree}
+              currentId={mt.currentId}
+              onGoTo={semPrevia(mt.goTo)}
+              bookIds={bookIds}
+              classes={classes}
+              onPrevia={setPrevia}
+            />
+          ) : (
+            <MoveTreeView
+              tree={mt.tree}
+              currentId={mt.currentId}
+              onGoTo={semPrevia(mt.goTo)}
+              bookIds={bookIds}
+              classes={classes}
+              onContextMenu={editable ? (id, pos) => setMenu({ id, ...pos }) : undefined}
+            />
+          )}
         </div>
       </div>
       {menu && (

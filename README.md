@@ -133,6 +133,16 @@ acima dele traz o "voltar"); no editor, os lances do comentário aparecem embaix
 ganha um **"adicionar como variação"**, que entra com a linha inteira na árvore. Quem lê o capítulo
 tem os mesmos links nos comentários e no enunciado.
 
+**Modo livro.** Na leitura do capítulo (`Ver como leitura`) a coluna da direita não é a lista de
+lances: é texto corrido, como a página de um livro de xadrez. O enunciado abre a página; os lances sem
+comentário andam juntos numa linha só ("5. O-O d6 6. d4 Bb6"); cada lance comentado ganha um parágrafo
+próprio, com o lance em negrito e o comentário do autor inteiro (na lista ele sairia cortado); e as
+variações vêm recuadas logo abaixo do lance principal a que respondem. Clicar num lance em negrito
+navega até ele — o lance atual fica destacado e o texto rola sozinho para acompanhar. No celular, em
+que essa coluna cai para baixo do tabuleiro, o comentário do lance atual também aparece num cartão
+junto das peças. O editor e a **Análise** continuam com a lista de lances, que é melhor para mexer na
+árvore.
+
 Atalhos: **←** e **→** andam na linha, **↑** e **↓** trocam de variação, **Home** volta à posição
 inicial e **Ctrl+S** salva (o botão "Salvar" fica embaixo do tabuleiro). O cabeçalho mostra o estado
 ("alterações não salvas" / "salvo às HH:MM"). Com pendências, os links da própria tela ("Voltar ao
