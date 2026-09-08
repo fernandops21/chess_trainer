@@ -1,4 +1,4 @@
-import { Chess } from "chess.js";
+import { novoChess } from "../lib/chess";
 import type { Color, Key, Piece, Role } from "chessground/types";
 
 /**
@@ -206,7 +206,7 @@ export function validatePosition(fen: string): string[] {
       const campos = fen.trim().split(" ");
       campos[1] = parado === "white" ? "w" : "b";
       campos[3] = "-";
-      if (new Chess(campos.join(" ")).inCheck()) {
+      if (novoChess(campos.join(" ")).inCheck()) {
         erros.push(`O rei ${REI[parado]} está em xeque e é a vez das ${COR[turn]}.`);
       }
     } catch {
@@ -216,7 +216,7 @@ export function validatePosition(fen: string): string[] {
 
   if (erros.length > 0) return erros;
   try {
-    new Chess(fen);
+    novoChess(fen);
   } catch {
     return ["Posição inválida."];
   }

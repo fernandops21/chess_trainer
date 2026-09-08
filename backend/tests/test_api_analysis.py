@@ -3,6 +3,7 @@ import chess.engine
 from fastapi.testclient import TestClient
 
 from chess_trainer.api.app import create_app
+from chess_trainer.api.routes.analysis import POSICAO_INVALIDA
 from chess_trainer.core.analysis.engine import LineEval
 from chess_trainer.core.analysis.interactive import InteractiveAnalyzer
 from chess_trainer.core.evals import MATE_SCORE
@@ -94,6 +95,16 @@ def test_analyse_route_invalid_but_parseable_fen_is_400():
     client = TestClient(app)
     r = client.post("/api/analyse", json={"fen": "8/8/8/8/8/8/8/8 w - - 0 1"})  # sem os reis
     assert r.status_code == 400
+    assert r.json()["detail"] == POSICAO_INVALIDA
+
+
+def test_analyse_route_diagram_without_kings_explains_the_400():
+    # diagrama de aula (estudo do Basso, "Ataque duplo - Cavalo"): o tabuleiro
+    # abre na tela, mas a engine precisa dizer por que fica de fora
+    app = create_app(db_path=":memory:", analysis_engine_factory=lambda: _engine())
+    r = TestClient(app).post("/api/analyse", json={"fen": "r1r5/8/1N6/8/8/8/5N2/3k3q w - - 0 1"})
+    assert r.status_code == 400
+    assert r.json()["detail"] == POSICAO_INVALIDA
 
 
 def test_analyzer_recreates_engine_after_engine_error():

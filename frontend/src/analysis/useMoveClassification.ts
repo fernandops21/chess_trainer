@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
-import { Chess } from "chess.js";
+import { novoChess, temOsDoisReis } from "../lib/chess";
 import { api } from "../api/client";
 import type { AnalyseOut } from "../api/types";
 import { uciToMove } from "../board/line";
@@ -72,6 +72,10 @@ export function useMoveClassification(
   path: TreeNode[],
   { enabled, thresholds, bookIds }: MoveClassificationOptions,
 ): ReadonlyMap<string, Classification> {
+  // Diagrama sem os dois reis (comum em aulas): a engine do servidor recusa
+  // essas posições, e como nenhum lance da árvore faz um rei aparecer, basta
+  // olhar a posição inicial para desligar o hook inteiro.
+  const ligado = enabled && temOsDoisReis(tree.fen);
   // O teto corta a cabeça do caminho, não a cauda: o que interessa é o lance
   // na tela e os que vieram logo antes dele.
   const inicio = Math.max(0, path.length - MAX_LANCES);
@@ -80,7 +84,7 @@ export function useMoveClassification(
   // classificado e a de depois de cada um deles
   const fens = useMemo(() => {
     if (nos.length === 0) return [];
-    const chess = new Chess(tree.fen);
+    const chess = novoChess(tree.fen);
     const out: string[] = [];
     for (const [k, n] of path.entries()) {
       // na raiz vale a FEN da árvore, como em `fenAt`: a normalização do
@@ -111,7 +115,7 @@ export function useMoveClassification(
     queries: ordem.map((i) => ({
       queryKey: ["analyse", fens[i]],
       queryFn: () => api.analyse(fens[i]),
-      enabled: enabled && janela.has(i),
+      enabled: ligado && janela.has(i),
       staleTime: Infinity,
       retry: 0,
       // consulta que deu erro (engine indisponível) não volta a rodar quando o nó reaparece

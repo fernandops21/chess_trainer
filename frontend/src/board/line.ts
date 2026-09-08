@@ -1,4 +1,4 @@
-import { Chess } from "chess.js";
+import { novoChess } from "../lib/chess";
 import type { Key } from "chessground/types";
 
 export function uciToMove(uci: string): { from: string; to: string; promotion?: string } {
@@ -13,7 +13,7 @@ export function mesmaPosicao(a: string, b: string): boolean {
 }
 
 export function buildLine(fenStart: string, ucis: string[]) {
-  const chess = new Chess(fenStart);
+  const chess = novoChess(fenStart);
   const fens = [chess.fen()];
   const sans: string[] = [];
   const lastMoves: ([Key, Key] | undefined)[] = [undefined];

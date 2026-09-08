@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Chess } from "chess.js";
+import { novoChess } from "../lib/chess";
 import type { Key } from "chessground/types";
 import { useAnalyse, useSettings } from "../api/queries";
 import type { Shape } from "../api/types";
@@ -164,7 +164,7 @@ export function AnalysisBoard({
     return () => window.removeEventListener("keydown", onKey);
   }, [prev, next, up, down, goStart, onSave, montando]);
 
-  const inCheck = useMemo(() => new Chess(mt.fen).inCheck(), [mt.fen]);
+  const inCheck = useMemo(() => novoChess(mt.fen).inCheck(), [mt.fen]);
   const best = data && !data.terminal ? data.lines[0] : undefined;
 
   // marcações salvas do nó atual (as da posição inicial ficam na raiz)

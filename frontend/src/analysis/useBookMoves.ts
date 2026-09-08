@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import type { OpeningsOut } from "../api/types";
+import { temOsDoisReis } from "../lib/chess";
 import { fenAt } from "./moveTree";
 import type { Tree, TreeNode } from "./moveTree";
 
@@ -47,7 +48,9 @@ export function useBookMoves(tree: Tree, path: TreeNode[]): Set<string> {
     queries: fens.map((fen, i) => ({
       queryKey: chaveDe(fen),
       queryFn: () => api.openings(fen, "masters"),
-      enabled: i < limite,
+      // diagrama sem os dois reis (comum em aulas) não é posição de partida:
+      // o livro de mestres não teria o que responder sobre ela
+      enabled: i < limite && temOsDoisReis(fen),
       staleTime: Infinity,
       retry: 0,
       // consulta que deu erro (sem token) não volta a rodar quando o nó reaparece no caminho

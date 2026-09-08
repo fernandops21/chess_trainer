@@ -1,8 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { api } from "../src/api/client";
+import type { Key } from "chessground/types";
+import { api, ApiError } from "../src/api/client";
+import type { BoardProps } from "../src/board/Board";
 import type { AnalyseOut, ChapterDetail } from "../src/api/types";
 
 const { boardProps } = vi.hoisted(() => ({ boardProps: [] as Record<string, unknown>[] }));
@@ -108,4 +110,49 @@ test("tem os links de editar e voltar ao estudo", async () => {
     "/estudos/s1/capitulos/c1/editar",
   );
   expect(screen.getByRole("link", { name: "Voltar ao estudo" }).getAttribute("href")).toBe("/estudos/s1");
+});
+
+/** Diagrama do estudo do Basso ("Ataque duplo - Cavalo"): sem rei branco. */
+const SEM_REIS = "r1r5/8/1N6/8/8/8/5N2/3k3q w - - 0 1";
+const MSG_ENGINE = "posição inválida para a engine (faltam os dois reis ou há peças demais)";
+
+/** O último tabuleiro renderizado (o dublê guarda as props). */
+const tabuleiro = () => boardProps.at(-1) as unknown as BoardProps;
+
+function capituloSemReis() {
+  vi.spyOn(api, "chapter").mockResolvedValue(
+    capitulo({ fen: SEM_REIS, tree: { ...emptyTree(SEM_REIS), intro: "Brancas jogam e ganham." } }),
+  );
+}
+
+test("capítulo sem os dois reis abre o tabuleiro com as peças do diagrama", async () => {
+  capituloSemReis();
+  renderPage();
+  await screen.findByText("Torre atrás do peão");
+  expect(tabuleiro().fen).toBe(SEM_REIS);
+  // os dois ataques duplos do cavalo de b6 estão à disposição
+  expect(tabuleiro().dests?.get("b6" as Key)).toEqual(expect.arrayContaining(["a8", "c8"]));
+});
+
+test("no diagrama sem os dois reis dá para jogar Nxc8", async () => {
+  capituloSemReis();
+  renderPage();
+  await screen.findByText("Torre atrás do peão");
+  act(() => { tabuleiro().onMove!("b6" as Key, "c8" as Key); });
+  expect(screen.getByRole("button", { name: "1. Nxc8+" })).toBeTruthy();
+});
+
+test("no diagrama sem os dois reis dá para jogar Nxa8", async () => {
+  capituloSemReis();
+  renderPage();
+  await screen.findByText("Torre atrás do peão");
+  act(() => { tabuleiro().onMove!("b6" as Key, "a8" as Key); });
+  expect(screen.getByRole("button", { name: "1. Nxa8+" })).toBeTruthy();
+});
+
+test("o painel do motor mostra por que a engine não analisa o diagrama", async () => {
+  capituloSemReis();
+  vi.spyOn(api, "analyse").mockRejectedValue(new ApiError(400, MSG_ENGINE));
+  renderPage();
+  expect(await screen.findByText(MSG_ENGINE)).toBeTruthy();
 });

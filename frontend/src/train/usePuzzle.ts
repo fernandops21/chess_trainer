@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Chess } from "chess.js";
+import type { Chess } from "chess.js";
+import { novoChess } from "../lib/chess";
 import type { Key } from "chessground/types";
 import { api } from "../api/client";
 import type { AnalyseOut, ReviewIn, ReviewOut, Trainable } from "../api/types";
@@ -101,7 +102,7 @@ export interface UsePuzzleOptions<R = ReviewOut> {
 
 const turnOf = (c: Chess) => (c.turn() === "w" ? "white" : "black") as "white" | "black";
 const turnOfFen = (fen: string) => (fen.split(" ")[1] === "b" ? "black" : "white") as "white" | "black";
-const inCheckAt = (fen: string) => { try { return new Chess(fen).inCheck(); } catch { return false; } };
+const inCheckAt = (fen: string) => { try { return novoChess(fen).inCheck(); } catch { return false; } };
 
 /**
  * Puzzle state machine.
@@ -115,7 +116,7 @@ const inCheckAt = (fen: string) => { try { return new Chess(fen).inCheck(); } ca
  * puzzle object is passed into an already-mounted instance.
  */
 export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOptions<R>) {
-  const chessRef = useRef(new Chess(puzzle.fen_start));
+  const chessRef = useRef(novoChess(puzzle.fen_start));
   const now = opts.now ?? Date.now;
   const startedAt = useRef(now());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -305,7 +306,7 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
   // exercício nunca o recebe), a engine responde e a mensagem explica a queda.
   const refutar = useCallback((uci: string, authored?: string) => {
     const fenAntes = chessRef.current.fen();
-    const copia = new Chess(fenAntes);
+    const copia = novoChess(fenAntes);
     const tentar = (promotion?: string) => {
       try { return copia.move({ ...uciToMove(uci), ...(promotion ? { promotion } : null) }); } catch { return null; }
     };

@@ -107,3 +107,23 @@ test("caminho vazio (posição inicial) não consulta nada", () => {
   expect(result.current.size).toBe(0);
   expect(api.openings).not.toHaveBeenCalled();
 });
+
+/** Diagrama do estudo do Basso ("Ataque duplo - Cavalo"): sem rei branco. */
+const SEM_REIS: Tree = {
+  fen: "r1r5/8/1N6/8/8/8/5N2/3k3q w - - 0 1",
+  orientation: "white",
+  intro: "",
+  root: { children: [node("d1", "b6c8", "Nxc8+")] },
+};
+
+test("diagrama sem os dois reis não consulta o livro", () => {
+  // posição que não vem de partida nenhuma: o livro de mestres não teria o que dizer
+  porFen({});
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const { result } = renderHook(() => useBookMoves(SEM_REIS, pathTo(SEM_REIS, "d1")), { wrapper });
+  expect(result.current.size).toBe(0);
+  expect(api.openings).not.toHaveBeenCalled();
+});

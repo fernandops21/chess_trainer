@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Chess } from "chess.js";
+import { novoChess } from "../lib/chess";
 import { AnalysisBoard } from "../analysis/AnalysisBoard";
 import { SaveChapterModal } from "../analysis/SaveChapterModal";
 import { emptyTree } from "../analysis/moveTree";
@@ -17,7 +17,7 @@ export function AnalysisPage() {
 
   const valid = useMemo(() => {
     try {
-      new Chess(fen);
+      novoChess(fen);
       return true;
     } catch {
       return false;

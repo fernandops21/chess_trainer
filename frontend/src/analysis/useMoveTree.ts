@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Chess } from "chess.js";
+import { novoChess } from "../lib/chess";
 import type { Key } from "chessground/types";
 import { destsFrom } from "../board/dests";
 import { uciToMove } from "../board/line";
@@ -219,7 +219,7 @@ export function useMoveTree(initial: Tree, initialCurrent?: InitialNode) {
   const path = useMemo(() => pathTo(tree, currentId), [tree, currentId]);
   const fen = fenOf(tree, currentId);
   const turn = (fen.split(" ")[1] === "w" ? "white" : "black") as "white" | "black";
-  const dests = useMemo(() => destsFrom(new Chess(fen)), [fen]);
+  const dests = useMemo(() => destsFrom(novoChess(fen)), [fen]);
   const lastMove = useMemo(() => {
     if (!node) return undefined;
     const m = uciToMove(node.uci);

@@ -1,4 +1,4 @@
-import { Chess } from "chess.js";
+import { novoChess } from "../lib/chess";
 import type { AnalyseOut, Color } from "../api/types";
 import { uciToMove } from "../board/line";
 
@@ -93,7 +93,7 @@ export function materialDiff(fen: string, color: Color): number {
 function fenAfterReply(fenChild: string, replyUci: string | undefined): string {
   if (!replyUci) return fenChild;
   try {
-    const chess = new Chess(fenChild);
+    const chess = novoChess(fenChild);
     chess.move(uciToMove(replyUci));
     return chess.fen();
   } catch {

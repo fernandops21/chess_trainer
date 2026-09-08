@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Chess } from "chess.js";
+import { novoChess } from "../lib/chess";
 import { PositionEditor } from "../analysis/PositionEditor";
 import { useSettings } from "../api/queries";
 import type { ChapterIn, ChapterOut, Color, StudyDetail } from "../api/types";
@@ -109,7 +109,7 @@ export function NewChapterModal({ count, saving, error, onCreate, onClose }: New
     if (origem === "montada") return fenMontada !== "";
     if (fenLimpa === "") return false;
     try {
-      new Chess(fenLimpa);
+      novoChess(fenLimpa);
       return true;
     } catch {
       return false;

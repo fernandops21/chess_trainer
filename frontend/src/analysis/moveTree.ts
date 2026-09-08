@@ -1,4 +1,4 @@
-import { Chess } from "chess.js";
+import { novoChess } from "../lib/chess";
 import type { Shape } from "../api/types";
 import { uciToMove } from "../board/line";
 
@@ -138,7 +138,7 @@ export function mainline(tree: Tree): TreeNode[] {
 export function fenAt(tree: Tree, id: string | null): string {
   const path = pathTo(tree, id);
   if (path.length === 0) return tree.fen;
-  const chess = new Chess(tree.fen);
+  const chess = novoChess(tree.fen);
   for (const n of path) {
     try { chess.move(uciToMove(n.uci)); } catch { break; }
   }
@@ -248,7 +248,7 @@ export function addMove(tree: Tree, parentId: string | null, uci: string): AddMo
   const parent = parentId ? findNode(tree, parentId) : null;
   if (parentId && !parent) return nada;
 
-  const chess = new Chess(fenAt(tree, parentId));
+  const chess = novoChess(fenAt(tree, parentId));
   let san: string;
   let canon: string;
   try {

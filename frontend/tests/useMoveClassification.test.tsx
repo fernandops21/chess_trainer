@@ -248,3 +248,19 @@ test("estado parcial: só entram os lances cujas análises já chegaram", async 
   expect(result.current.get("n2")).toBeUndefined();
   expect(result.current.get("n1")).toBeUndefined();
 });
+
+/** Diagrama do estudo do Basso ("Ataque duplo - Cavalo"): sem rei branco. */
+const SEM_REIS: Tree = {
+  fen: "r1r5/8/1N6/8/8/8/5N2/3k3q w - - 0 1",
+  orientation: "white",
+  intro: "",
+  root: { children: [node("n1", "b6c8", "Nxc8+")] },
+};
+
+test("diagrama sem os dois reis não consulta a engine", () => {
+  // a engine do servidor recusa a posição: nada de encher a fila com 400
+  mockar();
+  const { result } = montarArvore(SEM_REIS, "n1");
+  expect(result.current.size).toBe(0);
+  expect(api.analyse).not.toHaveBeenCalled();
+});

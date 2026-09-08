@@ -1,4 +1,4 @@
-import { Chess } from "chess.js";
+import { novoChess } from "./chess";
 import type { Key } from "chessground/types";
 import type { GameDetail, MistakeLevel } from "../api/types";
 import { uciToMove } from "../board/line";
@@ -14,7 +14,7 @@ export function buildPlies(game: GameDetail): Ply[] {
       let fenAfter = p.fen;
       let lastMove: [Key, Key] = [uciToMove(p.move_uci).from as Key, uciToMove(p.move_uci).to as Key];
       try {
-        const c = new Chess(p.fen);
+        const c = novoChess(p.fen);
         const mv = c.move(uciToMove(p.move_uci));
         fenAfter = c.fen();
         lastMove = [mv.from as Key, mv.to as Key];
@@ -29,10 +29,10 @@ export function buildPlies(game: GameDetail): Ply[] {
       };
     });
   }
-  const c = new Chess();
+  const c = novoChess();
   try { c.loadPgn(game.pgn); } catch { try { c.loadPgn(stripComments(game.pgn)); } catch { return []; } }
   const history = c.history({ verbose: true });
-  const walker = new Chess();
+  const walker = novoChess();
   return history.map((m, i) => {
     const fenBefore = walker.fen();
     walker.move(m.san);
