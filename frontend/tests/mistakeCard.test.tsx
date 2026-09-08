@@ -85,6 +85,11 @@ test("os links levam à partida e à revisão de erros", () => {
   expect(screen.getByText("revisão de erros").getAttribute("href")).toBe(`/erros?position=${encodeURIComponent(FEN_INICIO)}`);
 });
 
+test("no punir, a revisão de erros abre pela posição de antes do lance do adversário", () => {
+  renderCard(punir);
+  expect(screen.getByText("revisão de erros").getAttribute("href")).toBe(`/erros?position=${encodeURIComponent(FEN_ANTES)}`);
+});
+
 test("sem erro ou sem partida o cartão não aparece", () => {
   const { container } = renderCard({ ...evitar, mistake: null });
   expect(container.textContent).toBe("");

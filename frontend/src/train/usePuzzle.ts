@@ -48,7 +48,7 @@ const TERMINAL_TEXT: Record<Terminal, string> = {
 
 /** O `terminal` da análise, quando é um dos fins de partida conhecidos. */
 function terminalDe(valor: string | null | undefined): Terminal | undefined {
-  return valor && valor in TERMINAL_TEXT ? (valor as Terminal) : undefined;
+  return valor && Object.hasOwn(TERMINAL_TEXT, valor) ? (valor as Terminal) : undefined;
 }
 
 /** Texto da mensagem da refutação, montado do que já se sabe (a avaliação de antes pode faltar). */

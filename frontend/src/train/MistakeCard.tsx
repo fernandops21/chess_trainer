@@ -21,6 +21,7 @@ export function MistakeCard({ puzzle }: { puzzle: PuzzleOut }) {
   const meu = mistake.mistake_by ? mistake.mistake_by === "me" : evitar;
   // no "punir" a posição de antes é a do adversário a jogar; sem ela, a do
   // exercício já mostra o lance recém-jogado nas mesmas casas
+  // (a página de erros casa pelo mesmo FEN: o de antes do lance errado)
   const fen = evitar ? puzzle.fen_start : puzzle.fen_before ?? puzzle.fen_start;
   const mv = uciToMove(mistake.move_uci);
   return (
@@ -35,7 +36,7 @@ export function MistakeCard({ puzzle }: { puzzle: PuzzleOut }) {
           </div>
           <div className="row" style={{ marginTop: 6 }}>
             <Link to={`/partidas/${game.id}?ply=${mistake.ply}`}>partida no app</Link>
-            <Link to={`/erros?position=${encodeURIComponent(puzzle.fen_start)}`}>revisão de erros</Link>
+            <Link to={`/erros?position=${encodeURIComponent(fen)}`}>revisão de erros</Link>
           </div>
         </div>
       </div>
