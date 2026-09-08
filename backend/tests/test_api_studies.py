@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from chess_trainer.api.app import create_app
+from chess_trainer.api.routes.studies import _download
 from chess_trainer.core.models import Puzzle, Review, utcnow
 from tests.fakes import FakeEngine, first_legal_default
 
@@ -248,6 +249,16 @@ def test_estudo_privado_termina_o_job_em_erro():
         assert job["state"] == "error"
         assert job["error"] == "estudo privado ou inexistente; exporte o PGN no Lichess e cole aqui"
         assert client.get("/api/studies").json() == []
+
+
+def test_download_sem_id_do_lichess_erra_antes_de_baixar():
+    """Guarda de `_download`: sem id não há de onde baixar, e nada é pedido à rede."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("não deveria baixar nada sem o id do Lichess")
+
+    with build_client(handler) as client:
+        with pytest.raises(RuntimeError, match="sem id do Lichess nem PGN"):
+            _download(client.app, None)
 
 
 def test_importacao_com_outra_tarefa_em_andamento_409(client):

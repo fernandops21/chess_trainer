@@ -141,6 +141,33 @@ def test_capitulo_ausente_sai_da_fila_sem_ser_apagado(db_session):
     assert db_session.get(StudyChapter, study.chapters[0].id).in_queue is True
 
 
+def test_capitulo_novo_no_meio_de_pgn_sem_url_casa_pelo_nome(db_session):
+    """Sem `ChapterURL`, o nome casa antes da ordem: um capítulo inserido no meio
+    empurra os outros para baixo sem levar o exercício (e o histórico) deles."""
+    origem = "https://exemplo.test/colado.pgn"
+    antes = estudo_pgn(
+        capitulo_pgn("Um", None, FEN_PEAO, "1. e4 Kd7 2. e5"),
+        capitulo_pgn("Dois", None, FEN_MATE, "1. Ra8#"),
+    )
+    study, _ = importar(db_session, antes, source_url=origem)
+    exercicios = {c.name: c.puzzle_id for c in study.chapters}
+    assert all(exercicios.values())
+
+    depois = estudo_pgn(
+        capitulo_pgn("Um", None, FEN_PEAO, "1. e4 Kd7 2. e5"),
+        capitulo_pgn("Novo", None, FEN_PEAO_AVANCADO, "1. e4 Kd7 2. e5"),
+        capitulo_pgn("Dois", None, FEN_MATE, "1. Ra8#"),
+    )
+    study2, report = importar(db_session, depois, source_url=origem, now=AGORA + timedelta(days=1))
+
+    assert study2.id == study.id
+    assert db_session.scalar(select(func.count(StudyChapter.id))) == 3
+    assert [(c.order, c.name) for c in study2.chapters] == [(1, "Um"), (2, "Novo"), (3, "Dois")]
+    # os dois que já existiam continuam com o mesmo exercício; só o do meio é novo
+    assert {c.name: c.puzzle_id for c in study2.chapters if c.name in exercicios} == exercicios
+    assert report.created == 1 and report.updated == 2
+
+
 def test_linha_alterada_atualiza_o_exercicio_no_lugar(db_session):
     study, _ = importar(db_session, _dois_capitulos())
     puzzle = db_session.get(Puzzle, study.chapters[0].puzzle_id)

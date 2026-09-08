@@ -153,6 +153,11 @@ def _submit(request: Request, *, lichess_id: str | None, pgn: str, source_url: s
 
 
 def _download(app, lichess_id: str | None) -> str:
+    if lichess_id is None:
+        # guarda: aqui só se chega quando não há PGN colado, e sem o id não há de
+        # onde baixar. As rotas já barram isso antes; o erro é para uma chamada
+        # indevida não virar uma URL de download com "None" no meio
+        raise RuntimeError("sem id do Lichess nem PGN")
     http = app.state.study_http_factory()
     try:
         return fetch_study_pgn(lichess_id, http)

@@ -106,6 +106,28 @@ def test_leech_and_unleech(ready):
     assert client.get("/api/queue").json()["due_count"] == 1
 
 
+def test_queue_count_only_devolve_so_as_contagens(ready):
+    """`count_only=1` monta a mesma fila, mas responde sem serializar os puzzles."""
+    _, client = ready
+    novos = client.get("/api/queue", params={"mode": "new"}).json()
+    assert len(novos["items"]) == 1
+
+    contagem = client.get("/api/queue", params={"mode": "new", "count_only": 1}).json()
+    assert contagem["items"] == []
+    assert {k: v for k, v in contagem.items() if k != "items"} == {k: v for k, v in novos.items() if k != "items"}
+
+    # com um exercício realmente vencido, o `due_count` continua o mesmo
+    puzzle = novos["items"][0]
+    for _ in range(2):
+        client.post("/api/reviews", json={"puzzle_id": puzzle["id"], "correct": False})
+    client.post(f"/api/puzzles/{puzzle['id']}/unleech")
+    fila = client.get("/api/queue").json()
+    assert fila["due_count"] == 1 and len(fila["items"]) == 1
+
+    so_contagem = client.get("/api/queue", params={"count_only": 1}).json()
+    assert so_contagem["items"] == [] and so_contagem["due_count"] == fila["due_count"]
+
+
 def test_puzzle_out_carries_mistake_and_siblings(ready):
     _, client = ready
     puzzle = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]

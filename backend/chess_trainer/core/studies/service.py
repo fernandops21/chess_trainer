@@ -2,7 +2,7 @@
 
 O parser (`parser.py`) só interpreta texto; aqui o `ParsedStudy` vira linhas de
 `studies`, `study_chapters` e `puzzles`. Reimportar é um upsert: capítulos são
-reconhecidos pela `lichess_url` (sem URL, pela ordem dentro do estudo), o
+reconhecidos pela `lichess_url` (sem URL, pelo nome e só depois pela ordem), o
 exercício de um capítulo é atualizado no lugar — mesmo id, mesmo histórico de
 repetição espaçada — e capítulos que sumiram do estudo saem da fila sem serem
 apagados.
@@ -155,16 +155,16 @@ def upsert_study(
     study.updated_at = now
     db.flush()
 
-    existing = list(db.scalars(select(StudyChapter).where(StudyChapter.study_id == study.id)))
-    by_url = {c.lichess_url: c for c in existing if c.lichess_url}
-    by_order = {c.order: c for c in existing}
+    existing = list(db.scalars(
+        select(StudyChapter).where(StudyChapter.study_id == study.id).order_by(StudyChapter.order)
+    ))
+    matches = _match_chapters(existing, parsed.chapters)
 
     report = ImportReport(chapters=len(parsed.chapters))
     seen: set[str] = set()
     total = len(parsed.chapters)
     for done, parsed_chapter in enumerate(parsed.chapters, start=1):
-        chapter = by_url.get(parsed_chapter.lichess_url) if parsed_chapter.lichess_url else by_order.get(parsed_chapter.order)
-        chapter = _upsert_chapter(db, study, chapter, parsed_chapter, report)
+        chapter = _upsert_chapter(db, study, matches[done - 1], parsed_chapter, report)
         seen.add(chapter.id)
         if on_chapter is not None:
             on_chapter(done, total)
@@ -176,6 +176,48 @@ def upsert_study(
     db.commit()
     db.expire_all()
     return study, report
+
+
+def _match_chapters(existing: list[StudyChapter],
+                    parsed_chapters: list[ParsedChapter]) -> list[StudyChapter | None]:
+    """Diz, para cada capítulo do PGN, qual capítulo já gravado ele atualiza (ou
+    `None`, quando é capítulo novo).
+
+    As regras valem nesta ordem, e cada capítulo existente é casado uma vez só:
+    quem tem `ChapterURL` casa pela URL (e nada mais); quem não tem casa pelo
+    nome e, só se não achar, pela ordem. O passo do nome roda para todos antes do
+    passo da ordem: assim, num PGN sem URLs, um capítulo novo inserido no meio
+    não toma o lugar — nem o exercício e o histórico — de quem já existia.
+    """
+    by_url = {c.lichess_url: c for c in existing if c.lichess_url}
+    by_name: dict[str, list[StudyChapter]] = {}
+    for chapter in existing:
+        by_name.setdefault(chapter.name, []).append(chapter)
+    by_order = {c.order: c for c in existing}
+
+    matches: list[StudyChapter | None] = [None] * len(parsed_chapters)
+    taken: set[str] = set()
+
+    def take(chapter: StudyChapter | None) -> StudyChapter | None:
+        if chapter is None or chapter.id in taken:
+            return None
+        taken.add(chapter.id)
+        return chapter
+
+    for i, parsed in enumerate(parsed_chapters):
+        if parsed.lichess_url:
+            matches[i] = take(by_url.get(parsed.lichess_url))
+    for i, parsed in enumerate(parsed_chapters):
+        if matches[i] is None and not parsed.lichess_url and parsed.name:
+            # nomes repetidos: vale o primeiro ainda livre, na ordem do estudo
+            for candidato in by_name.get(parsed.name, ()):
+                if candidato.id not in taken:
+                    matches[i] = take(candidato)
+                    break
+    for i, parsed in enumerate(parsed_chapters):
+        if matches[i] is None and not parsed.lichess_url:
+            matches[i] = take(by_order.get(parsed.order))
+    return matches
 
 
 def _find_study(db: Session, parsed: ParsedStudy, source_url: str) -> Study | None:

@@ -90,11 +90,16 @@ def get_queue(
     category: str | None = None, theme: str | None = None, kind: str | None = None, color: str | None = None,
     sources: str | None = None, study_id: str | None = None,
     mode: Literal[MODES] = "review",
+    count_only: bool = False,
     db: Session = Depends(get_db),
 ):
     """Fila de treino no modo pedido: `review` (repetição espaçada, só o que já
     foi feito e venceu), `new` (a primeira vez dos meus erros) ou `study` (um
-    estudo inteiro, na ordem dos capítulos)."""
+    estudo inteiro, na ordem dos capítulos).
+
+    Com `count_only`, a fila é montada do mesmo jeito e as contagens são as
+    mesmas, mas a resposta vem com `items` vazio: para quem só quer os números
+    (um badge, por exemplo) não vale o custo de serializar cada exercício."""
     filters = QueueFilters(category, theme, kind, color,
                            sources=tuple(v.strip() for v in (sources or "").split(",") if v.strip()),
                            study_id=study_id, mode=mode)
@@ -104,7 +109,7 @@ def get_queue(
         raise HTTPException(400, str(exc)) from exc
     return QueueOut(mode=mode, due_count=result.due_count, new_available=result.new_available,
                     new_remaining_today=result.new_remaining_today,
-                    items=[_puzzle_out(db, p) for p in result.items])
+                    items=[] if count_only else [_puzzle_out(db, p) for p in result.items])
 
 
 @router.get("/leeches", response_model=list[PuzzleOut])
@@ -200,6 +205,12 @@ def _by_source(db: Session, now) -> dict[str, SourceCount]:
 
 @router.get("/dashboard", response_model=DashboardOut)
 def dashboard(db: Session = Depends(get_db)):
+    """Números da tela inicial.
+
+    Atenção ao `puzzles_total`: é o total de exercícios de todas as fontes
+    (erros próprios, táticas e estudos), inclusive os que estão fora da fila —
+    não é o tamanho do que se vai treinar. Quem quer isso olha `due_today` e
+    `new_available`."""
     now = utcnow()
     settings = load_settings(db)
     queue = build_queue(db, QueueFilters(), settings, now)
