@@ -99,6 +99,7 @@ test("sem ?position= nenhum modal abre sozinho", async () => {
 });
 
 test("o melhor lance sai em notação, não em UCI", async () => {
+  vi.spyOn(api, "mistakes").mockResolvedValue([erro([])]);
   renderPage();
   await waitFor(() => expect(document.body.textContent).toContain("melhor Ra8#"));
   expect(document.body.textContent).not.toContain("a1a8");
