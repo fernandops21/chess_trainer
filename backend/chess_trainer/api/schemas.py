@@ -19,7 +19,6 @@ class SettingsOut(BaseModel):
     leech_lapses: int
     analysis_seconds: int
     puzzle_search_seconds: int
-    puzzle_reply_seconds: int
     tactics_rating: int
     tactics_window: int
     lichess_min_plays: int
@@ -44,7 +43,6 @@ class SettingsIn(BaseModel):
     leech_lapses: int | None = None
     analysis_seconds: int | None = None
     puzzle_search_seconds: int | None = None
-    puzzle_reply_seconds: int | None = None
     # mesmos limites validados no formulário de Configurações: o servidor não pode
     # confiar só no cliente (a API também é chamada direto)
     tactics_rating: int | None = Field(None, ge=400, le=3200)

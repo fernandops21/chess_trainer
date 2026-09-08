@@ -41,12 +41,13 @@ def test_status_and_settings_roundtrip(client):
     initial = client.get("/api/settings").json()
     assert initial["new_per_day"] == 10
     assert initial["analysis_seconds"] == 15
-    assert initial["puzzle_search_seconds"] == 20 and initial["puzzle_reply_seconds"] == 10
+    assert initial["puzzle_search_seconds"] == 20 and "puzzle_reply_seconds" not in initial
     assert initial["classify_moves"] is True
     assert initial["refute_wrong_moves"] is True
     assert initial["new_order"] == "random"
     r = client.put("/api/settings", json={
         "chesscom_username": " TheRealZibs ", "new_per_day": 5,
+        # chave antiga (removida): é ignorada como qualquer chave desconhecida, sem 422
         "analysis_seconds": 30, "puzzle_search_seconds": 25, "puzzle_reply_seconds": 8,
         "classify_moves": False, "refute_wrong_moves": False,
     })
@@ -55,7 +56,7 @@ def test_status_and_settings_roundtrip(client):
     assert body["chesscom_username"] == "therealzibs" and body["new_per_day"] == 5
     assert body["analysis_depth"] == 18  # não enviado, mantido
     assert body["analysis_seconds"] == 30
-    assert body["puzzle_search_seconds"] == 25 and body["puzzle_reply_seconds"] == 8
+    assert body["puzzle_search_seconds"] == 25 and "puzzle_reply_seconds" not in body
     assert body["classify_moves"] is False
     assert body["refute_wrong_moves"] is False
     assert client.get("/api/settings").json()["classify_moves"] is False

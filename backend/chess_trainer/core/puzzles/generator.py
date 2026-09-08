@@ -34,14 +34,12 @@ class PuzzleDraft:
 @dataclass(frozen=True)
 class PuzzleConfig:
     depth: int = 22
-    reply_depth: int = 16
     alt_window_cp: int = 50
     max_solver_moves: int = 10
     max_mate_moves: int = 15
     min_solver_eval_cp: int = 100
     avoid_gap_cp: int = 150
     search_seconds: float = 20.0
-    reply_seconds: float = 10.0
 
 
 def _color_name(color: chess.Color) -> str:
@@ -178,10 +176,10 @@ def _materializing_line(
         if after.is_game_over():
             return None
 
-        # modo mate exige profundidade cheia na resposta: uma defesa mal calculada por
-        # profundidade rasa (reply_depth) quebra a linha de mate inteira.
-        reply_depth = cfg.depth if mate_mode else cfg.reply_depth
-        reply_lines = engine.analyse(after, reply_depth, multipv=1, max_seconds=cfg.reply_seconds)
+        # a resposta usa a mesma busca funda do lance do solver: a primeira linha da busca
+        # do lado a jogar já é a defesa mais resistente. Uma busca mais rasa aqui discordaria
+        # da Análise entre defesas quase iguais (e quebraria a linha de mate inteira).
+        reply_lines = engine.analyse(after, cfg.depth, multipv=1, max_seconds=cfg.search_seconds)
         if not reply_lines:
             return None
         reply = reply_lines[0]
@@ -227,7 +225,7 @@ def generate_punish(board: chess.Board, drop_cp: int, engine: EngineLike, cfg: P
         if target <= 0:
             return None
         # Pré-checagem barata: pode descartar puzzles que o laço completo abaixo teria encontrado,
-        # quando a resposta rasa (reply_depth) do laço se desvia da PV usada aqui. Isso é aceito:
+        # quando a resposta do laço (multipv=1) se desvia da PV usada aqui. Isso é aceito:
         # a linha profunda (multipv=3, depth cheio) já disse que o ganho não se sustenta ao longo
         # dessa PV, então vale a pena economizar as chamadas de engine do laço nesse caso.
         if _pv_never_materializes(board, lines[0].pv, target, material_balance(board, solver),

@@ -10,7 +10,7 @@ def test_defaults_when_empty(db_session):
     assert s.avoid_gap_cp == 150 and s.new_per_day == 10 and s.leech_lapses == 5
     assert s.new_order == "random"
     assert s.analysis_seconds == 15
-    assert s.puzzle_search_seconds == 20 and s.puzzle_reply_seconds == 10
+    assert s.puzzle_search_seconds == 20
     assert s.classify_moves is True
     assert s.refute_wrong_moves is True
 
@@ -31,23 +31,17 @@ def test_new_order_roundtrips(db_session):
     assert load_settings(db_session).new_order == "recent"
 
 
-def test_puzzle_config_from_derives_reply_depth():
+def test_puzzle_config_from_maps_depth_without_a_separate_reply_depth():
     cfg = puzzle_config_from(AppSettings(puzzle_depth=20))
-    assert cfg.depth == 20 and cfg.reply_depth == 14
-
-    cfg = puzzle_config_from(AppSettings(puzzle_depth=12))
-    assert cfg.depth == 12 and cfg.reply_depth == 12
-
-
-def test_puzzle_config_from_clamps_reply_depth_to_depth():
-    # profundidade abaixo do mínimo prático (12): reply_depth não pode superar depth.
-    cfg = puzzle_config_from(AppSettings(puzzle_depth=10))
-    assert cfg.depth == 10 and cfg.reply_depth == 10
+    assert cfg.depth == 20
+    # a resposta do adversário usa a mesma busca do lance do solver: não há profundidade à parte.
+    assert not hasattr(cfg, "reply_depth")
 
 
-def test_puzzle_config_from_maps_time_caps():
-    cfg = puzzle_config_from(AppSettings(puzzle_search_seconds=30, puzzle_reply_seconds=12))
-    assert cfg.search_seconds == 30 and cfg.reply_seconds == 12
+def test_puzzle_config_from_maps_time_cap():
+    cfg = puzzle_config_from(AppSettings(puzzle_search_seconds=30))
+    assert cfg.search_seconds == 30
+    assert not hasattr(cfg, "reply_seconds")
 
 
 def test_raw_setting_helpers(db_session):

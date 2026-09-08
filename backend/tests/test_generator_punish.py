@@ -136,36 +136,38 @@ def test_reply_analysis_uses_full_depth_in_mate_mode():
         _after(MATE_IN_2, "e1e8").epd(): [LineEval("c8e8", -(M - 1), ("c8e8", "a4e8"))],
         _after(MATE_IN_2, "e1e8", "c8e8").epd(): [LineEval("a4e8", M - 1, ("a4e8",))],
     })
-    cfg = PuzzleConfig(depth=22, reply_depth=16)
+    cfg = PuzzleConfig(depth=22)
     draft = generate_punish(chess.Board(MATE_IN_2), drop_cp=5000, engine=fake, cfg=cfg)
     assert draft is not None
-    # em modo mate, a resposta do defensor usa profundidade cheia (cfg.depth), não reply_depth:
+    # em modo mate, a resposta do defensor usa profundidade cheia (cfg.depth):
     # um mate mal calculado por profundidade rasa quebra a solução inteira.
     assert fake.depths == [22, 22, 22]
 
 
-def test_reply_analysis_uses_reply_depth_in_material_mode():
+def test_reply_analysis_uses_full_depth_in_material_mode():
     fake = FakeEngine({
         chess.Board(HANGING_QUEEN).epd(): [LineEval("c3d5", 900, ("c3d5", "e8d7"))],
         _after(HANGING_QUEEN, "c3d5").epd(): [LineEval("e8d7", -900, ("e8d7",))],
     })
-    cfg = PuzzleConfig(depth=22, reply_depth=16)
+    cfg = PuzzleConfig(depth=22)
     draft = generate_punish(chess.Board(HANGING_QUEEN), drop_cp=900, engine=fake, cfg=cfg)
     assert draft is not None
-    # fora do modo mate, a resposta do defensor usa reply_depth (mais rasa).
-    assert fake.depths == [22, 16]
+    # fora do modo mate também: a resposta é a defesa mais resistente na mesma
+    # profundidade do lance do solver, e basta a primeira linha da busca (multipv=1).
+    assert fake.depths == [22, 22]
+    assert fake.multipvs == [3, 1]
 
 
-def test_search_and_reply_seconds_are_passed_to_engine():
+def test_search_seconds_are_passed_to_engine():
     fake = FakeEngine({
         chess.Board(HANGING_QUEEN).epd(): [LineEval("c3d5", 900, ("c3d5", "e8d7"))],
         _after(HANGING_QUEEN, "c3d5").epd(): [LineEval("e8d7", -900, ("e8d7",))],
     })
-    cfg = PuzzleConfig(depth=22, reply_depth=16, search_seconds=20.0, reply_seconds=10.0)
+    cfg = PuzzleConfig(depth=22, search_seconds=20.0)
     draft = generate_punish(chess.Board(HANGING_QUEEN), drop_cp=900, engine=fake, cfg=cfg)
     assert draft is not None
-    # busca principal (multipv) usa search_seconds; a resposta do defensor usa reply_seconds.
-    assert fake.max_seconds == [20.0, 10.0]
+    # a busca principal (multipv) e a resposta do defensor usam o mesmo search_seconds.
+    assert fake.max_seconds == [20.0, 20.0]
 
 
 def test_draft_json_shape():

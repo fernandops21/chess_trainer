@@ -12,7 +12,7 @@ const CATEGORIES = ["rapid", "daily", "classical", "blitz", "bullet"];
 const RANGES: Record<string, [number, number]> = {
   analysis_depth: [6, 30], puzzle_depth: [6, 30], mistake_threshold_cp: [50, 1000], blunder_threshold_cp: [50, 1000],
   avoid_gap_cp: [50, 1000], new_per_day: [1, 100], leech_lapses: [2, 20],
-  analysis_seconds: [1, 120], puzzle_search_seconds: [1, 120], puzzle_reply_seconds: [1, 120],
+  analysis_seconds: [1, 120], puzzle_search_seconds: [1, 120],
 };
 
 export function validate(s: Settings): string[] {
@@ -83,7 +83,6 @@ export function SettingsPage() {
         {field("profundidade do puzzle", "puzzle_depth")}
         {field("tempo máximo por busca da análise (s)", "analysis_seconds")}
         {field("tempo máximo por busca do puzzle (s)", "puzzle_search_seconds")}
-        {field("tempo máximo da resposta do defensor (s)", "puzzle_reply_seconds")}
         <label className="row" style={{ justifyContent: "space-between" }}>
           Classificar lances na Análise (usa a engine)
           <input

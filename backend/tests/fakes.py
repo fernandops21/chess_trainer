@@ -23,6 +23,7 @@ class FakeEngine:
         self.default = default
         self.calls: list[str] = []
         self.depths: list[int] = []
+        self.multipvs: list[int] = []
         self.max_seconds: list[float | None] = []
         self.fail_next = False  # simula engine morta na próxima chamada
 
@@ -36,6 +37,7 @@ class FakeEngine:
         key = board.epd()
         self.calls.append(key)
         self.depths.append(depth)
+        self.multipvs.append(multipv)
         self.max_seconds.append(max_seconds)
         if key in self.script:
             return self.script[key][:multipv]

@@ -254,6 +254,10 @@ Qualquer exercício pode sair da repetição sem ser apagado: no resultado do tr
 (e "Voltar para a repetição" para desfazer). Uma tática do Lichess só entra na repetição quando você
 clica em "Guardar para repetir" no resultado.
 
+Nos exercícios dos seus erros, a resposta do adversário dentro da solução é a **defesa mais
+resistente** na mesma profundidade (e no mesmo tempo de busca) do lance do solver — as duas buscas
+são a mesma, então a solução não mostra uma defesa mais fraca que a apontada pela Análise.
+
 ## Som
 
 Efeitos sonoros curtos para lance, captura, xeque, erro, dica e exercício resolvido. Valem no

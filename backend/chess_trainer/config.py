@@ -25,7 +25,6 @@ class AppSettings:
     leech_lapses: int = 5
     analysis_seconds: int = 15
     puzzle_search_seconds: int = 20
-    puzzle_reply_seconds: int = 10
     tactics_rating: int = 1200
     tactics_window: int = 150
     lichess_min_plays: int = 2000
@@ -80,10 +79,7 @@ def thresholds_from(settings: AppSettings) -> Thresholds:
 def puzzle_config_from(settings: AppSettings) -> PuzzleConfig:
     return PuzzleConfig(
         depth=settings.puzzle_depth,
-        # nunca mais fundo que depth: com puzzle_depth abaixo do mínimo prático (12),
-        # o piso de 12 poderia ultrapassar a própria profundidade principal.
-        reply_depth=min(settings.puzzle_depth, max(12, settings.puzzle_depth - 6)),
         avoid_gap_cp=settings.avoid_gap_cp,
+        # a resposta do adversário usa a mesma profundidade e o mesmo tempo do lance do solver
         search_seconds=settings.puzzle_search_seconds,
-        reply_seconds=settings.puzzle_reply_seconds,
     )

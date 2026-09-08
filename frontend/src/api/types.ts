@@ -29,7 +29,6 @@ export interface Settings {
   leech_lapses: number;
   analysis_seconds: number;
   puzzle_search_seconds: number;
-  puzzle_reply_seconds: number;
   tactics_rating: number;
   tactics_window: number;
   lichess_min_plays: number;
