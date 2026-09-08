@@ -84,11 +84,11 @@ test("é só leitura: sem caixa de comentário e sem botão Salvar", async () =>
 const COMENTARIO_LONGO =
   "Este lance abre a diagonal do bispo e a da dama, e é assim que o Chernev explica a partida no Logical Chess: cada lance com um porquê, sem pular nada.";
 
-test("a leitura usa o modo livro, e não a lista de lances", async () => {
+test("a leitura usa o modo livro: página do lance à direita e a lista sob o tabuleiro", async () => {
   const { container } = renderPage();
   await screen.findByText("Torre atrás do peão");
-  expect(container.querySelector(".livro")).toBeTruthy();
-  expect(container.querySelector(".tree")).toBeNull();
+  expect(container.querySelector(".livro-pagina")).toBeTruthy();
+  expect(container.querySelector(".tree")).toBeTruthy();
 });
 
 test("o comentário do autor sai inteiro no livro, sem reticências", async () => {
@@ -98,9 +98,13 @@ test("o comentário do autor sai inteiro no livro, sem reticências", async () =
   );
   const { container } = renderPage();
   await screen.findByText("Torre atrás do peão");
-  const livro = container.querySelector(".livro")!;
-  expect(livro.textContent).toContain(COMENTARIO_LONGO);
-  expect(livro.textContent).not.toContain("…");
+  // na lista só a marca; a página traz o comentário inteiro quando o lance é o atual
+  expect(container.querySelector(".tree .comment")).toBeNull();
+  expect(container.querySelector(".tree .tem-comentario")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /^1\. e4/ }));
+  const pagina = container.querySelector(".livro-pagina")!;
+  expect(pagina.textContent).toContain(COMENTARIO_LONGO);
+  expect(pagina.textContent).not.toContain("…");
 });
 
 test("Treinar este abre o exercício do capítulo", async () => {

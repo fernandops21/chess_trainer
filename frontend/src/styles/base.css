@@ -65,6 +65,18 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 .pos-erros { margin: 8px 0 0; padding-left: 20px; font-weight: 400; }
 
 .board { width: 100%; aspect-ratio: 1; position: relative; }
+/* barra de vantagem à esquerda do tabuleiro (Análise com a engine ligada) */
+.board-row { display: flex; gap: 6px; align-items: stretch; }
+.board-row > .board { flex: 1 1 auto; min-width: 0; }
+.eval-bar { position: relative; width: 16px; flex: none; border-radius: 4px; overflow: hidden; background: #3d3a36;
+  display: flex; flex-direction: column; justify-content: flex-end; }
+.eval-bar--invertida { justify-content: flex-start; }
+.eval-bar__brancas { width: 100%; background: #f2efe8; transition: height .4s ease; }
+.eval-bar__rotulo { position: absolute; left: 0; right: 0; bottom: 3px; text-align: center; font-size: 9px; font-weight: 700; line-height: 1;
+  color: #3d3a36; writing-mode: vertical-rl; transform: rotate(180deg); }
+.eval-bar__rotulo--pretas { bottom: auto; top: 3px; color: #f2efe8; }
+.eval-bar--invertida .eval-bar__rotulo { bottom: auto; top: 3px; }
+.eval-bar--invertida .eval-bar__rotulo--pretas { top: auto; bottom: 3px; }
 .board > div { width: 100%; height: 100%; }
 .miniboard { width: 120px; aspect-ratio: 1; flex: none; }
 .miniboard .board { width: 120px; }
@@ -116,28 +128,12 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 /* o ícone em SVG ocupa o mesmo lugar do círculo de texto, com a sombra por fora */
 .board-badge > svg { width: 56%; height: 56%; margin: -18% -18% 0 0; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35)); }
 
-/* modo livro (leitura do capítulo): a coluna da direita vira texto corrido,
-   com a fonte serifada de leitura — enunciado, lances e comentários do autor */
-.livro { font-family: Georgia, "Times New Roman", serif; font-size: 1.05rem; line-height: 1.6; max-height: 55vh; overflow: auto; }
-.livro p { margin: 0 0 .7em; }
-.livro p:last-child { margin-bottom: 0; }
-/* o lance é o osso do texto: negrito, sem cara de botão, clicável para navegar */
-button.livro-lance {
-  min-height: 0; padding: 0 2px; border: none; border-radius: 4px; background: none;
-  color: inherit; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer;
-}
-button.livro-lance:hover { color: var(--brand); }
-button.livro-lance.atual { background: var(--accent); }
-/* corrida de lances sem comentário: mais discreta que a prosa do autor */
-.livro-lances { color: var(--muted); }
-.livro-variacao { margin-left: 1.2em; border-left: 2px solid var(--line); padding-left: .6em; font-size: .95em; }
-.livro .book, .livro .class { margin-left: 3px; vertical-align: -0.15em; }
-.livro .book svg, .livro .class svg { width: 1.05em; height: 1.05em; vertical-align: -0.15em; }
-.livro .class { color: var(--class-cor); }
-/* em tela larga o comentário já está no texto ao lado; o cartão abaixo do
-   tabuleiro só serve à tela estreita, onde a coluna do livro cai para baixo */
-.livro-atual { display: none; }
-@media (max-width: 899px) { .livro-atual { display: block; } }
+/* modo livro (leitura do capítulo): cada lance é uma página — o comentário do
+   lance atual sozinho, em fonte de leitura; a lista de lances fica sob o tabuleiro */
+.livro-pagina { font-family: Georgia, "Times New Roman", serif; font-size: 1.1rem; line-height: 1.65; max-height: 70vh; overflow: auto; }
+.livro-pagina > .muted { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: .9rem; margin-bottom: 6px; }
+/* marca discreta nos lances que têm comentário (lista sem os resumos) */
+.tree .tem-comentario { color: var(--brand); margin-left: 2px; font-weight: 700; }
 
 /* lances escritos no texto do autor viram links: clicar mostra a posição no tabuleiro */
 .texto-com-lances { white-space: pre-wrap; }

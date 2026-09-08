@@ -587,15 +587,17 @@ test("o layout padrão continua sendo a lista de lances", () => {
     <AnalysisBoard tree={insertLine(emptyTree(START), null, ["e2e4"]).tree} />,
   );
   expect(container.querySelector(".tree")).toBeTruthy();
-  expect(container.querySelector(".livro")).toBeNull();
+  expect(container.querySelector(".livro-pagina")).toBeNull();
 });
 
-test("no layout livro o texto substitui a lista e a caixa de comentário some", () => {
+test("no layout livro a página mostra o comentário do lance atual e a lista fica sem resumos", () => {
   const arvore = setComment(insertLine(emptyTree(START), null, ["e2e4"]).tree, "n1", "Abre a diagonal.");
   const { container } = comProvedores(<AnalysisBoard tree={{ ...arvore, intro: "Italiana." }} layout="livro" />);
-  expect(container.querySelector(".livro")).toBeTruthy();
-  expect(container.querySelector(".tree")).toBeNull();
-  // o comentário está no texto do livro: nada de cartão de leitura embaixo do tabuleiro
-  expect(screen.getByText("Italiana.")).toBeTruthy();
+  // no início a página é o enunciado
+  expect(container.querySelector(".livro-pagina")!.textContent).toContain("Italiana.");
+  expect(container.querySelector(".tree .comment")).toBeNull();
+  expect(container.querySelector(".tree .tem-comentario")).toBeTruthy();
   expect(screen.queryByText("Comentário de e4")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: /^1\. e4/ }));
+  expect(container.querySelector(".livro-pagina")!.textContent).toContain("Abre a diagonal.");
 });

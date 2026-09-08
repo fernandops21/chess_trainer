@@ -19,6 +19,8 @@ export interface MoveTreeViewProps {
   bookIds?: Set<string>;
   /** Classificação de cada lance do caminho atual (`useMoveClassification`). */
   classes?: ReadonlyMap<string, Classification>;
+  /** Sem o resumo do comentário na lista: só uma marca nos lances comentados (modo livro). */
+  semComentarios?: boolean;
 }
 
 /** Símbolo do lance que está no livro de aberturas. */
@@ -125,6 +127,7 @@ interface Ctx {
   currentId: string | null;
   bookIds?: Set<string>;
   classes?: ReadonlyMap<string, Classification>;
+  semComentarios?: boolean;
   onGoTo: (id: string) => void;
   onContextMenu?: (id: string, pos: MenuPos) => void;
 }
@@ -153,7 +156,9 @@ function renderLine(nodes: TreeNode[], ply: number, depth: number, ctx: Ctx): Re
           onGoTo={ctx.onGoTo}
           onContextMenu={ctx.onContextMenu}
         />
-        {main.comment !== "" && <span className="comment">{shortComment(main.comment)}</span>}{" "}
+        {main.comment !== "" && (ctx.semComentarios
+          ? <span className="tem-comentario" role="img" aria-label="tem comentário" title="tem comentário">•</span>
+          : <span className="comment">{shortComment(main.comment)}</span>)}{" "}
       </Fragment>,
     );
     for (const v of variations) {
@@ -176,8 +181,8 @@ function renderLine(nodes: TreeNode[], ply: number, depth: number, ctx: Ctx): Re
 }
 
 /** Árvore no formato do Lichess: linha principal corrida, variações recuadas. */
-export function MoveTreeView({ tree, currentId, onGoTo, onContextMenu, bookIds, classes }: MoveTreeViewProps) {
-  const ctx: Ctx = { num: numbering(tree.fen), currentId, bookIds, classes, onGoTo, onContextMenu };
+export function MoveTreeView({ tree, currentId, onGoTo, onContextMenu, bookIds, classes, semComentarios }: MoveTreeViewProps) {
+  const ctx: Ctx = { num: numbering(tree.fen), currentId, bookIds, classes, semComentarios, onGoTo, onContextMenu };
   if (tree.root.children.length === 0) {
     return <div className="tree muted">Nenhum lance ainda: jogue no tabuleiro para começar a linha.</div>;
   }

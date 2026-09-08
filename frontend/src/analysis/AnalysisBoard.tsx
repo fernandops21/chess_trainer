@@ -6,6 +6,7 @@ import { useAnalyse, useSettings } from "../api/queries";
 import type { Shape } from "../api/types";
 import { Board } from "../board/Board";
 import { ErrorBox } from "../components/ErrorBox";
+import { EvalBar } from "./EvalBar";
 import { formatEval } from "../lib/format";
 import { ClassIcon } from "./classIcons";
 import { MoveTreeView } from "./MoveTreeView";
@@ -19,7 +20,6 @@ import { SaveChapterModal } from "./SaveChapterModal";
 import { useBookMoves } from "./useBookMoves";
 import { useMoveClassification } from "./useMoveClassification";
 import { useMoveTree } from "./useMoveTree";
-import { BookView } from "../studies/BookView";
 import { storage } from "../lib/storage";
 import { MAX_NODES, countNodes, emptyTree } from "./moveTree";
 import type { Tree } from "./moveTree";
@@ -45,7 +45,7 @@ export interface AnalysisBoardProps {
   /** Cartões do dono do tabuleiro, no topo da coluna da direita (o resultado do
    *  exercício, por exemplo), acima do painel do motor e da lista de lances. */
   sidePanel?: ReactNode;
-  /** `"livro"` troca a lista de lances por texto corrido (leitura do capítulo). */
+  /** `"livro"`: cada lance é uma página — à direita só o comentário do lance atual, a lista fica sob o tabuleiro. */
   layout?: "analise" | "livro";
 }
 
@@ -102,6 +102,7 @@ export function AnalysisBoard({
   );
   // com a prévia na tela a análise é a da posição dela
   const fenNaTela = naPrevia ? naPrevia.fen : mt.fen;
+  const turnNaTela: "white" | "black" = naPrevia ? (fenNaTela.split(" ")[1] === "b" ? "black" : "white") : mt.turn;
   const { data, error, isFetching } = useAnalyse(motor ? fenNaTela : null);
   const { data: settings } = useSettings();
   // símbolo do livro nos lances do caminho atual que estão na base de mestres
@@ -282,10 +283,12 @@ export function AnalysisBoard({
             )}
           </div>
         )}
+        <div className="board-row">
+        {motor && <EvalBar score={best?.score ?? null} turn={turnNaTela} orientation={orient} terminal={data?.terminal} />}
         <Board
           fen={fenNaTela}
           orientation={orient}
-          turnColor={naPrevia ? (fenNaTela.split(" ")[1] === "b" ? "black" : "white") : mt.turn}
+          turnColor={turnNaTela}
           movableColor={naPrevia ? undefined : mt.turn}
           dests={naPrevia ? undefined : mt.dests}
           lastMove={naPrevia ? naPrevia.lastMove : mt.lastMove}
@@ -298,6 +301,7 @@ export function AnalysisBoard({
           onShapesChange={editable ? mt.setShapes : undefined}
           onMove={onMove}
         />
+        </div>
         <div className="row" style={{ marginTop: 8 }}>
           <button onClick={semPrevia(goStart)} disabled={mt.currentId === null && !previa} aria-label="posição inicial">⏮</button>
           <button onClick={semPrevia(prev)} disabled={mt.currentId === null && !previa} aria-label="lance anterior">◀</button>
@@ -309,15 +313,18 @@ export function AnalysisBoard({
           {backTo && <Link to={backTo}>Voltar</Link>}
         </div>
         {livro ? (
-          // No modo livro o comentário já está no texto da coluna da direita. Em
-          // tela estreita, porém, essa coluna cai para baixo do tabuleiro: este
-          // cartão repete o comentário do lance atual junto das peças (o CSS o
-          // esconde em tela larga).
-          mt.node && mt.node.comment !== "" && (
-            <div className="card livro-atual" style={{ marginTop: 12 }}>
-              <TextoComLances texto={mt.node.comment} fen={mt.fen} segmentos={segsComentario} onPrevia={setPrevia} />
-            </div>
-          )
+          // no modo livro a lista de lances fica sob o tabuleiro, compacta e sem
+          // os comentários: eles são a "página" da coluna da direita
+          <div className="movelist" style={{ marginTop: 12 }}>
+            <MoveTreeView
+              tree={mt.tree}
+              currentId={mt.currentId}
+              onGoTo={semPrevia(mt.goTo)}
+              bookIds={bookIds}
+              classes={classes}
+              semComentarios
+            />
+          </div>
         ) : editable ? (
           <div className="card" style={{ marginTop: 12 }}>
             <div className="muted">{tituloComentario}</div>
@@ -404,14 +411,16 @@ export function AnalysisBoard({
             </div>
           )}
           {livro ? (
-            <BookView
-              tree={mt.tree}
-              currentId={mt.currentId}
-              onGoTo={semPrevia(mt.goTo)}
-              bookIds={bookIds}
-              classes={classes}
-              onPrevia={setPrevia}
-            />
+            // a página do lance atual: o comentário do autor inteiro, em fonte de
+            // leitura; sem lance escolhido, o enunciado do capítulo
+            <div className="livro-pagina">
+              <div className="muted">{mt.node ? mt.node.san : "Início"}</div>
+              {comentario !== "" ? (
+                <TextoComLances texto={comentario} fen={mt.fen} segmentos={segsComentario} onPrevia={setPrevia} />
+              ) : (
+                <div className="muted">Sem comentário neste lance.</div>
+              )}
+            </div>
           ) : (
             <MoveTreeView
               tree={mt.tree}
