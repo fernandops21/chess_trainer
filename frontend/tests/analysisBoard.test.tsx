@@ -283,6 +283,60 @@ test("no modo edição o cartão de leitura não aparece junto da caixa de ediç
   expect(screen.getByText("Enunciado (posição inicial)")).toBeTruthy();
 });
 
+// --- lances clicáveis no comentário -------------------------------------
+
+/** Árvore de leitura com um comentário que cita uma linha jogável da posição. */
+function comLancesNoTexto(intro = "Depois de e4 e5 Nf3 as brancas ficam melhor."): Tree {
+  return { ...emptyTree(START), intro };
+}
+
+test("clicar num lance do comentário põe a prévia no tabuleiro", () => {
+  comProvedores(<AnalysisBoard tree={comLancesNoTexto()} />);
+  const inicial = last().fen;
+
+  fireEvent.click(screen.getByRole("button", { name: "Nf3" }));
+  // o tabuleiro mostra a posição do fim da linha e não aceita lances
+  expect(last().fen).toMatch(/^rnbqkbnr\/pppp1ppp\/8\/4p3\/4P3\/5N2\/PPPP1PPP\/RNBQKB1R b/);
+  expect(last().lastMove).toEqual(["g1", "f3"]);
+  expect(last().movableColor).toBeUndefined();
+  expect(screen.getByText(/prévia: e4 e5 Nf3/)).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("button", { name: "voltar" }));
+  expect(last().fen).toBe(inicial);
+  expect(last().movableColor).toBe("white");
+  expect(screen.queryByText(/^prévia:/)).toBeNull();
+});
+
+test("navegar desfaz a prévia", () => {
+  comProvedores(<AnalysisBoard tree={comLancesNoTexto()} />);
+  fireEvent.click(screen.getByRole("button", { name: "e4" }));
+  expect(last().fen).not.toBe(START);
+
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+  expect(screen.queryByText(/^prévia:/)).toBeNull();
+  expect(last().fen).toBe(START);
+});
+
+test("no editor a prévia entra na árvore como variação", () => {
+  const onTreeChange = vi.fn();
+  comProvedores(<AnalysisBoard editable tree={comLancesNoTexto()} onTreeChange={onTreeChange} />);
+  // no editor os lances do comentário ficam embaixo da caixa de texto
+  fireEvent.click(screen.getByRole("button", { name: "Nf3" }));
+  fireEvent.click(screen.getAllByRole("button", { name: "adicionar como variação" })[0]);
+
+  const t = lastTree(onTreeChange);
+  expect(t.root.children[0].san).toBe("e4");
+  expect(t.root.children[0].children[0].san).toBe("e5");
+  expect(t.root.children[0].children[0].children[0].san).toBe("Nf3");
+  expect(screen.queryByText(/^prévia:/)).toBeNull();
+});
+
+test("na leitura, comentário sem lance nenhum não ganha botão", () => {
+  comProvedores(<AnalysisBoard tree={comLancesNoTexto("As brancas ganham a peça.")} />);
+  expect(screen.getByText("As brancas ganham a peça.")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "e4" })).toBeNull();
+});
+
 test("com a árvore no limite, avisa em vez de deixar o lance sumir", () => {
   // árvore sintética larga: para o limite só a contagem de nós importa
   const cheia: Tree = {

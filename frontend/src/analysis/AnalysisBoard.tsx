@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { novoChess } from "../lib/chess";
 import type { Key } from "chessground/types";
@@ -9,6 +9,9 @@ import { ErrorBox } from "../components/ErrorBox";
 import { formatEval } from "../lib/format";
 import { ClassIcon } from "./classIcons";
 import { MoveTreeView } from "./MoveTreeView";
+import { TextoComLances } from "./TextoComLances";
+import { segmentar } from "./moveText";
+import type { LanceDaLinha } from "./moveText";
 import { NodeMenu } from "./NodeMenu";
 import { OpeningsPanel } from "./OpeningsPanel";
 import { PositionEditor } from "./PositionEditor";
@@ -81,14 +84,20 @@ export function AnalysisBoard({
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [salvarComo, setSalvarComo] = useState(false);
   const [montando, setMontando] = useState(false);
+  // Prévia: a linha lida de um comentário, mostrada no tabuleiro sem entrar na
+  // árvore. Enquanto ela está na tela o tabuleiro é só de leitura.
+  const [previa, setPrevia] = useState<LanceDaLinha[] | null>(null);
+  const naPrevia = previa && previa.length > 0 ? previa[previa.length - 1] : null;
   const [aba, setAba] = useState<Aba>(() =>
     storage.get<Aba>("analysis.sidePanel", "engine") === "aberturas" ? "aberturas" : "engine",
   );
-  const { data, error, isFetching } = useAnalyse(motor ? mt.fen : null);
+  // com a prévia na tela a análise é a da posição dela
+  const fenNaTela = naPrevia ? naPrevia.fen : mt.fen;
+  const { data, error, isFetching } = useAnalyse(motor ? fenNaTela : null);
   const { data: settings } = useSettings();
   // símbolo do livro nos lances do caminho atual que estão na base de mestres
   // sem engine (resultado do exercício) o livro também espera o usuário pedir análise
-  const bookIds = useBookMoves(mt.tree, motor ? mt.path : []);
+  const bookIds = useBookMoves(mt.tree, motor && !naPrevia ? mt.path : []);
   // classificação (melhor, erro, blunder…) de cada lance do caminho atual
   const classes = useMoveClassification(mt.tree, mt.path, {
     enabled: motor && (settings?.classify_moves ?? false),
@@ -102,10 +111,10 @@ export function AnalysisBoard({
   // selo sobre a casa de destino do lance atual, como no chess.com
   const badge = useMemo(
     () =>
-      mt.node && classeAtual
+      !naPrevia && mt.node && classeAtual
         ? { square: mt.node.uci.slice(2, 4) as Key, text: classeAtual.symbol, className: `class-${classeAtual.kind}`, icon: <ClassIcon kind={classeAtual.kind} size="100%" /> }
         : undefined,
-    [mt.node, classeAtual],
+    [naPrevia, mt.node, classeAtual],
   );
 
   // Vaivém com o pai: a árvore que chega de fora reinicia o hook e a que nasce
@@ -159,13 +168,14 @@ export function AnalysisBoard({
       const fn = acoes[e.key];
       if (!fn) return;
       e.preventDefault();
+      setPrevia(null);
       fn();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [prev, next, up, down, goStart, onSave, montando]);
 
-  const inCheck = useMemo(() => novoChess(mt.fen).inCheck(), [mt.fen]);
+  const inCheck = useMemo(() => { try { return novoChess(fenNaTela).inCheck(); } catch { return false; } }, [fenNaTela]);
   const best = data && !data.terminal ? data.lines[0] : undefined;
 
   // marcações salvas do nó atual (as da posição inicial ficam na raiz)
@@ -199,12 +209,26 @@ export function AnalysisBoard({
       ? "Enunciado (posição inicial)"
       : "Enunciado";
 
+  /** Navegar, jogar ou entrar com uma linha desfaz a prévia. */
+  const semPrevia = useCallback(<A extends unknown[]>(fn: (...args: A) => unknown) => (...args: A) => {
+    setPrevia(null);
+    return fn(...args);
+  }, []);
+
+  // no editor a caixa de texto continua sendo texto: os lances escritos nela
+  // ganham uma fila de botões embaixo, para abrir a prévia e virar variação
+  const temLance = useMemo(
+    () => (editable && comentario !== "" ? segmentar(comentario, mt.fen).some((seg) => seg.kind === "lance") : false),
+    [editable, comentario, mt.fen],
+  );
+
   const trocarAba = (nova: Aba) => {
     setAba(nova);
     storage.set("analysis.sidePanel", nova);
   };
 
   const onMove = (orig: Key, dest: Key) => {
+    setPrevia(null);
     if (!mt.play(`${orig}${dest}`)) mt.play(`${orig}${dest}q`);
   };
 
@@ -232,13 +256,24 @@ export function AnalysisBoard({
   return (
     <div className="two-col">
       <div>
+        {previa && (
+          <div className="previa row">
+            <span>prévia: {previa.map((l) => l.san).join(" ")} · </span>
+            <button onClick={() => setPrevia(null)}>voltar</button>
+            {editable && (
+              <button onClick={() => { mt.insertLine(previa.map((l) => l.uci)); setPrevia(null); }}>
+                adicionar como variação
+              </button>
+            )}
+          </div>
+        )}
         <Board
-          fen={mt.fen}
+          fen={fenNaTela}
           orientation={orient}
-          turnColor={mt.turn}
-          movableColor={mt.turn}
-          dests={mt.dests}
-          lastMove={mt.lastMove}
+          turnColor={naPrevia ? (fenNaTela.split(" ")[1] === "b" ? "black" : "white") : mt.turn}
+          movableColor={naPrevia ? undefined : mt.turn}
+          dests={naPrevia ? undefined : mt.dests}
+          lastMove={naPrevia ? naPrevia.lastMove : mt.lastMove}
           check={inCheck}
           arrows={arrows}
           squares={squares}
@@ -249,9 +284,9 @@ export function AnalysisBoard({
           onMove={onMove}
         />
         <div className="row" style={{ marginTop: 8 }}>
-          <button onClick={goStart} disabled={mt.currentId === null} aria-label="posição inicial">⏮</button>
-          <button onClick={prev} disabled={mt.currentId === null} aria-label="lance anterior">◀</button>
-          <button onClick={next} aria-label="próximo lance">▶</button>
+          <button onClick={semPrevia(goStart)} disabled={mt.currentId === null && !previa} aria-label="posição inicial">⏮</button>
+          <button onClick={semPrevia(prev)} disabled={mt.currentId === null && !previa} aria-label="lance anterior">◀</button>
+          <button onClick={semPrevia(next)} aria-label="próximo lance">▶</button>
           <button onClick={() => setOrient((o) => (o === "white" ? "black" : "white"))}>Inverter</button>
           {allowSetup && <button onClick={() => setMontando(true)}>Montar posição</button>}
           {onSave && <button className="primary" onClick={onSave}>Salvar</button>}
@@ -267,6 +302,11 @@ export function AnalysisBoard({
               value={comentario}
               onChange={(e) => mt.setComment(e.target.value)}
             />
+            {temLance && (
+              <div className="muted">
+                Lances do comentário: <TextoComLances texto={comentario} fen={mt.fen} onPrevia={setPrevia} apenasLances />
+              </div>
+            )}
             <div className="muted">Botão direito no tabuleiro desenha setas e casas: elas ficam salvas neste lance.</div>
           </div>
         ) : (
@@ -274,7 +314,9 @@ export function AnalysisBoard({
           comentario !== "" && (
             <div className="card" style={{ marginTop: 12 }}>
               <div className="muted">{tituloComentario}</div>
-              <div style={{ whiteSpace: "pre-wrap" }}>{comentario}</div>
+              <div style={{ whiteSpace: "pre-wrap" }}>
+                <TextoComLances texto={comentario} fen={mt.fen} onPrevia={setPrevia} />
+              </div>
             </div>
           )
         )}
@@ -291,7 +333,7 @@ export function AnalysisBoard({
           <button role="tab" aria-selected={aba === "aberturas"} onClick={() => trocarAba("aberturas")}>Aberturas</button>
         </div>
         {aba === "aberturas" ? (
-          <OpeningsPanel fen={mt.fen} onPlay={(uci) => mt.play(uci)} />
+          <OpeningsPanel fen={fenNaTela} onPlay={semPrevia((uci: string) => mt.play(uci))} />
         ) : (
         <div className="card">
           {data?.terminal ? (
@@ -314,10 +356,10 @@ export function AnalysisBoard({
             <div style={{ marginTop: 10 }}>
               {data.lines.map((line, i) => (
                 <div className="row" key={i}>
-                  <button className="pvline" style={{ flex: "1 1 200px" }} onClick={() => mt.play(line.move)}>
+                  <button className="pvline" style={{ flex: "1 1 200px" }} onClick={semPrevia(() => mt.play(line.move))}>
                     {formatEval(data.turn === "black" ? -line.score : line.score)} {line.pv_san.join(" ")}
                   </button>
-                  <button onClick={() => mt.insertLine(line.pv)}>adicionar como variação</button>
+                  <button onClick={semPrevia(() => mt.insertLine(line.pv))}>adicionar como variação</button>
                 </div>
               ))}
             </div>
@@ -337,7 +379,7 @@ export function AnalysisBoard({
           <MoveTreeView
             tree={mt.tree}
             currentId={mt.currentId}
-            onGoTo={mt.goTo}
+            onGoTo={semPrevia(mt.goTo)}
             bookIds={bookIds}
             classes={classes}
             onContextMenu={editable ? (id, pos) => setMenu({ id, ...pos }) : undefined}

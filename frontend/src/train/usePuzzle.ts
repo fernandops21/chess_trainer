@@ -75,7 +75,8 @@ export interface PuzzleState<R = ReviewOut> {
   /** Estágio da dica no lance atual: 0 = nenhuma dica ainda, 1 = peça destacada
    *  (o próximo clique joga o lance esperado). Volta a 0 a cada lance do solver. */
   hintStage: 0 | 1;
-  message: { text: string; tone: "ok" | "bad" | "" };
+  /** `fen`: posição de onde os lances escritos no texto partem (âncora dos links). */
+  message: { text: string; tone: "ok" | "bad" | ""; fen?: string };
   lastMove?: [Key, Key];
   check: boolean;
   hint?: Key;
@@ -158,6 +159,9 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
   const lastMoveRef = useRef(state.lastMove);
   lastMoveRef.current = state.lastMove;
   const antesRef = useRef<[Key, Key] | undefined>(undefined);
+  // Posições que a refutação acrescenta ao histórico (o lance errado e a réplica):
+  // elas não estão no `chessRef`, que nunca recebe o lance errado.
+  const refutaRef = useRef<{ fen: string; lastMove?: [Key, Key] }[]>([]);
   // Token da tentativa de refutação: uma resposta atrasada de uma tentativa
   // anterior (outro lance errado, ou depois do "Tentar de novo") é ignorada.
   const tentativaRef = useRef(0);
@@ -196,6 +200,7 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
    *  que a refutação tinha posto na tela ("Tentar de novo" e a engine que falhou). */
   const restaurar = (): Partial<PuzzleState<R>> => {
     const c = chessRef.current;
+    refutaRef.current = [];
     return {
       fen: c.fen(), turn: turnOf(c), check: c.inCheck(), lastMove: antesRef.current,
       refutation: undefined, hintStage: 0, hint: undefined, pendingPromotion: undefined,
@@ -219,9 +224,9 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
     }
   }, [puzzle.id, opts.sessionId, opts.submit, now]);
 
-  const finish = useCallback((wrong: boolean, usedHint: boolean, text = "Certo!") => {
+  const finish = useCallback((wrong: boolean, usedHint: boolean, text = "Certo!", fen?: string) => {
     play("solved");
-    setState(snapshot({ phase: "solved", hint: undefined, message: { text, tone: "ok" } }));
+    setState(snapshot({ phase: "solved", hint: undefined, message: { text, tone: "ok", fen } }));
     void doSubmit(wrong, usedHint);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doSubmit]);
@@ -235,6 +240,9 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
 
   const applySolverMove = useCallback((uci: string) => {
     const c = chessRef.current;
+    // âncora do "Certo! — comentário": a posição de antes do lance recém-jogado,
+    // para o próprio lance virar o primeiro link do comentário do autor
+    const fenAntesDoLance = c.fen();
     let mv: ReturnType<Chess["move"]>;
     try {
       mv = c.move(uciToMove(uci));
@@ -253,14 +261,15 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
     if (nextIdx >= moves.length) {
       // (sem som de lance aqui)
       setState(snapshot({ idx: nextIdx, lastMove: last, hintStage: 0, hint: undefined, pendingPromotion: undefined }));
-      finish(wrongRef.current, usedHintRef.current, okMessage(nextIdx - 1));
+      finish(wrongRef.current, usedHintRef.current, okMessage(nextIdx - 1), fenAntesDoLance);
       return;
     }
     play(sanSound(mv.san));
     const reply = moves[nextIdx];
     if (reply.by === "engine") {
-      setState(snapshot({ phase: "engine_replying", idx: nextIdx, lastMove: last, hintStage: 0, hint: undefined, pendingPromotion: undefined, message: { text: okMessage(nextIdx - 1), tone: "ok" } }));
+      setState(snapshot({ phase: "engine_replying", idx: nextIdx, lastMove: last, hintStage: 0, hint: undefined, pendingPromotion: undefined, message: { text: okMessage(nextIdx - 1), tone: "ok", fen: fenAntesDoLance } }));
       timer.current = setTimeout(() => {
+        const fenAntesDaReplica = chessRef.current.fen();
         let r: ReturnType<Chess["move"]>;
         try {
           r = chessRef.current.move(uciToMove(reply.uci));
@@ -275,14 +284,14 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
         const replyLast: [Key, Key] = [r.from as Key, r.to as Key];
         if (afterReply >= moves.length) {
           setState(snapshot({ idx: afterReply, lastMove: replyLast }));
-          finish(wrongRef.current, usedHintRef.current, okMessage(afterReply - 1));
+          finish(wrongRef.current, usedHintRef.current, okMessage(afterReply - 1), fenAntesDaReplica);
         } else {
           play(sanSound(r.san));
           setState(snapshot({ phase: "awaiting_move", idx: afterReply, lastMove: replyLast }));
         }
       }, opts.engineDelayMs ?? 350);
     } else {
-      setState(snapshot({ phase: "awaiting_move", idx: nextIdx, lastMove: last, hintStage: 0, hint: undefined, pendingPromotion: undefined, message: { text: okMessage(nextIdx - 1), tone: "ok" } }));
+      setState(snapshot({ phase: "awaiting_move", idx: nextIdx, lastMove: last, hintStage: 0, hint: undefined, pendingPromotion: undefined, message: { text: okMessage(nextIdx - 1), tone: "ok", fen: fenAntesDoLance } }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [puzzle.solution.moves, opts.engineDelayMs, finish, okMessage]);
@@ -321,11 +330,13 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
     const wrongSan = mv.san;
     const fenDepois = copia.fen();
     antesRef.current = lastMoveRef.current;
+    const erroLast: [Key, Key] = [mv.from as Key, mv.to as Key];
+    refutaRef.current = [{ fen: fenDepois, lastMove: erroLast }];
     const tentativa = ++tentativaRef.current;
     setState((p) => ({
       ...p, phase: "refuting", wrong: true, hintStage: 0, hint: undefined, pendingPromotion: undefined,
-      fen: fenDepois, turn: turnOf(copia), check: copia.inCheck(), lastMove: [mv.from as Key, mv.to as Key],
-      refutation: undefined, message: { text: `${wrongSan}? Vendo a resposta…`, tone: "bad" },
+      fen: fenDepois, turn: turnOf(copia), check: copia.inCheck(), lastMove: erroLast,
+      refutation: undefined, message: { text: `${wrongSan}? Vendo a resposta…`, tone: "bad", fen: fenAntes },
     }));
 
     const analyse = opts.analyse ?? api.analyse;
@@ -337,7 +348,7 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
       if (terminal) {
         // o lance errado terminou a partida: não há réplica para mostrar
         const r: Refutation = { wrongSan, pvSan: [], authored, terminal };
-        setState((p) => ({ ...p, phase: "refuted", refutation: r, message: { text: refutationMessage(r), tone: "bad" } }));
+        setState((p) => ({ ...p, phase: "refuted", refutation: r, message: { text: refutationMessage(r), tone: "bad", fen: fenAntes } }));
         return;
       }
       const linha = out.lines?.[0];
@@ -352,9 +363,11 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
         wrongSan, replySan: rep.san, evalAfter: -linha.score,
         pvSan: (linha.pv_san ?? []).slice(1, 6), authored,
       };
+      const replicaLast: [Key, Key] = [rep.from as Key, rep.to as Key];
+      refutaRef.current = [...refutaRef.current, { fen: copia.fen(), lastMove: replicaLast }];
       setState((p) => ({
         ...p, phase: "refuted", refutation: r, fen: copia.fen(), turn: turnOf(copia), check: copia.inCheck(),
-        lastMove: [rep.from as Key, rep.to as Key], message: { text: refutationMessage(r), tone: "bad" },
+        lastMove: replicaLast, message: { text: refutationMessage(r), tone: "bad", fen: fenAntes },
       }));
       // A avaliação de antes só serve para a frase "cai de X para Y", e a engine
       // atende uma posição por vez: pedida só depois da réplica, ela não atrasa
@@ -365,7 +378,7 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
         setState((p) => {
           if (!p.refutation || p.phase !== "refuted") return p;
           const comAntes: Refutation = { ...p.refutation, evalBefore: linhaAntes.score };
-          return { ...p, refutation: comAntes, message: { text: refutationMessage(comAntes), tone: "bad" } };
+          return { ...p, refutation: comAntes, message: { text: refutationMessage(comAntes), tone: "bad", fen: fenAntes } };
         });
       }, () => { /* sem a avaliação de antes a mensagem continua servindo */ });
     }, () => { if (vale()) recusar(authored, true); });
@@ -449,7 +462,26 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
 
   const dests = useMemo(() => (state.phase === "awaiting_move" ? destsFrom(chessRef.current) : new Map<Key, Key[]>()), [state.phase, state.fen]);
 
-  return { state, dests, tryMove, choosePromotion, cancelPromotion, useHint, retryMove, retrySubmit };
+  /**
+   * Posições do exercício, da primeira à que está na tela, para as setas de
+   * histórico da view: a de antes do lance do adversário (sem destaque), a do
+   * começo (com o lance dele destacado) e a de depois de cada lance jogado na
+   * sessão. Na refutação entram no fim o lance errado e a réplica da engine.
+   */
+  const history = useMemo<{ fen: string; lastMove?: [Key, Key] }[]>(() => {
+    const intro = introRef.current;
+    // durante a introdução nada aconteceu ainda: só a posição de antes
+    if (state.phase === "intro" && intro) return [{ fen: intro.fen }];
+    const out: { fen: string; lastMove?: [Key, Key] }[] = [];
+    if (intro) out.push({ fen: intro.fen });
+    const lances = chessRef.current.history({ verbose: true });
+    out.push({ fen: lances.length > 0 ? lances[0].before : chessRef.current.fen(), lastMove: intro?.lastMove });
+    for (const m of lances) out.push({ fen: m.after, lastMove: [m.from as Key, m.to as Key] });
+    return refutaRef.current.length > 0 ? [...out, ...refutaRef.current] : out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.fen, state.phase]);
+
+  return { state, dests, history, tryMove, choosePromotion, cancelPromotion, useHint, retryMove, retrySubmit };
 }
 
 /** Retorno de `usePuzzle`; use `PuzzleCtl<unknown>` para aceitar qualquer resultado de submit. */

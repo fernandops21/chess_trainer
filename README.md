@@ -113,6 +113,11 @@ Lichess — linha principal corrida e variações recuadas entre parênteses. No
 - aproveitar o motor: cada linha sugerida tem **"adicionar como variação"**, que entra com a sequência
   inteira a partir do lance atual.
 
+Lances escritos no comentário viram links: clique para ver a posição no tabuleiro (a faixa "prévia"
+acima dele traz o "voltar"); no editor, os lances do comentário aparecem embaixo da caixa e a prévia
+ganha um **"adicionar como variação"**, que entra com a linha inteira na árvore. Quem lê o capítulo
+tem os mesmos links nos comentários e no enunciado.
+
 Atalhos: **←** e **→** andam na linha, **↑** e **↓** trocam de variação, **Home** volta à posição
 inicial e **Ctrl+S** salva (o botão "Salvar" fica embaixo do tabuleiro). O cabeçalho mostra o estado
 ("alterações não salvas" / "salvo às HH:MM"). Com pendências, os links da própria tela ("Voltar ao
@@ -216,6 +221,11 @@ seus erros. `?mode=review|new|study` e `?study=<id>` no endereço já chegam com
 Sair da tela no meio de uma sessão (trocar de menu, voltar no navegador) ou fechar a aba encerra a
 sessão no servidor: ela não fica aberta contando tempo que ninguém treinou.
 
+Durante o exercício, os botões **⏮ ◀ ▶ ⏭** embaixo do tabuleiro (e as setas **←**/**→**, com
+**Home**/**End** para os extremos) andam pelo histórico da posição: dá para voltar e rever o lance do
+adversário que abriu o exercício, ou os lances já jogados na sessão. Voltar é só olhar — o tabuleiro
+não aceita lances até o **voltar ao lance atual**.
+
 ### Resultado do exercício
 
 Depois de resolver (ou de errar), o painel de resultado não é uma imagem parada: ele é o mesmo
@@ -239,6 +249,10 @@ Ao jogar um lance que não é a solução, o lance entra no tabuleiro, a engine 
 réplica e o app explica por que não serve: `h3? Qg2 — avaliação cai de +9.00 para -5.00` (com a
 continuação e, nos estudos, o comentário do autor para aquele lance errado). O botão **Tentar de
 novo** desfaz tudo e devolve a posição do exercício. A tentativa continua contando como erro.
+
+Os lances escritos na mensagem (o lance errado, a réplica e a continuação) são links: clicar mostra
+a posição no tabuleiro, e a faixa "prévia" traz o "voltar". O mesmo vale para o comentário do autor
+no "Certo! — …" dos estudos.
 
 Ligue ou desligue em **Configurações → Refutar o lance errado com a engine** (ligado por padrão).
 Desligada — ou sem Stockfish disponível — a tentativa é só recusada, como antes.

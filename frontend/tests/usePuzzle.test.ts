@@ -251,17 +251,19 @@ test("lance errado sem comentário do autor mantém a mensagem padrão", () => {
 test("lance certo com comentário do autor entra no 'Certo!'", async () => {
   const { result } = setup(AUTHORED);
   act(() => result.current.tryMove("e1", "e8"));
-  expect(result.current.state.message).toEqual({ text: "Certo! — A torre corta o rei.", tone: "ok" });
+  // a âncora é a posição de antes do lance recém-jogado: no comentário, "Te8" vira link
+  expect(result.current.state.message).toEqual({ text: "Certo! — A torre corta o rei.", tone: "ok", fen: AUTHORED.fen_start });
   await act(async () => { vi.advanceTimersByTime(100); await Promise.resolve(); });
   expect(result.current.state.phase).toBe("awaiting_move");
+  const antesDoUltimo = result.current.state.fen;
   await act(async () => { result.current.tryMove("a4", "e8"); await Promise.resolve(); });
-  expect(result.current.state.message).toEqual({ text: "Certo! — E a dama coleta.", tone: "ok" });
+  expect(result.current.state.message).toEqual({ text: "Certo! — E a dama coleta.", tone: "ok", fen: antesDoUltimo });
 });
 
 test("sem comentários a mensagem de acerto continua 'Certo!'", async () => {
   const { result } = setup(ONE_MOVE);
   await act(async () => { result.current.tryMove("c3", "d5"); await Promise.resolve(); });
-  expect(result.current.state.message).toEqual({ text: "Certo!", tone: "ok" });
+  expect(result.current.state.message).toEqual({ text: "Certo!", tone: "ok", fen: ONE_MOVE.fen_start });
 });
 
 // --- último lance do adversário (fase "intro") ---------------------------
@@ -310,6 +312,48 @@ test("sem `last_move` não há introdução", () => {
   const { result } = setup({ ...ONE_MOVE, fen_before: "4k3/8/8/8/3q4/2N5/7P/4K3 b - - 0 1", last_move: null });
   expect(result.current.state.phase).toBe("awaiting_move");
   expect(result.current.state.fen).toBe(ONE_MOVE.fen_start);
+});
+
+// --- histórico do exercício ---------------------------------------------
+
+test("sem introdução o histórico começa na posição do exercício e cresce a cada lance", async () => {
+  const { result } = setup(MATE_IN_2);
+  expect(result.current.history).toEqual([{ fen: MATE_IN_2.fen_start, lastMove: undefined }]);
+
+  act(() => result.current.tryMove("e1", "e8"));
+  expect(result.current.history.length).toBe(2);
+  expect(result.current.history[1].lastMove).toEqual(["e1", "e8"]);
+
+  await act(async () => { vi.advanceTimersByTime(100); await Promise.resolve(); });
+  expect(result.current.history.length).toBe(3);
+  expect(result.current.history[2].fen).toBe(result.current.state.fen);
+  expect(result.current.history[2].lastMove).toEqual(["c8", "e8"]);
+});
+
+test("com introdução o histórico guarda a posição de antes do lance do adversário", () => {
+  const { result } = setup(MATE_IN_2_INTRO);
+  // durante a introdução nada aconteceu ainda: só a posição de antes
+  expect(result.current.history).toEqual([{ fen: MATE_IN_2_INTRO.fen_before }]);
+
+  act(() => { vi.advanceTimersByTime(400); });
+  expect(result.current.history).toEqual([
+    { fen: MATE_IN_2_INTRO.fen_before },
+    { fen: MATE_IN_2_INTRO.fen_start, lastMove: ["c7", "c8"] },
+  ]);
+});
+
+test("na refutação o histórico termina no lance errado e na réplica", async () => {
+  const { result } = setup(ONE_MOVE, { refute: true, analyse: engineDuble() });
+  act(() => result.current.tryMove("h2", "h3"));
+  expect(result.current.history.map((h) => h.fen)).toEqual([ONE_MOVE.fen_start, FEN_ERRO]);
+
+  await escoar();
+  expect(result.current.history.map((h) => h.fen)).toEqual([ONE_MOVE.fen_start, FEN_ERRO, FEN_REPLICA]);
+  expect(result.current.history[2].lastMove).toEqual(["d5", "g2"]);
+
+  // "Tentar de novo" tira as duas do histórico
+  act(() => result.current.retryMove());
+  expect(result.current.history.map((h) => h.fen)).toEqual([ONE_MOVE.fen_start]);
 });
 
 // --- sons -----------------------------------------------------------------
@@ -386,7 +430,7 @@ test("lance errado com refutação entra numa cópia, a engine responde e a aval
   expect(result.current.state.fen).toBe(FEN_ERRO);
   expect(result.current.state.wrong).toBe(true);
   expect(result.current.state.lastMove).toEqual(["h2", "h3"]);
-  expect(result.current.state.message).toEqual({ text: "h3? Vendo a resposta…", tone: "bad" });
+  expect(result.current.state.message).toEqual({ text: "h3? Vendo a resposta…", tone: "bad", fen: ONE_MOVE.fen_start });
   expect(result.current.dests.size).toBe(0);
 
   await escoar();
@@ -394,7 +438,8 @@ test("lance errado com refutação entra numa cópia, a engine responde e a aval
   expect(result.current.state.fen).toBe(FEN_REPLICA);
   expect(result.current.state.lastMove).toEqual(["d5", "g2"]);
   expect(result.current.state.refutation).toMatchObject({ wrongSan: "h3", replySan: "Qg2", evalAfter: -500, evalBefore: 900, pvSan: [] });
-  expect(result.current.state.message).toEqual({ text: "h3? Qg2 — avaliação cai de +9.00 para -5.00", tone: "bad" });
+  // âncora da refutação: a posição de antes do lance errado, para "h3?" e "Qg2" virarem links
+  expect(result.current.state.message).toEqual({ text: "h3? Qg2 — avaliação cai de +9.00 para -5.00", tone: "bad", fen: ONE_MOVE.fen_start });
   expect(result.current.dests.size).toBe(0);
   expect(analyse).toHaveBeenCalledTimes(2);
   expect(analyse).toHaveBeenCalledWith(ONE_MOVE.fen_start, 1);
@@ -474,7 +519,7 @@ test("lance errado que dá mate fica em 'refuted' sem réplica", async () => {
   expect(result.current.state.phase).toBe("refuted");
   expect(result.current.state.fen).toBe(FEN_ERRO);
   expect(result.current.state.refutation?.replySan).toBeUndefined();
-  expect(result.current.state.message).toEqual({ text: "h3? — é mate, mas não é a solução do exercício", tone: "bad" });
+  expect(result.current.state.message).toEqual({ text: "h3? — é mate, mas não é a solução do exercício", tone: "bad", fen: ONE_MOVE.fen_start });
   expect(sons()).toEqual(["wrong"]);
 });
 
@@ -551,6 +596,7 @@ test("a mensagem junta a continuação da engine e o comentário do autor", asyn
   expect(result.current.state.message).toEqual({
     text: "h3? Qg2 — avaliação cai de +9.00 para -5.00 · segue Kf1 Qxh1 Ke2 Qg2 Ke1 — Perde a dama.",
     tone: "bad",
+    fen: comAutor.fen_start,
   });
 });
 

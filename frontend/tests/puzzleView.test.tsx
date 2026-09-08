@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, expect, test, vi } from "vitest";
 import type { AnalyseOut, AttemptOut, PuzzleOut, TacticOut } from "../src/api/types";
@@ -237,7 +237,8 @@ test("com o lance errado no tabuleiro a dica dá lugar ao 'Tentar de novo'", asy
   expect(screen.queryByRole("button", { name: "Dica" })).toBeNull();
   // o "Pular" continua onde estava
   expect(screen.getByRole("button", { name: "Pular" })).toBeTruthy();
-  expect(screen.getByText("h3? Qg2 — avaliação cai de +9.00 para -5.00")).toBeTruthy();
+  // a mensagem vem quebrada em links: o texto inteiro está no `.msg`
+  expect(document.querySelector(".msg")!.textContent).toBe("h3? Qg2 — avaliação cai de +9.00 para -5.00");
 });
 
 test("clicar em 'Tentar de novo' chama retryMove", async () => {
@@ -280,4 +281,157 @@ test("as marcações do autor somem enquanto a refutação está no tabuleiro", 
   fireEvent.click(voltar);
   expect(last().arrows).toEqual([{ orig: "c3", dest: "d5", brush: "green" }]);
   expect(last().squares).toEqual([{ orig: "e1", brush: "red" }]);
+});
+
+// --- lances clicáveis na mensagem ---------------------------------------
+
+/** Posição depois do lance errado `h3`, e a de depois da réplica `Qg2`. */
+const FEN_DEPOIS_DO_ERRO = "4k3/8/8/3q4/8/2N4P/8/4K3 b - - 0 1";
+
+test("os lances da refutação viram links e a prévia entra no tabuleiro", async () => {
+  render(<RefutaHost />);
+  fireEvent.click(screen.getByText("errar"));
+  await screen.findByRole("button", { name: "Tentar de novo" });
+  const viva = last().fen;
+
+  // "h3? Qg2" é a linha inteira: clicar na réplica para na posição de agora
+  fireEvent.click(screen.getByRole("button", { name: "Qg2" }));
+  expect(last().fen).toBe(viva);
+  expect(last().movableColor).toBeUndefined();
+  expect(screen.getByText(/prévia: h3 Qg2/)).toBeTruthy();
+
+  // o primeiro link é só o lance errado
+  fireEvent.click(screen.getByRole("button", { name: "h3?" }));
+  expect(last().fen).toBe(FEN_DEPOIS_DO_ERRO);
+  expect(last().lastMove).toEqual(["h2", "h3"]);
+  expect(screen.getByText(/prévia: h3 ·/)).toBeTruthy();
+
+  fireEvent.click(screen.getByRole("button", { name: "voltar" }));
+  expect(screen.queryByText(/^prévia:/)).toBeNull();
+  expect(last().fen).toBe(viva);
+});
+
+test("'Tentar de novo' limpa a prévia", async () => {
+  render(<RefutaHost />);
+  fireEvent.click(screen.getByText("errar"));
+  const voltar = await screen.findByRole("button", { name: "Tentar de novo" });
+  fireEvent.click(screen.getByRole("button", { name: "h3?" }));
+  expect(screen.getByText(/^prévia:/)).toBeTruthy();
+
+  fireEvent.click(voltar);
+  expect(screen.queryByText(/^prévia:/)).toBeNull();
+  expect(last().fen).toBe(own.fen_start);
+  expect(last().movableColor).toBe("white");
+});
+
+// --- navegação do histórico ---------------------------------------------
+
+/** Mesmo exercício de `own`, mas com o lance do adversário guardado. */
+const comIntro: PuzzleOut = { ...own, id: "p5",
+  fen_before: "4k3/8/8/8/3q4/2N5/7P/4K3 b - - 0 1", last_move: "d4d5" };
+
+/** Exercício de dois lances do solver, com uma réplica da engine no meio. */
+const mate: PuzzleOut = { ...own, id: "p6", fen_start: "2r3k1/5ppp/8/8/Q7/8/8/4R1K1 w - - 0 1", solver_moves: 2,
+  solution: { moves: [
+    { uci: "e1e8", by: "solver", alternatives: [] },
+    { uci: "c8e8", by: "engine", alternatives: [] },
+    { uci: "a4e8", by: "solver", alternatives: [] },
+  ], explanation_pv: [] } };
+
+function IntroHost() {
+  const ctl = usePuzzle(comIntro, { sessionId: null, submit: async () => ({}) as never, introDelayMs: 0 });
+  return <PuzzleView puzzle={comIntro} ctl={ctl} />;
+}
+
+const setas = () => ({
+  inicio: screen.getByRole("button", { name: "Início" }) as HTMLButtonElement,
+  anterior: screen.getByRole("button", { name: "Lance anterior" }) as HTMLButtonElement,
+  proximo: screen.getByRole("button", { name: "Próximo lance" }) as HTMLButtonElement,
+  atual: screen.getByRole("button", { name: "Posição atual" }) as HTMLButtonElement,
+});
+
+test("◀ mostra a posição de antes do lance do adversário e ▶ volta à viva", async () => {
+  render(<IntroHost />);
+  await waitFor(() => expect(last().lastMove).toEqual(["d4", "d5"]));
+
+  fireEvent.click(setas().anterior);
+  expect(last().fen).toBe(comIntro.fen_before);
+  expect(last().lastMove).toBeUndefined();
+  expect(last().movableColor).toBeUndefined();
+  expect(screen.getByText(/posição 1 de 2/)).toBeTruthy();
+  // no começo do histórico as setas de voltar ficam desabilitadas
+  expect(setas().anterior.disabled).toBe(true);
+  expect(setas().inicio.disabled).toBe(true);
+
+  fireEvent.click(setas().proximo);
+  expect(last().fen).toBe(own.fen_start);
+  expect(last().lastMove).toEqual(["d4", "d5"]);
+  expect(last().movableColor).toBe("white");
+  expect(screen.queryByText(/posição 1 de 2/)).toBeNull();
+});
+
+test("as setas do teclado andam no histórico, com Home e End nos extremos", async () => {
+  render(<IntroHost />);
+  await waitFor(() => expect(last().lastMove).toEqual(["d4", "d5"]));
+
+  fireEvent.keyDown(window, { key: "ArrowLeft" });
+  expect(last().fen).toBe(comIntro.fen_before);
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+  expect(last().fen).toBe(own.fen_start);
+
+  fireEvent.keyDown(window, { key: "Home" });
+  expect(last().fen).toBe(comIntro.fen_before);
+  fireEvent.keyDown(window, { key: "End" });
+  expect(last().fen).toBe(own.fen_start);
+});
+
+test("sem histórico anterior as setas ficam desabilitadas", () => {
+  render(<Host puzzle={own} />);
+  const b = setas();
+  expect(b.inicio.disabled).toBe(true);
+  expect(b.anterior.disabled).toBe(true);
+  expect(b.proximo.disabled).toBe(true);
+  expect(b.atual.disabled).toBe(true);
+});
+
+test("depois de um lance certo com resposta da engine, ⏮ vai ao começo e ⏭ à viva", async () => {
+  function MateHost() {
+    const ctl = usePuzzle(mate, { sessionId: null, submit: async () => ({}) as never, engineDelayMs: 5 });
+    return (
+      <>
+        <button onClick={() => ctl.tryMove("e1", "e8")}>acertar</button>
+        <PuzzleView puzzle={mate} ctl={ctl} />
+      </>
+    );
+  }
+  render(<MateHost />);
+  fireEvent.click(screen.getByText("acertar"));
+  await waitFor(() => expect(last().lastMove).toEqual(["c8", "e8"]));
+  const viva = last().fen;
+
+  fireEvent.click(setas().inicio);
+  expect(last().fen).toBe(mate.fen_start);
+  expect(last().movableColor).toBeUndefined();
+  expect(screen.getByText(/posição 1 de 3/)).toBeTruthy();
+
+  fireEvent.click(setas().atual);
+  expect(last().fen).toBe(viva);
+  expect(last().movableColor).toBe("white");
+  expect(screen.queryByText(/posição 1 de 3/)).toBeNull();
+});
+
+test("durante a refutação ◀ mostra a posição de antes do lance errado", async () => {
+  render(<RefutaHost />);
+  fireEvent.click(screen.getByText("errar"));
+  await screen.findByRole("button", { name: "Tentar de novo" });
+
+  // a réplica da engine está no tabuleiro; o histórico tem 3 posições
+  fireEvent.click(setas().anterior);
+  expect(last().fen).toBe(FEN_DEPOIS_DO_ERRO);
+  expect(screen.getByText(/posição 2 de 3/)).toBeTruthy();
+
+  fireEvent.click(setas().anterior);
+  expect(last().fen).toBe(own.fen_start);
+  expect(screen.getByText(/posição 1 de 3/)).toBeTruthy();
+  expect(screen.getByRole("button", { name: "voltar ao lance atual" })).toBeTruthy();
 });

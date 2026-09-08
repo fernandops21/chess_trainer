@@ -114,6 +114,16 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 /* o ícone em SVG ocupa o mesmo lugar do círculo de texto, com a sombra por fora */
 .board-badge > svg { width: 56%; height: 56%; margin: -18% -18% 0 0; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .35)); }
 
+/* lances escritos no texto do autor viram links: clicar mostra a posição no tabuleiro */
+.texto-com-lances { white-space: pre-wrap; }
+button.lance-no-texto {
+  min-height: 0; padding: 0; border: none; border-radius: 0; background: none;
+  color: inherit; font: inherit; text-decoration: underline dotted; cursor: pointer;
+}
+button.lance-no-texto:hover { color: var(--brand); }
+/* faixa acima do tabuleiro enquanto uma prévia está na tela */
+.previa { margin-bottom: 8px; color: var(--muted); }
+
 .node-menu { position: fixed; z-index: 20; min-width: 220px; padding: 6px; display: flex; flex-direction: column; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
 .node-menu button { text-align: left; min-height: 36px; }
 .node-menu .row button { min-width: var(--tap); text-align: center; }
