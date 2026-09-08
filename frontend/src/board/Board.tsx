@@ -192,10 +192,9 @@ export function toConfig(p: BoardProps): Config {
       // para ter uma marcação por vez e repetir o gesto nunca apagaria. Desligado, as
       // marcações ficam até a posição mudar. No computador o clique esquerdo continua limpando.
       eraseOnClick: !longPress,
-      // O chessground avisa aqui a cada seta/casa desenhada ou apagada. Ele não
-      // dispara isto no `setShapes` da API, então devolver as marcações pelo
-      // `shapes` não vira laço.
-      onChange: p.onShapesChange ? (shapes: DrawShape[]) => p.onShapesChange!(shapes.map(toShape)) : undefined,
+      // O `drawable.onChange` não entra aqui: quem o instala é o `comDesenho`
+      // do componente, que precisa da instância para devolver as marcações
+      // decoradas ao chessground antes de avisar o pai.
       autoShapes: [
         ...(p.highlight ?? []).map((k) => ({ orig: k, brush: "green" })),
         ...(p.arrows ?? []).map((a) => decorarCavalo({ orig: a.orig, dest: a.dest, brush: a.brush ?? "green" }, p.orientation)),
@@ -206,16 +205,16 @@ export function toConfig(p: BoardProps): Config {
 }
 
 /**
- * Liga ou desliga uma marcação do usuário, preservando as outras, e avisa o
- * pai: o `setShapes` da API não dispara o `drawable.onChange` do chessground,
- * então sem este aviso o desenho do toque longo nunca chegaria à árvore.
+ * Lista com a marcação do toque longo ligada ou desligada, preservando as
+ * outras. Quem entrega a lista ao chessground e avisa o pai é o componente: o
+ * `setShapes` da API não dispara o `drawable.onChange`, então sem esse aviso o
+ * desenho do toque longo nunca chegaria à árvore.
  */
 function toggleShape(
   api: Api,
   orig: Key,
   dest: Key | undefined,
   orientation: "white" | "black",
-  avisar?: (shapes: Shape[]) => void,
 ): KnightShape[] {
   const shape: DrawShape = dest && dest !== orig ? { orig, dest, brush: "green" } : { orig, brush: "green" };
   const shapes = (api.state.drawable.shapes ?? []) as KnightShape[];
@@ -223,10 +222,7 @@ function toggleShape(
   const mesma = (s: KnightShape) =>
     s.orig === shape.orig && s.dest === shape.dest && (s.cavalo ?? s.brush) === shape.brush;
   const kept = shapes.filter((s) => !mesma(s));
-  const novas = kept.length === shapes.length ? [...shapes, decorarCavalo(shape, orientation)] : kept;
-  api.setShapes(novas);
-  avisar?.(novas.map(toShape));
-  return novas;
+  return kept.length === shapes.length ? [...shapes, decorarCavalo(shape, orientation)] : kept;
 }
 
 export function Board(props: BoardProps) {
@@ -327,7 +323,9 @@ export function Board(props: BoardProps) {
       if (drawing && orig && api) {
         const t = e.changedTouches[0];
         const dest = t ? api.getKeyAtDomPos([t.clientX, t.clientY]) : undefined;
-        decoradas.current = toggleShape(api, orig, dest, orientacao.current, aoMudarMarcacoes.current);
+        const novas = toggleShape(api, orig, dest, orientacao.current);
+        aplicar(novas);
+        aoMudarMarcacoes.current?.(novas.map(toShape));
       }
       reset();
     };

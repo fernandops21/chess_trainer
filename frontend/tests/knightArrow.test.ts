@@ -17,17 +17,17 @@ test("g1→f3 com as brancas embaixo: sobe duas casas e depois vira à esquerda"
   expect(d.startsWith("M50 50")).toBe(true);
   // ramo longo primeiro: duas casas para cima (200 unidades)
   expect(d).toContain("L50 -150");
-  // o ramo curto para 15,6 unidades antes do centro de f3 (-50), onde entra a ponta
-  expect(d).toBe("M50 50 L50 -150 L-34.4 -150");
+  // o ramo curto para 15,625 unidades antes do centro de f3 (-50), onde entra a ponta
+  expect(d).toBe("M50 50 L50 -150 L-34.37 -150");
 });
 
 test("virando o tabuleiro, o mesmo salto espelha os dois ramos", () => {
-  expect(caminhoEmL("g1", "f3", "black")).toBe("M50 50 L50 250 L134.4 250");
+  expect(caminhoEmL("g1", "f3", "black")).toBe("M50 50 L50 250 L134.38 250");
 });
 
 test("quando o ramo longo é horizontal, ele também vem primeiro", () => {
   // g1→e2: duas colunas para a esquerda, uma fileira para cima
-  expect(caminhoEmL("g1", "e2", "white")).toBe("M50 50 L-150 50 L-150 -34.4");
+  expect(caminhoEmL("g1", "e2", "white")).toBe("M50 50 L-150 50 L-150 -34.37");
 });
 
 test("uma seta que não é de cavalo sai intacta", () => {
@@ -43,9 +43,27 @@ test("a seta de cavalo perde o pincel e vira um desenho próprio", () => {
   expect(seta.cavalo).toBe("green");
   expect(seta.customSvg?.center).toBe("orig");
   expect(seta.customSvg?.html).toContain('stroke="#15781B"');
-  expect(seta.customSvg?.html).toContain('d="M50 50 L50 -150 L-34.4 -150"');
+  expect(seta.customSvg?.html).toContain('d="M50 50 L50 -150 L-34.37 -150"');
+  // espessura do pincel: 10/64 de casa = 15,625 unidades do viewBox
+  expect(seta.customSvg?.html).toContain('stroke-width="15.63"');
   // a ponta é desenhada aqui: o marcador do chessground só existe para setas com pincel
-  expect(seta.customSvg?.html).toContain('fill="#15781B"');
+  expect(seta.customSvg?.html).toContain('<path d="M-2.34 -118.75 L-49.22 -150 L-2.34 -181.25 Z" fill="#15781B"/>');
+});
+
+test("a seta em L usa a mesma opacidade das retas", () => {
+  // as retas ficam em `svg.cg-shapes`, que tem `opacity: .6` na camada; o
+  // `.cg-custom-svgs` não tem, então o fator entra no grupo — que também evita
+  // o escurecimento onde a ponta encosta na haste
+  const verde = decorarCavalo({ orig: "g1", dest: "f3", brush: "green" }, "white");
+  expect(verde.customSvg?.html.startsWith('<g opacity="0.6">')).toBe(true);
+  expect(verde.customSvg?.html.endsWith("</g>")).toBe(true);
+  // a opacidade aparece uma vez só: no grupo, nunca nos paths
+  expect(verde.customSvg?.html.match(/opacity="/g)).toHaveLength(1);
+  // pincel translúcido: a opacidade dele multiplica a da camada
+  const palido = decorarCavalo({ orig: "g1", dest: "f3", brush: "paleGrey" }, "white");
+  expect(palido.customSvg?.html).toContain('<g opacity="0.21">');
+  // e o pincel pálido é mais grosso (lineWidth 15 no chessground)
+  expect(palido.customSvg?.html).toContain('stroke-width="23.44"');
 });
 
 test("cada pincel tem sua cor; o desconhecido vira verde", () => {

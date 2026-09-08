@@ -403,7 +403,7 @@ test("a seta do autor de um salto de cavalo chega ao chessground em L", () => {
   expect(seta.brush).toBeUndefined();
   expect(seta.cavalo).toBe("green");
   expect(seta.customSvg?.center).toBe("orig");
-  expect(seta.customSvg?.html).toContain("M50 50 L50 -150 L-34.4 -150");
+  expect(seta.customSvg?.html).toContain("M50 50 L50 -150 L-34.37 -150");
 });
 
 test("a seta do autor que não é de cavalo continua reta", () => {
@@ -452,7 +452,71 @@ test("redesenhar com outro pincel troca a cor da seta de cavalo", () => {
 test("virar o tabuleiro refaz o L da seta de cavalo sem perder o desenho", () => {
   const shapes = [{ orig: "g1", dest: "f3", brush: "green" }];
   const { rerender } = render(<Board fen={F1} orientation="white" drawable shapes={shapes} />);
-  expect(ultimasShapes()[0].customSvg?.html).toContain("M50 50 L50 -150 L-34.4 -150");
+  expect(ultimasShapes()[0].customSvg?.html).toContain("M50 50 L50 -150 L-34.37 -150");
   rerender(<Board fen={F1} orientation="black" drawable shapes={shapes} />);
-  expect(ultimasShapes()[0].customSvg?.html).toContain("M50 50 L50 250 L134.4 250");
+  expect(ultimasShapes()[0].customSvg?.html).toContain("M50 50 L50 250 L134.38 250");
+});
+
+test("no celular o toque longo desenha a seta de cavalo em L e repetir o gesto apaga", () => {
+  setPointer(true);
+  vi.useFakeTimers();
+  // metade esquerda = g1, metade direita = f3
+  api.getKeyAtDomPos.mockImplementation(([x]: [number, number]) => (x < 50 ? "g1" : "f3"));
+  const onShapesChange = vi.fn();
+  const { container } = render(
+    <Board fen={F1} orientation="white" drawable onShapesChange={onShapesChange} />,
+  );
+  const el = boardOf(container);
+  const gesto = () => {
+    el.dispatchEvent(touch("touchstart", [at(10)]));
+    vi.advanceTimersByTime(350);
+    el.dispatchEvent(touch("touchend", [at(90)]));
+  };
+
+  gesto();
+  const seta = ultimasShapes()[0];
+  // sem `brush` o chessground não desenha a reta; o desenho é o nosso
+  expect(seta.brush).toBeUndefined();
+  expect(seta.cavalo).toBe("green");
+  expect(seta.customSvg?.center).toBe("orig");
+  expect(seta.customSvg?.html).toContain("M50 50 L50 -150 L-34.37 -150");
+  // a árvore do estudo continua recebendo só `{orig, dest, brush}`
+  expect(onShapesChange).toHaveBeenLastCalledWith([{ orig: "g1", dest: "f3", brush: "green" }]);
+
+  // repetir o gesto apaga: o toggle compara pelo `cavalo`, já que a decorada não tem `brush`
+  gesto();
+  expect(ultimasShapes()).toEqual([]);
+  expect(onShapesChange).toHaveBeenLastCalledWith([]);
+});
+
+test("lance recusado mantém a seta de cavalo decorada e o espelho em sincronia", () => {
+  setPointer(false);
+  const onMove = vi.fn();
+  const onShapesChange = vi.fn();
+  const { rerender } = render(
+    <Board fen={F1} orientation="white" movableColor="white" onMove={onMove} drawable onShapesChange={onShapesChange} />,
+  );
+  // o usuário desenha o salto de cavalo: o tabuleiro guarda a versão decorada
+  onChangeDoTabuleiro()([{ orig: "g1" as Key, dest: "f3" as Key, brush: "green" }]);
+
+  // o chessground moveu a peça e avisou o app; o app recusou (fen igual)
+  const cfg = api.set.mock.calls.at(-1)?.[0] as { movable?: { events?: { after?: (o: Key, d: Key) => void } } };
+  cfg.movable?.events?.after?.("e1" as Key, "e8" as Key);
+  expect(onMove).toHaveBeenCalledWith("e1", "e8");
+  api.set.mockClear();
+  api.setShapes.mockClear();
+  rerender(
+    <Board fen={F1} orientation="white" movableColor="white" onMove={onMove} drawable onShapesChange={onShapesChange} />,
+  );
+
+  // a fen volta para a peça retornar e a seta em L é reposta inteira
+  expect(api.set.mock.calls.at(-1)?.[0]?.fen).toBe(F1);
+  const reposta = ultimasShapes()[0];
+  expect(reposta.cavalo).toBe("green");
+  expect(reposta.customSvg?.center).toBe("orig");
+
+  // o espelho das decoradas acompanhou a reposição: redesenhar a mesma seta apaga
+  onChangeDoTabuleiro()([{ orig: "g1" as Key, dest: "f3" as Key, brush: "green" }]);
+  expect(ultimasShapes()).toEqual([]);
+  expect(onShapesChange).toHaveBeenLastCalledWith([]);
 });
