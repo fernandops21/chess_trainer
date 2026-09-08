@@ -31,7 +31,9 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 .nav .nav-som { background: transparent; border: none; color: var(--brand-ink); padding: 10px 12px; border-radius: 8px; display: flex; align-items: center; gap: 10px; min-height: var(--tap); text-align: left; }
 .nav .nav-som[aria-pressed="false"] { opacity: .65; }
 .content { padding: 20px; max-width: 1100px; width: 100%; min-width: 0; overflow-x: hidden; }
-.two-col { display: grid; grid-template-columns: minmax(300px, 640px) minmax(0, 1fr); gap: 24px; align-items: start; }
+/* o tabuleiro não passa da altura da janela: a coluna da direita (cartões,
+   lista de lances) rola sozinha em vez de esticar a página inteira */
+.two-col { display: grid; grid-template-columns: minmax(300px, min(640px, calc(100vh - 180px))) minmax(0, 1fr); gap: 24px; align-items: start; }
 @media (max-width: 899px) {
   .app { grid-template-columns: 1fr; grid-template-rows: 1fr; }
   .nav { flex-direction: row; position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; padding: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: space-around; }

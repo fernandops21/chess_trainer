@@ -33,7 +33,9 @@ export function ResultPanel({ puzzle, review, error, onRetry, onNext, nextLabel 
       refutation.solution.moves.map((m) => m.uci),
     );
   }, [puzzle, isAvoid, refutation]);
-  return (
+  // o resultado e o cartão do erro vão para o topo da coluna da direita: em cima
+  // do tabuleiro eles empurravam tudo para baixo e sobrava espaço ao lado
+  const lateral = (
     <>
       <div className="card">
         {clockLabel && <div className="row"><span className="muted" aria-label="relógio">{clockLabel}</span></div>}
@@ -61,7 +63,7 @@ export function ResultPanel({ puzzle, review, error, onRetry, onNext, nextLabel 
         </div>
       </div>
       {comErro && <MistakeCard puzzle={comErro} />}
-      <AnalysisBoard tree={tree} initialNodeId="last" engine={false} allowSetup={false} />
     </>
   );
+  return <AnalysisBoard tree={tree} initialNodeId="last" engine={false} allowSetup={false} sidePanel={lateral} />;
 }

@@ -207,7 +207,7 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDis
           {onSkip && <button onClick={onSkip} disabled={skipDisabled} aria-label="Pular">Pular</button>}
           {comErro && (
             <button onClick={() => setVerErro((v) => !v)} aria-expanded={verErro}>
-              {comErro.kind === "avoid" ? "Meu erro (revela o lance que não jogar)" : "Erro do adversário"}
+              {comErro.kind === "avoid" ? "Meu erro (revela o lance que não jogar)" : "Na partida"}
             </button>
           )}
           {clockLabel && <span className="muted" aria-label="relógio">{clockLabel}</span>}

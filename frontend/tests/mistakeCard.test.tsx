@@ -90,6 +90,46 @@ test("no punir, a revisão de erros abre pela posição de antes do lance do adv
   expect(screen.getByText("revisão de erros").getAttribute("href")).toBe(`/erros?position=${encodeURIComponent(FEN_ANTES)}`);
 });
 
+// --- punir com a resposta da partida -------------------------------------
+
+const RESPOSTA = { ply: 41, move_played: "Ne4", move_uci: "c3e4", eval_before: 300, eval_after: 20 };
+const punirComResposta: PuzzleOut = { ...punir, mistake: { ...punir.mistake!, my_reply: RESPOSTA } };
+
+test("punir com a resposta mostra a posição do exercício e o lance que você jogou", () => {
+  const { container } = renderCard(punirComResposta);
+  expect(last().fen).toBe(FEN_INICIO);
+  expect(last().lastMove).toEqual(["c3", "e4"]);
+  expect(container.textContent).toMatch(/Na partida o adversário jogou\s*Qd3/);
+  expect(container.textContent).toMatch(/Você respondeu\s*Ne4\s*\(\+3\.00 → \+0\.20\)\s*e deixou passar\s*Nd5/);
+  // o link da revisão continua na posição de antes do lance do adversário
+  expect(screen.getByText("revisão de erros").getAttribute("href")).toBe(`/erros?position=${encodeURIComponent(FEN_ANTES)}`);
+});
+
+test("quando a resposta foi a própria solução, o cartão diz que você achou", () => {
+  const { container } = renderCard({
+    ...punir,
+    mistake: { ...punir.mistake!, my_reply: { ...RESPOSTA, move_played: "Nd5", move_uci: "c3d5" } },
+  });
+  expect(container.textContent).toMatch(/Você achou\s*Nd5\s*na partida\./);
+  expect(container.textContent).not.toMatch(/deixou passar/);
+});
+
+test("a alternativa da solução também conta como achada", () => {
+  const alternativa: PuzzleOut = {
+    ...punir,
+    solution: { moves: [{ uci: "c3d5", by: "solver", alternatives: ["c3e4"] }], explanation_pv: [] },
+    mistake: { ...punir.mistake!, my_reply: RESPOSTA },
+  };
+  expect(renderCard(alternativa).container.textContent).toMatch(/Você achou\s*Nd5\s*na partida\./);
+});
+
+test("evitar não usa a resposta da partida nem com ela na API", () => {
+  const { container } = renderCard({ ...evitar, mistake: { ...evitar.mistake!, my_reply: RESPOSTA } });
+  expect(last().lastMove).toEqual(["c3", "b1"]);
+  expect(container.textContent).toMatch(/Na partida você jogou\s*Nb1/);
+  expect(container.textContent).not.toMatch(/Você respondeu/);
+});
+
 test("sem erro ou sem partida o cartão não aparece", () => {
   const { container } = renderCard({ ...evitar, mistake: null });
   expect(container.textContent).toBe("");

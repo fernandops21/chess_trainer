@@ -15,7 +15,9 @@ export function TacticResultPanel({ tactic, attempt, durationMs, error, onRetry,
   // a solução vira a árvore do tabuleiro de análise: dá para sair da linha e
   // experimentar qualquer lance, sem pedir nada à engine antes de o usuário querer
   const tree = useMemo(() => treeFromSolution(tactic), [tactic]);
-  return (
+  // mesma disposição do resultado dos exercícios: o cartão vai ao lado do
+  // tabuleiro, não em cima dele
+  const lateral = (
     <>
       <div className="card">
         {clockLabel && <div className="row"><span className="muted" aria-label="relógio">{clockLabel}</span></div>}
@@ -38,7 +40,7 @@ export function TacticResultPanel({ tactic, attempt, durationMs, error, onRetry,
           {attempt && <button className="primary" style={{ marginLeft: "auto" }} disabled={nextDisabled} onClick={onNext}>{nextDisabled ? "Carregando…" : "Próximo"}</button>}
         </div>
       </div>
-      <AnalysisBoard tree={tree} initialNodeId="last" engine={false} allowSetup={false} />
     </>
   );
+  return <AnalysisBoard tree={tree} initialNodeId="last" engine={false} allowSetup={false} sidePanel={lateral} />;
 }

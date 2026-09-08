@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { novoChess } from "../lib/chess";
 import type { Key } from "chessground/types";
@@ -41,6 +41,9 @@ export interface AnalysisBoardProps {
   engine?: boolean;
   /** Mostra o botão "Montar posição" (fora do resultado de exercício). */
   allowSetup?: boolean;
+  /** Cartões do dono do tabuleiro, no topo da coluna da direita (o resultado do
+   *  exercício, por exemplo), acima do painel do motor e da lista de lances. */
+  sidePanel?: ReactNode;
 }
 
 /** Abas do painel lateral: o motor ou o livro de aberturas. */
@@ -76,6 +79,7 @@ export function AnalysisBoard({
   initialNodeId,
   engine = true,
   allowSetup = true,
+  sidePanel,
 }: AnalysisBoardProps) {
   const mt = useMoveTree(tree, initialNodeId);
   // o motor desligado só custa um botão: quem quiser a análise liga na hora
@@ -322,6 +326,7 @@ export function AnalysisBoard({
         )}
       </div>
       <div>
+        {sidePanel && <div className="painel-lateral">{sidePanel}</div>}
         {!motor ? (
           <div className="card">
             <button onClick={() => setMotor(true)}>Analisar com a engine</button>

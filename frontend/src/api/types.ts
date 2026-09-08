@@ -194,6 +194,15 @@ export interface GameRef {
   my_color: Color;
 }
 
+/** O que você respondeu na partida ao erro do adversário (o ply seguinte ao dele). */
+export interface MyReplyInfo {
+  ply: number;
+  move_played: string;
+  move_uci: string;
+  eval_before: number;
+  eval_after: number;
+}
+
 export interface MistakeRef {
   ply: number;
   move_played: string;
@@ -202,6 +211,8 @@ export interface MistakeRef {
   eval_after: number;
   mistake_level: MistakeLevel | null;
   mistake_by: "me" | "opponent" | null;
+  /** Só nos "punir": nulo no "evitar" e quando o erro foi o último lance da partida. */
+  my_reply?: MyReplyInfo | null;
 }
 
 export interface PuzzleSibling {

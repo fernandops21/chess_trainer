@@ -78,7 +78,7 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 function renderPanel(puzzle: PuzzleOut) {
-  render(
+  return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <MemoryRouter>
         <ResultPanel puzzle={puzzle} onRetry={() => {}} onNext={() => {}} />
@@ -119,6 +119,16 @@ test("puzzle próprio traz a partida e o cartão do erro", () => {
   // o cartão "Meu erro" já vem aberto e é ele que leva à partida no app
   expect(screen.getByText("partida no app").getAttribute("href")).toBe("/partidas/g1?ply=23");
   expect(screen.getByText("revisão de erros")).toBeTruthy();
+});
+
+test("o resultado e o cartão do erro ficam na coluna da direita", () => {
+  const { container } = renderPanel(base);
+  const lateral = container.querySelector(".painel-lateral");
+  expect(lateral).toBeTruthy();
+  // o cartão do resultado (com o botão de explorar) e o do erro, os dois no painel
+  expect(lateral!.textContent).toMatch(/Explorar/);
+  expect(lateral!.textContent).toMatch(/Na partida você jogou/);
+  expect(lateral!.querySelector("a[href='/partidas/g1?ply=23']")).toBeTruthy();
 });
 
 test("estudo não tem cartão de erro", () => {

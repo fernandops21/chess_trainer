@@ -187,18 +187,24 @@ function comRotas(node: ReactNode) {
 
 test("o cartão do erro fica escondido atrás do botão 'Meu erro'", () => {
   const { container } = comRotas(<Host puzzle={own} />);
-  const botao = screen.getByRole("button", { name: /Meu erro|Erro do adversário/ });
-  expect(container.textContent).not.toMatch(/Na partida/);
+  // o rótulo do botão do "punir" também é "Na partida": o cartão se reconhece pelo texto inteiro
+  const botao = screen.getByRole("button", { name: /Meu erro|Na partida/ });
+  expect(container.textContent).not.toMatch(/Na partida você jogou/);
   fireEvent.click(botao);
   expect(container.textContent).toMatch(/Na partida você jogou\s*Nb1/);
   expect(screen.getByText("partida no app")).toBeTruthy();
   fireEvent.click(botao);
-  expect(container.textContent).not.toMatch(/Na partida/);
+  expect(container.textContent).not.toMatch(/Na partida você jogou/);
 });
 
 test("no 'evitar' o botão avisa que revela o lance a não jogar", () => {
   comRotas(<Host puzzle={{ ...own, kind: "avoid" }} />);
   expect(screen.getByRole("button", { name: "Meu erro (revela o lance que não jogar)" })).toBeTruthy();
+});
+
+test("no 'punir' o botão é 'Na partida'", () => {
+  comRotas(<Host puzzle={own} />);
+  expect(screen.getByRole("button", { name: "Na partida" })).toBeTruthy();
 });
 
 test("sem erro de partida não há botão 'Meu erro'", () => {
