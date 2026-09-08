@@ -261,9 +261,12 @@ tabuleiro de análise da tela `/analise`, já na última posição da solução.
   o som do lance toca a cada um;
 - abrir a **Análise completa** no link **Explorar**, que leva a posição do exercício para `/analise`
   numa aba nova (com engine, livro de aberturas e classificação dos lances);
-- nos exercícios que vieram dos **seus erros**, ver o cartão "Meu erro": a posição da partida com o
-  lance ruim destacado, a avaliação de antes e depois e os atalhos para a partida e para a revisão
-  de erros.
+- nos exercícios de **evitar** (o erro foi seu), ver o cartão "Meu erro": a posição da partida com o
+  seu lance ruim destacado, a avaliação de antes e depois e os atalhos para a partida e para a
+  revisão de erros;
+- nos exercícios de **punir** (o erro foi do adversário), ver o cartão "Na partida": a posição do
+  exercício com a sua resposta destacada e o texto "Você respondeu X … e deixou passar Y" quando na
+  partida você não achou o lance, ou "Você achou Y na partida" quando achou.
 
 No "evitar", o lance que você jogou na partida aparece como variação da posição do exercício, com a
 continuação que o punia.

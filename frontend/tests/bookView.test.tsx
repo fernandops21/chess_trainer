@@ -1,7 +1,28 @@
 import { fireEvent, render } from "@testing-library/react";
-import { expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import type { Tree, TreeNode } from "../src/analysis/moveTree";
 import { BookView } from "../src/studies/BookView";
+
+/**
+ * `fenAt` refaz a linha desde a raiz: chamado por lance comentado, o modo livro
+ * ficava quadrático. O contador guarda quantas vezes ele rodou — o livro tem de
+ * montar as FENs de um percurso só e não tocar nele.
+ */
+const contador = vi.hoisted(() => ({ fenAt: 0 }));
+vi.mock("../src/analysis/moveTree", async (importOriginal) => {
+  const real = await importOriginal<typeof import("../src/analysis/moveTree")>();
+  return {
+    ...real,
+    fenAt: (...args: Parameters<typeof real.fenAt>) => {
+      contador.fenAt++;
+      return real.fenAt(...args);
+    },
+  };
+});
+
+beforeEach(() => {
+  contador.fenAt = 0;
+});
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -130,4 +151,33 @@ test("sem lances e sem enunciado, o livro avisa que a linha está vazia", () => 
   const vazio: Tree = { fen: START, orientation: "white", intro: "", root: { children: [] } };
   const { container } = renderLivro({ tree: vazio });
   expect(texto(container.querySelector(".livro"))).toContain("Nenhum lance ainda");
+});
+
+/** Capítulo sintético: cavalos indo e voltando, todos os lances comentados. */
+function capituloLongo(meiosLances: number): Tree {
+  const ucis = ["b1c3", "b8c6", "c3b1", "c6b8"];
+  const sans = ["Nc3", "Nc6", "Nb1", "Nb8"];
+  const comentario = "Nada de mais por aqui: as peças apenas trocam de casa e esperam.";
+  let filhos: TreeNode[] = [];
+  for (let i = meiosLances - 1; i >= 0; i--) {
+    filhos = [node(`p${i}`, ucis[i % 4], sans[i % 4], { comment: comentario, children: filhos })];
+  }
+  return { fen: START, orientation: "white", intro: "", root: { children: filhos } };
+}
+
+test("as FENs dos comentários saem de um percurso só, sem fenAt por lance", () => {
+  const { container } = renderLivro({ tree: capituloLongo(40) });
+  expect(container.querySelectorAll(".livro-par").length).toBe(40);
+  expect(contador.fenAt).toBe(0);
+});
+
+test("um capítulo de 300 meios-lances comentados renderiza sem travar", () => {
+  const tree = capituloLongo(300);
+  const t0 = performance.now();
+  const { container } = renderLivro({ tree });
+  const ms = performance.now() - t0;
+  expect(container.querySelectorAll(".livro-lance").length).toBe(300);
+  // limite folgado de propósito: o que se mede é a ordem de grandeza, que era
+  // quadrática (uma `fenAt` por lance comentado) e agora é linear
+  expect(ms).toBeLessThan(500);
 });

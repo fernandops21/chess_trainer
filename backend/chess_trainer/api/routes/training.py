@@ -4,7 +4,7 @@ from datetime import timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from chess_trainer.api.deps import get_db
@@ -61,9 +61,12 @@ def _my_replies(db: Session, puzzles: Sequence[Puzzle]) -> dict[str, MyReplyInfo
     if not alvos:
         return {}
     pares = set(alvos.values())
-    rows = db.scalars(select(Position).where(
-        or_(*[and_(Position.game_id == g, Position.ply == ply) for g, ply in pares]))).all()
-    por_par = {(r.game_id, r.ply): r for r in rows}
+    # uma condição por par faria a árvore da consulta crescer com a fila (a
+    # lista de leeches não tem limite, e o SQLite recusa com "Expression tree
+    # is too large"): pede as posições das partidas envolvidas e peneira aqui
+    jogos = {game_id for game_id, _ in pares}
+    rows = db.scalars(select(Position).where(Position.game_id.in_(jogos))).all()
+    por_par = {(r.game_id, r.ply): r for r in rows if (r.game_id, r.ply) in pares}
     out: dict[str, MyReplyInfo] = {}
     for puzzle_id, par in alvos.items():
         r = por_par.get(par)

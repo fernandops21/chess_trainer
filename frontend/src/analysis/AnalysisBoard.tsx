@@ -347,6 +347,7 @@ export function AnalysisBoard({
         )}
       </div>
       <div>
+        {/* `painel-lateral` é só gancho de teste e de estilo futuro — sem CSS hoje, e nada de `max-height`: rolagem aqui cortaria o botão "Próximo" */}
         {sidePanel && <div className="painel-lateral">{sidePanel}</div>}
         {!motor ? (
           <div className="card">

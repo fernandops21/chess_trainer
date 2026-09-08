@@ -165,6 +165,48 @@ def test_punir_no_ultimo_lance_da_partida_nao_tem_resposta(ready):
     assert client.get(f"/api/puzzles/{puzzle_id}").json()["mistake"]["my_reply"] is None
 
 
+def test_respostas_da_partida_em_lote_nao_misturam_as_partidas(ready):
+    """`_my_replies` roda para a fila inteira: pede as posições por partida e
+    peneira os pares `(partida, ply)` em Python — com três exercícios de duas
+    partidas, cada um recebe a resposta do seu próprio ply seguinte, e o ply
+    que existe só na outra partida não vaza."""
+    from chess_trainer.api.routes.training import _my_replies
+    from chess_trainer.core.models import Game, Position, Puzzle
+
+    app, _ = ready
+    with app.state.session_factory() as db:
+        outra = Game(source_id="outra-partida", pgn="[Event \"?\"]", white="a", black="b", result="1-0",
+                     time_control="600", category="rapid", played_at=datetime(2024, 1, 1), my_color="white")
+        db.add(outra)
+        db.flush()
+        # a outra partida tem plies 4 e 5; a primeira, os plies 0..6 da fixture
+        for ply in (4, 5):
+            db.add(Position(game_id=outra.id, ply=ply, fen=f"fen-{ply}", move_played=f"L{ply}",
+                            move_uci="a2a3", eval_before=10 * ply, eval_after=20 * ply))
+        db.flush()
+
+        def puzzle_em(game_id: str, ply: int) -> Puzzle:
+            pos = db.query(Position).filter_by(game_id=game_id, ply=ply).one()
+            pos.is_mistake, pos.mistake_by, pos.mistake_level = True, "opponent", "blunder"
+            p = Puzzle(position_id=pos.id, game_id=game_id, kind="punish", fen_start=f"{game_id}-{ply}",
+                       side_to_move="white", solution='{"moves": [], "explanation_pv": []}',
+                       end_reason="material_gain", theme="tactic", category="rapid", solver_moves=1)
+            db.add(p)
+            return p
+
+        primeira = db.query(Position).filter_by(ply=6).one().game_id
+        # ply 4 nas duas partidas (o par tem de casar nos dois campos) e ply 5 só na outra
+        a = puzzle_em(primeira, 4)
+        b = puzzle_em(outra.id, 4)
+        c = puzzle_em(outra.id, 5)
+        db.commit()
+        respostas = _my_replies(db, [a, b, c])
+
+        assert set(respostas) == {a.id, b.id}          # o ply 6 da outra partida não existe
+        assert respostas[a.id].ply == 5 and respostas[a.id].move_played != "L5"
+        assert respostas[b.id].ply == 5 and respostas[b.id].move_played == "L5"
+
+
 def test_evitar_nao_tem_resposta_da_partida(ready):
     """No "evitar" o erro é do próprio usuário: não há o que ele respondeu."""
     app, client = ready

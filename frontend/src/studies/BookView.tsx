@@ -1,10 +1,12 @@
-import { Fragment, useEffect, useRef, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { ClassIcon } from "../analysis/classIcons";
 import type { Classification } from "../analysis/classify";
-import { fenAt, nagLabel } from "../analysis/moveTree";
+import { nagLabel } from "../analysis/moveTree";
 import type { Tree, TreeNode } from "../analysis/moveTree";
 import { TextoComLances } from "../analysis/TextoComLances";
 import type { LanceDaLinha } from "../analysis/moveText";
+import { uciToMove } from "../board/line";
+import { novoChess } from "../lib/chess";
 
 export interface BookViewProps {
   tree: Tree;
@@ -50,7 +52,10 @@ function prefixoLance(n: Numeracao, ply: number, forcar: boolean): string {
 }
 
 interface Ctx {
-  tree: Tree;
+  /** FEN de cada nó, prontas de um percurso só (ver `fensDaArvore`). */
+  fens: ReadonlyMap<string, string>;
+  /** FEN da raiz: reserva para o nó que ficou de fora do mapa. */
+  fenRaiz: string;
   num: Numeracao;
   currentId: string | null;
   classes?: ReadonlyMap<string, Classification>;
@@ -145,7 +150,7 @@ function renderLinha(nodes: TreeNode[], ply: number, ctx: Ctx): ReactNode[] {
           <Lance node={principal} prefixo={prefixoLance(ctx.num, p, true)} ctx={ctx} />{" "}
           <TextoComLances
             texto={principal.comment}
-            fen={fenAt(ctx.tree, principal.id)}
+            fen={ctx.fens.get(principal.id) ?? ctx.fenRaiz}
             onPrevia={ctx.onPrevia}
           />
         </p>,
@@ -173,34 +178,81 @@ function renderLinha(nodes: TreeNode[], ply: number, ctx: Ctx): ReactNode[] {
 }
 
 /**
+ * A FEN de cada nó da árvore, num percurso em pré-ordem só.
+ *
+ * Antes cada lance comentado chamava `fenAt`, que reconstrói a linha desde a
+ * raiz: num capítulo de 60 lances comentados isso é quadrático e cada tecla
+ * pesava décimos de segundo. Aqui um único tabuleiro desce pela árvore e
+ * desfaz o lance na volta. O nó cujo lance é ilegal (árvore importada torta)
+ * fica de fora do mapa, junto com a subárvore dele.
+ */
+function fensDaArvore(tree: Tree): Map<string, string> {
+  const map = new Map<string, string>();
+  let chess;
+  try {
+    chess = novoChess(tree.fen);
+  } catch {
+    return map;
+  }
+  const walk = (nodes: TreeNode[]) => {
+    for (const n of nodes) {
+      try {
+        chess.move(uciToMove(n.uci));
+      } catch {
+        continue;
+      }
+      map.set(n.id, chess.fen());
+      walk(n.children);
+      chess.undo();
+    }
+  };
+  walk(tree.root.children);
+  return map;
+}
+
+/**
  * Modo livro: a árvore do capítulo lida como a página de um livro de xadrez —
  * o enunciado abrindo, os lances comentados em parágrafos e as variações
  * recuadas. Serve à leitura do capítulo; o editor e a Análise continuam com a
  * lista de lances (`MoveTreeView`), que é melhor para mexer na árvore.
  */
 export function BookView({ tree, currentId, onGoTo, classes, bookIds, onPrevia }: BookViewProps) {
-  const ctx: Ctx = {
-    tree,
-    num: numeracao(tree.fen),
-    currentId,
-    classes,
-    bookIds,
-    onGoTo,
-    onPrevia: onPrevia ?? (() => {}),
-  };
-  const vazio = tree.root.children.length === 0;
-  return (
-    <div className="livro">
-      {tree.intro !== "" && (
-        <p className="livro-par">
-          <TextoComLances texto={tree.intro} fen={tree.fen} onPrevia={ctx.onPrevia} />
-        </p>
-      )}
-      {vazio ? (
-        tree.intro === "" && <p className="muted">Nenhum lance ainda: jogue no tabuleiro para começar a linha.</p>
-      ) : (
-        renderLinha(tree.root.children, 0, ctx)
-      )}
-    </div>
-  );
+  const fens = useMemo(() => fensDaArvore(tree), [tree]);
+
+  // os dois callbacks vão por referência para não entrarem nas dependências:
+  // assim a página só é reescrita quando a árvore, o lance atual ou os selos
+  // mudam — e não a cada render de quem chama
+  const cbs = useRef({ onGoTo, onPrevia });
+  cbs.current.onGoTo = onGoTo;
+  cbs.current.onPrevia = onPrevia;
+
+  const pagina = useMemo(() => {
+    const ctx: Ctx = {
+      fens,
+      fenRaiz: tree.fen,
+      num: numeracao(tree.fen),
+      currentId,
+      classes,
+      bookIds,
+      onGoTo: (id) => cbs.current.onGoTo(id),
+      onPrevia: (linha) => cbs.current.onPrevia?.(linha),
+    };
+    const vazio = tree.root.children.length === 0;
+    return (
+      <>
+        {tree.intro !== "" && (
+          <p className="livro-par">
+            <TextoComLances texto={tree.intro} fen={tree.fen} onPrevia={ctx.onPrevia} />
+          </p>
+        )}
+        {vazio ? (
+          tree.intro === "" && <p className="muted">Nenhum lance ainda: jogue no tabuleiro para começar a linha.</p>
+        ) : (
+          renderLinha(tree.root.children, 0, ctx)
+        )}
+      </>
+    );
+  }, [tree, fens, currentId, classes, bookIds]);
+
+  return <div className="livro">{pagina}</div>;
 }
