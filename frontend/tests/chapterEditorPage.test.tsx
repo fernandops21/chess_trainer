@@ -162,7 +162,7 @@ test("sem alterações o link volta direto", async () => {
 test("salvar mantém o lance atual no tabuleiro", async () => {
   renderPage();
   await screen.findByLabelText("Nome do capítulo");
-  fireEvent.click(screen.getByText("e5"));
+  fireEvent.click(screen.getByRole("button", { name: /e5/ }));
   const fen = last().fen;
   expect(fen).not.toBe(START);
 
@@ -173,7 +173,7 @@ test("salvar mantém o lance atual no tabuleiro", async () => {
 
   await waitFor(() => expect(screen.getByText(/salvo às \d{2}:\d{2}/)).toBeTruthy());
   expect(last().fen).toBe(fen);
-  expect(screen.getByText("e5").getAttribute("aria-current")).toBe("true");
+  expect(screen.getByRole("button", { name: /e5/ }).getAttribute("aria-current")).toBe("true");
 });
 
 test("edição feita enquanto o PUT está no ar continua não salva", async () => {
@@ -233,7 +233,7 @@ test("edição no meio do caminho manda mais que a resposta do servidor", async 
 test("mudar a orientação ou sair do enunciado não volta ao começo", async () => {
   renderPage();
   await screen.findByLabelText("Nome do capítulo");
-  fireEvent.click(screen.getByText("e5"));
+  fireEvent.click(screen.getByRole("button", { name: /e5/ }));
   const fen = last().fen;
   expect(fen).not.toBe(START);
 
@@ -245,5 +245,32 @@ test("mudar a orientação ou sair do enunciado não volta ao começo", async ()
   fireEvent.change(enunciado, { target: { value: "Pretas jogam e empatam." } });
   fireEvent.blur(enunciado);
   expect(last().fen).toBe(fen);
-  expect(screen.getByText("e5").getAttribute("aria-current")).toBe("true");
+  expect(screen.getByRole("button", { name: /e5/ }).getAttribute("aria-current")).toBe("true");
+});
+
+test("o editor usa a página por lance: caixa do comentário à direita e lista sob o tabuleiro", async () => {
+  renderPage();
+  await screen.findByRole("textbox", { name: "Comentário" });
+  const pagina = document.querySelector(".livro-pagina")!;
+  expect(pagina.querySelector("textarea")).toBeTruthy();
+  expect(document.querySelector(".tree")).toBeTruthy();
+  expect(document.querySelector(".tree .comment")).toBeNull();
+});
+
+test("'?lance=' abre o editor no lance pedido e 'Ver como leitura' volta a ele", async () => {
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={["/estudos/s1/capitulos/c1/editar?lance=n1"]}>
+        <Routes>
+          <Route path="/estudos/:id/capitulos/:cid/editar" element={<ChapterEditorPage />} />
+          <Route path="*" element={null} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  await screen.findByRole("textbox", { name: "Comentário" });
+  // o lance n1 está selecionado: a caixa é o comentário dele
+  expect((screen.getByRole("textbox", { name: "Comentário" }) as HTMLTextAreaElement).placeholder).toMatch(/^Comentário de /);
+  const ler = screen.getByRole("link", { name: "Ver como leitura" }) as HTMLAnchorElement;
+  expect(ler.getAttribute("href")).toBe("/estudos/s1/capitulos/c1?lance=n1");
 });

@@ -47,6 +47,8 @@ export interface AnalysisBoardProps {
   sidePanel?: ReactNode;
   /** `"livro"`: cada lance é uma página — à direita só o comentário do lance atual, a lista fica sob o tabuleiro. */
   layout?: "analise" | "livro";
+  /** Avisa o dono a cada troca do lance atual (para links que voltam ao mesmo lance). */
+  onCurrentChange?: (id: string | null) => void;
 }
 
 /** Abas do painel lateral: o motor ou o livro de aberturas. */
@@ -87,9 +89,13 @@ export function AnalysisBoard({
   allowSetup = true,
   sidePanel,
   layout = "analise",
+  onCurrentChange,
 }: AnalysisBoardProps) {
   const livro = layout === "livro";
   const mt = useMoveTree(tree, initialNodeId);
+  const avisarAtual = useRef(onCurrentChange);
+  avisarAtual.current = onCurrentChange;
+  useEffect(() => { avisarAtual.current?.(mt.currentId); }, [mt.currentId]);
   // o motor desligado só custa um botão: quem quiser a análise liga na hora
   const [motor, setMotor] = useState(engine);
   const [orient, setOrient] = useState(tree.orientation);
@@ -336,6 +342,7 @@ export function AnalysisBoard({
               bookIds={bookIds}
               classes={classes}
               semComentarios
+              onContextMenu={editable ? (id, pos) => setMenu({ id, ...pos }) : undefined}
             />
           </div>
         ) : editable ? (
@@ -434,7 +441,24 @@ export function AnalysisBoard({
                   <button type="button" aria-label="Aumentar a letra" title="Aumentar a letra" onClick={() => mudarLetra(0.1)} disabled={letra >= LETRA_MAX}>A+</button>
                 </span>
               </div>
-              {comentario !== "" ? (
+              {editable ? (
+                // no editor a página é a caixa do comentário do lance atual
+                <>
+                  <textarea
+                    aria-label="Comentário"
+                    style={{ width: "100%", minHeight: 160, font: "inherit", lineHeight: "inherit" }}
+                    value={comentario}
+                    onChange={(e) => mt.setComment(e.target.value)}
+                    placeholder={mt.node ? `Comentário de ${mt.node.san}` : "Enunciado do capítulo"}
+                  />
+                  {temLance && (
+                    <div className="muted" style={{ fontSize: ".85rem" }}>
+                      Lances do comentário: <TextoComLances texto={comentario} fen={mt.fen} segmentos={segsComentario} onPrevia={setPrevia} apenasLances />
+                    </div>
+                  )}
+                  <div className="muted" style={{ fontSize: ".85rem" }}>Botão direito no tabuleiro desenha setas e casas; na lista, abre o menu do lance.</div>
+                </>
+              ) : comentario !== "" ? (
                 <TextoComLances texto={comentario} fen={mt.fen} segmentos={segsComentario} onPrevia={setPrevia} />
               ) : (
                 <div className="muted">Sem comentário neste lance.</div>

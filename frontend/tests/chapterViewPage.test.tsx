@@ -187,3 +187,15 @@ test("o painel do motor mostra por que a engine não analisa o diagrama", async 
   fireEvent.click(screen.getByRole("button", { name: "Analisar com a engine" }));
   expect(await screen.findByText(MSG_ENGINE)).toBeTruthy();
 });
+
+test("'Editar' leva o lance atual, e '?lance=' abre a leitura nele", async () => {
+  const { container } = renderPage();
+  await screen.findByText("Torre atrás do peão");
+  fireEvent.click(screen.getByRole("button", { name: /^1\. e4/ }));
+  const editar = screen.getByRole("link", { name: "Editar" }) as HTMLAnchorElement;
+  expect(editar.getAttribute("href")).toBe("/estudos/s1/capitulos/c1/editar?lance=n1");
+  // e na volta: sem lance escolhido o link não leva nada
+  fireEvent.click(screen.getByRole("button", { name: "posição inicial" }));
+  expect((screen.getByRole("link", { name: "Editar" }) as HTMLAnchorElement).getAttribute("href")).toBe("/estudos/s1/capitulos/c1/editar");
+  expect(container.querySelector(".livro-pagina")).toBeTruthy();
+});

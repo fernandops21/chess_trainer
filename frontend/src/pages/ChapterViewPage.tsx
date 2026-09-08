@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { AnalysisBoard } from "../analysis/AnalysisBoard";
 import { emptyTree } from "../analysis/moveTree";
 import { useChapter } from "../api/queries";
@@ -17,6 +17,10 @@ import { chapterPgnUrl } from "../api/client";
  */
 export function ChapterViewPage() {
   const { id = "", cid = "" } = useParams();
+  // `?lance=` traz o lance em que a outra tela estava; o link "Editar" devolve o atual
+  const [params] = useSearchParams();
+  const lanceInicial = params.get("lance");
+  const [lanceAtual, setLanceAtual] = useState<string | null>(lanceInicial);
   const navigate = useNavigate();
   const { data, error, isLoading } = useChapter(id, cid);
 
@@ -43,14 +47,14 @@ export function ChapterViewPage() {
                 Treinar este
               </button>
             )}
-            <Link to={`/estudos/${id}/capitulos/${cid}/editar`}>Editar</Link>
+            <Link to={`/estudos/${id}/capitulos/${cid}/editar${lanceAtual ? `?lance=${lanceAtual}` : ""}`}>Editar</Link>
             <a href={chapterPgnUrl(id, cid)} download>Exportar PGN</a>
             {data.lichess_url && (
               <a href={data.lichess_url} target="_blank" rel="noreferrer">ver no Lichess</a>
             )}
           </div>
           {/* lendo um capítulo, a sugestão da engine (seta e linhas) brigaria com os lances do autor: começa desligada, e quem quiser liga */}
-          <AnalysisBoard tree={tree} engine={false} layout="livro" />
+          <AnalysisBoard tree={tree} engine={false} layout="livro" initialNodeId={lanceInicial ?? undefined} onCurrentChange={setLanceAtual} />
         </>
       )}
     </>

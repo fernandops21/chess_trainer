@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { AnalysisBoard } from "../analysis/AnalysisBoard";
 import { emptyTree } from "../analysis/moveTree";
 import type { Tree } from "../analysis/moveTree";
@@ -23,6 +23,10 @@ const hora = (d: Date) => d.toLocaleTimeString("pt-BR", { hour: "2-digit", minut
  */
 export function ChapterEditorPage() {
   const { id = "", cid = "" } = useParams();
+  // abre no lance em que a leitura estava (`?lance=`) e devolve o atual no link de volta
+  const [params] = useSearchParams();
+  const lanceInicial = params.get("lance");
+  const [lanceAtual, setLanceAtual] = useState<string | null>(lanceInicial);
   const { data, error, isLoading } = useChapter(id, cid);
   const { save } = useChapterActions(id);
 
@@ -125,7 +129,7 @@ export function ChapterEditorPage() {
       <div className="row" style={{ alignItems: "baseline" }}>
         <h1 style={{ marginBottom: 0 }}>Editar capítulo</h1>
         <Link to={`/estudos/${id}`} onClick={confirmarSaida}>Voltar ao estudo</Link>
-        <Link to={`/estudos/${id}/capitulos/${cid}`} onClick={confirmarSaida}>Ver como leitura</Link>
+        <Link to={`/estudos/${id}/capitulos/${cid}${lanceAtual ? `?lance=${lanceAtual}` : ""}`} onClick={confirmarSaida}>Ver como leitura</Link>
       </div>
 
       <ErrorBox error={error} />
@@ -200,6 +204,9 @@ export function ChapterEditorPage() {
           <AnalysisBoard
             editable
             engine={false}
+            layout="livro"
+            initialNodeId={lanceInicial ?? undefined}
+            onCurrentChange={setLanceAtual}
             tree={tree}
             onTreeChange={aoMudarArvore}
             onSave={salvar}
