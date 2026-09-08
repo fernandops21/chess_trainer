@@ -164,6 +164,7 @@ test("com uma tarefa em andamento, importar e reimportar ficam desligados", asyn
     target: { value: "https://lichess.org/study/abc12345" },
   });
   expect((screen.getByRole("button", { name: "Importar" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((screen.getByLabelText("Arquivo PGN") as HTMLInputElement).disabled).toBe(true);
 });
 
 test("novo estudo cria e abre o detalhe, com o autor do nome configurado", async () => {

@@ -31,6 +31,8 @@ export function StudiesPage() {
   const [novo, setNovo] = useState(false);
   const [url, setUrl] = useState("");
   const [pgn, setPgn] = useState("");
+  // leitura do arquivo escolhido que falhou: aparece na mesma caixa dos erros da API
+  const [erroArquivo, setErroArquivo] = useState<Error | null>(null);
   const [showPgn, setShowPgn] = useState(false);
   const [confirm, setConfirm] = useState<StudyOut | null>(null);
   const { data: status } = useStatus();
@@ -97,9 +99,10 @@ export function StudiesPage() {
               // limpa a escolha para que o mesmo arquivo possa ser importado de novo
               e.target.value = "";
               if (!arquivo) return;
-              void arquivo.text().then((texto) => {
-                importStudy.mutate({ pgn: texto, title: semExtensao(arquivo.name) });
-              });
+              arquivo.text().then(
+                (texto) => importStudy.mutate({ pgn: texto, title: semExtensao(arquivo.name) }),
+                () => setErroArquivo(new Error(`Não deu para ler o arquivo ${arquivo.name}.`)),
+              );
             }}
           />
           <div className="muted">
@@ -107,7 +110,7 @@ export function StudiesPage() {
             com um capítulo por partida.
           </div>
         </div>
-        <ErrorBox error={importStudy.error ?? reimport.error ?? setQueue.error ?? remove.error} />
+        <ErrorBox error={importStudy.error ?? reimport.error ?? setQueue.error ?? remove.error ?? erroArquivo} />
       </div>
       <JobCard />
       <ErrorBox error={error} />
