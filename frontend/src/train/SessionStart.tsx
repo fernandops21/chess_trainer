@@ -63,9 +63,12 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
   // Com filtro na repetição espaçada dá para acabar numa fila menor que a do menu sem
   // entender por quê: a contagem filtrada aparece ao lado do total de vencidos.
   const filtrando = source === "own" && mode === "review" && (sources.length > 0 || !!kind || !!color || !!category);
+  // só o número interessa aqui: `count_only` poupa o servidor de montar os
+  // exercícios da fila inteira para mostrar uma contagem
   const filtrosFila: QueueFilters = {
     mode: "review", sources: sources.length ? sources : undefined,
     kind: asKind(kind), color: asColor(color), category: category || undefined,
+    count_only: true,
   };
   const { data: filaFiltrada } = useQueue(filtrosFila, filtrando);
   const totalVencidos = useDashboard().data?.due_today;

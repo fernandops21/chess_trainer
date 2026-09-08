@@ -213,6 +213,25 @@ test("sair da tela no meio encerra a sessão de táticas uma vez só", async () 
   expect(vi.mocked(api.endSession).mock.calls.length).toBe(1);
 });
 
+test("sair antes da resposta do POST /api/sessions encerra a sessão assim que ela chega", async () => {
+  vi.spyOn(api, "nextTactic").mockResolvedValue(tactic("t1"));
+  let liberar!: () => void;
+  vi.spyOn(api, "createSession").mockReturnValue(
+    new Promise((res) => { liberar = () => res(session); }),
+  );
+  const { unmount } = render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter><Host /></MemoryRouter>
+    </QueryClientProvider>,
+  );
+  unmount();
+  await new Promise((r) => setTimeout(r, 0));
+  expect(api.endSession).not.toHaveBeenCalled(); // ainda não há id para encerrar
+
+  liberar();
+  await waitFor(() => expect(api.endSession).toHaveBeenCalledWith("s1"));
+});
+
 test("sem candidatos, o resumo oferece uma nova sessão sem temas", () => {
   localStorage.setItem("train.themes", JSON.stringify(["fork"]));
   const onNew = vi.fn();

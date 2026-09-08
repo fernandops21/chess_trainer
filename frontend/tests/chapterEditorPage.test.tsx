@@ -195,6 +195,41 @@ test("edição feita enquanto o PUT está no ar continua não salva", async () =
   expect(screen.queryByText(/salvo às/)).toBeNull();
 });
 
+test("sem edição no meio do caminho, o formulário fica com a resposta do servidor", async () => {
+  // o servidor normaliza o que foi salvo (nome aparado, comentário do enunciado)
+  const normalizado = capitulo({
+    name: "Torre por trás",
+    tree: { ...arvore, intro: "Brancas jogam e ganham." },
+  });
+  vi.spyOn(api, "saveChapter").mockResolvedValue(normalizado);
+  renderPage();
+  const nome = await screen.findByLabelText("Nome do capítulo");
+  fireEvent.change(nome, { target: { value: "  Torre por trás  " } });
+  fireEvent.change(screen.getByLabelText("Enunciado"), { target: { value: "rascunho" } });
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+
+  await waitFor(() => expect(screen.getByText(/salvo às \d{2}:\d{2}/)).toBeTruthy());
+  expect((screen.getByLabelText("Nome do capítulo") as HTMLInputElement).value).toBe("Torre por trás");
+  expect((screen.getByLabelText("Enunciado") as HTMLTextAreaElement).value).toBe("Brancas jogam e ganham.");
+});
+
+test("edição no meio do caminho manda mais que a resposta do servidor", async () => {
+  let liberar!: () => void;
+  vi.spyOn(api, "saveChapter").mockReturnValue(
+    new Promise((res) => { liberar = () => res(capitulo({ name: "Nome do servidor" })); }),
+  );
+  renderPage();
+  await screen.findByLabelText("Nome do capítulo");
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+  await waitFor(() => expect(api.saveChapter).toHaveBeenCalled());
+
+  fireEvent.change(screen.getByLabelText("Nome do capítulo"), { target: { value: "Digitado depois" } });
+  await act(async () => { liberar(); });
+
+  expect((screen.getByLabelText("Nome do capítulo") as HTMLInputElement).value).toBe("Digitado depois");
+  expect(screen.getByText("alterações não salvas")).toBeTruthy();
+});
+
 test("mudar a orientação ou sair do enunciado não volta ao começo", async () => {
   renderPage();
   await screen.findByLabelText("Nome do capítulo");

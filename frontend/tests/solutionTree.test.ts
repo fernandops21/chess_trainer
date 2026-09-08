@@ -52,6 +52,23 @@ test("lance do adversário incoerente com a posição cai na posição do exerc�
   expect(treeFromSolution(com({ last_move: "a7a5" })).fen).toBe(APOS_E4);
 });
 
+test("lance do adversário que leva a outra posição também cai na do exercício", () => {
+  // 1.d4 é legal na raiz guardada, mas não leva à `fen_start` (que é depois de
+  // 1.e4): a árvore ficaria contando outra história e recomeça no exercício
+  const t = treeFromSolution(com({ last_move: "d2d4" }));
+  expect(t.fen).toBe(APOS_E4);
+  expect(mainline(t).map((n) => n.san)).toEqual(["e5", "Nf3", "Nc6"]);
+});
+
+test("o contador de lances não desmancha a árvore com o lance do adversário", () => {
+  // mesma posição da `fen_start`, com outro contador: os 4 primeiros campos é
+  // que dizem se o lance leva onde deve
+  const outroContador = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 3 9";
+  const t = treeFromSolution(com({ fen_start: outroContador }));
+  expect(t.fen).toBe(START);
+  expect(mainline(t).map((n) => n.san)).toEqual(["e4", "e5", "Nf3", "Nc6"]);
+});
+
 test("o enunciado vira o intro da árvore", () => {
   expect(treeFromSolution(sem({ solution: solucao({ intro: "Pretas jogam." }) })).intro).toBe("Pretas jogam.");
   expect(treeFromSolution(sem()).intro).toBe("");

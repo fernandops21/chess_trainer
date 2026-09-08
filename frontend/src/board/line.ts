@@ -7,6 +7,11 @@ export function uciToMove(uci: string): { from: string; to: string; promotion?: 
   return m;
 }
 
+/** Duas FENs que descrevem a mesma posição (o contador de lances não conta). */
+export function mesmaPosicao(a: string, b: string): boolean {
+  return a.split(" ").slice(0, 4).join(" ") === b.split(" ").slice(0, 4).join(" ");
+}
+
 export function buildLine(fenStart: string, ucis: string[]) {
   const chess = new Chess(fenStart);
   const fens = [chess.fen()];

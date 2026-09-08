@@ -339,6 +339,8 @@ export interface QueueFilters {
   /** Fontes aceitas; vazio ou ausente = todas. */
   sources?: PuzzleSource[];
   study_id?: string;
+  /** Só as contagens: a resposta vem com `items` vazio (`count_only=1` na query). */
+  count_only?: boolean;
 }
 
 export interface QueueOut {

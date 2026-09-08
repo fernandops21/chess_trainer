@@ -358,6 +358,28 @@ test("o selo do canto do tabuleiro fica no canto certo nas duas orientações", 
   expect([preto.style.left, preto.style.top]).toEqual(["87.5%", "0%"]);
 });
 
+test("o selo do canto perde a margem que o jogaria para fora do tabuleiro", () => {
+  const canto = { square: "h8" as Key, text: "?!", className: "class-imprecisao" };
+  const { container, rerender } = render(<Board fen={F1} orientation="white" badge={canto} />);
+  const h8 = container.querySelector(".board-badge") as HTMLElement;
+  // fileira de cima e coluna da direita de quem olha: as duas margens saem
+  expect(h8.className).toContain("board-badge--topo");
+  expect(h8.className).toContain("board-badge--direita");
+
+  rerender(<Board fen={F1} orientation="white" badge={{ ...canto, square: "a1" as Key }} />);
+  const a1 = container.querySelector(".board-badge") as HTMLElement;
+  expect(a1.className).not.toContain("board-badge--topo");
+  expect(a1.className).not.toContain("board-badge--direita");
+
+  // virado, a1 é que fica no canto de cima à direita
+  rerender(<Board fen={F1} orientation="black" badge={{ ...canto, square: "a1" as Key }} />);
+  const virado = container.querySelector(".board-badge") as HTMLElement;
+  expect(virado.className).toContain("board-badge--topo");
+  expect(virado.className).toContain("board-badge--direita");
+  // a classe da classificação continua lá
+  expect(virado.className).toContain("class-imprecisao");
+});
+
 test("sem `badge` o tabuleiro não tem selo", () => {
   const { container } = render(<Board fen={F1} orientation="white" />);
   expect(container.querySelector(".board-badge")).toBeNull();

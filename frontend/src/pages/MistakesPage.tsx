@@ -1,11 +1,11 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import type { Key } from "chessground/types";
 import { useLeeches, useMistakes, usePuzzleQuery, useUnleech } from "../api/queries";
 import type { MistakeOut, MistakesQuery, PuzzleOut, PuzzleRef } from "../api/types";
 import { Board } from "../board/Board";
 import { MiniBoard } from "../board/MiniBoard";
-import { uciToMove } from "../board/line";
+import { mesmaPosicao, uciToMove } from "../board/line";
 import { ErrorBox } from "../components/ErrorBox";
 import { Modal } from "../components/Modal";
 import { formatDate, formatEval, levelLabel, puzzleTitle, themeLabel } from "../lib/format";
@@ -81,6 +81,19 @@ export function MistakesPage() {
   const leeches = useLeeches();
   const [open, setOpen] = useState<MistakeOut | null>(null);
   const items = data ?? [];
+  // `?position=<fen>` (o link "revisão de erros" do resultado do treino): assim
+  // que a lista chega, abre o erro daquela posição. Uma vez só — fechar o modal
+  // não reabre —, e sem nada a fazer quando a posição não está na lista (o erro
+  // pode estar fora dos filtros, ou o link vir da posição de outro exercício).
+  const [params] = useSearchParams();
+  const position = params.get("position");
+  const abriu = useRef(false);
+  useEffect(() => {
+    if (abriu.current || !position || items.length === 0) return;
+    abriu.current = true;
+    const achado = items.find((m) => mesmaPosicao(m.fen, position));
+    if (achado) setOpen(achado);
+  }, [position, items]);
   return (
     <>
       <h1>Revisão de erros</h1>

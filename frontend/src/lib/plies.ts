@@ -3,14 +3,6 @@ import type { Key } from "chessground/types";
 import type { GameDetail, MistakeLevel } from "../api/types";
 import { uciToMove } from "../board/line";
 
-/** Ply da posição inicial de uma FEN: exercícios sem partida não guardam o lance de origem. */
-export function startPlyFromFen(fen: string): number {
-  const parts = fen.split(" ");
-  const fullmove = Number(parts[5]);
-  const n = Number.isFinite(fullmove) && fullmove > 0 ? Math.floor(fullmove) : 1;
-  return (n - 1) * 2 + (parts[1] === "b" ? 1 : 0) + 1;
-}
-
 export interface Ply {
   ply: number; san: string; fenBefore: string; fenAfter: string; lastMove: [Key, Key];
   evalBefore?: number; evalAfter?: number; level?: MistakeLevel; by?: "me" | "opponent"; bestMove?: string; puzzleIds: string[];

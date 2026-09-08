@@ -67,13 +67,16 @@ const CASA_PCT = 12.5;
  * Canto superior esquerdo de uma casa, em porcentagem do tabuleiro, conforme a
  * orientação. Com as brancas embaixo, a coluna `a` fica à esquerda e a fileira
  * 8 em cima; virado, é o contrário.
+ *
+ * `topo`/`direita` dizem se a casa está na primeira fileira ou na última coluna
+ * de quem olha: é onde o selo perde a margem negativa para não sair do tabuleiro.
  */
-export function squarePercent(square: Key, orientation: "white" | "black"): { left: number; top: number } {
+export function squarePercent(square: Key, orientation: "white" | "black"): { left: number; top: number; topo: boolean; direita: boolean } {
   const file = square.charCodeAt(0) - 97;
   const rank = Number(square[1]) - 1;
   const col = orientation === "white" ? file : 7 - file;
   const row = orientation === "white" ? 7 - rank : rank;
-  return { left: col * CASA_PCT, top: row * CASA_PCT };
+  return { left: col * CASA_PCT, top: row * CASA_PCT, topo: row === 0, direita: col === 7 };
 }
 
 const toShape = (s: DrawShape): Shape => ({ orig: s.orig, dest: s.dest, brush: s.brush ?? "green" });
@@ -319,7 +322,7 @@ export function Board(props: BoardProps) {
       <div ref={host} />
       {badge && pos && (
         <span
-          className={`board-badge ${badge.className}`}
+          className={`board-badge${pos.topo ? " board-badge--topo" : ""}${pos.direita ? " board-badge--direita" : ""} ${badge.className}`}
           style={{
             left: `${pos.left}%`,
             top: `${pos.top}%`,

@@ -1,13 +1,14 @@
-import { ApiError } from "../api/client";
+import { ApiError, textoDoDetalhe } from "../api/client";
 
 /**
- * Erros de validação do editor (422): o servidor manda `detail` como lista de
- * mensagens e o cliente guarda essa lista no `ApiError`. Devolve as mensagens
- * quando é esse o caso, `null` nos erros comuns.
+ * Erros de validação (422): o servidor manda `detail` como lista — mensagens
+ * prontas (o editor de capítulo) ou os objetos do pydantic — e o cliente guarda
+ * essa lista no `ApiError`. Devolve uma linha por item, os do pydantic no
+ * formato "campo.sub: mensagem"; `null` nos erros comuns.
  */
 export function errorList(error: unknown): string[] | null {
   if (!(error instanceof ApiError)) return null;
-  return error.details && error.details.length > 0 ? error.details : null;
+  return error.details && error.details.length > 0 ? error.details.map(textoDoDetalhe) : null;
 }
 
 export function errorMessage(error: unknown): string {

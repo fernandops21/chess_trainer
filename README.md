@@ -216,6 +216,23 @@ seus erros. `?mode=review|new|study` e `?study=<id>` no endereço já chegam com
 Sair da tela no meio de uma sessão (trocar de menu, voltar no navegador) ou fechar a aba encerra a
 sessão no servidor: ela não fica aberta contando tempo que ninguém treinou.
 
+### Resultado do exercício
+
+Depois de resolver (ou de errar), o painel de resultado não é uma imagem parada: ele é o mesmo
+tabuleiro de análise da tela `/analise`, já na última posição da solução. Ali dá para:
+
+- **navegar a solução** pelos lances da lista, pelo teclado (setas) ou pelos botões;
+- **jogar variantes** no tabuleiro a partir de qualquer posição — os lances entram como variação e
+  o som do lance toca a cada um;
+- abrir a **Análise completa** no link **Explorar**, que leva a posição do exercício para `/analise`
+  numa aba nova (com engine, livro de aberturas e classificação dos lances);
+- nos exercícios que vieram dos **seus erros**, ver o cartão "Meu erro": a posição da partida com o
+  lance ruim destacado, a avaliação de antes e depois e os atalhos para a partida e para a revisão
+  de erros.
+
+No "evitar", o lance que você jogou na partida aparece como variação da posição do exercício, com a
+continuação que o punia.
+
 ### Refutação do lance errado
 
 Ao jogar um lance que não é a solução, o lance entra no tabuleiro, a engine responde com a melhor
@@ -240,7 +257,9 @@ clica em "Guardar para repetir" no resultado.
 ## Som
 
 Efeitos sonoros curtos para lance, captura, xeque, erro, dica e exercício resolvido. Valem no
-treino, na análise e ao navegar pela linha da solução.
+treino (incluindo a refutação do lance errado), ao jogar lances no tabuleiro de análise — o da tela
+`/analise` e o do resultado do exercício — e ao navegar pela linha da solução na revisão de erros.
+Navegar pela árvore de lances não toca nada: só o lance jogado tem som.
 
 Os sons são as amostras do conjunto "standard" do Lichess (`frontend/public/sound/`, licença
 AGPL-3.0 — ver `frontend/public/sound/LICENSE.txt`), carregadas e decodificadas pela Web Audio API

@@ -127,6 +127,9 @@ test("mostra o selo da classificação depois do lance, com o nome no title", ()
   const selo = screen.getByText(/^1\. e4$/).querySelector(".class") as HTMLElement;
   expect(selo.textContent).toBe("!!");
   expect(selo.getAttribute("title")).toBe("brilhante");
+  // leitura de tela: o símbolo sozinho não diz nada
+  expect(selo.getAttribute("role")).toBe("img");
+  expect(selo.getAttribute("aria-label")).toBe("brilhante");
   expect(selo.className).toContain("class-brilhante");
   // também nas variações
   const naVariacao = (container.querySelector(".variation") as HTMLElement).querySelector(".class") as HTMLElement;

@@ -98,6 +98,15 @@ test("api.queue manda o modo da fila", async () => {
   expect((fn.mock.calls[1] as unknown as [string])[0]).toBe("/api/queue?mode=study&study_id=s1");
 });
 
+test("api.queue com count_only manda count_only=1", async () => {
+  const fn = mockFetch(200, { mode: "review", due_count: 3, new_available: 0, new_remaining_today: 0, items: [] });
+  await api.queue({ mode: "review", sources: ["lichess"], count_only: true });
+  expect((fn.mock.calls[0] as unknown as [string])[0]).toBe("/api/queue?mode=review&sources=lichess&count_only=1");
+  // sem `count_only` a query nem menciona o parâmetro
+  await api.queue({ mode: "review" });
+  expect((fn.mock.calls[1] as unknown as [string])[0]).toBe("/api/queue?mode=review");
+});
+
 test("api.setQueue faz POST em /puzzles/{id}/queue", async () => {
   const fn = mockFetch(200, {});
   await api.setQueue("p1", false);
@@ -143,11 +152,21 @@ test("detail em lista vira uma mensagem só e guarda as linhas", async () => {
   });
 });
 
-test("detail que não é texto nem lista de textos vira JSON", async () => {
-  mockFetch(422, { detail: [{ loc: ["body", "name"], msg: "campo obrigatório" }] });
+test("detail em lista de erros do pydantic guarda os itens e resume a mensagem", async () => {
+  const detail = [{ type: "missing", loc: ["body", "name"], msg: "campo obrigatório" }];
+  mockFetch(422, { detail });
   await expect(api.status()).rejects.toMatchObject({
     status: 422,
-    message: '[{"loc":["body","name"],"msg":"campo obrigatório"}]',
+    message: "body.name: campo obrigatório",
+    details: detail,
+  });
+});
+
+test("detail que não é texto nem lista conhecida vira JSON", async () => {
+  mockFetch(422, { detail: { erro: "estranho" } });
+  await expect(api.status()).rejects.toMatchObject({
+    status: 422,
+    message: '{"erro":"estranho"}',
     details: undefined,
   });
 });

@@ -230,7 +230,12 @@ function armar(): void {
   window.removeEventListener("keydown", armar);
   if (!isEnabled()) return;
   const c = contexto();
-  if (c) retomar(c);
+  if (!c) return;
+  retomar(c);
+  // As amostras dos lances já vão sendo buscadas: sem isto o primeiro lance do
+  // treino sai sintetizado, porque a busca só começa quando ele é tocado.
+  carregarAmostra(ARQUIVO_AMOSTRA.move, c);
+  carregarAmostra(ARQUIVO_AMOSTRA.capture, c);
 }
 
 if (typeof window !== "undefined") {

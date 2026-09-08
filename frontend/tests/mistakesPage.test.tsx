@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
@@ -30,10 +30,10 @@ const puzzle = (over: Partial<PuzzleRef> = {}): PuzzleRef => ({
   id: "z1", kind: "punish", theme: "fork", is_leech: false, in_queue: true, ...over,
 });
 
-function renderPage() {
+function renderPage(entry = "/erros") {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={["/erros"]}>
+      <MemoryRouter initialEntries={[entry]}>
         <MistakesPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -67,4 +67,33 @@ test("com tudo na repetição não há etiqueta", async () => {
   renderPage();
   await screen.findByText("Ra2");
   expect(screen.queryByText(/fora da repetição/)).toBeNull();
+});
+
+// --- ?position=<fen> abre o erro daquela posição -------------------------
+
+/** A mesma posição do erro, com outro contador de lances: os 4 primeiros campos é que valem. */
+const OUTRO_CONTADOR = "6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 7 21";
+
+test("?position=<fen> abre o modal do erro daquela posição", async () => {
+  vi.spyOn(api, "mistakes").mockResolvedValue([erro([])]);
+  renderPage(`/erros?position=${encodeURIComponent(OUTRO_CONTADOR)}`);
+  // o título do modal traz o lance do erro
+  expect(await screen.findByText("Lance 6: Ra2")).toBeTruthy();
+  // fechar não reabre
+  fireEvent.click(screen.getByText("Fechar"));
+  await waitFor(() => expect(screen.queryByText("Lance 6: Ra2")).toBeNull());
+});
+
+test("?position= de uma posição fora da lista não abre nada", async () => {
+  vi.spyOn(api, "mistakes").mockResolvedValue([erro([])]);
+  renderPage("/erros?position=8%2F8%2F8%2F8%2F8%2F8%2F8%2F4K2k%20w%20-%20-%200%201");
+  await screen.findByText("Ra2");
+  expect(screen.queryByText("Lance 6: Ra2")).toBeNull();
+});
+
+test("sem ?position= nenhum modal abre sozinho", async () => {
+  vi.spyOn(api, "mistakes").mockResolvedValue([erro([])]);
+  renderPage();
+  await screen.findByText("Ra2");
+  expect(screen.queryByText("Lance 6: Ra2")).toBeNull();
 });

@@ -36,12 +36,31 @@ import type {
   ThemeStat,
 } from "./types";
 
+/** Item de erro de validação do pydantic (422 do FastAPI): `loc` é o caminho do campo. */
+export interface DetalheValidacao {
+  loc?: unknown[];
+  msg?: string;
+}
+
+/** Um item da lista de `detail`: texto pronto do servidor ou erro do pydantic. */
+export type DetalheErro = string | DetalheValidacao;
+
+/** Texto de um item de `details`; nos do pydantic, "campo.sub: mensagem". */
+export function textoDoDetalhe(item: DetalheErro): string {
+  if (typeof item === "string") return item;
+  const onde = Array.isArray(item.loc) ? item.loc.join(".") : "";
+  const msg = item.msg ?? "";
+  if (onde && msg) return `${onde}: ${msg}`;
+  return msg || onde || JSON.stringify(item);
+}
+
 export class ApiError extends Error {
   /**
-   * @param details Mensagens do servidor quando o `detail` vem em lista (o
-   *   editor de capítulo devolve uma por problema encontrado na árvore).
+   * @param details Itens do servidor quando o `detail` vem em lista: textos
+   *   prontos (o editor de capítulo devolve um por problema da árvore) ou os
+   *   objetos de validação do pydantic.
    */
-  constructor(public status: number, message: string, public details?: string[]) {
+  constructor(public status: number, message: string, public details?: DetalheErro[]) {
     super(message);
     this.name = "ApiError";
   }
@@ -62,6 +81,12 @@ function listaDeTextos(valor: unknown): valor is string[] {
   return Array.isArray(valor) && valor.length > 0 && valor.every((x) => typeof x === "string");
 }
 
+/** Lista de erros do pydantic: cada item tem ao menos a mensagem (`msg`). */
+function listaDeValidacao(valor: unknown): valor is DetalheValidacao[] {
+  return Array.isArray(valor) && valor.length > 0
+    && valor.every((x) => !!x && typeof x === "object" && typeof (x as DetalheValidacao).msg === "string");
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api${path}`, {
     headers: { "content-type": "application/json" },
@@ -69,7 +94,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     let detail = res.statusText || `HTTP ${res.status}`;
-    let lista: string[] | undefined;
+    let lista: DetalheErro[] | undefined;
     try {
       const body = (await res.json()) as { detail?: unknown };
       if (body && body.detail !== undefined) {
@@ -79,6 +104,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
           // 422 do editor: uma mensagem por problema da árvore
           lista = body.detail;
           detail = body.detail.join("; ");
+        } else if (listaDeValidacao(body.detail)) {
+          // 422 do pydantic: um objeto por campo recusado
+          lista = body.detail;
+          detail = body.detail.map(textoDoDetalhe).join("; ");
         } else {
           detail = JSON.stringify(body.detail);
         }
@@ -125,6 +154,8 @@ export const api = {
     request<QueueOut>(`/queue${qs({
       mode: p.mode, category: p.category, theme: p.theme, kind: p.kind, color: p.color,
       sources: p.sources?.join(","), study_id: p.study_id,
+      // o backend lê `count_only` como booleano da query: 1 é o que ele espera
+      count_only: p.count_only ? 1 : undefined,
     })}`),
   setQueue: (id: string, in_queue: boolean) =>
     request<PuzzleOut>(`/puzzles/${id}/queue`, post("", { in_queue })),

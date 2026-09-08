@@ -33,19 +33,27 @@ export interface Refutation {
   pvSan: string[];
   /** Comentário do autor do estudo para este lance errado, quando houver. */
   authored?: string;
-  /** Fim de partida provocado pelo lance errado ("checkmate", "stalemate", "draw"). */
-  terminal?: string;
+  /** Fim de partida provocado pelo lance errado. */
+  terminal?: Terminal;
 }
 
-const TERMINAL_TEXT: Record<string, string> = {
+/** Fim de partida que a análise sabe apontar. */
+export type Terminal = "checkmate" | "stalemate" | "draw";
+
+const TERMINAL_TEXT: Record<Terminal, string> = {
   checkmate: "é mate, mas não é a solução do exercício",
   stalemate: "afoga o rei: empate",
   draw: "é empate",
 };
 
+/** O `terminal` da análise, quando é um dos fins de partida conhecidos. */
+function terminalDe(valor: string | null | undefined): Terminal | undefined {
+  return valor && valor in TERMINAL_TEXT ? (valor as Terminal) : undefined;
+}
+
 /** Texto da mensagem da refutação, montado do que já se sabe (a avaliação de antes pode faltar). */
 function refutationMessage(r: Refutation): string {
-  if (r.terminal) return `${r.wrongSan}? — ${TERMINAL_TEXT[r.terminal] ?? "termina a partida"}`;
+  if (r.terminal) return `${r.wrongSan}? — ${TERMINAL_TEXT[r.terminal]}`;
   const cabeca = r.replySan ? `${r.wrongSan}? ${r.replySan}` : `${r.wrongSan}?`;
   const avaliacao = r.evalAfter == null ? ""
     : r.evalBefore != null
@@ -183,6 +191,16 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
     return { ...prev, fen: c.fen(), turn: turnOf(c), check: c.inCheck(), ...partial };
   };
 
+  /** Volta o tabuleiro à posição do exercício, desfazendo o lance errado e o
+   *  que a refutação tinha posto na tela ("Tentar de novo" e a engine que falhou). */
+  const restaurar = (): Partial<PuzzleState<R>> => {
+    const c = chessRef.current;
+    return {
+      fen: c.fen(), turn: turnOf(c), check: c.inCheck(), lastMove: antesRef.current,
+      refutation: undefined, hintStage: 0, hint: undefined, pendingPromotion: undefined,
+    };
+  };
+
   const doSubmit = useCallback(async (wrong: boolean, usedHint: boolean) => {
     submittingRef.current = true;
     setState((p) => ({ ...p, phase: "submitting", error: undefined }));
@@ -276,15 +294,11 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
   const recusar = useCallback((authored?: string, voltar = false) => {
     setState((p) => ({
       ...p,
-      ...(voltar
-        ? {
-          phase: "awaiting_move" as Phase, fen: chessRef.current.fen(), turn: turnOf(chessRef.current),
-          check: chessRef.current.inCheck(), lastMove: antesRef.current, refutation: undefined,
-        }
-        : null),
+      ...(voltar ? { phase: "awaiting_move" as Phase, ...restaurar() } : null),
       wrong: true, hintStage: 0 as const, hint: undefined, pendingPromotion: undefined,
       message: { text: authored ?? "Não é esse. Tente de novo.", tone: "bad" as const },
     }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Refutação: o lance errado entra numa cópia da posição (o `chessRef` do
@@ -318,9 +332,10 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
 
     void analyse(fenDepois, 1).then((out) => {
       if (!vale()) return;
-      if (out.terminal) {
+      const terminal = terminalDe(out.terminal);
+      if (terminal) {
         // o lance errado terminou a partida: não há réplica para mostrar
-        const r: Refutation = { wrongSan, pvSan: [], authored, terminal: out.terminal };
+        const r: Refutation = { wrongSan, pvSan: [], authored, terminal };
         setState((p) => ({ ...p, phase: "refuted", refutation: r, message: { text: refutationMessage(r), tone: "bad" } }));
         return;
       }
@@ -419,9 +434,8 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
   const retryMove = useCallback(() => {
     if (state.phase !== "refuting" && state.phase !== "refuted") return;
     tentativaRef.current++;
-    setState(snapshot({
-      phase: "awaiting_move", lastMove: antesRef.current, refutation: undefined,
-      hintStage: 0, hint: undefined, pendingPromotion: undefined,
+    setState((p) => ({
+      ...p, phase: "awaiting_move", ...restaurar(),
       message: { text: "Tente de novo.", tone: "bad" },
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps

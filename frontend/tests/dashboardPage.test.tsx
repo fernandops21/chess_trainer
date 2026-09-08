@@ -94,6 +94,8 @@ test("com by_source o cartão Estado mostra a contagem por fonte", async () => {
 test("sem by_source o cartão Estado não mostra a linha por fonte", async () => {
   renderPage();
   expect(await screen.findByText(/8 de 10 partidas analisadas/)).toBeTruthy();
+  // "puzzles" sozinho escondia que a conta junta erros, Lichess e estudos
+  expect(screen.getByText(/20 exercícios no total \(todas as fontes\)/)).toBeTruthy();
   expect(screen.queryByText(/dos seus erros/)).toBeNull();
 });
 

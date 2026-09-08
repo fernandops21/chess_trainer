@@ -20,6 +20,28 @@ export const MAX_EM_VOO = 2;
 
 const NENHUMA: ReadonlyMap<string, Classification> = new Map();
 
+/**
+ * Índices de `fens` que podem consultar a engine agora: os primeiros de `ordem`
+ * que ainda não têm resposta nem erro, até `MAX_EM_VOO` posições.
+ *
+ * A conta é por FEN, não por índice: a mesma posição repetida no caminho é uma
+ * consulta só (o React Query junta as chaves iguais), então contá-la duas vezes
+ * desperdiçaria vaga e atrasaria o resto do caminho.
+ */
+export function janelaEmVoo(fens: string[], ordem: number[], resolvida: (fen: string) => boolean): Set<number> {
+  const janela = new Set<number>();
+  const chaves = new Set<string>();
+  for (const i of ordem) {
+    if (resolvida(fens[i])) continue;
+    if (!chaves.has(fens[i])) {
+      if (chaves.size >= MAX_EM_VOO) break;
+      chaves.add(fens[i]);
+    }
+    janela.add(i);
+  }
+  return janela;
+}
+
 export interface MoveClassificationOptions {
   /** Configuração `classify_moves`: desligada, nada é consultado. */
   enabled: boolean;
@@ -78,15 +100,12 @@ export function useMoveClassification(
   const ordem = useMemo(() => fens.map((_, i) => fens.length - 1 - i), [fens]);
 
   const client = useQueryClient();
-  const janela = new Set<number>();
-  for (const i of ordem) {
-    if (janela.size >= MAX_EM_VOO) break;
+  const janela = janelaEmVoo(fens, ordem, (fen) => {
     // resposta ou erro já em mãos: a posição não ocupa vaga (erro não repete,
     // então segurar a vaga dele travaria o resto do caminho para sempre)
-    const estado = client.getQueryState(["analyse", fens[i]]);
-    if (estado?.status === "success" || estado?.status === "error") continue;
-    janela.add(i);
-  }
+    const estado = client.getQueryState(["analyse", fen]);
+    return estado?.status === "success" || estado?.status === "error";
+  });
 
   const results = useQueries({
     queries: ordem.map((i) => ({
@@ -100,9 +119,16 @@ export function useMoveClassification(
     })),
   });
 
-  // de volta à ordem do caminho: `dados[i]` é a análise de `fens[i]`
+  // de volta à ordem do caminho: `dados[i]` é a análise de `fens[i]`.
+  //
+  // O `status` é lido de propósito: o React Query só avisa o componente das
+  // propriedades que ele leu, e sem isto uma consulta que dá erro não
+  // renderizaria de novo — a vaga dela ficaria presa na janela até algum outro
+  // render (navegar na árvore, por exemplo) recalcular tudo.
   const dados: (AnalyseOut | undefined)[] = [];
+  let comErro = 0;
   ordem.forEach((i, k) => {
+    if (results[k].status === "error") comErro += 1;
     dados[i] = results[k].data;
   });
 
@@ -112,6 +138,7 @@ export function useMoveClassification(
   const assinatura = [
     thresholds.mistake,
     thresholds.blunder,
+    comErro,
     nos.map((n) => `${n.id}${bookIds.has(n.id) ? "*" : ""}`).join(","),
     fens.join(","),
     fens.map((_, i) => (dados[i] ? "1" : "0")).join(""),

@@ -214,6 +214,36 @@ test("um ponteiro/tecla retoma o contexto cedo", async () => {
   expect(criados.resume).toBeGreaterThan(0);
 });
 
+test("o primeiro gesto já busca as amostras dos lances", async () => {
+  fakeAudio("suspended");
+  const { chamadas } = fakeFetch();
+  await carregar();
+  window.dispatchEvent(new Event("pointerdown"));
+  expect(chamadas).toEqual(["/sound/Move.mp3", "/sound/Capture.mp3"]);
+});
+
+test("o primeiro lance depois do gesto já sai da amostra, sem sintetizar", async () => {
+  const criados = fakeAudio("suspended");
+  await carregar();
+  const { play } = await import("../src/lib/sound");
+  fakeFetch();
+  window.dispatchEvent(new Event("pointerdown"));
+  await flush();
+  const oscAntes = criados.osc.length;
+  play("move");
+  expect(criados.fontes.length).toBe(1);
+  expect(criados.osc.length).toBe(oscAntes);
+});
+
+test("com o som desligado, o gesto não busca amostra nenhuma", async () => {
+  fakeAudio("suspended");
+  const { mock } = fakeFetch();
+  const { setEnabled } = await carregar();
+  setEnabled(false);
+  window.dispatchEvent(new Event("keydown"));
+  expect(mock).not.toHaveBeenCalled();
+});
+
 // ------------------------------------------------------------- amostras Lichess
 
 test("depois da amostra carregada, play('move') toca um AudioBufferSourceNode com o buffer decodificado", async () => {

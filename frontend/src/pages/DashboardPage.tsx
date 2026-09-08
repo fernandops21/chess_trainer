@@ -38,7 +38,7 @@ export function DashboardPage() {
       {s && d && (
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Estado</h3>
-          <div>{d.games_analyzed} de {d.games_total} partidas analisadas · {d.puzzles_total} puzzles · {d.leeches} sanguessugas</div>
+          <div>{d.games_analyzed} de {d.games_total} partidas analisadas · {d.puzzles_total} exercícios no total (todas as fontes) · {d.leeches} sanguessugas</div>
           {d.by_source && (
             <div className="muted">
               {d.by_source.own?.in_queue ?? 0} dos seus erros · {d.by_source.lichess?.in_queue ?? 0} do Lichess · {d.by_source.study?.in_queue ?? 0} de estudos

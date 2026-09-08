@@ -105,6 +105,10 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
   font-size: clamp(9px, 2.2vw, 14px); font-weight: 700; line-height: 1;
   border: 1px solid rgba(255, 255, 255, .85); box-shadow: var(--shadow);
 }
+/* No canto do tabuleiro a margem negativa jogaria o selo para fora: na fileira
+   de cima ele perde a de cima, na coluna da direita a da direita. */
+.board-badge--topo > span { margin-top: 0; }
+.board-badge--direita > span { margin-right: 0; }
 
 .node-menu { position: fixed; z-index: 20; min-width: 220px; padding: 6px; display: flex; flex-direction: column; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
 .node-menu button { text-align: left; min-height: 36px; }

@@ -6,7 +6,7 @@ import { api } from "../src/api/client";
 import type { AnalyseOut, Color } from "../src/api/types";
 import { fenAt, mainline, pathTo } from "../src/analysis/moveTree";
 import type { Tree, TreeNode } from "../src/analysis/moveTree";
-import { MAX_EM_VOO, MAX_LANCES, useMoveClassification } from "../src/analysis/useMoveClassification";
+import { MAX_EM_VOO, MAX_LANCES, janelaEmVoo, useMoveClassification } from "../src/analysis/useMoveClassification";
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const LIMIARES = { mistake: 100, blunder: 200 };
@@ -201,6 +201,41 @@ test("classifica os 60 últimos meios-lances do caminho", async () => {
   // uma consulta por posição: os 60 lances mais a de onde o primeiro deles parte
   expect(espia).toHaveBeenCalledTimes(MAX_LANCES + 1);
 }, 30000);
+
+test("consulta que dá erro libera a vaga para a próxima posição do caminho", async () => {
+  const arvore = arvoreLinear(RUY);
+  const fens = fensDe(arvore);
+  const ultima = fens[fens.length - 1];
+  // a posição na tela falha (engine fora do ar); as outras ficam sem resposta
+  const espia = vi.spyOn(api, "analyse").mockImplementation((fen: string) =>
+    fen === ultima ? Promise.reject(new Error("engine indisponível")) : new Promise<AnalyseOut>(() => {}),
+  );
+  montarArvore(arvore, `n${RUY.length}`);
+  await waitFor(() => expect(espia).toHaveBeenCalledTimes(MAX_EM_VOO + 1));
+  // a vaga do erro não fica presa: a próxima posição do caminho é consultada
+  expect(espia.mock.calls.map((c) => c[0])).toEqual([
+    ...fens.slice(-MAX_EM_VOO).reverse(),
+    fens[fens.length - 1 - MAX_EM_VOO],
+  ]);
+});
+
+// --- janela das consultas em voo ----------------------------------------
+
+test("FENs repetidas no caminho contam uma vaga só", () => {
+  // a mesma posição em dois pontos do caminho é uma consulta só no React Query
+  const fens = ["A", "B", "A"];
+  const ordem = [2, 1, 0];
+  expect([...janelaEmVoo(fens, ordem, () => false)]).toEqual([2, 1, 0]);
+  expect(MAX_EM_VOO).toBe(2);
+});
+
+test("a janela para em MAX_EM_VOO posições diferentes e pula as já resolvidas", () => {
+  const fens = ["A", "B", "C", "D"];
+  const ordem = [3, 2, 1, 0];
+  expect([...janelaEmVoo(fens, ordem, () => false)]).toEqual([3, 2]);
+  // "D" já tem resposta (ou erro): não ocupa vaga
+  expect([...janelaEmVoo(fens, ordem, (f) => f === "D")]).toEqual([2, 1]);
+});
 
 test("estado parcial: só entram os lances cujas análises já chegaram", async () => {
   vi.spyOn(api, "analyse").mockImplementation((fen: string) =>

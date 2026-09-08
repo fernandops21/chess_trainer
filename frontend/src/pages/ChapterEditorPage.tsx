@@ -77,7 +77,21 @@ export function ChapterEditorPage() {
     const enviada = versao.current;
     mandarSalvar(
       { cid, body: { name: nome.trim() || "Capítulo", mode: modo, orientation: arvore.orientation, tree: arvore } },
-      { onSuccess: () => { if (versao.current === enviada) setDirty(false); setSalvoEm(new Date()); } },
+      {
+        onSuccess: (ch) => {
+          // nada foi digitado com a requisição no ar: o formulário passa a mostrar
+          // o que o servidor guardou (o nome aparado, a árvore normalizada). Se o
+          // usuário editou no meio do caminho, o que está na tela é que vale.
+          if (versao.current === enviada) {
+            setDirty(false);
+            const salva = ch.tree ?? emptyTree(ch.fen, ch.orientation);
+            setNome(ch.name);
+            setTree(salva);
+            setEnunciado(salva.intro ?? "");
+          }
+          setSalvoEm(new Date());
+        },
+      },
     );
   }, [tree, nome, modo, enunciado, cid, salvando, mandarSalvar]);
 

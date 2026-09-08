@@ -1,7 +1,9 @@
 import type { Color, Solution } from "../api/types";
+import { mesmaPosicao } from "../board/line";
 import {
   addMove,
   emptyTree,
+  fenAt,
   insertLine,
   mainline,
   setComment,
@@ -17,11 +19,6 @@ export interface SolutionSource {
   /** Posição de antes do lance do adversário e o lance em si; ausentes na maioria das fontes. */
   fen_before?: string | null;
   last_move?: string | null;
-}
-
-/** Duas FENs que descrevem a mesma posição (o contador de lances não conta). */
-function mesmaPosicao(a: string, b: string): boolean {
-  return a.split(" ").slice(0, 4).join(" ") === b.split(" ").slice(0, 4).join(" ");
 }
 
 /**
@@ -51,10 +48,11 @@ export function treeFromSolution(p: SolutionSource): Tree {
   let tree = emptyTree(offset ? p.fen_before! : p.fen_start, p.side_to_move);
   let linha = offset ? [p.last_move!, ...ucis] : ucis;
   let r = insertLine(tree, null, linha);
-  // dado incoerente (o lance guardado não cabe na posição guardada): a árvore
-  // recomeça em `fen_start`, como nas fontes que não guardam o lance anterior
-  // só refaz a partir de fen_start quando o próprio last_move não encaixa
-  if (offset && r.applied === 0) {
+  // Dado incoerente: o lance guardado não cabe na posição guardada, ou cabe mas
+  // leva a outra posição que não a do exercício. Nos dois casos a árvore ficaria
+  // fora da solução, então ela recomeça em `fen_start`, como nas fontes que não
+  // guardam o lance anterior.
+  if (offset && (r.applied === 0 || !mesmaPosicao(fenAt(r.tree, mainline(r.tree)[0]?.id ?? null), p.fen_start))) {
     offset = 0;
     tree = emptyTree(p.fen_start, p.side_to_move);
     linha = ucis;

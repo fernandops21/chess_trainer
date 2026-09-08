@@ -113,7 +113,7 @@ function Move({ node, prefix, current, book, cls, onGoTo, onContextMenu }: MoveP
       {book ? (
         <span className="book" role="img" title={BOOK_TITLE} aria-label={BOOK_TITLE}>📖</span>
       ) : (
-        cls && <span className={`class class-${cls.kind}`} title={cls.label}>{cls.symbol}</span>
+        cls && <span className={`class class-${cls.kind}`} role="img" title={cls.label} aria-label={cls.label}>{cls.symbol}</span>
       )}
     </button>
   );

@@ -120,7 +120,8 @@ test("com filtro ativo aparece a contagem de vencidos com esses filtros", async 
   expect(screen.queryByText(/com estes filtros/)).toBeNull();
   fireEvent.click(screen.getByText("Lichess guardados"));
   expect(await screen.findByText("2 vencido(s) com estes filtros · 9 no total")).toBeTruthy();
-  expect(api.queue).toHaveBeenCalledWith(expect.objectContaining({ mode: "review", sources: ["lichess"] }));
+  // só a contagem interessa: o servidor não precisa montar os exercícios da fila
+  expect(api.queue).toHaveBeenCalledWith(expect.objectContaining({ mode: "review", sources: ["lichess"], count_only: true }));
 });
 
 test("o tipo sozinho já conta como filtro; desfazer some com a contagem", async () => {

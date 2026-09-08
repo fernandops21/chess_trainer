@@ -66,7 +66,6 @@ export function TacticSession({ config, onFinish }: { config: SessionConfig; onF
   const finished = useRef(false);
   // trava do encerramento no servidor, compartilhada com a saída da tela
   const endedRef = useRef(false);
-  useEndOnExit(sessionRef, endedRef);
   // `finish` é chamado a partir de closures async (efeito de início, `goNext`) que podem ter
   // capturado uma versão antiga de `finish`/`startRating`; o ref garante que ele sempre lê o
   // rating do status mais recente, mesmo que o status só tenha chegado depois do começo.
@@ -78,6 +77,9 @@ export function TacticSession({ config, onFinish }: { config: SessionConfig; onF
   // Mesma proteção do treino próprio: sob StrictMode o efeito roda duas vezes
   // e a segunda execução precisa se reinscrever no mesmo request.
   const startP = useRef<Promise<[SessionOut, TacticOut]> | null>(null);
+  // sair antes da resposta do `POST /api/sessions` não pode deixar a sessão aberta:
+  // o encerramento espera a criação terminar para saber o id
+  useEndOnExit(sessionRef, endedRef, () => startP.current?.then(([s]) => s) ?? null);
 
   const arrive = (t: TacticOut) => {
     if (!seen.current.includes(t.id)) seen.current.push(t.id);
