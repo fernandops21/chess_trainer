@@ -1,15 +1,16 @@
 import json
+from collections.abc import Sequence
 from datetime import timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from chess_trainer.api.deps import get_db
 from chess_trainer.api.schemas import (
-    DashboardOut, GameRef, MistakeRef, PuzzleOut, PuzzleSibling, QueueIn, QueueOut, ReviewIn, ReviewOut,
-    SessionIn, SessionOut, SourceCount, SrsOut, StudyRef,
+    DashboardOut, GameRef, MistakeRef, MyReplyInfo, PuzzleOut, PuzzleSibling, QueueIn, QueueOut, ReviewIn,
+    ReviewOut, SessionIn, SessionOut, SourceCount, SrsOut, StudyRef,
 )
 from chess_trainer.config import get_setting, load_settings
 from chess_trainer.core.models import Game, Position, Puzzle, Review, TrainingSession, utcnow
@@ -47,8 +48,37 @@ def _study_ref(p: Puzzle) -> StudyRef | None:
                     chapter_id=chapter.id, chapter_name=chapter.name, lichess_url=chapter.lichess_url)
 
 
-def _puzzle_out(db: Session, p: Puzzle) -> PuzzleOut:
+def _my_replies(db: Session, puzzles: Sequence[Puzzle]) -> dict[str, MyReplyInfo]:
+    """A resposta do usuário ao erro do adversário, por id de exercício.
+
+    É a posição da mesma partida no ply seguinte ao do erro; fica de fora quem
+    não é "punir" (o erro é do próprio usuário) e quem errou no último lance da
+    partida. Vai em lote de propósito: `_puzzle_out` roda para a fila inteira e
+    uma consulta por exercício viraria N+1.
+    """
+    alvos = {p.id: (p.position.game_id, p.position.ply + 1)
+             for p in puzzles if p.position is not None and p.position.mistake_by == "opponent"}
+    if not alvos:
+        return {}
+    pares = set(alvos.values())
+    rows = db.scalars(select(Position).where(
+        or_(*[and_(Position.game_id == g, Position.ply == ply) for g, ply in pares]))).all()
+    por_par = {(r.game_id, r.ply): r for r in rows}
+    out: dict[str, MyReplyInfo] = {}
+    for puzzle_id, par in alvos.items():
+        r = por_par.get(par)
+        if r is not None:
+            out[puzzle_id] = MyReplyInfo(ply=r.ply, move_played=r.move_played, move_uci=r.move_uci,
+                                         eval_before=r.eval_before, eval_after=r.eval_after)
+    return out
+
+
+def _puzzle_out(db: Session, p: Puzzle, my_replies: dict[str, MyReplyInfo] | None = None) -> PuzzleOut:
+    """Um exercício como a API o entrega. `my_replies` é o resultado de
+    `_my_replies` para o lote todo; sem ele, a consulta é feita só para este."""
     pos = p.position
+    if my_replies is None:
+        my_replies = _my_replies(db, [p])
     fen_before, last_move = _last_move(db, p)
     game = None
     if p.game is not None:
@@ -58,7 +88,8 @@ def _puzzle_out(db: Session, p: Puzzle) -> PuzzleOut:
     if pos is not None:
         mistake = MistakeRef(ply=pos.ply, move_played=pos.move_played, move_uci=pos.move_uci,
                              eval_before=pos.eval_before, eval_after=pos.eval_after,
-                             mistake_level=pos.mistake_level, mistake_by=pos.mistake_by)
+                             mistake_level=pos.mistake_level, mistake_by=pos.mistake_by,
+                             my_reply=my_replies.get(p.id))
     return PuzzleOut(
         id=p.id, kind=p.kind, fen_start=p.fen_start, side_to_move=p.side_to_move,
         solution=p.solution_data, end_reason=p.end_reason, theme=p.theme, category=p.category,
@@ -71,6 +102,12 @@ def _puzzle_out(db: Session, p: Puzzle) -> PuzzleOut:
         mistake=mistake, study=_study_ref(p),
         siblings=[PuzzleSibling(id=s.id, kind=s.kind) for s in (pos.puzzles if pos is not None else []) if s.id != p.id],
     )
+
+
+def _puzzles_out(db: Session, puzzles: Sequence[Puzzle]) -> list[PuzzleOut]:
+    """Uma lista de exercícios com as respostas da partida buscadas de uma vez."""
+    my_replies = _my_replies(db, puzzles)
+    return [_puzzle_out(db, p, my_replies) for p in puzzles]
 
 
 def _get_puzzle(db: Session, puzzle_id: str) -> Puzzle:
@@ -109,13 +146,13 @@ def get_queue(
         raise HTTPException(400, str(exc)) from exc
     return QueueOut(mode=mode, due_count=result.due_count, new_available=result.new_available,
                     new_remaining_today=result.new_remaining_today,
-                    items=[] if count_only else [_puzzle_out(db, p) for p in result.items])
+                    items=[] if count_only else _puzzles_out(db, result.items))
 
 
 @router.get("/leeches", response_model=list[PuzzleOut])
 def get_leeches(db: Session = Depends(get_db)):
     puzzles = db.scalars(select(Puzzle).where(Puzzle.is_leech.is_(True)).order_by(Puzzle.leech_since.desc())).all()
-    return [_puzzle_out(db, p) for p in puzzles]
+    return _puzzles_out(db, puzzles)
 
 
 @router.post("/puzzles/{puzzle_id}/unleech", response_model=PuzzleOut)

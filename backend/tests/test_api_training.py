@@ -138,6 +138,40 @@ def test_puzzle_out_carries_mistake_and_siblings(ready):
     assert puzzle["siblings"] == []
 
 
+def test_punir_traz_a_resposta_que_voce_deu_na_partida(ready):
+    """No "punir" o cartão do resultado mostra o que o usuário respondeu ao erro
+    do adversário: a posição do ply seguinte, na mesma partida."""
+    app, client = ready
+    positions = _positions(app)
+    seguinte = positions[6]
+    assert seguinte["ply"] == 7
+    puzzle = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]
+    reply = puzzle["mistake"]["my_reply"]
+    assert reply["ply"] == 7 and reply["move_uci"] == seguinte["move_uci"]
+    assert reply["move_played"] and "eval_before" in reply and "eval_after" in reply
+
+
+def test_punir_no_ultimo_lance_da_partida_nao_tem_resposta(ready):
+    """Sem ply seguinte (o erro foi o último lance) `my_reply` é nulo."""
+    from sqlalchemy import select
+
+    from chess_trainer.core.models import Position
+
+    app, client = ready
+    puzzle_id = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]["id"]
+    with app.state.session_factory() as db:
+        db.delete(db.scalars(select(Position).where(Position.ply == 7)).one())
+        db.commit()
+    assert client.get(f"/api/puzzles/{puzzle_id}").json()["mistake"]["my_reply"] is None
+
+
+def test_evitar_nao_tem_resposta_da_partida(ready):
+    """No "evitar" o erro é do próprio usuário: não há o que ele respondeu."""
+    app, client = ready
+    avoid_id = _make_puzzle(app, _positions(app)[4], "avoid")
+    assert client.get(f"/api/puzzles/{avoid_id}").json()["mistake"]["my_reply"] is None
+
+
 def test_review_unknown_puzzle_is_404(ready):
     _, client = ready
     assert client.post("/api/reviews", json={"puzzle_id": "nope", "correct": True}).status_code == 404
@@ -161,13 +195,13 @@ def _positions(app):
         return [{"id": p.id, "game_id": p.game_id, "ply": p.ply, "fen": p.fen, "move_uci": p.move_uci} for p in rows]
 
 
-def _make_avoid(app, pos: dict) -> str:
-    """Cria um puzzle "evitar" ligado a essa posição (o gerador só cria evitar
-    para erros do usuário; aqui interessa só a saída da API)."""
+def _make_puzzle(app, pos: dict, kind: str = "avoid") -> str:
+    """Cria um puzzle ligado a essa posição (o gerador só cria evitar para erros
+    do usuário; aqui interessa só a saída da API)."""
     from chess_trainer.core.models import Puzzle
 
     with app.state.session_factory() as db:
-        puzzle = Puzzle(position_id=pos["id"], game_id=pos["game_id"], kind="avoid", fen_start=pos["fen"],
+        puzzle = Puzzle(position_id=pos["id"], game_id=pos["game_id"], kind=kind, fen_start=pos["fen"],
                         side_to_move="white", solution='{"moves": [], "explanation_pv": []}',
                         end_reason="material_gain", theme="tactic", category="rapid", solver_moves=1)
         db.add(puzzle)
@@ -185,13 +219,13 @@ def test_puzzle_out_last_move_for_own_punish_and_avoid(ready):
     assert punish["study"] is None and punish["game"] is not None and punish["ply"] == 6
 
     # evitar: o último lance é o do adversário, um ply antes do erro do usuário
-    avoid_id = _make_avoid(app, positions[4])
+    avoid_id = _make_puzzle(app, positions[4], "avoid")
     avoid = client.get(f"/api/puzzles/{avoid_id}").json()
     assert avoid["kind"] == "avoid" and avoid["last_move"] == positions[3]["move_uci"]
     assert avoid["fen_before"] == positions[3]["fen"]
 
     # no ply 1 não há lance anterior: sem último lance
-    first = client.get(f"/api/puzzles/{_make_avoid(app, positions[0])}").json()
+    first = client.get(f"/api/puzzles/{_make_puzzle(app, positions[0], 'avoid')}").json()
     assert first["fen_before"] is None and first["last_move"] is None
 
 

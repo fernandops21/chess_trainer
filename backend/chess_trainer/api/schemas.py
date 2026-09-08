@@ -99,6 +99,17 @@ class PuzzleRef(BaseModel):
     in_queue: bool = True
 
 
+class MyReplyInfo(BaseModel):
+    """O que o usuário respondeu na partida ao erro do adversário: a linha de
+    `positions` do ply seguinte ao do erro."""
+
+    ply: int
+    move_played: str
+    move_uci: str
+    eval_before: int
+    eval_after: int
+
+
 class MistakeRef(BaseModel):
     ply: int
     move_played: str
@@ -107,6 +118,9 @@ class MistakeRef(BaseModel):
     eval_after: int
     mistake_level: str | None
     mistake_by: str | None
+    # só nos "punir" (erro do adversário): nulo quando o erro foi o último lance
+    # da partida ou quando o erro é do próprio usuário
+    my_reply: MyReplyInfo | None = None
 
 
 class PuzzleSibling(BaseModel):
