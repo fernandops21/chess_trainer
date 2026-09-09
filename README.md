@@ -308,9 +308,26 @@ na primeira vez que cada uma é tocada e reaproveitadas depois via `AudioBufferS
 amostra ainda não chegou (ou o carregamento falha), um som sintetizado na hora entra no lugar dela,
 para o efeito nunca ficar mudo.
 
-O botão 🔊/🔇 no fim da barra de navegação liga e desliga tudo; a escolha fica guardada no navegador
+O botão 🔊/🔇 na barra de navegação liga e desliga tudo; a escolha fica guardada no navegador
 (`sound.enabled`). Navegadores só liberam áudio depois de um clique ou tecla na página — o primeiro
 gesto já destrava, e o som começa ligado.
+
+## Tema
+
+Claro e escuro. O botão ☀️/🌙 no fim da barra de navegação alterna os dois e guarda a escolha no
+navegador (`tema`). Sem escolha guardada, a interface segue o `prefers-color-scheme` do sistema —
+inclusive se ele mudar com a página aberta.
+
+A paleta inteira mora em `frontend/src/styles/tokens.css`: o tema claro nas variáveis de `:root`, o
+escuro trocando as mesmas variáveis em `:root[data-theme="dark"]`. Nenhuma regra de
+`frontend/src/styles/base.css` precisa saber em qual tema está — para uma cor nova, crie um token
+nos dois blocos em vez de escrever o valor na regra. O atributo é aplicado por
+`frontend/src/lib/theme.ts` (`getTema`, `setTema`, `useTema`, `aplicarTema`), chamado em `main.tsx`
+antes do primeiro render para a tela não piscar clara.
+
+Ficam de fora do tema, de propósito: o tabuleiro e as peças (tema marrom do chessground), a barra de
+avaliação — que é preta e branca porque representa as peças — e as cores dos ícones de classificação
+de lance, que são as do chess.com.
 
 ## Desenvolvimento
 

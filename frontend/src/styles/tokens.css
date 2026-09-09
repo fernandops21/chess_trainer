@@ -1,4 +1,7 @@
+/* Tema claro (padrão). O escuro só troca os valores, mais abaixo:
+   nenhuma regra do base.css precisa saber em qual tema está. */
 :root {
+  color-scheme: light;
   --bg: #f4f1ea;
   --surface: #ffffff;
   --ink: #221c17;
@@ -10,8 +13,50 @@
   --bad: #c62828;
   --warn: #f9a825;
   --accent: #ffe082;
+  /* barra de navegação: no claro é a própria cor da marca */
+  --nav-bg: var(--brand);
+  --nav-ink: var(--brand-ink);
+  --nav-ativo: rgba(255, 255, 255, .14);
+  --backdrop: rgba(0, 0, 0, .35);
+  /* fundo das etiquetas (.tag) e avisos coloridos */
+  --chip: #eee6da;
+  --bad-bg: #fde0dc;
+  --warn-bg: #fff1cc;
+  --warn-ink: #8a5a00;
+  /* barra de resultado do livro de aberturas: vitórias das brancas e das pretas */
+  --wdl-brancas: #f5f2ea;
+  --wdl-pretas: var(--ink);
   --radius: 10px;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
   --nav-w: 220px;
   --tap: 44px;
+}
+
+/* Tema escuro. Aplicado por `lib/theme.ts` em `<html data-theme="dark">`;
+   sem escolha guardada quem decide é o `prefers-color-scheme` do sistema. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1b1917;
+  --surface: #262421;
+  --ink: #ece7de;
+  --muted: #a89f94;
+  --line: #3b3632;
+  --brand: #e6dccb;
+  --brand-ink: #1b1917;
+  --ok: #7cc47f;
+  --bad: #ff7b72;
+  --warn: #f5c451;
+  --accent: #5a4a14;
+  /* aqui a marca é clara demais para o fundo da barra: ela fica um tom acima da página */
+  --nav-bg: #302d29;
+  --nav-ink: var(--ink);
+  --nav-ativo: rgba(255, 255, 255, .10);
+  --backdrop: rgba(0, 0, 0, .6);
+  --chip: #33302b;
+  --bad-bg: #3a2220;
+  --warn-bg: #3a3018;
+  --warn-ink: #f2c76b;
+  --wdl-brancas: #e8e3d8;
+  --wdl-pretas: #100e0d;
+  --shadow: 0 1px 3px rgba(0, 0, 0, .5);
 }

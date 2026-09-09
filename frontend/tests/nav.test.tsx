@@ -31,10 +31,14 @@ beforeEach(() => {
   localStorage.clear();
   setEnabled(true);
   localStorage.clear();
+  document.documentElement.removeAttribute("data-theme");
   vi.mocked(play).mockClear();
   vi.spyOn(api, "dashboard").mockResolvedValue(dash(0));
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  document.documentElement.removeAttribute("data-theme");
+  vi.restoreAllMocks();
+});
 
 test("Revisar vem logo depois do Painel", () => {
   renderNav();
@@ -93,15 +97,56 @@ test("clicar de novo religa o som e toca um lance de retorno", () => {
   expect(play).toHaveBeenCalledWith("move");
 });
 
-test("o botão vem depois dos itens de navegação", () => {
+test("os botões vêm depois dos itens de navegação", () => {
   const { container } = renderNav();
   const nav = container.querySelector("nav.nav")!;
   const filhos = Array.from(nav.children);
-  const botao = screen.getByRole("button", { name: "Som ligado" });
+  const som = screen.getByRole("button", { name: "Som ligado" });
+  const tema = screen.getByRole("button", { name: "Tema claro" });
   const links = filhos.filter((el) => el.tagName === "A");
   expect(links.length).toBeGreaterThan(0);
-  expect(filhos.indexOf(botao)).toBe(filhos.length - 1);
-  expect(filhos.indexOf(botao)).toBeGreaterThan(filhos.indexOf(links.at(-1)!));
+  expect(filhos.indexOf(som)).toBe(filhos.length - 2);
+  expect(filhos.indexOf(tema)).toBe(filhos.length - 1);
+  expect(filhos.indexOf(som)).toBeGreaterThan(filhos.indexOf(links.at(-1)!));
+});
+
+// --------------------------------------------------------------- tema escuro
+
+test("o botão de tema começa no claro (o jsdom não tem prefers-color-scheme)", () => {
+  renderNav();
+  const botao = screen.getByRole("button", { name: "Tema claro" });
+  expect(botao.getAttribute("aria-pressed")).toBe("false");
+  expect(botao.textContent).toContain("☀️");
+  expect(document.documentElement.getAttribute("data-theme")).toBeNull();
+});
+
+test("clicar liga o tema escuro, troca o rótulo e guarda a escolha", () => {
+  renderNav();
+  fireEvent.click(screen.getByRole("button", { name: "Tema claro" }));
+  const botao = screen.getByRole("button", { name: "Tema escuro" });
+  expect(botao.getAttribute("aria-pressed")).toBe("true");
+  expect(botao.textContent).toContain("🌙");
+  expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+  expect(localStorage.getItem("tema")).toBe('"escuro"');
+});
+
+test("clicar de novo volta ao claro e limpa o atributo", () => {
+  renderNav();
+  fireEvent.click(screen.getByRole("button", { name: "Tema claro" }));
+  fireEvent.click(screen.getByRole("button", { name: "Tema escuro" }));
+  expect(screen.getByRole("button", { name: "Tema claro" }).getAttribute("aria-pressed")).toBe("false");
+  expect(document.documentElement.getAttribute("data-theme")).toBe("");
+  expect(localStorage.getItem("tema")).toBe('"claro"');
+});
+
+test("duas telas com o botão de tema ficam em sincronia", () => {
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter><Nav /><Nav /></MemoryRouter>
+    </QueryClientProvider>,
+  );
+  fireEvent.click(screen.getAllByRole("button", { name: "Tema claro" })[0]);
+  expect(screen.getAllByRole("button", { name: "Tema escuro" }).length).toBe(2);
 });
 
 test("duas telas com o botão ficam em sincronia", () => {
