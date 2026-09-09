@@ -40,11 +40,13 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-test("Revisar vem logo depois do Painel", () => {
+test("Progresso vem entre o Painel e o Revisar", () => {
   renderNav();
   const rotulos = screen.getAllByRole("link").map((a) => a.textContent);
   expect(rotulos[0]).toContain("Painel");
-  expect(rotulos[1]).toContain("Revisar");
+  expect(rotulos[1]).toContain("Progresso");
+  expect(rotulos[2]).toContain("Revisar");
+  expect(screen.getByText("Progresso").closest("a")!.getAttribute("href")).toBe("/progresso");
   expect(screen.getByText("Revisar").closest("a")!.getAttribute("href")).toBe("/revisar");
 });
 
@@ -57,6 +59,7 @@ test("o badge de vencidos fica em Revisar, explicado, e não em Treinar", async 
   expect(badge.getAttribute("aria-label")).toBe("3 vencidos na repetição");
   expect(badge.closest("a")!.getAttribute("href")).toBe("/revisar");
   expect(screen.getByText("Treinar").closest("a")!.querySelector(".badge")).toBeNull();
+  expect(screen.getByText("Progresso").closest("a")!.querySelector(".badge")).toBeNull();
 });
 
 test("um vencido só fala no singular", async () => {

@@ -50,6 +50,8 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
   // toda sessão nova começa sem filtro, senão um filtro velho esconde vencidos sem aviso.
   const [sources, setSources] = useState<PuzzleSource[]>([]);
   const [studyId, setStudyId] = useState<string>(studyParam ?? "");
+  // vale só para esta sessão: nada é guardado, e o limite das Configurações fica como está
+  const [ignorarLimite, setIgnorarLimite] = useState<boolean>(false);
   const [kind, setKind] = useState<string>("");
   const [color, setColor] = useState<string>("");
   const [category, setCategory] = useState<string>("");
@@ -91,6 +93,7 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
         mode,
         kind: asKind(kind), color: asColor(color), category: category || undefined,
         sources: mode === "review" && sources.length ? sources : undefined,
+        ignore_limit: mode === "new" && ignorarLimite ? true : undefined,
       },
       plannedMinutes: timed ? clamped : null,
       themes,
@@ -131,8 +134,15 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
         </div>
       )}
       {mode === "new" && (
-        <div className="muted" style={{ marginTop: 10 }}>
-          Exercícios dos seus erros que você ainda não revisou nenhuma vez, até o limite diário.
+        <div style={{ marginTop: 10 }}>
+          <label>
+            <input type="checkbox" checked={ignorarLimite}
+              onChange={(e) => setIgnorarLimite(e.target.checked)} /> ignorar o limite diário hoje
+          </label>
+          <div className="muted" style={{ marginTop: 6 }}>
+            Exercícios dos seus erros que você ainda não revisou nenhuma vez, até o limite diário
+            (ou sem limite, se marcado).
+          </div>
         </div>
       )}
       <div className="row" style={{ marginTop: 10 }}>

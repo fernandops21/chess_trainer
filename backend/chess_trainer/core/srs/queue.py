@@ -36,6 +36,9 @@ class QueueFilters:
     sources: tuple[str, ...] = ()   # vazio = todas as fontes
     study_id: str | None = None
     mode: str = "review"
+    #: só no modo "novos": serve tudo o que há de novo, sem descontar o limite
+    #: diário. Vale para esta fila apenas — nada é gravado nas Configurações.
+    ignore_limit: bool = False
 
 
 @dataclass
@@ -115,7 +118,12 @@ def build_queue(db: Session, filters: QueueFilters, settings: AppSettings, now: 
     if filters.mode != "study":
         nunca_revisados = nunca_revisados.where(Puzzle.source == "own")
     new_available = int(db.scalar(select(func.count()).select_from(nunca_revisados.subquery())) or 0)
-    remaining = max(0, settings.new_per_day - count_new_reviewed_today(db, now))
+    if filters.mode == "new" and filters.ignore_limit:
+        # "ignorar o limite hoje": tudo o que há de novo cabe na fila, sem sequer
+        # perguntar quantos já foram feitos hoje
+        remaining = new_available
+    else:
+        remaining = max(0, settings.new_per_day - count_new_reviewed_today(db, now))
 
     due: list[Puzzle] = []
     new: list[Puzzle] = []

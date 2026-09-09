@@ -221,6 +221,13 @@ def _match_chapters(existing: list[StudyChapter],
 
 
 def _find_study(db: Session, parsed: ParsedStudy, source_url: str) -> Study | None:
+    if parsed.local_id:
+        # PGN exportado daqui e colado de volta: o id local casa com o estudo que o
+        # gerou, então a volta é uma atualização e não uma cópia. Num outro banco
+        # (outra máquina, instalação nova) esse id não existe e a busca segue.
+        found = db.get(Study, parsed.local_id)
+        if found is not None:
+            return found
     if parsed.lichess_id:
         found = db.scalar(select(Study).where(Study.lichess_id == parsed.lichess_id))
         if found is not None:

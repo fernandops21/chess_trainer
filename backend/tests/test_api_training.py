@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from chess_trainer.api.app import create_app
 from chess_trainer.core.analysis.engine import LineEval
 from chess_trainer.core.evals import MATE_SCORE
+from tests.factories import make_puzzle
 from tests.fakes import FakeEngine, first_legal_default
 from tests.test_api_system import chesscom_factory
 
@@ -90,6 +91,30 @@ def test_queue_review_and_dashboard_flow(ready):
     assert dash["due_today"] == 0 and dash["reviews_today"] == 1 and dash["streak_days"] == 1
     assert dash["games_total"] == 1 and dash["games_analyzed"] == 1 and dash["puzzles_total"] == 1
     assert dash["last_import_at"] is not None
+
+
+def test_queue_ignore_limit_serve_os_novos_alem_do_limite(ready):
+    """`ignore_limit=1` no modo novos: a fila vem inteira mesmo com o limite do dia
+    já gasto, e o limite guardado nas Configurações continua o que era."""
+    app, client = ready
+    client.put("/api/settings", json={"new_per_day": 1})
+    with app.state.session_factory() as db:
+        make_puzzle(db, fen="6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1")
+
+    primeiro = client.get("/api/queue", params={"mode": "new"}).json()
+    assert primeiro["new_available"] == 2 and len(primeiro["items"]) == 1
+    client.post("/api/reviews", json={"puzzle_id": primeiro["items"][0]["id"], "correct": True})
+
+    gasto = client.get("/api/queue", params={"mode": "new"}).json()
+    assert gasto["new_available"] == 1 and gasto["new_remaining_today"] == 0 and gasto["items"] == []
+
+    solto = client.get("/api/queue", params={"mode": "new", "ignore_limit": 1}).json()
+    assert len(solto["items"]) == 1 and solto["new_available"] == 1 and solto["new_remaining_today"] == 1
+    # o parâmetro vale só para esta fila: nada foi gravado
+    assert client.get("/api/settings").json()["new_per_day"] == 1
+    assert client.get("/api/queue", params={"mode": "new"}).json()["items"] == []
+    # e na repetição espaçada ele não muda nada
+    assert client.get("/api/queue", params={"ignore_limit": 1}).json()["new_remaining_today"] == 0
 
 
 def test_leech_and_unleech(ready):

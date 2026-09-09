@@ -16,7 +16,7 @@ export function ThemeBars({ rows }: { rows: ThemeStat[] }) {
               title={`${pct}% de acerto`}
               style={{ flex: 1, minWidth: 60, height: 10, borderRadius: 999, background: "var(--line)", overflow: "hidden" }}
             >
-              <span data-bar style={{ display: "block", width: `${pct}%`, height: "100%", background: "var(--accent)" }} />
+              <span data-bar style={{ display: "block", width: `${pct}%`, height: "100%", background: "var(--brand)" }} />
             </span>
             <span className="muted" style={{ width: 70, textAlign: "right", fontSize: 13 }}>{r.correct}/{r.attempts}</span>
           </div>

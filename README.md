@@ -162,6 +162,13 @@ Limites por capítulo: **2 000 lances** na árvore e **4 000 caracteres** por co
 confere ainda a FEN e a legalidade de cada lance; o que não passar volta como uma lista de mensagens
 em português, em cima da tela do editor.
 
+**Ida e volta pelo PGN.** O PGN exportado daqui leva um header próprio com o id do estudo
+(`[ChessTrainerStudy "…"]`). Colar esse texto de volta em **Estudos → Importar → PGN** atualiza o
+estudo que o gerou em vez de criar uma cópia: os capítulos casam pelo nome, e o exercício e o
+histórico da repetição espaçada de cada um continuam de pé. Serve para editar o estudo fora do app
+(num editor de texto, no Lichess) e trazer de volta, ou para levar o estudo para outra máquina — lá o
+id não existe ainda e o PGN entra como estudo novo.
+
 ## Livro de aberturas
 
 No tabuleiro de análise, o painel da direita tem duas abas: **Engine** e **Aberturas**. A aba
@@ -228,7 +235,10 @@ A tela **Treinar** é a das sessões com escolha — modo (ou estudo), filtros e
   guardados — cada sessão começa sem nenhum, para um filtro esquecido não esconder vencidos.
 - **Novos (meus erros)** — a primeira vez dos exercícios das suas partidas, até o limite diário
   (**Configurações → puzzles novos por dia**). A ordem vem de **Configurações → Ordem dos novos**:
-  *aleatória* (padrão) ou *mais recentes primeiro* (a partida mais nova antes).
+  *aleatória* (padrão) ou *mais recentes primeiro* (a partida mais nova antes). Num dia em que dá
+  vontade de fazer mais, marque **"ignorar o limite diário hoje"**: a fila vem com todos os novos
+  que houver, sem descontar o que já foi feito. A marca vale só para aquela sessão — ela não fica
+  guardada e não mexe no limite das Configurações.
 - **Táticas do Lichess** — sessão do banco de táticas, sorteada perto do seu rating. Ao guardar uma
   tática ("Guardar para repetir"), ela entra na repetição já agendada com o resultado da tentativa.
 - **Treinar este estudo** — escolha um estudo no seletor (ou use o botão nas telas de Estudos): todos

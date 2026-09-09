@@ -53,6 +53,8 @@ def test_metadados_do_estudo(estudo):
     assert estudo.title == "#PL05A - O jeito certo para achar tática em toda partida"
     assert estudo.author == "basso01"
     assert estudo.lichess_id == "4JKVAfaE"
+    # PGN vindo do Lichess: nenhum id local
+    assert estudo.local_id is None
 
 
 def test_um_capitulo_por_jogo_do_pgn(estudo, texto_do_estudo):
@@ -282,6 +284,19 @@ def test_varios_capitulos_no_mesmo_pgn():
     assert [c.name for c in estudo.chapters] == ["Um", "Dois"]
     assert [c.order for c in estudo.chapters] == [1, 2]
     assert [c.mode for c in estudo.chapters] == ["gamebook", "read"]
+
+
+def test_id_local_vem_do_header_do_exportador_daqui():
+    """`[ChessTrainerStudy]` é o que faz o PGN exportado aqui, colado de volta,
+    reencontrar o estudo que o gerou."""
+    texto = pgn_sintetico("Um", "1. e4 *", extras='[ChessTrainerStudy "abc123"]')
+    assert parse_study_pgn(texto).local_id == "abc123"
+
+
+def test_header_vazio_ou_de_interrogacao_nao_vira_id_local():
+    assert parse_study_pgn(pgn_sintetico("Um", "1. e4 *", extras='[ChessTrainerStudy ""]')).local_id is None
+    assert parse_study_pgn(pgn_sintetico("Um", "1. e4 *", extras='[ChessTrainerStudy "?"]')).local_id is None
+    assert parse_study_pgn(pgn_sintetico("Um", "1. e4 *")).local_id is None
 
 
 def test_pgn_vazio_nao_tem_capitulos():

@@ -386,6 +386,12 @@ def salvar_capitulo(client, estudo_id, cid, tree, name="Um", mode="gamebook", or
                       json={"name": name, "mode": mode, "orientation": orientation, "tree": tree})
 
 
+def exercicios(client, estudo_id) -> list[tuple]:
+    """(nome, id do exercício) de cada capítulo: o que tem de sobreviver a uma reimportação."""
+    detalhe = client.get(f"/api/studies/{estudo_id}").json()
+    return [(c["name"], c["puzzle_id"]) for c in detalhe["chapters"]]
+
+
 def arvores(client, estudo_id) -> list[tuple]:
     """(nome, modo, árvore) de cada capítulo, para comparar dois estudos."""
     detalhe = client.get(f"/api/studies/{estudo_id}").json()
@@ -655,34 +661,62 @@ def test_exportar_o_pgn_do_estudo_e_do_capitulo(client):
 
 
 def test_round_trip_do_estudo_local(client):
-    """Exportar um estudo feito aqui e importá-lo de volta dá as mesmas árvores."""
+    """Exportar um estudo feito aqui e colar o PGN de volta atualiza o próprio
+    estudo — mesmo id, mesmas árvores, mesmos exercícios — em vez de fazer cópia.
+    Quem casa o estudo é o header `[ChessTrainerStudy]` do exportador daqui."""
     estudo = criar_estudo(client, "Táticas do Basso", "professor")
     um = criar_capitulo(client, estudo["id"], name="Um", fen=FEN_MATE, mode="gamebook")
     salvar_capitulo(client, estudo["id"], um["id"], ARVORE_MATE, name="Um")
     dois = criar_capitulo(client, estudo["id"], name="Dois", fen=FEN_PEAO)
     salvar_capitulo(client, estudo["id"], dois["id"], ARVORE_PEAO, name="Dois", mode="read")
+    texto = client.get(f"/api/studies/{estudo['id']}/pgn").text
+    assert f'[ChessTrainerStudy "{estudo["id"]}"]' in texto
+    antes, puzzles_antes = arvores(client, estudo["id"]), exercicios(client, estudo["id"])
+    # uma revisão do exercício, para conferir que o histórico atravessa a volta
+    puzzle_id = puzzles_antes[0][1]
+    assert client.post("/api/reviews", json={"puzzle_id": puzzle_id, "correct": True}).status_code == 201
 
-    importar(client, {"pgn": client.get(f"/api/studies/{estudo['id']}/pgn").text})
+    importar(client, {"pgn": texto})
 
     estudos = client.get("/api/studies").json()
-    assert len(estudos) == 2
-    copia = next(e for e in estudos if e["id"] != estudo["id"])
-    assert copia["title"] == "Táticas do Basso" and copia["author"] == "professor"
-    assert arvores(client, copia["id"]) == arvores(client, estudo["id"])
+    assert len(estudos) == 1 and estudos[0]["id"] == estudo["id"]
+    assert estudos[0]["title"] == "Táticas do Basso" and estudos[0]["author"] == "professor"
+    assert estudos[0]["origin"] == "local" and estudos[0]["chapter_count"] == 2
+    assert arvores(client, estudo["id"]) == antes
+    assert exercicios(client, estudo["id"]) == puzzles_antes
+    assert client.get(f"/api/puzzles/{puzzle_id}").json()["srs"]["last_reviewed_at"] is not None
 
 
 def test_round_trip_do_estudo_importado(client):
-    """O estudo real, exportado e reimportado, dá as mesmas árvores."""
+    """O estudo real, exportado e colado de volta, atualiza o mesmo estudo: as
+    árvores continuam iguais e nenhum capítulo vira cópia."""
     importar(client)
     original = client.get("/api/studies").json()[0]
+    antes, puzzles_antes = arvores(client, original["id"]), exercicios(client, original["id"])
 
     importar(client, {"pgn": client.get(f"/api/studies/{original['id']}/pgn").text})
 
     estudos = client.get("/api/studies").json()
+    assert len(estudos) == 1 and estudos[0]["id"] == original["id"]
+    assert estudos[0]["chapter_count"] == 27
+    assert arvores(client, original["id"]) == antes
+    assert exercicios(client, original["id"]) == puzzles_antes
+
+
+def test_pgn_exportado_noutro_banco_entra_como_estudo_novo(client):
+    """O id local que não existe aqui é ignorado: o PGN vira um estudo novo, como
+    acontece ao levar o arquivo para outra máquina."""
+    estudo = criar_estudo(client, "Táticas do Basso", "professor")
+    um = criar_capitulo(client, estudo["id"], name="Um", fen=FEN_MATE, mode="gamebook")
+    salvar_capitulo(client, estudo["id"], um["id"], ARVORE_MATE, name="Um")
+    texto = client.get(f"/api/studies/{estudo['id']}/pgn").text
+
+    importar(client, {"pgn": texto.replace(estudo["id"], "nao-existe-aqui")})
+
+    estudos = client.get("/api/studies").json()
     assert len(estudos) == 2
-    copia = next(e for e in estudos if e["id"] != original["id"])
-    assert copia["chapter_count"] == 27
-    assert arvores(client, copia["id"]) == arvores(client, original["id"])
+    copia = next(e for e in estudos if e["id"] != estudo["id"])
+    assert arvores(client, copia["id"]) == arvores(client, estudo["id"])
 
 
 def test_capitulo_importado_antes_do_editor_ganha_a_arvore_ao_abrir(client):

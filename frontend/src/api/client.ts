@@ -155,8 +155,9 @@ export const api = {
     request<QueueOut>(`/queue${qs({
       mode: p.mode, category: p.category, theme: p.theme, kind: p.kind, color: p.color,
       sources: p.sources?.join(","), study_id: p.study_id,
-      // o backend lê `count_only` como booleano da query: 1 é o que ele espera
+      // o backend lê `count_only` e `ignore_limit` como booleanos da query: 1 é o que ele espera
       count_only: p.count_only ? 1 : undefined,
+      ignore_limit: p.ignore_limit ? 1 : undefined,
     })}`),
   setQueue: (id: string, in_queue: boolean) =>
     request<PuzzleOut>(`/puzzles/${id}/queue`, post("", { in_queue })),

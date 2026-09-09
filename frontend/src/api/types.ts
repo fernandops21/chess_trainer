@@ -383,6 +383,8 @@ export interface QueueFilters {
   study_id?: string;
   /** Só as contagens: a resposta vem com `items` vazio (`count_only=1` na query). */
   count_only?: boolean;
+  /** Só no modo `new`: serve tudo o que há de novo, sem descontar o limite diário. */
+  ignore_limit?: boolean;
 }
 
 export interface QueueOut {

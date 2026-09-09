@@ -107,6 +107,15 @@ test("api.queue com count_only manda count_only=1", async () => {
   expect((fn.mock.calls[1] as unknown as [string])[0]).toBe("/api/queue?mode=review");
 });
 
+test("api.queue com ignore_limit manda ignore_limit=1", async () => {
+  const fn = mockFetch(200, { mode: "new", due_count: 0, new_available: 3, new_remaining_today: 3, items: [] });
+  await api.queue({ mode: "new", ignore_limit: true });
+  expect((fn.mock.calls[0] as unknown as [string])[0]).toBe("/api/queue?mode=new&ignore_limit=1");
+  // sem a marca a query nem menciona o parâmetro
+  await api.queue({ mode: "new" });
+  expect((fn.mock.calls[1] as unknown as [string])[0]).toBe("/api/queue?mode=new");
+});
+
 test("api.setQueue faz POST em /puzzles/{id}/queue", async () => {
   const fn = mockFetch(200, {});
   await api.setQueue("p1", false);

@@ -52,6 +52,7 @@ import chess.pgn
 # `clean_comment`, as formas e a árvore moram em `tree.py` (o editor também
 # precisa delas); aqui elas continuam disponíveis com os nomes de sempre
 from chess_trainer.core.studies.tree import (
+    LOCAL_ID_HEADER,
     clean_comment,
     game_to_tree,
     orientation_of,
@@ -118,6 +119,8 @@ class ParsedStudy:
     title: str
     author: str
     lichess_id: str | None
+    #: id do estudo neste app, quando o PGN foi exportado daqui (ver `LOCAL_ID_HEADER`)
+    local_id: str | None = None
     chapters: list[ParsedChapter] = field(default_factory=list)
 
 
@@ -133,6 +136,7 @@ def parse_study_pgn(text: str) -> ParsedStudy:
     title = ""
     author = ""
     lichess_id: str | None = None
+    local_id: str | None = None
     primeiros_headers = None
     order = 0
     while True:
@@ -146,10 +150,12 @@ def parse_study_pgn(text: str) -> ParsedStudy:
         title = title or _study_title(headers)
         author = author or _author(headers)
         lichess_id = lichess_id or _study_id(headers.get("ChapterURL", ""))
+        local_id = local_id or _local_id(headers)
         chapters.append(_chapter(game, order))
     if not title and primeiros_headers is not None:
         title = _titulo_de_pgn_comum(primeiros_headers)
-    return ParsedStudy(title=title, author=author, lichess_id=lichess_id, chapters=chapters)
+    return ParsedStudy(title=title, author=author, lichess_id=lichess_id, local_id=local_id,
+                       chapters=chapters)
 
 
 # --- estudo --------------------------------------------------------------
@@ -191,6 +197,13 @@ def _author(headers) -> str:
 def _study_id(url: str) -> str | None:
     match = _STUDY_ID_RE.search(url or "")
     return match.group(1) if match else None
+
+
+def _local_id(headers) -> str | None:
+    """Id do estudo neste app, escrito pelo exportador daqui; `None` num PGN
+    de fora. É o que faz o PGN exportado, colado de volta, atualizar o estudo."""
+    value = _unescape(headers.get(LOCAL_ID_HEADER, "").strip())
+    return value if _preenchido(value) else None
 
 
 # --- capítulo ------------------------------------------------------------

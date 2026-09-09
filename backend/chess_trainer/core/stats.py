@@ -56,7 +56,7 @@ def progress(db: Session, since: datetime, now: datetime) -> dict:
     buracos. `tactics_rating` traz um ponto por tentativa, em ordem cronológica.
     """
     rows = db.execute(
-        select(Review.reviewed_at, Review.result, Puzzle.source)
+        select(Review.reviewed_at, Review.result, Review.used_hint, Puzzle.source)
         .join(Puzzle, Puzzle.id == Review.puzzle_id)
         .where(Review.reviewed_at >= since)
         .order_by(Review.reviewed_at)
@@ -65,8 +65,9 @@ def progress(db: Session, since: datetime, now: datetime) -> dict:
     per_day: dict[str, dict] = {}
     by_source = {source: {"reviews": 0, "correct": 0} for source in SOURCES}
     reviews = correct = 0
-    for reviewed_at, result, source in rows:
-        ok = result == "correct"
+    for reviewed_at, result, used_hint, source in rows:
+        # "certa" aqui é a mesma de `theme_stats`: acertar com dica não conta como acerto
+        ok = result == "correct" and not used_hint
         day = per_day.setdefault(local_day(reviewed_at).isoformat(), {"correct": 0, "wrong": 0})
         day["correct" if ok else "wrong"] += 1
         bucket = by_source.setdefault(source, {"reviews": 0, "correct": 0})

@@ -64,6 +64,44 @@ test("escolher os novos manda mode=new e esconde as fontes", () => {
   expect(localStorage.getItem("train.mode")).toBe(JSON.stringify("new"));
 });
 
+test("nos novos, a marca de ignorar o limite vai nos filtros e daí para a URL", async () => {
+  const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    new Response(JSON.stringify({ mode: "new", due_count: 0, new_available: 3, new_remaining_today: 3, items: [] }),
+      { status: 200, headers: { "content-type": "application/json" } }),
+  );
+  const onStart = renderStart();
+  fireEvent.click(screen.getByLabelText("Novos (meus erros)"));
+  const marca = screen.getByLabelText("ignorar o limite diário hoje") as HTMLInputElement;
+  expect(marca.checked).toBe(false);
+  expect(screen.getByText(/ou sem limite, se marcado/)).toBeTruthy();
+
+  fireEvent.click(marca);
+  fireEvent.click(screen.getByText("Começar"));
+
+  const filtros = onStart.mock.calls[0][0].filters;
+  expect(filtros).toMatchObject({ mode: "new", ignore_limit: true });
+  await api.queue(filtros);
+  expect((fetchSpy.mock.calls[0] as unknown as [string])[0]).toBe("/api/queue?mode=new&ignore_limit=1");
+  // a marca não fica guardada: a próxima sessão começa sem ela
+  expect(localStorage.getItem("train.ignore_limit")).toBeNull();
+});
+
+test("sem marcar, os filtros dos novos não levam ignore_limit", () => {
+  const onStart = renderStart();
+  fireEvent.click(screen.getByLabelText("Novos (meus erros)"));
+  fireEvent.click(screen.getByText("Começar"));
+  expect(onStart.mock.calls[0][0].filters.ignore_limit).toBe(undefined);
+});
+
+test("a marca de ignorar o limite só aparece nos novos", () => {
+  renderStart();
+  expect(screen.queryByLabelText("ignorar o limite diário hoje")).toBeNull();
+  fireEvent.click(screen.getByLabelText("Novos (meus erros)"));
+  expect(screen.getByLabelText("ignorar o limite diário hoje")).toBeTruthy();
+  fireEvent.click(screen.getByLabelText("Repetição espaçada"));
+  expect(screen.queryByLabelText("ignorar o limite diário hoje")).toBeNull();
+});
+
 test("?mode=new já vem selecionado", () => {
   const onStart = renderStart("/treinar?mode=new");
   expect((screen.getByLabelText("Novos (meus erros)") as HTMLInputElement).checked).toBe(true);

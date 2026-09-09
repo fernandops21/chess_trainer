@@ -19,6 +19,9 @@ test("mostra o rótulo, a contagem e a barra proporcional ao acerto", () => {
   expect(items).toHaveLength(2);
   expect((items[0].querySelector("[data-bar]") as HTMLElement).style.width).toBe("60%");
   expect((items[1].querySelector("[data-bar]") as HTMLElement).style.width).toBe("25%");
+  // o preenchimento é `--brand` sobre `--line`: `--accent` some no tema escuro
+  expect((items[0].querySelector("[data-bar]") as HTMLElement).style.background).toBe("var(--brand)");
+  expect((items[0].querySelector("[data-bar]")!.parentElement as HTMLElement).style.background).toBe("var(--line)");
 });
 
 test("mostra no máximo 10 linhas", () => {

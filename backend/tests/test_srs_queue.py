@@ -88,6 +88,34 @@ def test_new_remaining_today_conta_so_revisoes_de_puzzles_proprios(db_session):
     assert q2.new_remaining_today == S.new_per_day - 1
 
 
+def test_ignorar_o_limite_serve_todos_os_novos(db_session):
+    """"Ignorar o limite hoje": a fila de novos vem inteira, mesmo com o limite
+    diário já gasto — e sem mexer no que está guardado nas Configurações."""
+    feito_hoje = make_puzzle(db_session, fen="f0", due_at=NOW + timedelta(days=1))
+    db_session.add(Review(puzzle_id=feito_hoje.id, reviewed_at=NOW - timedelta(hours=2), result="correct",
+                          ease=2.5, interval_days=1, due_at=NOW + timedelta(days=1), lapses=0))
+    db_session.commit()
+    for fen in ("f1", "f2", "f3"):
+        make_puzzle(db_session, fen=fen)
+
+    limitada = build_queue(db_session, QueueFilters(mode="new"), S, NOW)
+    assert len(limitada.new) == 1 and limitada.new_remaining_today == 1  # 2 por dia, 1 já feito
+
+    solta = build_queue(db_session, QueueFilters(mode="new", ignore_limit=True), S, NOW)
+    assert len(solta.new) == 3 and len(solta.items) == 3
+    assert solta.new_available == 3 and solta.new_remaining_today == 3
+    assert S.new_per_day == 2  # o limite guardado continua o mesmo
+
+
+def test_ignorar_o_limite_nao_muda_a_repeticao_espacada(db_session):
+    """A marca só existe no modo "novos": na repetição espaçada o número que sobra
+    do dia continua sendo o limite menos o que já foi feito."""
+    make_puzzle(db_session, fen="f1", due_at=NOW - timedelta(days=1))
+    make_puzzle(db_session, fen="f2")
+    q = build_queue(db_session, QueueFilters(ignore_limit=True), S, NOW)
+    assert q.due_count == 1 and q.new_remaining_today == 2 and q.new == []
+
+
 def test_filters_and_leeches(db_session):
     make_puzzle(db_session, fen="f1", due_at=NOW - timedelta(days=1), category="rapid", theme="fork", kind="punish", side="white")
     make_puzzle(db_session, fen="f2", due_at=NOW - timedelta(days=1), category="blitz", theme="fork", kind="avoid", side="black")

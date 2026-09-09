@@ -5,6 +5,7 @@ import { useTema } from "../lib/theme";
 
 const items = [
   { to: "/", label: "Painel", icon: "▦", end: true },
+  { to: "/progresso", label: "Progresso", icon: "↗" },
   { to: "/revisar", label: "Revisar", icon: "↻" },
   { to: "/treinar", label: "Treinar", icon: "♞" },
   { to: "/estudos", label: "Estudos", icon: "▤" },

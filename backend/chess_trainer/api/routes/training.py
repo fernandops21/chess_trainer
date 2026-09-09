@@ -128,6 +128,7 @@ def get_queue(
     sources: str | None = None, study_id: str | None = None,
     mode: Literal[MODES] = "review",
     count_only: bool = False,
+    ignore_limit: bool = False,
     db: Session = Depends(get_db),
 ):
     """Fila de treino no modo pedido: `review` (repetição espaçada, só o que já
@@ -136,10 +137,13 @@ def get_queue(
 
     Com `count_only`, a fila é montada do mesmo jeito e as contagens são as
     mesmas, mas a resposta vem com `items` vazio: para quem só quer os números
-    (um badge, por exemplo) não vale o custo de serializar cada exercício."""
+    (um badge, por exemplo) não vale o custo de serializar cada exercício.
+
+    Com `ignore_limit`, o modo `new` serve todos os exercícios novos que houver,
+    sem descontar o limite diário — só nesta fila, sem mexer nas Configurações."""
     filters = QueueFilters(category, theme, kind, color,
                            sources=tuple(v.strip() for v in (sources or "").split(",") if v.strip()),
-                           study_id=study_id, mode=mode)
+                           study_id=study_id, mode=mode, ignore_limit=ignore_limit)
     try:
         result = build_queue(db, filters, load_settings(db), utcnow())
     except ValueError as exc:

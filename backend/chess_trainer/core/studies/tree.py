@@ -54,6 +54,10 @@ BRUSHES: dict[str, str] = {"green": "G", "red": "R", "blue": "B", "yellow": "Y"}
 
 SITE = "chess-trainer"
 
+# header próprio com o id do estudo neste app: é ele que faz o PGN exportado
+# daqui, colado de volta, atualizar o estudo em vez de criar uma cópia
+LOCAL_ID_HEADER = "ChessTrainerStudy"
+
 _COMMAND_RE = re.compile(r"\[%[^\]]*\]")
 _WHITESPACE_RE = re.compile(r"\s+")
 
@@ -449,6 +453,9 @@ def chapter_headers(chapter: StudyChapter, study: Study | None = None) -> dict[s
         "ChapterName": nome,
         "Orientation": chapter.orientation or "white",
     }
+    if study is not None and study.id:
+        # colar este PGN de volta atualiza o estudo que o gerou (ver `_find_study`)
+        headers[LOCAL_ID_HEADER] = study.id
     if autor:
         # o parser lê o autor do estudo daqui na volta
         headers["Annotator"] = autor
