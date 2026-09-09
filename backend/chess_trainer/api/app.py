@@ -8,7 +8,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
 from chess_trainer.api.jobs import JobRunner
-from chess_trainer.api.routes import analysis, games, openings, studies, system, tactics, training
+from chess_trainer.api.routes import analysis, games, openings, stats, studies, system, tactics, training
 from chess_trainer.config import AppSettings, load_settings
 from chess_trainer.core.analysis.engine import EngineLike, StockfishEngine, find_stockfish
 from chess_trainer.core.analysis.interactive import InteractiveAnalyzer
@@ -122,6 +122,7 @@ def create_app(
     app.include_router(tactics.router)
     app.include_router(studies.router)
     app.include_router(openings.router)
+    app.include_router(stats.router)
 
     dist = Path(dist_dir) if dist_dir is not None else BACKEND_DIR.parent / "frontend" / "dist"
     if dist.is_dir():

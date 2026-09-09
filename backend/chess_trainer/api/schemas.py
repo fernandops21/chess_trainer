@@ -450,3 +450,37 @@ class ThemeStatOut(BaseModel):
     accuracy: float
     own: int
     lichess: int
+
+
+class DayReviewsOut(BaseModel):
+    """Revisões de um dia local; dias sem revisão não aparecem na lista."""
+
+    day: str
+    correct: int
+    wrong: int
+
+
+class RatingPointOut(BaseModel):
+    at: datetime
+    rating: int
+
+
+class SourceReviewsOut(BaseModel):
+    reviews: int = 0
+    correct: int = 0
+
+
+class ProgressTotalsOut(BaseModel):
+    reviews: int
+    correct: int
+    puzzles_in_queue: int
+
+
+class ProgressOut(BaseModel):
+    reviews_per_day: list[DayReviewsOut] = []
+    # um ponto por tentativa de tática, em ordem cronológica
+    tactics_rating: list[RatingPointOut] = []
+    # revisões por fonte ("own", "lichess", "study"), sempre com as três chaves
+    by_source: dict[str, SourceReviewsOut] = {}
+    streak_days: int
+    totals: ProgressTotalsOut

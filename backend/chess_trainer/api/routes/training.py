@@ -1,6 +1,5 @@
 import json
 from collections.abc import Sequence
-from datetime import timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,11 +15,9 @@ from chess_trainer.config import get_setting, load_settings
 from chess_trainer.core.models import Game, Position, Puzzle, Review, TrainingSession, utcnow
 from chess_trainer.core.srs.queue import MODES, QueueFilters, build_queue, local_day_start
 from chess_trainer.core.srs.reviews import record_review, unleech
+from chess_trainer.core.stats import SOURCES, streak_days
 
 router = APIRouter(prefix="/api")
-
-
-SOURCES = ("own", "lichess", "study")
 
 
 def _last_move(db: Session, p: Puzzle) -> tuple[str | None, str | None]:
@@ -219,18 +216,6 @@ def post_review(body: ReviewIn, db: Session = Depends(get_db)):
                      lapses=review.lapses, is_leech=puzzle.is_leech)
 
 
-def _streak_days(db: Session, now) -> int:
-    stamps = db.scalars(select(Review.reviewed_at)).all()
-    days = {ts.replace(tzinfo=timezone.utc).astimezone().date() for ts in stamps}
-    today = now.replace(tzinfo=timezone.utc).astimezone().date()
-    cursor = today if today in days else today - timedelta(days=1)
-    streak = 0
-    while cursor in days:
-        streak += 1
-        cursor -= timedelta(days=1)
-    return streak
-
-
 def _by_source(db: Session, now) -> dict[str, SourceCount]:
     """Guardados e vencidos por fonte, com o mesmo recorte da fila (na fila e sem sanguessuga)."""
     rows = db.execute(
@@ -261,7 +246,7 @@ def dashboard(db: Session = Depends(get_db)):
         due_today=queue.due_count,
         new_available=queue.new_available,
         new_remaining_today=queue.new_remaining_today,
-        streak_days=_streak_days(db, now),
+        streak_days=streak_days(db, now),
         reviews_today=int(reviews_today),
         last_import_at=last_import,
         games_total=int(db.scalar(select(func.count(Game.id))) or 0),
