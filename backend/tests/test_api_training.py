@@ -117,6 +117,25 @@ def test_queue_ignore_limit_serve_os_novos_alem_do_limite(ready):
     assert client.get("/api/queue", params={"ignore_limit": 1}).json()["new_remaining_today"] == 0
 
 
+def test_sessao_nao_conta_como_certa_a_resposta_com_dica(ready):
+    """No resumo da sessão, "certa" é acertar sem dica — a mesma regra do
+    Progresso e do acerto por tema."""
+    app, client = ready
+    with app.state.session_factory() as db:
+        make_puzzle(db, fen="6k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1")
+    fila = client.get("/api/queue", params={"mode": "new"}).json()["items"]
+    assert len(fila) == 2
+    sessao = client.post("/api/sessions", json={"planned_minutes": 10}).json()
+    client.post("/api/reviews", json={"puzzle_id": fila[0]["id"], "session_id": sessao["id"],
+                                      "correct": True, "used_hint": True, "duration_ms": 1000})
+    client.post("/api/reviews", json={"puzzle_id": fila[1]["id"], "session_id": sessao["id"],
+                                      "correct": True, "used_hint": False, "duration_ms": 2000})
+
+    fim = client.post(f"/api/sessions/{sessao['id']}/end").json()
+
+    assert fim["reviews"] == 2 and fim["correct"] == 1 and fim["total_duration_ms"] == 3000
+
+
 def test_leech_and_unleech(ready):
     _, client = ready
     puzzle = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]

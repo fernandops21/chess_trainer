@@ -434,14 +434,25 @@ def solution_from_tree(tree: dict, solver: chess.Color | None = None) -> ParsedE
 # --- PGN do capítulo e do estudo -----------------------------------------
 
 
-def chapter_pgn(chapter: StudyChapter, study: Study | None = None) -> str:
-    """PGN de um capítulo, no formato que o Lichess importa."""
+def chapter_pgn(chapter: StudyChapter, study: Study | None = None,
+                with_local_id: bool = False) -> str:
+    """PGN de um capítulo, no formato que o Lichess importa.
+
+    `with_local_id` só é verdadeiro quando o capítulo sai dentro do PGN do
+    estudo inteiro (ver `chapter_headers`)."""
     tree = chapter_tree(chapter)
-    game = tree_to_game(tree, chapter_headers(chapter, study))
+    game = tree_to_game(tree, chapter_headers(chapter, study, with_local_id))
     return str(game)
 
 
-def chapter_headers(chapter: StudyChapter, study: Study | None = None) -> dict[str, str]:
+def chapter_headers(chapter: StudyChapter, study: Study | None = None,
+                    with_local_id: bool = False) -> dict[str, str]:
+    """Cabeçalhos do capítulo para exportação.
+
+    O id local (`ChessTrainerStudy`) só entra na exportação do estudo inteiro:
+    colar de volta o PGN de um capítulo só casaria o estudo inteiro pelo id, e
+    aí todos os outros capítulos — que não estão no texto colado — sairiam da
+    fila. Sem o id, o capítulo avulso volta como estudo novo."""
     titulo = (study.title if study else "").strip()
     nome = (chapter.name or "").strip()
     autor = (study.author if study else "").strip()
@@ -453,7 +464,7 @@ def chapter_headers(chapter: StudyChapter, study: Study | None = None) -> dict[s
         "ChapterName": nome,
         "Orientation": chapter.orientation or "white",
     }
-    if study is not None and study.id:
+    if with_local_id and study is not None and study.id:
         # colar este PGN de volta atualiza o estudo que o gerou (ver `_find_study`)
         headers[LOCAL_ID_HEADER] = study.id
     if autor:
@@ -469,6 +480,7 @@ def chapter_headers(chapter: StudyChapter, study: Study | None = None) -> dict[s
 
 def study_pgn(study: Study) -> str:
     """PGN do estudo inteiro: um jogo por capítulo, na ordem, separados por
-    linha em branco."""
+    linha em branco. Só aqui cada capítulo leva o id local, porque só o texto
+    inteiro pode voltar como atualização do estudo que o gerou."""
     capitulos = sorted(study.chapters, key=lambda c: c.order)
-    return "\n\n".join(chapter_pgn(chapter, study) for chapter in capitulos)
+    return "\n\n".join(chapter_pgn(chapter, study, with_local_id=True) for chapter in capitulos)

@@ -392,6 +392,11 @@ def exercicios(client, estudo_id) -> list[tuple]:
     return [(c["name"], c["puzzle_id"]) for c in detalhe["chapters"]]
 
 
+def srs(client, puzzle_id) -> dict:
+    """Agendamento do exercício: o que uma reimportação não pode mexer."""
+    return client.get(f"/api/puzzles/{puzzle_id}").json()["srs"]
+
+
 def arvores(client, estudo_id) -> list[tuple]:
     """(nome, modo, árvore) de cada capítulo, para comparar dois estudos."""
     detalhe = client.get(f"/api/studies/{estudo_id}").json()
@@ -657,7 +662,11 @@ def test_exportar_o_pgn_do_estudo_e_do_capitulo(client):
     assert '[StudyName "Táticas do Basso"]' in do_estudo.text
     assert '[ChapterMode "gamebook"]' in do_estudo.text and "Ra8#" in do_estudo.text
     assert do_capitulo.headers["content-disposition"] == 'attachment; filename="mate-no-corredor.pgn"'
-    assert do_capitulo.text.strip() == do_estudo.text.strip()
+    # o id local só sai na exportação do estudo inteiro; fora dele os dois textos são iguais
+    assert f'[ChessTrainerStudy "{estudo["id"]}"]' in do_estudo.text
+    assert "ChessTrainerStudy" not in do_capitulo.text
+    sem_id = "\n".join(x for x in do_estudo.text.splitlines() if "ChessTrainerStudy" not in x)
+    assert do_capitulo.text.strip() == sem_id.strip()
 
 
 def test_round_trip_do_estudo_local(client):
@@ -675,6 +684,7 @@ def test_round_trip_do_estudo_local(client):
     # uma revisão do exercício, para conferir que o histórico atravessa a volta
     puzzle_id = puzzles_antes[0][1]
     assert client.post("/api/reviews", json={"puzzle_id": puzzle_id, "correct": True}).status_code == 201
+    srs_antes = srs(client, puzzle_id)
 
     importar(client, {"pgn": texto})
 
@@ -684,7 +694,32 @@ def test_round_trip_do_estudo_local(client):
     assert estudos[0]["origin"] == "local" and estudos[0]["chapter_count"] == 2
     assert arvores(client, estudo["id"]) == antes
     assert exercicios(client, estudo["id"]) == puzzles_antes
-    assert client.get(f"/api/puzzles/{puzzle_id}").json()["srs"]["last_reviewed_at"] is not None
+    # o agendamento atravessa a volta inteiro, não só a data da última revisão
+    assert srs(client, puzzle_id) == srs_antes
+    assert srs_antes["last_reviewed_at"] is not None
+
+
+def test_pgn_de_um_capitulo_nao_tira_os_outros_da_fila(client):
+    """O PGN de um capítulo sai sem o id local: colado de volta ele entra como
+    estudo novo. Com o id, o estudo inteiro casaria e todos os capítulos que não
+    estão no texto sairiam da fila."""
+    estudo = criar_estudo(client, "Táticas do Basso", "professor")
+    um = criar_capitulo(client, estudo["id"], name="Um", fen=FEN_MATE, mode="gamebook")
+    salvar_capitulo(client, estudo["id"], um["id"], ARVORE_MATE, name="Um")
+    dois = criar_capitulo(client, estudo["id"], name="Dois", fen=FEN_PEAO, mode="gamebook")
+    salvar_capitulo(client, estudo["id"], dois["id"], ARVORE_PEAO, name="Dois")
+    texto = client.get(f"/api/studies/{estudo['id']}/chapters/{um['id']}/pgn").text
+    assert "ChessTrainerStudy" not in texto
+
+    importar(client, {"pgn": texto})
+
+    estudos = client.get("/api/studies").json()
+    assert len(estudos) == 2 and {e["id"] for e in estudos} > {estudo["id"]}
+    detalhe = client.get(f"/api/studies/{estudo['id']}").json()
+    assert detalhe["chapter_count"] == 2
+    assert [(c["name"], c["in_queue"]) for c in detalhe["chapters"]] == [("Um", True), ("Dois", True)]
+    novo = next(e for e in estudos if e["id"] != estudo["id"])
+    assert [c["name"] for c in client.get(f"/api/studies/{novo['id']}").json()["chapters"]] == ["Um"]
 
 
 def test_round_trip_do_estudo_importado(client):
@@ -693,14 +728,20 @@ def test_round_trip_do_estudo_importado(client):
     importar(client)
     original = client.get("/api/studies").json()[0]
     antes, puzzles_antes = arvores(client, original["id"]), exercicios(client, original["id"])
+    puzzle_id = next(pid for _, pid in puzzles_antes if pid)
+    assert client.post("/api/reviews", json={"puzzle_id": puzzle_id, "correct": True}).status_code == 201
+    srs_antes = srs(client, puzzle_id)
 
     importar(client, {"pgn": client.get(f"/api/studies/{original['id']}/pgn").text})
 
     estudos = client.get("/api/studies").json()
     assert len(estudos) == 1 and estudos[0]["id"] == original["id"]
     assert estudos[0]["chapter_count"] == 27
+    # o PGN colado não tem URL de estudo, mas o id do Lichess do original fica
+    assert estudos[0]["lichess_id"] == "4JKVAfaE"
     assert arvores(client, original["id"]) == antes
     assert exercicios(client, original["id"]) == puzzles_antes
+    assert srs(client, puzzle_id) == srs_antes
 
 
 def test_pgn_exportado_noutro_banco_entra_como_estudo_novo(client):

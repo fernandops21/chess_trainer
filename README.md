@@ -162,12 +162,18 @@ Limites por capítulo: **2 000 lances** na árvore e **4 000 caracteres** por co
 confere ainda a FEN e a legalidade de cada lance; o que não passar volta como uma lista de mensagens
 em português, em cima da tela do editor.
 
-**Ida e volta pelo PGN.** O PGN exportado daqui leva um header próprio com o id do estudo
+**Ida e volta pelo PGN.** O PGN do **estudo inteiro** leva um header próprio com o id do estudo
 (`[ChessTrainerStudy "…"]`). Colar esse texto de volta em **Estudos → Importar → PGN** atualiza o
-estudo que o gerou em vez de criar uma cópia: os capítulos casam pelo nome, e o exercício e o
-histórico da repetição espaçada de cada um continuam de pé. Serve para editar o estudo fora do app
-(num editor de texto, no Lichess) e trazer de volta, ou para levar o estudo para outra máquina — lá o
-id não existe ainda e o PGN entra como estudo novo.
+estudo que o gerou em vez de criar uma cópia, e o exercício e o histórico da repetição espaçada de
+cada capítulo continuam de pé. Os capítulos que têm `ChapterURL` (os que vieram do Lichess) casam
+pela URL; os que não têm casam pelo nome e, se o nome mudou, pela posição no arquivo — só renomear
+**e** reordenar o mesmo capítulo na mesma volta faz dele um capítulo novo. Serve para editar o
+estudo fora do app (num editor de texto, no Lichess) e trazer de volta, ou para levar o estudo para
+outra máquina — lá o id não existe ainda e o PGN entra como estudo novo.
+
+O PGN de **um capítulo** sai sem esse header, de propósito: colado de volta ele vira um estudo novo,
+sem mexer no estudo de origem. Se ele casasse o estudo inteiro pelo id, todos os capítulos que não
+estivessem no texto colado sairiam da repetição.
 
 ## Livro de aberturas
 

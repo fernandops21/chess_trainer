@@ -78,8 +78,10 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
   const toggleSource = (s: PuzzleSource) =>
     setSources((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : SOURCES.map((o) => o.value).filter((v) => v === s || prev.includes(v))));
 
-  // escolher um modo desmarca o estudo; escolher um estudo vira o modo "study"
-  const pick = (c: Choice) => { setChoice(c); setStudyId(""); };
+  // escolher um modo desmarca o estudo e zera o "ignorar o limite" (que só vale
+  // nos novos, e voltar para lá não deve trazer a marca de antes de volta);
+  // escolher um estudo vira o modo "study"
+  const pick = (c: Choice) => { setChoice(c); setStudyId(""); setIgnorarLimite(false); };
   const pickStudy = (id: string) => { setStudyId(id); setChoice(id ? "study" : "review"); };
 
   const start = () => {

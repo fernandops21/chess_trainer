@@ -3,7 +3,7 @@ from collections.abc import Sequence
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.orm import Session
 
 from chess_trainer.api.deps import get_db
@@ -178,9 +178,12 @@ def post_queue_toggle(puzzle_id: str, body: QueueIn, db: Session = Depends(get_d
 
 
 def _session_out(db: Session, s: TrainingSession) -> SessionOut:
+    """Resumo da sessão. "Certa" é acertar sem dica, igual ao Progresso e ao
+    acerto por tema: a mesma revisão não pode contar como certa aqui e como
+    errada lá."""
     rows = db.execute(
         select(func.count(Review.id), func.sum(Review.duration_ms),
-               func.sum(case((Review.result == "correct", 1), else_=0)))
+               func.sum(case((and_(Review.result == "correct", Review.used_hint.is_not(True)), 1), else_=0)))
         .where(Review.session_id == s.id)
     ).one()
     return SessionOut(id=s.id, started_at=s.started_at, ended_at=s.ended_at, planned_minutes=s.planned_minutes,

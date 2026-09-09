@@ -205,6 +205,12 @@ class QueueIn(BaseModel):
 
 
 class QueueOut(BaseModel):
+    """Fila devolvida por `GET /api/queue`.
+
+    `new_remaining_today` é quanto ainda cabe do limite diário de novos. Com
+    `ignore_limit`, o limite não vale nesta chamada e o campo devolve
+    `new_available` — o que sobrou não é o limite, é o estoque."""
+
     # o modo que respondeu: "review" (repetição), "new" (novos) ou "study" (um estudo)
     mode: str
     due_count: int

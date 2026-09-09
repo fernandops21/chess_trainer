@@ -97,9 +97,14 @@ test("a marca de ignorar o limite só aparece nos novos", () => {
   renderStart();
   expect(screen.queryByLabelText("ignorar o limite diário hoje")).toBeNull();
   fireEvent.click(screen.getByLabelText("Novos (meus erros)"));
-  expect(screen.getByLabelText("ignorar o limite diário hoje")).toBeTruthy();
+  const marca = screen.getByLabelText("ignorar o limite diário hoje") as HTMLInputElement;
+  fireEvent.click(marca);
+  expect(marca.checked).toBe(true);
   fireEvent.click(screen.getByLabelText("Repetição espaçada"));
   expect(screen.queryByLabelText("ignorar o limite diário hoje")).toBeNull();
+  // trocar de modo zera a marca: voltar aos novos começa sem ela
+  fireEvent.click(screen.getByLabelText("Novos (meus erros)"));
+  expect((screen.getByLabelText("ignorar o limite diário hoje") as HTMLInputElement).checked).toBe(false);
 });
 
 test("?mode=new já vem selecionado", () => {
