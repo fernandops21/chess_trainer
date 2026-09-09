@@ -1,6 +1,8 @@
 import json
 from dataclasses import asdict
 from datetime import timedelta
+
+from chess_trainer.core.srs.queue import local_day_start
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -216,4 +218,5 @@ def get_themes(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/stats/themes", response_model=list[ThemeStatOut])
 def get_theme_stats(days: int = Query(30, ge=1, le=3650), db: Session = Depends(get_db)):
-    return theme_stats(db, since=utcnow() - timedelta(days=days))
+    # mesma janela por dia local da página de Progresso, para as duas tabelas baterem
+    return theme_stats(db, since=local_day_start(utcnow()) - timedelta(days=days - 1))
