@@ -35,9 +35,19 @@ def theme_stats(db: Session, since: datetime) -> list[dict]:
 SOURCES = ("own", "lichess", "study")
 
 
+# janela da sequência: mais de um ano seguido revisando todo dia não acontece, então
+# esse limite nunca corta uma sequência real e evita carregar o histórico inteiro
+JANELA_SEQUENCIA_DIAS = 400
+
+
 def streak_days(db: Session, now: datetime) -> int:
-    """Dias locais seguidos com pelo menos uma revisão, contando de hoje (ou de ontem) para trás."""
-    stamps = db.scalars(select(Review.reviewed_at)).all()
+    """Dias locais seguidos com pelo menos uma revisão, contando de hoje (ou de ontem) para trás.
+
+    Só olha os últimos `JANELA_SEQUENCIA_DIAS` dias.
+    """
+    stamps = db.scalars(
+        select(Review.reviewed_at).where(Review.reviewed_at >= now - timedelta(days=JANELA_SEQUENCIA_DIAS))
+    ).all()
     days = {local_day(ts) for ts in stamps}
     today = local_day(now)
     cursor = today if today in days else today - timedelta(days=1)

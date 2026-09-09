@@ -1,7 +1,14 @@
-/** Marcas do eixo vertical: 5 valores igualmente espaçados (4 intervalos). */
+/**
+ * Marcas do eixo vertical: até `quantidade + 1` valores igualmente espaçados, com
+ * passo inteiro (≥ 1) para que os rótulos arredondados nunca se repitam quando a
+ * faixa é menor que `quantidade` (1500, 1501, 1501…).
+ */
 export function marcas(min: number, max: number, quantidade = 4): number[] {
   if (max <= min) return [min];
-  return Array.from({ length: quantidade + 1 }, (_, i) => min + ((max - min) * i) / quantidade);
+  const passo = Math.max(1, Math.ceil((max - min) / quantidade));
+  const valores: number[] = [];
+  for (let v = min; v <= max; v += passo) valores.push(v);
+  return valores;
 }
 
 /**

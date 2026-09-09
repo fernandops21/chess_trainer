@@ -48,6 +48,7 @@ export function ProgressPage() {
         ))}
       </div>
       <ErrorBox error={progresso.error} />
+      <ErrorBox error={temas.error} />
       {progresso.isLoading && <p className="muted">Carregando…</p>}
       {p && (
         <>
@@ -107,32 +108,32 @@ export function ProgressPage() {
               </tbody>
             </table>
           </div>
+          {linhasTema.length > 0 && (
+            <div className="card">
+              <h3 style={{ marginTop: 0 }}>Por tema</h3>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left" }}>tema</th>
+                    <th style={{ textAlign: "right" }}>tentativas</th>
+                    <th style={{ textAlign: "right" }}>certas</th>
+                    <th style={{ textAlign: "right" }}>acerto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {linhasTema.map((r) => (
+                    <tr key={r.theme}>
+                      <td>{r.label || themeLabel(r.theme)}</td>
+                      <td style={{ textAlign: "right" }}>{r.attempts}</td>
+                      <td style={{ textAlign: "right" }}>{r.correct}</td>
+                      <td style={{ textAlign: "right" }}>{acerto(r.correct, r.attempts)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
-      )}
-      {linhasTema.length > 0 && (
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>Por tema</h3>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th style={{ textAlign: "left" }}>tema</th>
-                <th style={{ textAlign: "right" }}>tentativas</th>
-                <th style={{ textAlign: "right" }}>certas</th>
-                <th style={{ textAlign: "right" }}>acerto</th>
-              </tr>
-            </thead>
-            <tbody>
-              {linhasTema.map((r) => (
-                <tr key={r.theme}>
-                  <td>{r.label || themeLabel(r.theme)}</td>
-                  <td style={{ textAlign: "right" }}>{r.attempts}</td>
-                  <td style={{ textAlign: "right" }}>{r.correct}</td>
-                  <td style={{ textAlign: "right" }}>{acerto(r.correct, r.attempts)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       )}
     </>
   );

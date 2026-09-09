@@ -46,9 +46,16 @@ test("BarChart empilha certas e erradas por dia e resume os totais no aria-label
   expect(container.querySelectorAll("[data-certo]").length).toBe(3);
   expect(container.querySelectorAll("[data-errado]").length).toBe(3);
   // a coluna mais alta (5 revisões) chega ao topo da escala inteira de 0 a 8
-  const certas = [...container.querySelectorAll("[data-certo]")].map((r) => Number(r.getAttribute("height")));
+  const certos = [...container.querySelectorAll("[data-certo]")];
+  const errados = [...container.querySelectorAll("[data-errado]")];
+  const num = (el: Element, attr: string) => Number(el.getAttribute(attr));
+  const certas = certos.map((r) => num(r, "height"));
   expect(certas[1]).toBe(0);
   expect(certas[2]).toBeGreaterThan(certas[0]);
+  // empilhado: a errada termina exatamente onde a certa começa
+  certos.forEach((certo, i) => {
+    expect(num(errados[i], "y") + num(errados[i], "height")).toBeCloseTo(num(certo, "y"), 6);
+  });
   const eixo = [...container.querySelectorAll("text.grafico-eixo")].map((t) => t.textContent);
   expect(eixo.slice(0, 5)).toEqual(["0", "2", "4", "6", "8"]);
 });
@@ -56,4 +63,45 @@ test("BarChart empilha certas e erradas por dia e resume os totais no aria-label
 test("BarChart sem colunas não desenha nada", () => {
   const { container } = render(<BarChart bars={[]} titulo="Revisões por dia" />);
   expect(container.querySelector("svg")).toBeNull();
+});
+
+test("LineChart com faixa curta não repete rótulos e centraliza a linha plana", () => {
+  const curta = render(
+    <LineChart
+      points={[
+        { label: "01/09", value: 1500 },
+        { label: "02/09", value: 1502 },
+      ]}
+      titulo="Rating"
+    />,
+  );
+  const eixo = [...curta.container.querySelectorAll("text.grafico-eixo")].map((t) => t.textContent);
+  expect(eixo).toEqual(["1500", "1501", "1502"]);
+  expect(new Set(eixo).size).toBe(eixo.length);
+
+  // todos os valores iguais: a linha fica no meio da área útil, não colada no fundo
+  const plana = render(
+    <LineChart
+      points={[
+        { label: "01/09", value: 7 },
+        { label: "02/09", value: 7 },
+      ]}
+      titulo="Rating"
+    />,
+  );
+  const ys = plana.container
+    .querySelector("[data-linha]")!
+    .getAttribute("points")!
+    .split(" ")
+    .map((par) => Number(par.split(",")[1]));
+  // área útil de 10 a 164 (180 - 16 de margem de baixo): o meio é 87
+  expect(ys).toEqual([87, 87]);
+});
+
+test("LineChart com mais pontos do que pixels desenha só a linha", () => {
+  const muitos = Array.from({ length: 800 }, (_, i) => ({ label: `p${i}`, value: 1500 + (i % 40) }));
+  const { container } = render(<LineChart points={muitos} titulo="Rating de táticas" />);
+  expect(container.querySelectorAll("[data-linha]").length).toBe(1);
+  expect(container.querySelectorAll("circle").length).toBe(0);
+  expect(container.querySelectorAll("title").length).toBe(0);
 });

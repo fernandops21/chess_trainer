@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from chess_trainer.api.app import create_app
 from chess_trainer.core.models import LichessPuzzle, Review, TacticsAttempt, utcnow
-from chess_trainer.core.srs.queue import local_day
+from chess_trainer.core.srs.queue import local_day, local_day_start
 from tests.factories import make_puzzle
 
 FEN = "8/8/8/8/8/8/8/K6k w - - 0 1"
@@ -82,3 +82,24 @@ def test_progresso_com_janela_curta_e_banco_vazio(client_com_dados):
     assert vazio["reviews_per_day"] == [] and vazio["tactics_rating"] == []
     assert vazio["streak_days"] == 0 and vazio["totals"]["reviews"] == 0
     assert set(vazio["by_source"]) == {"own", "lichess", "study"}
+
+
+def test_progresso_conta_o_dia_mais_antigo_inteiro(tmp_path):
+    """O período começa na meia-noite local do dia mais antigo, não no instante de agora."""
+    app = create_app(db_path=str(tmp_path / "borda.db"))
+    db = app.state.session_factory()
+    now = utcnow()
+    puzzle = make_puzzle(db, fen="r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3")
+    # com days=3 o dia mais antigo do período é anteontem: a revisão feita logo depois
+    # da meia-noite local dele conta; a do segundo anterior já é do dia de fora
+    inicio = local_day_start(now) - timedelta(days=2)
+    _review(db, puzzle, ok=True, at=inicio)
+    _review(db, puzzle, ok=False, at=inicio - timedelta(seconds=1))
+    db.commit()
+    db.close()
+
+    with TestClient(app) as client:
+        p = client.get("/api/stats/progress", params={"days": 3}).json()
+    assert [d["day"] for d in p["reviews_per_day"]] == [local_day(inicio).isoformat()]
+    assert p["reviews_per_day"][0] == {"day": local_day(inicio).isoformat(), "correct": 1, "wrong": 0}
+    assert p["totals"]["reviews"] == 1

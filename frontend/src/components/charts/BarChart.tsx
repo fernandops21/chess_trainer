@@ -24,7 +24,9 @@ export function BarChart({ bars, titulo }: { bars: BarDatum[]; titulo: string })
   const larguraUtil = L - MARGEM.esquerda - MARGEM.direita;
   const alturaUtil = A - MARGEM.topo - MARGEM.baixo;
   const passo = larguraUtil / bars.length;
-  const largura = Math.max(2, Math.min(28, passo * 0.7));
+  // no máximo 28 px e nunca mais larga que o passo: com 365 dias as colunas ficam
+  // finas, mas não se sobrepõem
+  const largura = Math.min(passo, Math.max(1, Math.min(28, passo * 0.7)));
   const altura = (v: number) => (v / topo) * alturaUtil;
   const base = MARGEM.topo + alturaUtil;
   const y = (v: number) => MARGEM.topo + alturaUtil - altura(v);

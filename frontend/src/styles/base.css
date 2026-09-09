@@ -24,7 +24,8 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 
 /* layout: sidebar no desktop, barra inferior no celular */
 .app { display: grid; min-height: 100%; grid-template-columns: var(--nav-w) 1fr; }
-.nav { background: var(--nav-bg); color: var(--nav-ink); display: flex; flex-direction: column; padding: 16px 10px; gap: 4px; }
+/* a borda separa o menu do conteúdo no tema escuro, em que os dois fundos são quase iguais */
+.nav { background: var(--nav-bg); color: var(--nav-ink); display: flex; flex-direction: column; padding: 16px 10px; gap: 4px; border-right: 1px solid var(--line); }
 .nav .brand { font-weight: 700; font-size: 18px; padding: 8px 10px 16px; }
 .nav a { color: var(--nav-ink); text-decoration: none; padding: 10px 12px; border-radius: 8px; display: flex; align-items: center; gap: 10px; min-height: var(--tap); }
 .nav a.active { background: var(--nav-ativo); }
@@ -39,7 +40,7 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 .two-col { display: grid; grid-template-columns: minmax(300px, min(640px, calc(100vh - 180px))) minmax(0, 1fr); gap: 24px; align-items: start; }
 @media (max-width: 899px) {
   .app { grid-template-columns: 1fr; grid-template-rows: 1fr; }
-  .nav { flex-direction: row; position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; padding: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: space-around; }
+  .nav { flex-direction: row; position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; padding: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: space-around; border-right: none; border-top: 1px solid var(--line); }
   .nav .brand { display: none; }
   .nav a, .nav .nav-botao { flex-direction: column; gap: 2px; font-size: 11px; padding: 6px 4px; flex: 1; justify-content: center; }
   .nav .badge { margin-left: 0; }
