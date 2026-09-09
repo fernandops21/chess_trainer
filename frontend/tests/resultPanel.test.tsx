@@ -168,3 +168,31 @@ test("no 'evitar' o lance da partida entra como variação com a refutação", a
   expect(screen.getByText("Comentário de Re2")).toBeTruthy();
   expect(screen.getAllByText("Na partida você jogou Re2").length).toBeGreaterThan(0);
 });
+
+test("resolvido por uma alternativa: o tabuleiro abre no lance jogado e a principal vira variação", () => {
+  // a solução guarda Re8+ ... ; o usuário fechou com Qa8+ (alternativa aceita)
+  const puzzle: PuzzleOut = { ...base, solution: { ...base.solution, moves: [{ ...base.solution.moves[0], alternatives: ["a4a8"] }, ...base.solution.moves.slice(1)] } };
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter>
+        <ResultPanel puzzle={puzzle} played={["a4a8"]} review={{ id: "r", puzzle_id: "p1", result: "correct", used_hint: false, ease: 2.6, interval_days: 1, due_at: "2026-09-09T00:00:00", lapses: 0, is_leech: false }} onRetry={() => {}} onNext={() => {}} />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  const jogado = screen.getByRole("button", { name: /Qa8+/ });
+  expect(jogado.getAttribute("aria-current")).toBe("true");
+  // a principal continua na árvore
+  expect(screen.getByRole("button", { name: /^12\. Re8\+$/ })).toBeTruthy();
+  expect(screen.getByText(/uma alternativa aceita/).textContent).toContain("Qa8");
+});
+
+test("resolvido pela linha principal: nada muda no resultado", () => {
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter>
+        <ResultPanel puzzle={base} played={base.solution.moves.map((m) => m.uci)} onRetry={() => {}} onNext={() => {}} />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(screen.queryByText(/alternativa aceita/)).toBeNull();
+});

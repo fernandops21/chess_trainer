@@ -84,6 +84,8 @@ export interface PuzzleState<R = ReviewOut> {
   /** Só nas fases `refuting`/`refuted`: o que a engine respondeu ao lance errado. */
   refutation?: Refutation;
   review?: R;
+  /** Os lances jogados de fato (UCI), do solver e do adversário, ao concluir. */
+  played?: string[];
   error?: unknown;
 }
 
@@ -227,7 +229,8 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
 
   const finish = useCallback((wrong: boolean, usedHint: boolean, text = "Certo!", fen?: string) => {
     play("solved");
-    setState(snapshot({ phase: "solved", hint: undefined, message: { text, tone: "ok", fen } }));
+    const played = chessRef.current.history({ verbose: true }).map((m) => `${m.from}${m.to}${m.promotion ?? ""}`);
+    setState(snapshot({ phase: "solved", hint: undefined, played, message: { text, tone: "ok", fen } }));
     void doSubmit(wrong, usedHint);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doSubmit]);

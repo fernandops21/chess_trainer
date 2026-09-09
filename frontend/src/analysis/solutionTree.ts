@@ -106,3 +106,44 @@ export function withMistakeVariation(
   const comComentario = add.node.comment ? add.tree : setComment(add.tree, add.node.id, comment);
   return insertLine(comComentario, add.node.id, continuation).tree;
 }
+
+/**
+ * A linha que o usuário jogou de fato, quando ela sai da solução (uma
+ * alternativa aceita). Entra como variação no ponto em que divergiu, com o
+ * comentário, e devolve também o id do último lance dela para o tabuleiro
+ * abrir ali — foi o que o usuário viu, não a linha principal.
+ */
+export function withPlayedLine(
+  tree: Tree,
+  solution: string[],
+  played: string[],
+  comment: string,
+): { tree: Tree; lastId: string | null; divergiu: boolean } {
+  const nos = mainline(tree);
+  // com o lance de introdução do adversário a linha principal começa um nó adiante
+  const offset = Math.max(0, nos.length - solution.length);
+  let d = 0;
+  while (d < played.length && d < solution.length && played[d] === solution[d]) d++;
+  if (d >= played.length) return { tree, lastId: null, divergiu: false };
+  const parentId = d === 0 ? (offset ? nos[offset - 1]?.id ?? null : null) : nos[d - 1 + offset]?.id ?? null;
+  const r = insertLine(tree, parentId, played.slice(d));
+  if (r.applied === 0 || !r.lastId) return { tree, lastId: null, divergiu: false };
+  const noDivergente = played.slice(d)[0];
+  const comComentario = setComment(r.tree, idDoFilho(r.tree, parentId, noDivergente) ?? r.lastId, comment);
+  return { tree: comComentario, lastId: r.lastId, divergiu: true };
+}
+
+/** Id do filho de `parentId` que joga `uci` (a raiz quando `parentId` é null). */
+function idDoFilho(tree: Tree, parentId: string | null, uci: string): string | null {
+  const filhos = parentId === null ? tree.root.children : acharNo(tree.root.children, parentId)?.children ?? [];
+  return filhos.find((n) => n.uci === uci)?.id ?? null;
+}
+
+function acharNo(nos: Tree["root"]["children"], id: string): Tree["root"]["children"][number] | null {
+  for (const n of nos) {
+    if (n.id === id) return n;
+    const achado = acharNo(n.children, id);
+    if (achado) return achado;
+  }
+  return null;
+}

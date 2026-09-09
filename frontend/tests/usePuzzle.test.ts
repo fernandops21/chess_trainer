@@ -56,6 +56,7 @@ test("lance certo conclui, registra e vai para result", async () => {
   tick(4000);
   await act(async () => { result.current.tryMove("c3", "d5"); await Promise.resolve(); });
   expect(result.current.state.phase).toBe("result");
+  expect(result.current.state.played).toEqual(["c3d5"]);
   expect(submit).toHaveBeenCalledWith({ puzzle_id: "p1", session_id: "s1", correct: true, used_hint: false, duration_ms: 4000 });
   expect(result.current.state.review?.result).toBe("correct");
   expect(result.current.dests.size).toBe(0);

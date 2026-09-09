@@ -3,15 +3,15 @@ import { Link } from "react-router-dom";
 import type { PuzzleOut, ReviewOut } from "../api/types";
 import { usePuzzleQuery } from "../api/queries";
 import { AnalysisBoard } from "../analysis/AnalysisBoard";
-import { treeFromSolution, withMistakeVariation } from "../analysis/solutionTree";
+import { treeFromSolution, withMistakeVariation, withPlayedLine } from "../analysis/solutionTree";
 import { ErrorBox } from "../components/ErrorBox";
 import { categoryLabel, formatEval, themeLabel } from "../lib/format";
 import { buildLine } from "../board/line";
 import { MistakeCard } from "./MistakeCard";
 import { QueueButtons } from "./QueueButtons";
 
-export function ResultPanel({ puzzle, review, error, onRetry, onNext, nextLabel = "Próximo puzzle", nextDisabled, clockLabel }:
-  { puzzle: PuzzleOut; review?: ReviewOut; error?: unknown; onRetry: () => void; onNext: () => void; nextLabel?: string; nextDisabled?: boolean; clockLabel?: string }) {
+export function ResultPanel({ puzzle, review, played, error, onRetry, onNext, nextLabel = "Próximo puzzle", nextDisabled, clockLabel }:
+  { puzzle: PuzzleOut; review?: ReviewOut; played?: string[]; error?: unknown; onRetry: () => void; onNext: () => void; nextLabel?: string; nextDisabled?: boolean; clockLabel?: string }) {
   const isAvoid = puzzle.kind === "avoid";
   const bestSan = buildLine(puzzle.fen_start, puzzle.solution.moves.slice(0, 1).map((m) => m.uci)).sans[0] ?? puzzle.solution.moves[0]?.uci;
   const punishSibling = isAvoid ? puzzle.siblings.find((s) => s.kind === "punish") : undefined;
@@ -22,17 +22,25 @@ export function ResultPanel({ puzzle, review, error, onRetry, onNext, nextLabel 
   const comErro = puzzle.source === "own" && puzzle.mistake && puzzle.game ? puzzle : null;
   // a solução vira a árvore do tabuleiro de análise; no "evitar", o lance jogado
   // na partida entra como variação com a punição dele (quando ela já chegou)
-  const tree = useMemo(() => {
-    const base = treeFromSolution(puzzle);
-    if (!isAvoid || !refutation || !puzzle.mistake) return base;
-    return withMistakeVariation(
-      base,
-      puzzle.fen_start,
-      puzzle.mistake.move_uci,
-      `Na partida você jogou ${puzzle.mistake.move_played}`,
-      refutation.solution.moves.map((m) => m.uci),
-    );
-  }, [puzzle, isAvoid, refutation]);
+  const { tree, alternativa } = useMemo(() => {
+    let base = treeFromSolution(puzzle);
+    if (isAvoid && refutation && puzzle.mistake) {
+      base = withMistakeVariation(
+        base,
+        puzzle.fen_start,
+        puzzle.mistake.move_uci,
+        `Na partida você jogou ${puzzle.mistake.move_played}`,
+        refutation.solution.moves.map((m) => m.uci),
+      );
+    }
+    // resolveu por uma alternativa aceita: o tabuleiro abre na linha que o usuário
+    // jogou, e a principal fica ao lado como variação, sem "trocar" o lance dele
+    const jogada = played && played.length
+      ? withPlayedLine(base, puzzle.solution.moves.map((m) => m.uci), played, "Alternativa: também resolve. A linha principal segue ao lado.")
+      : { tree: base, lastId: null, divergiu: false };
+    return { tree: jogada.tree, alternativa: jogada.divergiu ? jogada.lastId : null };
+  }, [puzzle, isAvoid, refutation, played]);
+  const alternativaSan = alternativa && played ? buildLine(puzzle.fen_start, played).sans.at(-1) ?? null : null;
   // o resultado e o cartão do erro vão para o topo da coluna da direita: em cima
   // do tabuleiro eles empurravam tudo para baixo e sobrava espaço ao lado
   const lateral = (
@@ -43,6 +51,9 @@ export function ResultPanel({ puzzle, review, error, onRetry, onNext, nextLabel 
         {review && (
           <>
             <div className={`msg ${clean ? "ok" : "bad"}`}>{clean ? "Resolvido sem erro." : "Concluído, mas contou como erro (volta em 1 dia)."}</div>
+            {alternativaSan && (
+              <div className="muted">Você fechou com <b>{alternativaSan}</b>, uma alternativa aceita; a linha principal era <b>{bestSan}</b>.</div>
+            )}
             <div className="muted">Próxima revisão em {review.interval_days} dia(s) · facilidade {review.ease} · lapsos {review.lapses}{review.is_leech ? " · virou sanguessuga" : ""}</div>
           </>
         )}
@@ -65,5 +76,5 @@ export function ResultPanel({ puzzle, review, error, onRetry, onNext, nextLabel 
       {comErro && <MistakeCard puzzle={comErro} />}
     </>
   );
-  return <AnalysisBoard tree={tree} initialNodeId="last" engine={false} allowSetup={false} sidePanel={lateral} />;
+  return <AnalysisBoard tree={tree} initialNodeId={alternativa ?? "last"} engine={false} allowSetup={false} sidePanel={lateral} />;
 }

@@ -30,7 +30,7 @@ export function SessionPuzzle({ puzzle, sessionId, clockLabel, orderInfo, onDone
   const ctl = usePuzzle(puzzle, { sessionId, submit, presetHint, refute: settings?.refute_wrong_moves ?? true });
   const { state } = ctl;
   if (state.phase === "result" || state.phase === "submit_error" || state.phase === "submitting") {
-    return <ResultPanel puzzle={puzzle} review={state.review} error={state.error} onRetry={ctl.retrySubmit}
+    return <ResultPanel puzzle={puzzle} review={state.review} played={state.played} error={state.error} onRetry={ctl.retrySubmit}
       onNext={() => state.review && onDone({ puzzle, review: state.review })} nextLabel={nextLabel} nextDisabled={nextDisabled} clockLabel={clockLabel} />;
   }
   return <PuzzleView puzzle={puzzle} ctl={ctl} clockLabel={clockLabel} orderInfo={orderInfo} onSkip={onSkip} skipDisabled={skipDisabled} />;

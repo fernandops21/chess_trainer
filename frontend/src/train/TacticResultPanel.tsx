@@ -1,20 +1,26 @@
 import { useMemo } from "react";
 import type { AttemptOut, TacticOut } from "../api/types";
 import { AnalysisBoard } from "../analysis/AnalysisBoard";
-import { treeFromSolution } from "../analysis/solutionTree";
+import { treeFromSolution, withPlayedLine } from "../analysis/solutionTree";
 import { ErrorBox } from "../components/ErrorBox";
 import { themeLabel } from "../lib/format";
 import { QueueButtons } from "./QueueButtons";
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 
-export function TacticResultPanel({ tactic, attempt, durationMs, error, onRetry, onNext, nextDisabled, clockLabel }:
-  { tactic: TacticOut; attempt?: AttemptOut; durationMs?: number; error?: unknown; onRetry: () => void; onNext: () => void; nextDisabled?: boolean; clockLabel?: string }) {
+export function TacticResultPanel({ tactic, attempt, played, durationMs, error, onRetry, onNext, nextDisabled, clockLabel }:
+  { tactic: TacticOut; attempt?: AttemptOut; played?: string[]; durationMs?: number; error?: unknown; onRetry: () => void; onNext: () => void; nextDisabled?: boolean; clockLabel?: string }) {
   const clean = attempt && attempt.correct && !attempt.used_hint;
   const exploreHref = `/analise?fen=${encodeURIComponent(tactic.fen_start)}&orientation=${tactic.side_to_move}&back=${encodeURIComponent("/treinar")}`;
   // a solução vira a árvore do tabuleiro de análise: dá para sair da linha e
   // experimentar qualquer lance, sem pedir nada à engine antes de o usuário querer
-  const tree = useMemo(() => treeFromSolution(tactic), [tactic]);
+  const { tree, alternativa } = useMemo(() => {
+    const base = treeFromSolution(tactic);
+    const jogada = played && played.length
+      ? withPlayedLine(base, tactic.solution.moves.map((m) => m.uci), played, "Alternativa: também resolve. A linha principal segue ao lado.")
+      : { tree: base, lastId: null, divergiu: false };
+    return { tree: jogada.tree, alternativa: jogada.divergiu ? jogada.lastId : null };
+  }, [tactic, played]);
   // mesma disposição do resultado dos exercícios: o cartão vai ao lado do
   // tabuleiro, não em cima dele
   const lateral = (
@@ -42,5 +48,5 @@ export function TacticResultPanel({ tactic, attempt, durationMs, error, onRetry,
       </div>
     </>
   );
-  return <AnalysisBoard tree={tree} initialNodeId="last" engine={false} allowSetup={false} sidePanel={lateral} />;
+  return <AnalysisBoard tree={tree} initialNodeId={alternativa ?? "last"} engine={false} allowSetup={false} sidePanel={lateral} />;
 }

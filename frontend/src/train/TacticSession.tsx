@@ -43,7 +43,7 @@ function TacticPuzzle({ tactic, sessionId, clockLabel, orderInfo, onDone, nextDi
   const ctl = usePuzzle<AttemptOut>(tactic, { sessionId, submit, refute: settings?.refute_wrong_moves ?? true });
   const { state } = ctl;
   if (state.phase === "result" || state.phase === "submit_error" || state.phase === "submitting") {
-    return <TacticResultPanel tactic={tactic} attempt={state.review} durationMs={durationRef.current} error={state.error} onRetry={ctl.retrySubmit}
+    return <TacticResultPanel tactic={tactic} attempt={state.review} played={state.played} durationMs={durationRef.current} error={state.error} onRetry={ctl.retrySubmit}
       onNext={() => state.review && onDone({ tactic, attempt: state.review })} nextDisabled={nextDisabled} clockLabel={clockLabel} />;
   }
   return <PuzzleView puzzle={tactic} ctl={ctl} clockLabel={clockLabel} orderInfo={orderInfo} />;
