@@ -1,0 +1,10 @@
+/* Gráficos em SVG: cores só por token, para valerem nos dois temas. */
+.grafico { display: block; width: 100%; height: auto; }
+.grafico-grade { stroke: var(--line); stroke-width: 1; }
+.grafico-eixo { fill: var(--muted); font-size: 11px; }
+.grafico-linha { fill: none; stroke: var(--brand); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.grafico-ponto { fill: var(--brand); }
+.grafico-certo { fill: var(--ok); }
+.grafico-errado { fill: var(--bad); }
+.grafico-legenda { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 6px; color: var(--muted); font-size: 13px; }
+.grafico-legenda .amostra { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; vertical-align: middle; }

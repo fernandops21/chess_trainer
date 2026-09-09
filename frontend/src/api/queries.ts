@@ -32,6 +32,7 @@ export const keys = {
   tacticsStatus: ["tactics", "status"] as const,
   tacticThemes: ["tactics", "themes"] as const,
   themeStats: (days: number) => ["stats", "themes", days] as const,
+  progress: (days: number) => ["stats", "progress", days] as const,
 };
 
 export const useStatus = () =>
@@ -67,6 +68,8 @@ export const useTacticThemes = () =>
   useQuery({ queryKey: keys.tacticThemes, queryFn: api.tacticThemes });
 export const useThemeStats = (days = 30) =>
   useQuery({ queryKey: keys.themeStats(days), queryFn: () => api.themeStats(days) });
+export const useProgress = (days = 90) =>
+  useQuery({ queryKey: keys.progress(days), queryFn: () => api.progress(days) });
 /**
  * Livro de aberturas da posição. O explorador do Lichess é limitado por IP e a
  * resposta de uma FEN não muda: guardamos para sempre e não reintentamos.

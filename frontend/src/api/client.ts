@@ -14,6 +14,7 @@ import type {
   MistakesQuery,
   OpeningsDb,
   OpeningsOut,
+  ProgressOut,
   PuzzleOut,
   QueueFilters,
   QueueOut,
@@ -215,6 +216,7 @@ export const api = {
     request<ChapterDetail>(`/studies/${id}/chapters/${cid}/duplicate`, post("")),
   themeStats: (days = 30) =>
     request<ThemeStat[]>(`/stats/themes${qs({ days })}`),
+  progress: (days = 90) => request<ProgressOut>(`/stats/progress${qs({ days })}`),
 };
 
 /** Downloads de PGN: links comuns, o navegador salva pelo Content-Disposition. */

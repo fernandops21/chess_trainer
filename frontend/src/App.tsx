@@ -6,6 +6,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { GamesPage } from "./pages/GamesPage";
 import { GameDetailPage } from "./pages/GameDetailPage";
 import { MistakesPage } from "./pages/MistakesPage";
+import { ProgressPage } from "./pages/ProgressPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { StudiesPage } from "./pages/StudiesPage";
 import { StudyDetailPage } from "./pages/StudyDetailPage";
@@ -32,6 +33,7 @@ export function App() {
           <Route path="/partidas" element={<GamesPage />} />
           <Route path="/partidas/:id" element={<GameDetailPage />} />
           <Route path="/erros" element={<MistakesPage />} />
+          <Route path="/progresso" element={<ProgressPage />} />
           <Route path="/config" element={<SettingsPage />} />
           <Route path="*" element={<DashboardPage />} />
         </Routes>

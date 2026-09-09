@@ -295,6 +295,27 @@ Nos exercícios dos seus erros, a resposta do adversário dentro da solução é
 resistente** na mesma profundidade (e no mesmo tempo de busca) do lance do solver — as duas buscas
 são a mesma, então a solução não mostra uma defesa mais fraca que a apontada pela Análise.
 
+## Progresso
+
+A tela `/progresso` (link no Painel, ao lado dos botões de treino) junta o que mudou no período —
+30, 90 ou 365 dias, escolhidos no seletor do topo:
+
+- **cartões**: dias seguidos com revisão (a mesma sequência do Painel), revisões no período com o
+  acerto em porcentagem e quantos exercícios estão na repetição;
+- **revisões por dia**: colunas empilhadas, certas embaixo e erradas em cima. Dias sem revisão não
+  entram na lista — o gráfico mostra só os dias em que você treinou;
+- **rating de táticas**: um ponto por tentativa, em ordem cronológica;
+- **por fonte** e **por tema**: revisões (ou tentativas), certas e o acerto em porcentagem.
+
+Sem nenhuma revisão no período, o lugar dos gráficos traz "Ainda não há revisões neste período." e a
+tabela por fonte fica zerada.
+
+Tudo vem de `GET /api/stats/progress?days=90` (`backend/chess_trainer/api/routes/stats.py`, lógica em
+`core/stats.py: progress`), que só lê o banco. Os gráficos são SVG escrito à mão em
+`frontend/src/components/charts/` (`LineChart`, `BarChart`), sem biblioteca: cada um é um `role="img"`
+com `aria-label` resumindo os números, e as cores saem dos tokens (`--ok`, `--bad`, `--brand`,
+`--muted`, `--line`) para valerem nos dois temas.
+
 ## Som
 
 Efeitos sonoros curtos para lance, captura, xeque, erro, dica e exercício resolvido. Valem no

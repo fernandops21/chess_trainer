@@ -339,6 +339,38 @@ export interface ThemeStat {
   lichess: number;
 }
 
+export interface DayReviews {
+  /** Dia local no formato "AAAA-MM-DD"; dias sem revisão não vêm na lista. */
+  day: string;
+  correct: number;
+  wrong: number;
+}
+
+export interface RatingPoint {
+  at: string;
+  rating: number;
+}
+
+export interface SourceReviews {
+  reviews: number;
+  correct: number;
+}
+
+export interface ProgressTotals {
+  reviews: number;
+  correct: number;
+  puzzles_in_queue: number;
+}
+
+export interface ProgressOut {
+  reviews_per_day: DayReviews[];
+  /** Um ponto por tentativa de tática, em ordem cronológica. */
+  tactics_rating: RatingPoint[];
+  by_source: Partial<Record<PuzzleSource, SourceReviews>>;
+  streak_days: number;
+  totals: ProgressTotals;
+}
+
 export interface QueueFilters {
   /** Ausente = `review` (a repetição espaçada). */
   mode?: QueueMode;
