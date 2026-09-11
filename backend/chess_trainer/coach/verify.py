@@ -7,6 +7,7 @@ existir entre os trechos recuperados. Puro: recebe a função de análise e não
 toca em banco nem rede, o que permite reusá-lo na avaliação offline."""
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import asdict, dataclass, field
 from typing import Callable
@@ -83,20 +84,20 @@ def _score_brancas(board: chess.Board, analise: dict) -> int | None:
 
 
 def _num(valor: object) -> int | None:
-    """Converte `avaliacao_cp`/`mate_em` para int; aceita float (truncado) e string
-    numérica, rejeita bool e qualquer outra coisa não numérica."""
+    """Converte `avaliacao_cp`/`mate_em` para int; aceita float finito (truncado) e
+    string numérica finita, rejeita bool, infinito/NaN e qualquer outra coisa não
+    numérica -- nunca levanta exceção, sempre devolve None quando não dá."""
     if isinstance(valor, bool):
         return None
     if isinstance(valor, int):
         return valor
-    if isinstance(valor, float):
-        return int(valor)
-    if isinstance(valor, str):
-        try:
-            return int(float(valor))
-        except ValueError:
+    try:
+        f = valor if isinstance(valor, float) else float(valor)  # type: ignore[arg-type]
+        if not math.isfinite(f):
             return None
-    return None
+        return int(f)
+    except (ValueError, OverflowError, TypeError):
+        return None
 
 
 def _analisar_seguro(analisar: Analisar, fen: str, multipv: int, idx: int, v: Verificacao, contexto: str) -> dict | None:

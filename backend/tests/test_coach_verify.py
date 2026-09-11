@@ -92,6 +92,13 @@ def test_avaliacao_nao_numerica_vira_erro_e_nao_excecao():
     # float é aceito e comparado normalmente, como o -30 inteiro do teste de tolerância
     flutuante = checar({"texto": TEXTO_OK, "linhas": [{"inicio": "inicial", "lances": ["Nf3"], "avaliacao_cp": -30.0}]})
     assert "avaliacao_invalida" not in tipos(flutuante) and "avaliacao_errada" not in tipos(flutuante)
+    # infinito e NaN não podem levantar exceção: viram avaliacao_invalida como qualquer outro lixo
+    infinito = checar({"texto": TEXTO_OK, "linhas": [{"inicio": "inicial", "lances": ["Nf3"], "avaliacao_cp": float("inf")}]})
+    assert not infinito.ok and "avaliacao_invalida" in tipos(infinito)
+    nan = checar({"texto": TEXTO_OK, "linhas": [{"inicio": "inicial", "lances": ["Nf3"], "avaliacao_cp": float("nan")}]})
+    assert not nan.ok and "avaliacao_invalida" in tipos(nan)
+    infinito_str = checar({"texto": TEXTO_OK, "linhas": [{"inicio": "inicial", "lances": ["Nf3"], "avaliacao_cp": "Infinity"}]})
+    assert not infinito_str.ok and "avaliacao_invalida" in tipos(infinito_str)
 
 
 def test_lance_solto_no_texto_e_aviso():
