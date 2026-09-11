@@ -1,7 +1,51 @@
 # Chess Trainer
 
+> **Status: projeto pessoal, em desenvolvimento e em testes.** Uso este app todo dia para treinar, mas ele
+> muda com frequência, não tem garantias, não tem contas de usuário e foi feito para rodar localmente,
+> na máquina de uma pessoa só. Está público para quem quiser ver o código ou usar por conta própria.
+>
+> **Status: personal project, under active development and testing.** I use it daily to train, but it
+> changes often, comes with no warranty, has no user accounts and is meant to run locally for a single
+> person. It is public so anyone can read the code or run it for themselves.
+
 Treino de xadrez a partir dos seus próprios erros: importa partidas do chess.com, analisa com Stockfish,
-gera puzzles dos erros (seus e do adversário) e agenda com repetição espaçada.
+gera puzzles dos erros (seus e do adversário) e agenda com repetição espaçada. Também importa estudos do
+Lichess e arquivos PGN, deixa criar estudos com um editor de variações e comentários, e treina táticas
+do banco público do Lichess. "Chessable, mas o curso é você mesmo."
+
+## In English
+
+**Chess Trainer** is a local-first chess training app built around your own games:
+
+- imports your games from chess.com and analyses them with Stockfish;
+- turns your mistakes (and your opponents') into puzzles, scheduled with spaced repetition;
+- when you play a wrong move, the engine refutes it on the board and explains the evaluation drop;
+- imports Lichess studies and PGN files, and has a study editor (variations, comments, arrows) with a
+  "book mode" for reading annotated games one move per page, with clickable moves inside the prose;
+- trains tactics from the public Lichess puzzle database with a local rating;
+- analysis board with evaluation bar, move classification (brilliant, best, mistake…) and opening book;
+- progress page (rating over time, reviews per day, accuracy by theme and source), light and dark themes.
+
+Stack: Python 3.13, FastAPI, SQLAlchemy, SQLite and python-chess on the backend; React 19, TypeScript,
+Vite, chessground and chess.js on the frontend; Stockfish as the engine. About 500 backend tests and
+600 frontend tests. The interface is in Portuguese.
+
+The project was built with AI coding agents (Claude Code) driven by written specs and plans that live in
+`docs/superpowers`: each feature starts as a design conversation, becomes a plan with tasks, is
+implemented by an agent, reviewed by another, fixed, reviewed as a whole and only then merged. The
+product decisions, the specs, the reviews of the reviews and the daily testing are mine.
+
+## Capturas de tela
+
+| Exercício dos seus erros | Análise com engine | Progresso |
+| --- | --- | --- |
+| ![Exercício](docs/screenshots/exercicio.png) | ![Análise](docs/screenshots/analise.png) | ![Progresso](docs/screenshots/progresso.png) |
+
+## Licença
+
+AGPL-3.0 (ver `LICENSE`). O tabuleiro (chessground) é GPL-3.0 e os sons vêm do Lichess (AGPL-3.0), o que
+define a licença do conjunto. Os estudos, partidas e livros que você importa são seus: o app não
+distribui conteúdo de terceiros, e a fixture de teste de estudo usa só lances e textos sintéticos.
 
 ## Rodar
 

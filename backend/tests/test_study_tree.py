@@ -66,7 +66,7 @@ def test_arvore_do_primeiro_capitulo(jogos):
     tree = game_to_tree(jogos[0])
     assert tree["fen"].endswith("b kq - 2 10")
     assert tree["orientation"] == "black"
-    assert "acabaram de rocar" in tree["intro"]
+    assert "qual o melhor lance para as pretas" in tree["intro"]
     assert tree["root"]["shapes"] == []
     # ids em pré-ordem: linha principal inteira antes das variações do primeiro lance
     assert [n["id"] for n in nos(tree)] == [f"n{i}" for i in range(1, 10)]
@@ -76,7 +76,7 @@ def test_arvore_do_primeiro_capitulo(jogos):
     primeiro = tree["root"]["children"][0]
     assert primeiro["uci"] == "d8b6"
     assert primeiro["nags"] == [1]  # o "!" do PGN
-    assert primeiro["comment"] == "Aproveitando o alinhamento de intersecção."
+    assert primeiro["comment"] == "Comentário de teste no lance da solução."
     # as variações são os irmãos seguintes do primeiro lance
     assert [c["san"] for c in tree["root"]["children"]] == ["Qb6+", "O-O", "Bg6"]
     assert [c["san"] for c in primeiro["children"]] == ["Kh1"]
@@ -423,7 +423,7 @@ def test_chapter_pgn_traz_os_headers_do_lichess(jogos):
     assert '[ChapterMode "gamebook"]' in pgn
     assert '[Orientation "black"]' in pgn
     assert f'[FEN "{tree["fen"]}"]' in pgn and '[SetUp "1"]' in pgn
-    assert "Qb6+" in pgn and "acabaram de rocar" in pgn
+    assert "Qb6+" in pgn and "qual o melhor lance para as pretas" in pgn
 
 
 def test_chapter_pgn_de_capitulo_de_leitura_sai_como_normal():

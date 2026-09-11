@@ -109,9 +109,9 @@ def test_primeiro_capitulo_lances_alternam_solver_e_engine(estudo):
 
 def test_primeiro_capitulo_intro_e_comentarios(estudo):
     cap = estudo.chapters[0]
-    assert "acabaram de rocar" in cap.intro_comment
-    assert "acabaram de rocar" in cap.solution["intro"]
-    assert "alinhamento" in cap.solution["comments"]["0"]
+    assert "qual o melhor lance para as pretas" in cap.intro_comment
+    assert "qual o melhor lance para as pretas" in cap.solution["intro"]
+    assert "Comentário de teste" in cap.solution["comments"]["0"]
     # nós sem comentário não entram no dicionário
     assert "1" not in cap.solution["comments"]
 
@@ -119,7 +119,7 @@ def test_primeiro_capitulo_intro_e_comentarios(estudo):
 def test_primeiro_capitulo_wrong_moves_so_com_comentario(estudo):
     cap = estudo.chapters[0]
     errados = cap.solution["wrong_moves"]
-    assert errados["e8g8"] == "Assim seguiu a partida..."
+    assert errados["e8g8"] == "Comentário de teste na continuação."
     # a variação 10... Bg6 não tem comentário, então é ignorada
     assert "f5g6" not in errados
 
