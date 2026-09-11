@@ -60,6 +60,19 @@ def test_vetores_de_outro_modelo_ficam_fora(ambiente):
         assert outro.count(db) == 1 and [k for k, _ in outro.search(db, [1, 0, 0], 5)] == ["k9"]
 
 
+def test_busca_nao_e_contaminada_por_outro_modelo(ambiente):
+    store, factory = ambiente
+    outro = VectorStore(store.engine, modelo="outro", dim=3, forcar_numpy=(store.backend == "numpy"))
+    with factory() as db:
+        store.upsert(db, [trecho("fa1", "c1", "a"), trecho("fa2", "c1", "b"), trecho("fa3", "c1", "c")],
+                     [[0.9, 0.1, 0], [0.85, 0.15, 0], [0, 1, 0]])
+        outro.upsert(db, [trecho("o1", "c2", "x"), trecho("o2", "c2", "y"), trecho("o3", "c2", "z")],
+                     [[1, 0, 0], [0.99, 0.01, 0], [0.98, 0.02, 0]])
+        db.commit()
+        # os 3 vetores de "outro" ficam todos mais perto da consulta que os de "falso"
+        assert [k for k, _ in store.search(db, [1, 0, 0], 2)] == ["fa1", "fa2"]
+
+
 def test_purgar_orfaos_apos_cascade(ambiente):
     store, factory = ambiente
     with factory() as db:

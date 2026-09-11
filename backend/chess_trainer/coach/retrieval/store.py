@@ -9,7 +9,7 @@ from __future__ import annotations
 import threading
 
 import numpy as np
-from sqlalchemy import Engine, delete, select, text
+from sqlalchemy import Engine, delete, func, select, text
 from sqlalchemy.orm import Session
 
 from chess_trainer.coach.retrieval.chunks import Trecho
@@ -62,7 +62,8 @@ class VectorStore:
     # --- escrita ----------------------------------------------------------
 
     def upsert(self, db: Session, trechos: list[Trecho], vetores: list[list[float]]) -> None:
-        assert len(trechos) == len(vetores)
+        if len(trechos) != len(vetores):
+            raise ValueError("trechos e vetores com tamanhos diferentes")
         for t, v in zip(trechos, vetores):
             row = db.scalar(select(CoachChunk).where(CoachChunk.key == t.key))
             if row is None:
@@ -76,25 +77,29 @@ class VectorStore:
             if self.backend == "sqlite-vec":
                 self._vec_delete(db, [row.id])
                 self._vec_insert(db, row.id, v)
-        self._cache = None
+        self._invalidar()
 
     def delete_chapter(self, db: Session, chapter_id: str) -> None:
         ids = list(db.scalars(select(CoachChunk.id).where(CoachChunk.chapter_id == chapter_id)))
         if self.backend == "sqlite-vec":
             self._vec_delete(db, ids)
         db.execute(delete(CoachChunk).where(CoachChunk.chapter_id == chapter_id))
-        self._cache = None
+        self._invalidar()
 
     def purgar_orfaos(self, db: Session) -> None:
         """Linhas da tabela virtual cujo trecho sumiu (o CASCADE do capítulo não a alcança)."""
         if self.backend == "sqlite-vec":
             db.execute(text("DELETE FROM coach_chunks_vec WHERE id NOT IN (SELECT id FROM coach_chunks)"))
-        self._cache = None
+        self._invalidar()
+
+    def _invalidar(self) -> None:
+        with self._lock:
+            self._cache = None
 
     # --- leitura ----------------------------------------------------------
 
     def count(self, db: Session) -> int:
-        return len(list(db.scalars(select(CoachChunk.id).where(CoachChunk.model == self.modelo))))
+        return db.scalar(select(func.count(CoachChunk.id)).where(CoachChunk.model == self.modelo)) or 0
 
     def hashes_do_capitulo(self, db: Session, chapter_id: str) -> dict[str, str]:
         rows = db.execute(select(CoachChunk.key, CoachChunk.content_hash)
@@ -105,15 +110,20 @@ class VectorStore:
         if k <= 0:
             return []
         if self.backend == "sqlite-vec":
+            # a tabela virtual não sabe o que é "modelo": pede vizinhos a mais
+            # (um por linha de outro modelo, pior caso: todas mais próximas que
+            # as nossas) para garantir k resultados do nosso modelo mesmo que
+            # vetores de outro modelo dominem o topo do ranking
+            n_outros = db.scalar(select(func.count(CoachChunk.id)).where(CoachChunk.model != self.modelo)) or 0
             # os vetores são unitários: a distância L2 ordena igual ao cosseno
             hits = db.execute(text("SELECT id, distance FROM coach_chunks_vec WHERE embedding MATCH :q AND k = :k ORDER BY distance"),
-                              {"q": _blob(vetor), "k": k}).all()
+                              {"q": _blob(vetor), "k": k + n_outros}).all()
             if not hits:
                 return []
             por_id = {i: d for i, d in hits}
             rows = db.execute(select(CoachChunk.id, CoachChunk.key)
                               .where(CoachChunk.id.in_(list(por_id)), CoachChunk.model == self.modelo)).all()
-            return sorted(((key, float(por_id[i])) for i, key in rows), key=lambda x: x[1])
+            return sorted(((key, float(por_id[i])) for i, key in rows), key=lambda x: x[1])[:k]
         matriz, chaves = self._matriz(db)
         if not chaves:
             return []
