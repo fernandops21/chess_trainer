@@ -1,0 +1,465 @@
+# Chess Trainer — Treinador com IA, fase 1: explicar o erro
+
+Data: 2026-09-11
+Status: aprovado em conversa (arquitetura, avaliação, observabilidade, Docker); spec para revisão do usuário antes do plano.
+Depende de: tudo o que está na `main` (commit 05f7fa8).
+Próximo: plano de implementação; fases 2 a 4 em specs separados (ver §14).
+
+## 1. Motivação
+
+O app já transforma os erros do usuário em exercícios e mostra a refutação da
+engine, mas não explica *por que* o lance foi ruim nem liga o erro ao que o
+usuário está estudando. Quem treina sozinho fica com a engine de um lado
+(números sem explicação) e os livros do outro (explicações sem ligação com as
+próprias partidas). A fase 1 junta as duas pontas: um botão "Explicar" na tela
+de resultado do exercício chama um treinador que escreve, em português, o que
+aconteceu, por que o lance perde, qual é o padrão, onde ele aparece nos estudos
+que o usuário está lendo, e o que treinar.
+
+O treinador é um agente com LLM munido de ferramentas (engine, contexto da
+partida, estatísticas do usuário, busca nos estudos). Ele não substitui o
+material do usuário; ele o aproveita: cada explicação cita o capítulo e o lance
+onde o padrão aparece, e o link abre o capítulo no modo livro.
+
+Propriedade central do domínio, que define o produto: toda afirmação sobre uma
+posição de xadrez é verificável pela engine. Um LLM sozinho alucina lances; por
+isso o texto só chega ao usuário depois de um verificador reproduzir cada linha
+citada no tabuleiro e conferir avaliações e citações. O que não bate é
+corrigido ou mostrado com aviso, nunca escondido. A qualidade do treinador é
+medida de forma contínua (avaliação offline contra um baseline, relatório
+publicado), porque um treinador que erra lance faz o aluno regredir.
+
+Esta fase é o primeiro passo de um treinador pessoal: quando ele enxerga os
+erros, as estatísticas e o material do usuário, o passo seguinte é montar o
+plano de estudo e a sequência de exercícios sob medida (fase 4, §14).
+
+## 2. Decisões já tomadas
+
+- Superfície: explicar o erro na tela de resultado. Chat livre e relatório
+  semanal ficam fora (§15).
+- Provedor: API da Anthropic, SDK oficial em Python (`anthropic` 1.x), atrás
+  de uma interface própria. Bedrock fica previsto na interface, sem
+  implementação nesta fase. Chave criada pelo usuário no Console, com teto de
+  gasto configurado lá.
+- Modelo padrão `claude-opus-5`; `claude-sonnet-5` como alternativa nas
+  Configurações. A avaliação (§8) decide se o Sonnet basta. Thinking adaptativo,
+  `effort` configurável (padrão `high`).
+- Agente com o loop de ferramentas do próprio SDK e o fluxo (contexto,
+  recuperação, geração, verificação, correção) escrito em Python como máquina
+  de estados pequena. Sem LangChain/LangGraph.
+- Observabilidade com LangFuse rodando localmente via Docker Compose (Docker
+  Desktop já instalado, WSL 2). LangFuse Cloud é plano B sem mudança de código.
+- Custo: uso pontual (uma explicação por exercício); estimativa de 2 a 10
+  centavos de dólar por explicação conforme o modelo.
+
+## 3. Privacidade e conteúdo de terceiros
+
+- Cada explicação envia à API a posição, o contexto do exercício e os trechos
+  recuperados dos estudos. A Anthropic não treina com dados da API e retém por
+  30 dias. O usuário aceitou isso para o uso pessoal.
+- Regra de produto mantida: o app não distribui conteúdo de terceiros;
+  fixtures de teste e capturas de tela usam só lances e texto sintético; o
+  índice de embeddings fica no SQLite local; LangFuse local guarda os traces na
+  máquina do usuário.
+- A chave da API segue o padrão do token do Lichess: digitada em
+  Configurações, guardada na tabela `settings`, nunca devolvida pela API
+  (`anthropic_api_key_set: bool`).
+
+## 4. Pacote `chess_trainer/coach/`
+
+Tudo novo fica em `backend/chess_trainer/coach/`. Pontos de contato com o
+código existente: rota nova (§9), campos novos em `AppSettings`, gancho no
+salvar capítulo (§6) e um botão e um cartão no frontend (§10).
+
+```
+coach/
+  llm.py          interface LlmClient + AnthropicClient (SDK, loop de ferramentas)
+  tools.py        as quatro ferramentas do agente
+  prompts.py      system prompt e formato da resposta
+  retrieval/
+    chunks.py     árvore do capítulo -> trechos
+    embeddings.py fastembed (ONNX, CPU), modelo multilíngue
+    store.py      tabelas coach_chunks + vetor (sqlite-vec; fallback numpy)
+    index.py      indexar capítulo / recriar índice
+  verify.py       verificador de lances, avaliações e citações
+  explain.py      pipeline: contexto -> agente -> verificar -> corrigir -> gravar
+  costs.py        tabela de preços por modelo e cálculo do custo
+  observability.py LangFuse (decoradores); no-op sem chaves
+```
+
+### 4.1 Cliente LLM
+
+- `LlmClient` (Protocol): `run_agent(system, user, tools, output_schema,
+  effort) -> AgentResult` com `text`, `structured`, `usage` (entrada, saída,
+  leitura e escrita de cache), `tool_calls` (lista para o trace) e
+  `stop_reason`.
+- `AnthropicClient`: `anthropic.Anthropic(api_key=...)`; usa o tool runner do
+  SDK para o loop; resposta final com saída estruturada (`output_config.format`)
+  no esquema de §4.4. Prompt caching: `cache_control` no system prompt e nas
+  definições de ferramentas (estáveis); o contexto do exercício vai na mensagem
+  do usuário, depois do último ponto de cache. Thinking adaptativo; `effort` da
+  configuração. `max_tokens` 4096 na resposta final. Trata `stop_reason`
+  `refusal` como erro legível. Erros do SDK mapeados por classe (§11).
+- `FakeLlm` (em `tests/fakes.py`): roteiro de chamadas de ferramenta e resposta
+  final fixa; usado em todos os testes sem rede.
+
+### 4.2 Ferramentas do agente
+
+Todas finas, em cima do que existe; recebem `db` e `app.state` por fechamento.
+
+| Ferramenta | Entrada | Saída | Implementação |
+| --- | --- | --- | --- |
+| `analisar_posicao` | `fen`, `multipv` (1–3) | linhas com `san`, `score`, `pv_san` | `InteractiveAnalyzer.analyse` (cache e engine já existentes) |
+| `contexto_do_exercicio` | nenhuma (fixo por chamada) | puzzle, erro (`mistake`), lances da partida ±6 plies em SAN, lance real do usuário, solução, avaliações antes/depois | `PuzzleOut` + `Position` + `Game.pgn` |
+| `estatisticas_por_tema` | `dias` (padrão 90) | linhas de `theme_stats` | `core/stats.theme_stats` |
+| `buscar_estudos` | `consulta`, `k` (padrão 5) | trechos `{chunk_id, estudo, capitulo, caminho_san, texto, url}` | §6 |
+
+O contexto do exercício também vai *inteiro* na mensagem inicial (é pequeno);
+a ferramenta existe para o agente pedir de novo campos específicos e para a
+variante "só prompt" da avaliação ser comparável.
+
+### 4.3 Prompt
+
+System prompt em português, fixo e versionado em `prompts.py`
+(`PROMPT_VERSION`), gravado em cada explicação. Conteúdo, em linhas gerais:
+
+- papel: treinador de xadrez explicando para o aluno o erro dele naquele
+  exercício; tom direto, sem elogio vazio; 120 a 250 palavras.
+- regras duras: só citar lances que vieram de `analisar_posicao` ou do
+  contexto; toda linha começa da posição inicial do exercício ou da posição do
+  erro, declarada; avaliações sempre da engine, em peões (`+1,5`) ou `M3`;
+  citar estudos só quando o trecho recuperado for pertinente, pelo `chunk_id`;
+  nunca inventar nome de abertura ou de padrão sem apoio.
+- estrutura sugerida: o que aconteceu, por que o lance perde, o padrão, onde
+  isso aparece nos estudos (se houver), o que treinar.
+
+### 4.4 Formato da resposta (saída estruturada)
+
+```json
+{
+  "texto": "…prosa com lances em SAN e marcadores [c:ID] para citações…",
+  "linhas": [
+    {"inicio": "inicial" | "erro", "lances": ["Cf3", "Cc6", "…"], "avaliacao_cp": 150 | null,
+     "mate_em": null | 3}
+  ],
+  "citacoes": ["ID", "…"],
+  "padrao": "hanging_piece" | null,
+  "treinar": ["…"]
+}
+```
+
+`inicio = "inicial"` significa `puzzle.fen_start`; `"erro"` significa a
+posição antes do lance errado (`fen_before` do puzzle ou a posição do erro na
+partida, conforme o tipo). Toda sequência de lances que aparecer em `texto`
+deve estar em `linhas`.
+
+## 5. Verificador (`verify.py`)
+
+Entrada: resposta estruturada, puzzle, trechos recuperados, acesso à engine.
+Saída: `Verificacao {ok: bool, issues: list[Issue]}` com `Issue {tipo,
+gravidade ("erro" | "aviso"), detalhe, linha_idx | None}`.
+
+Regras:
+
+1. **Legalidade**: cada linha é reproduzida com python-chess a partir da
+   posição declarada; lance ilegal ou SAN não reconhecido → `erro`
+   `lance_ilegal` na linha, e a linha para ali.
+2. **Aderência à engine**: para cada linha, a posição de partida é analisada
+   com `multipv=3`; o primeiro lance da linha deve ser um dos três primeiros da
+   engine, *ou* ser o lance errado do usuário/adversário (quando a linha mostra
+   a refutação), *ou* ser um lance da solução do puzzle. Fora disso → `aviso`
+   `lance_fora_das_principais`. Lances seguintes da linha não são cobrados
+   individualmente (a engine já validou o início, e linhas longas são
+   ilustrativas).
+3. **Avaliação**: se `avaliacao_cp` ou `mate_em` vier, compara com a engine na
+   posição final da linha (do ponto de vista das brancas). Diferença > 100 cp
+   ou mate ausente/diferente → `erro` `avaliacao_errada`. Se a engine dá mate e
+   o texto diz avaliação numérica, `aviso`.
+4. **Lances soltos**: SAN encontrado no `texto` (mesma expressão regular do
+   `moveText` do frontend, portada) que não aparece em nenhuma linha → `aviso`
+   `lance_sem_linha`. Não se tenta validar lance solto.
+5. **Citações**: cada `[c:ID]` do texto e cada item de `citacoes` deve ser um
+   `chunk_id` entre os trechos recuperados *nesta* execução → senão `erro`
+   `citacao_inexistente`. Texto que menciona "no estudo" sem citação → `aviso`.
+6. **Tamanho**: `texto` fora de 60 a 400 palavras → `aviso`.
+
+`ok` é verdadeiro sem nenhum `erro`. Avisos não bloqueiam, mas aparecem no
+cartão. O verificador é puro (recebe uma função `analisar(fen, multipv)`), o
+que permite testá-lo com engine falsa e reusá-lo na avaliação offline.
+
+## 6. RAG sobre os estudos
+
+### 6.1 Trechos
+
+`chunks.py` percorre `chapter_tree(chapter)`:
+
+- um trecho `intro` por capítulo com `intro_comment` não vazio;
+- um trecho `comment` por nó com comentário não vazio, com `fen` do nó,
+  `caminho_san` (lances desde a raiz, ex.: `1.e4 e5 2.Cf3`), `ply`, `node_id`.
+- comentários curtos (< 40 caracteres) são juntados ao trecho anterior do mesmo
+  ramo; trechos longos (> 1200 caracteres) são partidos em frases.
+- texto indexado = `"{estudo} — {capítulo} — {caminho_san}: {comentário}"`
+  (o cabeçalho ajuda a busca por abertura/nome).
+- `content_hash` (sha1 do texto) evita reembutir o que não mudou.
+
+### 6.2 Embeddings
+
+`fastembed` (ONNX, CPU, sem PyTorch no backend) com um modelo multilíngue da
+lista suportada pela biblioteca, escolhido na implementação (primeira opção
+`paraphrase-multilingual-MiniLM-L12-v2`, ~250 MB quantizado, 384 dimensões).
+O download do modelo acontece uma vez, no primeiro `recriar índice`, **com
+aviso prévio ao usuário** (regra de trabalho: perguntar antes de baixar). O
+modelo e a dimensão ficam gravados na tabela para invalidar o índice se mudar.
+
+### 6.3 Armazenamento e busca
+
+- `coach_chunks(id, chapter_id, node_id | null, kind, text, fen, path_san,
+  ply, content_hash, model, dim, embedded_at)` no mesmo SQLite.
+- Vetores em `coach_chunks_vec` (tabela virtual `vec0` do `sqlite-vec` 0.1.9,
+  wheel `win_amd64` disponível), `chunk_id` como chave.
+- `store.py` expõe `upsert(chunks, vectors)`, `delete_chapter(chapter_id)`,
+  `search(vector, k) -> [(chunk_id, distancia)]`. Se a extensão não carregar
+  (Python sem `enable_load_extension`), o mesmo módulo cai num índice em
+  memória com numpy (cosseno por força bruta; para alguns milhares de trechos é
+  instantâneo) e registra um aviso em `GET /api/coach/status`. A interface não
+  muda.
+- Busca híbrida simples: os `k` vizinhos por cosseno mais até 3 trechos cujo
+  `path_san` compartilha os primeiros 6 plies com a partida do exercício
+  (mesma abertura), sem duplicar.
+
+### 6.4 Atualização do índice
+
+- Ao salvar um capítulo (`studies/service.py`), `index.index_chapter(chapter)`
+  roda em linha (um capítulo são poucas dezenas de trechos; < 1 s em CPU).
+- Ao importar estudo ou apagar capítulo, idem por capítulo.
+- `POST /api/coach/reindex` recria tudo como tarefa do `jobs` existente
+  (nome `coach_reindex`), para o primeiro uso e para troca de modelo.
+- `GET /api/coach/status` informa `index_chunks`, `index_model`,
+  `index_stale` (capítulos com `updated_at` posterior ao último índice).
+
+## 7. Pipeline de explicação (`explain.py`)
+
+```
+explicar(puzzle_id, review_id | None):
+  1. contexto  = montar_contexto(puzzle)            # dict de §4.2, também vira texto
+  2. trechos   = buscar_estudos(consulta derivada: tema + caminho SAN + trecho da partida)
+  3. resultado = llm.run_agent(system, user(contexto, trechos), tools, schema, effort)
+  4. verif     = verificar(resultado.structured, puzzle, trechos, analisar)
+  5. se not verif.ok:
+       resultado2 = llm.run_agent(..., user + "Relatório de verificação: …corrija…")
+       verif2 = verificar(resultado2…)
+       usa (resultado2, verif2) se verif2 tiver menos erros; marca repaired=True
+  6. grava CoachExplanation (§7.1); devolve
+```
+
+- Passo 2 (recuperação prévia) existe para que a variante "agente + RAG" tenha
+  sempre algo citável e para o custo ficar previsível; o agente ainda pode
+  chamar `buscar_estudos` com outra consulta.
+- Custo: `costs.py` tem a tabela de preços por modelo (entrada, saída, leitura
+  e escrita de cache, em USD por milhão de tokens) copiada da página oficial,
+  com data; o custo da explicação é a soma das chamadas (inclusive a correção).
+- Teto: se a soma de tokens de saída passar de 12 000 na explicação, aborta com
+  erro `custo_excedido` (não deveria acontecer; é rede de segurança).
+- Cada etapa é um span do LangFuse (§8.3).
+
+### 7.1 Modelo de dados
+
+`CoachExplanation`:
+
+| coluna | tipo | nota |
+| --- | --- | --- |
+| id | str(36) | |
+| puzzle_id | FK puzzles | índice |
+| review_id | FK reviews, nulo | a revisão que gerou o pedido |
+| created_at | datetime | |
+| model, prompt_version, effort | str | |
+| text | text | prosa final |
+| lines_json, citations_json | text | do formato §4.4 |
+| verification_json | text | `Verificacao` serializada |
+| status | str | `ok` \| `warnings` \| `errors` |
+| repaired | bool | houve segunda chamada |
+| input_tokens, output_tokens, cache_read_tokens, cache_write_tokens | int | somados |
+| cost_usd | float | |
+| trace_id | str, nulo | LangFuse |
+| duration_ms | int | |
+
+`coach_chunks` e a tabela vetorial (§6.3). Migração via o `migrate(engine)`
+existente em `core/db.py` (tabelas novas: `create_all`; a tabela virtual é
+criada pelo `store.py` ao abrir).
+
+## 8. Avaliação offline
+
+Pasta `backend/evals/coach/` (fora do pacote, dentro do repositório).
+
+### 8.1 Conjunto
+
+- `dataset.py` gera `dataset/v1.json`: todos os puzzles `own` do banco do
+  usuário no momento da geração (hoje 81; gravados como FEN, solução, lance
+  errado, avaliações, sem PGN inteiro) mais 120 puzzles do Lichess
+  estratificados por tema principal (10 temas mais comuns) e faixa de rating
+  (< 1400, 1400–1800, > 1800), semente fixa. Cada item traz o gabarito da
+  engine (`multipv=3` na posição inicial e na posição do erro, profundidade
+  fixa) calculado uma vez e guardado, para as métricas não dependerem do
+  Stockfish na hora da rodada.
+- Nenhum texto de terceiros no conjunto. Os trechos de estudo usados nas
+  rodadas vêm do banco local e não são versionados.
+
+### 8.2 Rodadas e métricas
+
+`run.py --variante {prompt,agente,agente_rag} --modelo {opus,sonnet} --n N
+[--batch]`:
+
+- `prompt`: uma chamada, sem ferramentas, contexto inteiro na mensagem
+  (baseline).
+- `agente`: ferramentas, sem `buscar_estudos` e sem recuperação prévia.
+- `agente_rag`: o pipeline de produção.
+- `--batch` usa a Batch API (metade do preço) para as variantes sem
+  ferramentas; as variantes com ferramentas rodam em série com o cliente
+  normal.
+
+`metrics.py` calcula, por rodada: proporção de explicações com `erro` do
+verificador (por tipo), média de avisos, lances ilegais por 100 explicações,
+citações inexistentes, custo médio e p50/p95 de latência, tokens médios. Mais
+a **nota pedagógica** 1–5 por LLM-as-judge (`judge.py`, modelo configurável,
+padrão `claude-opus-5`, rubrica fixa em português: correção, clareza, foco no
+erro do aluno, ação concreta). Calibração: o usuário avalia 20 itens à mão na
+mesma rubrica; o relatório traz a concordância (Spearman) juiz × humano.
+
+`report.py` escreve `docs/coach-eval.md` (tabela por variante × modelo, com
+data, `PROMPT_VERSION`, tamanho do conjunto e custo total da rodada) e envia
+cada rodada como *dataset run* ao LangFuse (dataset `coach-eval-v1`, um item
+por puzzle, scores por métrica).
+
+### 8.3 Observabilidade
+
+- `observability.py`: se `langfuse_public_key`, `langfuse_secret_key` e
+  `langfuse_host` estiverem nas Configurações, inicializa o SDK do LangFuse
+  (v4, OpenTelemetry) e expõe `observe(nome)`; sem chaves, `observe` é um
+  decorador identidade.
+- Trace `coach.explain` com spans `contexto`, `recuperacao`, `llm`
+  (uma geração por chamada à API, com modelo, tokens, custo), `verificacao`,
+  `correcao`; metadados `puzzle_id`, `prompt_version`, `variante`. O
+  `trace_id` vai para a explicação; o cartão mostra um link para o trace quando
+  o host está configurado.
+- Nada de conteúdo é enviado para fora além do host configurado (local por
+  padrão).
+
+## 9. API
+
+| rota | corpo / resposta | notas |
+| --- | --- | --- |
+| `GET /api/coach/status` | `{configured, model, effort, index_chunks, index_model, index_stale, vector_backend ("sqlite-vec" \| "numpy"), langfuse_configured}` | o frontend decide se mostra o botão |
+| `POST /api/coach/explain` | `{puzzle_id, review_id?}` → `CoachExplanationOut` | síncrona; 409 `coach_nao_configurado` sem chave; 502 com `detail` legível em erro da API; 503 se a engine não responder |
+| `GET /api/coach/explanations/{puzzle_id}` | última explicação ou 404 | reabrir sem pagar de novo |
+| `POST /api/coach/reindex` | `{queued, job}` | via `jobs`; 409 se já há tarefa |
+| `PUT /api/settings` | campos novos | `anthropic_api_key` (só escrita), `coach_model`, `coach_effort`, `langfuse_public_key`, `langfuse_secret_key` (só escrita), `langfuse_host` |
+
+`CoachExplanationOut`: `id, puzzle_id, created_at, model, text, lines,
+citations [{chunk_id, study_id, study_title, chapter_id, chapter_name,
+node_id, path_san, url}], verification {ok, issues}, status, repaired,
+cost_usd, tokens {input, output, cache_read, cache_write}, duration_ms,
+trace_url | null`.
+
+Concorrência: uma explicação por vez por processo (lock), porque a engine
+interativa é compartilhada; segunda chamada simultânea recebe 409
+`explicacao_em_andamento`.
+
+## 10. Interface
+
+- **Resultado do exercício** (`train/ResultPanel.tsx`): na coluna da direita,
+  abaixo do cartão "Meu erro"/"Na partida", o botão "Explicar" aparece quando
+  `coach.configured`. Estados do cartão "Treinador": carregando (com aviso de
+  que leva de 10 a 40 s), erro (mensagem da API, em português), pronto. Se já
+  existe explicação para o puzzle, o cartão abre direto com ela e o botão vira
+  "Explicar de novo".
+- Texto renderizado pelo `TextoComLances` existente (lances clicáveis com
+  prévia); marcadores `[c:ID]` viram links "Estudo › Capítulo › 12.Cf3" que
+  abrem o capítulo em modo livro no lance (`?lance=`), reusando o formato de
+  link dos estudos.
+- Selo "verificado pela engine" quando `verification.ok` sem avisos; "com
+  ressalvas" listando os avisos; "não verificado" listando os erros. Nunca
+  escondido.
+- Rodapé discreto: modelo, custo em centavos de dólar, tempo, link do trace.
+- **Configurações** (`SettingsPage.tsx`): seção "Treinador (IA)": chave da API
+  (mesmo padrão do token do Lichess: placeholder "guardada; digite para
+  trocar", string vazia apaga), modelo (Opus 5 / Sonnet 5), esforço
+  (baixo/médio/alto), LangFuse (host, chaves), estado do índice e botão
+  "Recriar índice" (vocabulário: recriar, nunca "regerar").
+- Dashboard e Progresso não mudam nesta fase.
+
+## 11. Erros
+
+| situação | comportamento |
+| --- | --- |
+| sem chave | botão não aparece; rota 409 com texto apontando Configurações |
+| `AuthenticationError` | 502 "chave da API recusada; confira em Configurações" |
+| `RateLimitError` | 502 "limite de uso da API atingido; tente em alguns minutos" |
+| `APIConnectionError` | 502 "sem conexão com a API" |
+| `BadRequestError` | 502 com o `message` da API; registrado no log com o corpo |
+| `stop_reason == "refusal"` | 502 "o modelo recusou responder" (não deve ocorrer; registrado) |
+| engine sem resposta na verificação | explicação entregue com `status = errors` e issue `engine_indisponivel`; cartão mostra "não verificado" |
+| resposta fora do esquema | uma nova tentativa; depois 502 |
+| índice vazio | pipeline segue sem trechos; cartão avisa "sem estudos indexados" |
+
+Logs no `server.log` existente, com `trace_id` quando houver.
+
+## 12. Docker
+
+- `Dockerfile` na raiz, dois estágios: `node:22-alpine` faz `npm ci && npm run
+  build`; `python:3.13-slim` instala `stockfish` do apt, copia `backend/`,
+  `frontend/dist` e roda `uv sync --no-dev`; `CMD ["python", "-m",
+  "chess_trainer"]`; porta 8000; volume `/data` para o SQLite e o CSV do
+  Lichess. O caminho do banco e do Stockfish passam a aceitar variáveis de
+  ambiente (`CHESS_TRAINER_DATA`, `STOCKFISH_PATH`), com os padrões atuais.
+- `docker-compose.yml`: serviço `app` (build local, `./backend/data:/data`) e
+  os serviços do LangFuse conforme o compose oficial deles (web, worker,
+  Postgres, ClickHouse, Redis, MinIO) com volumes nomeados. Portas 8000 (app) e
+  3000 (LangFuse). Chaves do LangFuse são criadas na interface dele e coladas
+  nas Configurações do app.
+- `docs/manual.pt-BR.md` ganha a seção "Rodar com Docker"; `uv run` continua
+  sendo o modo de desenvolvimento.
+
+## 13. Testes
+
+Backend (pytest, sem rede, sem Stockfish real salvo `slow`):
+
+- `test_coach_verify.py`: linhas legais/ilegais, início `inicial` × `erro`,
+  aderência às três principais (com engine falsa), avaliação dentro/fora da
+  tolerância, mate, citação existente/inexistente, lances soltos, tamanho.
+- `test_coach_chunks.py`: árvore sintética → trechos (intro, comentário,
+  junção de curtos, partição de longos, `path_san`, hash estável).
+- `test_coach_store.py`: upsert/busca/delete nos dois backends (sqlite-vec e
+  numpy), invalidação por modelo; embeddings falsos determinísticos.
+- `test_coach_explain.py`: pipeline com `FakeLlm` (roteiro com chamadas de
+  ferramenta), verificação ok, verificação com erro → correção, correção que
+  não melhora mantém a primeira, custo somado, gravação, teto de tokens.
+- `test_api_coach.py`: status, 409 sem chave, explain feliz, reabrir,
+  reindex via jobs, settings com chave nunca ecoada, lock de concorrência.
+- `test_coach_costs.py`: preços × usage.
+- `evals/tests/test_eval_harness.py`: rodada de 3 itens com `FakeLlm`, métricas
+  e relatório gerados.
+- `@pytest.mark.slow` + `@pytest.mark.network`: uma explicação real com a
+  chave do ambiente (`ANTHROPIC_API_KEY`), pulada sem ela.
+
+Frontend (Vitest): cartão nos três estados, botão condicionado ao status,
+"Explicar de novo", links de citação, selo por `verification`, seção de
+Configurações (chave não ecoada, recriar índice).
+
+## 14. Fases seguintes (fora deste spec)
+
+1. **Fase 2**: fine-tuning local com LoRA de um modelo pequeno (Hugging Face,
+   RTX 3060) para o comentário curto, com dados sintéticos destilados do modelo
+   grande e filtrados pelo verificador; servido localmente e medido na mesma
+   avaliação de §8. Ambiente Python separado (`ml/`) com PyTorch/CUDA.
+2. **Fase 3**: modelo de temas e dificuldade para puzzles próprios, treinado
+   na base do Lichess (baseline gradient boosting × CNN), MLflow para os
+   experimentos, ONNX no backend.
+3. **Fase 4**: o "professor particular": plano de estudo e sequência de
+   exercícios gerados a partir dos erros, estatísticas e material do usuário.
+
+## 15. Fora de escopo nesta fase
+
+Chat livre com o tabuleiro; relatório semanal; Bedrock implementado (só a
+interface); streaming da resposta na interface; explicações para táticas do
+Lichess fora da fila de repetição; várias explicações guardadas por puzzle
+(guarda-se só a última); tradução para outros idiomas; conta de usuário.
