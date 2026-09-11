@@ -138,11 +138,13 @@ def _submit(request: Request, *, lichess_id: str | None, pgn: str, source_url: s
                 progress("import_study", done, tot, f"{done}/{tot} capítulos")
 
             try:
-                _, report = upsert_study(db, parsed, source_url, utcnow(), on_chapter=on_chapter)
+                study, report = upsert_study(db, parsed, source_url, utcnow(), on_chapter=on_chapter)
             except StudyImportCancelled:
                 db.rollback()
                 progress("import_study", 0, total, "cancelado")
                 return
+            app.state.coach_index.indexar_estudo(db, study)
+            db.commit()
             progress("import_study", total, total, report.message())
         finally:
             db.close()
@@ -244,8 +246,15 @@ def get_chapter(study_id: str, chapter_id: str, db: Session = Depends(get_db)):
     return _chapter_response(dados)
 
 
+def _indexar(request: Request, db: Session, chapter: StudyChapter) -> None:
+    """Põe o capítulo no índice do treinador. Sem o modelo de embeddings baixado
+    não faz nada: o capítulo só fica marcado como desatualizado."""
+    request.app.state.coach_index.indexar_capitulo(db, chapter)
+    db.commit()
+
+
 @router.post("/studies/{study_id}/chapters", status_code=201, response_model=ChapterDetail)
-def post_chapter(study_id: str, body: ChapterCreateIn, db: Session = Depends(get_db)):
+def post_chapter(study_id: str, body: ChapterCreateIn, request: Request, db: Session = Depends(get_db)):
     study = _get_study(db, study_id)
     try:
         chapter = create_chapter(db, study, body.name, body.fen or "",
@@ -253,31 +262,41 @@ def post_chapter(study_id: str, body: ChapterCreateIn, db: Session = Depends(get
     except TreeInvalid as exc:
         db.rollback()
         raise HTTPException(422, exc.errors) from exc
-    return _chapter_response(chapter_detail(chapter), status_code=201)
+    dados = chapter_detail(chapter)
+    _indexar(request, db, chapter)
+    return _chapter_response(dados, status_code=201)
 
 
 @router.put("/studies/{study_id}/chapters/{chapter_id}", response_model=ChapterDetail)
-def put_chapter(study_id: str, chapter_id: str, body: ChapterSaveIn, db: Session = Depends(get_db)):
+def put_chapter(study_id: str, chapter_id: str, body: ChapterSaveIn, request: Request,
+                db: Session = Depends(get_db)):
     chapter = _get_chapter(db, _get_study(db, study_id), chapter_id)
     try:
         save_chapter(db, chapter, body.name, body.mode, body.orientation, body.tree)
     except TreeInvalid as exc:
         db.rollback()
         raise HTTPException(422, exc.errors) from exc
-    return _chapter_response(chapter_detail(chapter))
+    dados = chapter_detail(chapter)
+    _indexar(request, db, chapter)
+    return _chapter_response(dados)
 
 
 @router.delete("/studies/{study_id}/chapters/{chapter_id}", status_code=204)
-def del_chapter(study_id: str, chapter_id: str, db: Session = Depends(get_db)):
-    delete_chapter(db, _get_chapter(db, _get_study(db, study_id), chapter_id))
+def del_chapter(study_id: str, chapter_id: str, request: Request, db: Session = Depends(get_db)):
+    chapter = _get_chapter(db, _get_study(db, study_id), chapter_id)
+    request.app.state.coach_index.remover_capitulo(db, chapter.id)
+    delete_chapter(db, chapter)
     return Response(status_code=204)
 
 
 @router.post("/studies/{study_id}/chapters/{chapter_id}/duplicate", status_code=201,
              response_model=ChapterDetail)
-def post_duplicate(study_id: str, chapter_id: str, db: Session = Depends(get_db)):
+def post_duplicate(study_id: str, chapter_id: str, request: Request, db: Session = Depends(get_db)):
     chapter = _get_chapter(db, _get_study(db, study_id), chapter_id)
-    return _chapter_response(chapter_detail(duplicate_chapter(db, chapter)), status_code=201)
+    copia = duplicate_chapter(db, chapter)
+    dados = chapter_detail(copia)
+    _indexar(request, db, copia)
+    return _chapter_response(dados, status_code=201)
 
 
 # --- exportação ----------------------------------------------------------

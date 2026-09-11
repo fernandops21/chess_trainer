@@ -9,6 +9,8 @@ from starlette.staticfiles import StaticFiles
 
 from chess_trainer.api.jobs import JobRunner
 from chess_trainer.api.routes import analysis, games, openings, stats, studies, system, tactics, training
+from chess_trainer.coach.retrieval.embeddings import FastembedEmbeddings
+from chess_trainer.coach.retrieval.index import Indexador
 from chess_trainer.config import AppSettings, load_settings
 from chess_trainer.core.analysis.engine import EngineLike, StockfishEngine, find_stockfish
 from chess_trainer.core.analysis.interactive import InteractiveAnalyzer
@@ -75,9 +77,12 @@ def create_app(
     tactics_source: str | Path | None = None,
     study_http_factory=None,
     openings_http_factory=None,
+    embeddings_factory=None,
 ) -> FastAPI:
+    # tudo o que é dado local (banco, banco de táticas, modelo de embeddings) mora aqui
+    data_dir = Path(os.environ.get("CHESS_TRAINER_DATA", str(BACKEND_DIR / "data")))
     if db_path is None:
-        db_path = os.environ.get("CHESS_TRAINER_DB", str(BACKEND_DIR / "data" / "chess_trainer.db"))
+        db_path = os.environ.get("CHESS_TRAINER_DB", str(data_dir / "chess_trainer.db"))
     db_engine = make_engine(db_path)
     init_db(db_engine)
 
@@ -107,13 +112,17 @@ def create_app(
     app.state.analyzer = InteractiveAnalyzer(analysis_engine_factory or _default_analysis_factory)
     # caminho local já baixado ou URL do banco do Lichess (nos testes, um arquivo local)
     app.state.tactics_source = tactics_source or os.environ.get("CHESS_TRAINER_LICHESS_SOURCE", LICHESS_PUZZLE_URL)
-    app.state.tactics_dest = BACKEND_DIR / "data" / "lichess_db_puzzle.csv.zst"
+    app.state.tactics_dest = data_dir / "lichess_db_puzzle.csv.zst"
     # cliente HTTP do download de estudos (nos testes, um `MockTransport`); o Lichess
     # redireciona o export do PGN, daí o `follow_redirects`
     app.state.study_http_factory = study_http_factory or (lambda: httpx.Client(follow_redirects=True, timeout=30.0))
     # livro de aberturas: o cache vive no app (uma instância por processo), e o
     # cliente HTTP sai da factory para os testes entrarem com um `MockTransport`
     app.state.openings = OpeningExplorer(openings_http_factory)
+    # busca nos estudos do treinador: embeddings locais (o download do modelo só
+    # acontece no "Recriar índice"); nos testes entra um `EmbeddingsFalso`
+    embeddings = embeddings_factory() if embeddings_factory else FastembedEmbeddings(cache_dir=data_dir / "fastembed")
+    app.state.coach_index = Indexador(db_engine, embeddings)
 
     app.include_router(system.router)
     app.include_router(games.router)

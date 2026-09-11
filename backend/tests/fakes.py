@@ -1,3 +1,4 @@
+import hashlib
 from typing import Callable
 
 import chess
@@ -50,3 +51,32 @@ class FakeEngine:
 
     def restart(self) -> None:
         pass
+
+
+class EmbeddingsFalso:
+    """Vetores determinísticos por saco de palavras: textos que compartilham palavras ficam perto.
+
+    A dimensão precisa ser folgada (64) para a propriedade valer: com poucos
+    baldes, palavras diferentes caem no mesmo e dois textos sem nenhuma palavra
+    em comum acabam vizinhos."""
+
+    def __init__(self, dim: int = 64, modelo: str = "falso"):
+        self.dim = dim
+        self.modelo = modelo
+        self.preparado = False
+        self.chamadas: list[list[str]] = []
+
+    def preparar(self) -> None:
+        self.preparado = True
+
+    def embed(self, textos: list[str]) -> list[list[float]]:
+        self.chamadas.append(list(textos))
+        out = []
+        for t in textos:
+            v = [0.0] * self.dim
+            for palavra in t.lower().split():
+                # md5 em vez de `hash`: `hash(str)` muda a cada processo (PYTHONHASHSEED)
+                # e faria os vizinhos mais próximos variarem de execução para execução
+                v[int(hashlib.md5(palavra.encode()).hexdigest(), 16) % self.dim] += 1.0
+            out.append(v)
+        return out

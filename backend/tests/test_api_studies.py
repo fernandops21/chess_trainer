@@ -9,8 +9,9 @@ from sqlalchemy import func, select
 
 from chess_trainer.api.app import create_app
 from chess_trainer.api.routes.studies import _download
+from chess_trainer.config import set_setting
 from chess_trainer.core.models import Puzzle, Review, utcnow
-from tests.fakes import FakeEngine, first_legal_default
+from tests.fakes import EmbeddingsFalso, FakeEngine, first_legal_default
 
 FIXTURE = Path(__file__).parent / "fixtures" / "study_4JKVAfaE.pgn"
 PGN = FIXTURE.read_text(encoding="utf-8")
@@ -85,6 +86,7 @@ def build_client(handler):
         db_path=":memory:",
         engine_factory=lambda s: FakeEngine(default=first_legal_default(0)),
         study_http_factory=lambda: httpx.Client(transport=httpx.MockTransport(handler)),
+        embeddings_factory=EmbeddingsFalso,
     )
     return TestClient(app)
 
@@ -775,3 +777,24 @@ def test_capitulo_importado_antes_do_editor_ganha_a_arvore_ao_abrir(client):
     assert detalhe["tree"]["root"]["children"]
     with client.app.state.session_factory() as db:
         assert db.get(StudyChapter, cid).tree_json
+
+
+def test_salvar_capitulo_indexa_e_apagar_tira_do_indice(client):
+    """Com o modelo de embeddings pronto, o gancho das rotas mantém o índice do
+    treinador em dia: salvar põe o trecho lá, apagar o capítulo o tira."""
+    with client.app.state.session_factory() as db:
+        set_setting(db, "coach_embeddings_ready", "falso")
+    estudo = criar_estudo(client, "Sintético")
+    cap = criar_capitulo(client, estudo["id"], name="Um")
+    tree = cap["tree"]
+    tree["intro"] = "Enunciado sintético longo o bastante para virar um trecho indexado."
+
+    r = salvar_capitulo(client, estudo["id"], cap["id"], tree, name="Um", mode="read")
+
+    assert r.status_code == 200, r.text
+    with client.app.state.session_factory() as db:
+        st = client.app.state.coach_index.status(db)
+        assert st["index_chunks"] == 1 and st["index_stale"] == 0
+    assert client.delete(f"/api/studies/{estudo['id']}/chapters/{cap['id']}").status_code == 204
+    with client.app.state.session_factory() as db:
+        assert client.app.state.coach_index.status(db)["index_chunks"] == 0
