@@ -35,6 +35,15 @@ class AppSettings:
     classify_moves: bool = True
     # ao errar, mostra a réplica da engine e a queda de avaliação
     refute_wrong_moves: bool = True
+    # --- treinador com IA (spec 2026-09-11) ---
+    # chave da API da Anthropic: só neste banco, nunca sai pela API
+    anthropic_api_key: str = ""
+    coach_model: str = "claude-opus-5"
+    coach_effort: str = "high"
+    # LangFuse (observabilidade): host vazio = desligado; a chave secreta nunca sai pela API
+    langfuse_public_key: str = ""
+    langfuse_secret_key: str = ""
+    langfuse_host: str = ""
 
 
 def get_setting(db: Session, key: str, default: Any = None) -> Any:
@@ -64,6 +73,10 @@ def save_settings(db: Session, settings: AppSettings) -> AppSettings:
     settings.chesscom_username = settings.chesscom_username.strip().lower()
     # token colado costuma vir com espaços em volta; só espaços equivale a apagar
     settings.lichess_token = settings.lichess_token.strip()
+    settings.anthropic_api_key = settings.anthropic_api_key.strip()
+    settings.langfuse_public_key = settings.langfuse_public_key.strip()
+    settings.langfuse_secret_key = settings.langfuse_secret_key.strip()
+    settings.langfuse_host = settings.langfuse_host.strip().rstrip("/")
     for key, value in asdict(settings).items():
         set_setting(db, key, value)
     return settings

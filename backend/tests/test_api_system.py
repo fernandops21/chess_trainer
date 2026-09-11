@@ -244,3 +244,27 @@ def test_token_do_lichess_nunca_volta_nas_respostas(client):
     # string vazia apaga
     assert client.put("/api/settings", json={"lichess_token": ""}).json()["lichess_token_set"] is False
     assert client.get("/api/settings").json()["lichess_token_set"] is False
+
+
+def test_configuracoes_do_treinador_nunca_ecoam_segredos(client):
+    inicial = client.get("/api/settings").json()
+    assert inicial["anthropic_api_key_set"] is False and "anthropic_api_key" not in inicial
+    assert inicial["coach_model"] == "claude-opus-5" and inicial["coach_effort"] == "high"
+    assert inicial["langfuse_secret_key_set"] is False and inicial["langfuse_host"] == ""
+
+    body = client.put("/api/settings", json={
+        "anthropic_api_key": "  sk-ant-segredo  ", "coach_model": "claude-sonnet-5", "coach_effort": "medium",
+        "langfuse_public_key": "pk-lf-1", "langfuse_secret_key": "sk-lf-2", "langfuse_host": "http://localhost:3000/",
+    }).json()
+    assert body["anthropic_api_key_set"] is True and body["langfuse_secret_key_set"] is True
+    assert body["coach_model"] == "claude-sonnet-5" and body["coach_effort"] == "medium"
+    assert body["langfuse_public_key"] == "pk-lf-1" and body["langfuse_host"] == "http://localhost:3000"
+    texto = client.get("/api/settings").text
+    assert "sk-ant-segredo" not in texto and "sk-lf-2" not in texto
+
+    # alteração sem os campos mantém as chaves; string vazia apaga
+    assert client.put("/api/settings", json={"new_per_day": 3}).json()["anthropic_api_key_set"] is True
+    assert client.put("/api/settings", json={"anthropic_api_key": ""}).json()["anthropic_api_key_set"] is False
+    # modelo e esforço fora da lista são recusados
+    assert client.put("/api/settings", json={"coach_model": "gpt-9"}).status_code == 422
+    assert client.put("/api/settings", json={"coach_effort": "max"}).status_code == 422

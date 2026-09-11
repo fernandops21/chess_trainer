@@ -27,6 +27,13 @@ class SettingsOut(BaseModel):
     lichess_token_set: bool
     classify_moves: bool
     refute_wrong_moves: bool
+    # treinador com IA: os segredos viram sim/não
+    anthropic_api_key_set: bool
+    coach_model: str
+    coach_effort: str
+    langfuse_public_key: str
+    langfuse_secret_key_set: bool
+    langfuse_host: str
 
 
 class SettingsIn(BaseModel):
@@ -53,6 +60,12 @@ class SettingsIn(BaseModel):
     lichess_token: str | None = None
     classify_moves: bool | None = None
     refute_wrong_moves: bool | None = None
+    anthropic_api_key: str | None = None
+    coach_model: Literal["claude-opus-5", "claude-sonnet-5"] | None = None
+    coach_effort: Literal["low", "medium", "high"] | None = None
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: str | None = None
+    langfuse_host: str | None = None
 
 
 class GameOut(BaseModel):

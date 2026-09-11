@@ -64,12 +64,14 @@ def status(request: Request, db: Session = Depends(get_db)):
 
 
 def _settings_out(settings: AppSettings) -> dict:
-    """Configurações como a API as devolve: o token do Lichess vira um sim/não.
+    """Configurações como a API as devolve: cada segredo vira um sim/não.
 
-    O valor não pode sair daqui em resposta nenhuma — quem configurou já o tem,
-    e a tela só precisa saber se há um token guardado."""
+    Os valores não podem sair daqui em resposta nenhuma — quem configurou já os
+    tem, e a tela só precisa saber se há algo guardado."""
     data = asdict(settings)
     data["lichess_token_set"] = bool(data.pop("lichess_token", ""))
+    data["anthropic_api_key_set"] = bool(data.pop("anthropic_api_key", ""))
+    data["langfuse_secret_key_set"] = bool(data.pop("langfuse_secret_key", ""))
     return data
 
 
