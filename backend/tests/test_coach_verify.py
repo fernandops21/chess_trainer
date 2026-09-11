@@ -1,5 +1,4 @@
 import chess
-import pytest
 
 from chess_trainer.coach.verify import SAN_RE, Verificacao, limpar_san, verificar
 from chess_trainer.core.evals import MATE_SCORE
@@ -83,6 +82,16 @@ def test_mate_declarado_confere_com_a_engine():
     # avaliação numérica onde a engine dá mate: aviso, não erro
     numerica = checar({"texto": TEXTO_OK, "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "avaliacao_cp": 900}]})
     assert numerica.ok and "avaliacao_errada" in tipos(numerica)
+
+
+def test_avaliacao_nao_numerica_vira_erro_e_nao_excecao():
+    string = checar({"texto": TEXTO_OK, "linhas": [{"inicio": "inicial", "lances": ["Nf3"], "avaliacao_cp": "nao-numerico"}]})
+    assert not string.ok and "avaliacao_invalida" in tipos(string)
+    lista = checar({"texto": TEXTO_OK, "linhas": [{"inicio": "inicial", "lances": ["Nf3"], "avaliacao_cp": [1, 2]}]})
+    assert not lista.ok and "avaliacao_invalida" in tipos(lista)
+    # float é aceito e comparado normalmente, como o -30 inteiro do teste de tolerância
+    flutuante = checar({"texto": TEXTO_OK, "linhas": [{"inicio": "inicial", "lances": ["Nf3"], "avaliacao_cp": -30.0}]})
+    assert "avaliacao_invalida" not in tipos(flutuante) and "avaliacao_errada" not in tipos(flutuante)
 
 
 def test_lance_solto_no_texto_e_aviso():
