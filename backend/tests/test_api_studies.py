@@ -798,3 +798,24 @@ def test_salvar_capitulo_indexa_e_apagar_tira_do_indice(client):
     assert client.delete(f"/api/studies/{estudo['id']}/chapters/{cap['id']}").status_code == 204
     with client.app.state.session_factory() as db:
         assert client.app.state.coach_index.status(db)["index_chunks"] == 0
+
+
+def test_apagar_estudo_tira_os_capitulos_dele_do_indice(client):
+    """Apagar o estudo não pode deixar lixo no índice do treinador (nem na tabela
+    vetorial, que o CASCADE do banco não alcança)."""
+    with client.app.state.session_factory() as db:
+        set_setting(db, "coach_embeddings_ready", "falso")
+    estudo = criar_estudo(client, "Sintético")
+    cap = criar_capitulo(client, estudo["id"], name="Um")
+    tree = cap["tree"]
+    tree["intro"] = "Enunciado sintético longo o bastante para virar um trecho indexado."
+    salvar_capitulo(client, estudo["id"], cap["id"], tree, name="Um", mode="read")
+    with client.app.state.session_factory() as db:
+        assert client.app.state.coach_index.status(db)["index_chunks"] == 1
+
+    assert client.delete(f"/api/studies/{estudo['id']}").status_code == 204
+
+    with client.app.state.session_factory() as db:
+        indice = client.app.state.coach_index
+        assert indice.status(db)["index_chunks"] == 0
+        assert indice.buscar(db, "enunciado sintético") == []

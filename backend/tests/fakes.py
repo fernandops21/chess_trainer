@@ -66,7 +66,7 @@ class EmbeddingsFalso:
         self.preparado = False
         self.chamadas: list[list[str]] = []
 
-    def preparar(self) -> None:
+    def preparar(self, baixar: bool = True) -> None:
         self.preparado = True
 
     def embed(self, textos: list[str]) -> list[list[float]]:

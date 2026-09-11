@@ -3,12 +3,20 @@ from datetime import datetime, timedelta
 
 import chess
 import pytest
+from sqlalchemy import text
 
 from chess_trainer.coach.retrieval.index import Indexador
-from chess_trainer.config import get_setting
+from chess_trainer.config import get_setting, set_setting
 from chess_trainer.core.db import init_db, make_engine, make_session_factory
 from chess_trainer.core.models import Study, StudyChapter, utcnow
 from tests.fakes import EmbeddingsFalso
+
+
+class EmbeddingsQuebrado(EmbeddingsFalso):
+    """Modelo que não carrega (sumiu do disco, por exemplo): `embed` sempre levanta."""
+
+    def embed(self, textos: list[str]) -> list[list[float]]:
+        raise RuntimeError("modelo de embeddings não baixado: use Recriar índice")
 
 
 def arvore(comentario: str):
@@ -107,3 +115,34 @@ def test_troca_de_modelo_invalida_o_indice(ambiente):
         outro = Indexador(idx.store.engine, EmbeddingsFalso(modelo="falso-v2"))
         assert outro.modelo_pronto(db) is False and outro.status(db)["index_chunks"] == 0
         assert idx.modelo_pronto(db) is True  # o índice do modelo antigo continua íntegro
+
+
+def test_falha_ao_embutir_nao_propaga_e_deixa_o_capitulo_desatualizado(ambiente, caplog):
+    """O índice é acessório: se o modelo não carrega, salvar o capítulo não pode quebrar."""
+    idx, factory, _ = ambiente
+    with factory() as db:
+        set_setting(db, "coach_embeddings_ready", "falso")
+        quebrado = Indexador(idx.store.engine, EmbeddingsQuebrado())
+        assert quebrado.indexar_capitulo(db, db.get(StudyChapter, "c1")) == 0
+        db.commit()
+        st = quebrado.status(db)
+        # sem a marca, o capítulo continua na conta do "Recriar índice"
+        assert st["index_chunks"] == 0 and st["index_stale"] == 2
+    assert "c1" in caplog.text
+
+
+def test_remover_estudo_limpa_o_indice_inteiro(ambiente):
+    idx, factory, _ = ambiente
+    with factory() as db:
+        idx.recriar(db, lambda *a: None)
+        db.commit()
+        assert idx.status(db)["index_chunks"] == 2
+
+        idx.remover_estudo(db, db.get(Study, "s1"))
+        db.commit()
+
+        assert idx.status(db)["index_chunks"] == 0
+        assert idx.buscar(db, "cravada absoluta rei") == []
+        if idx.store.backend == "sqlite-vec":
+            # a tabela virtual não tem CASCADE: quem apaga o estudo tem de limpá-la
+            assert db.execute(text("SELECT count(*) FROM coach_chunks_vec")).scalar() == 0

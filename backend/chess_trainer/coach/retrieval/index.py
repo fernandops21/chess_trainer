@@ -4,6 +4,8 @@ estado e busca (spec §6.4). Precisa do modelo de embeddings já baixado
 desatualizados e a busca devolve vazio."""
 from __future__ import annotations
 
+import logging
+
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
 
@@ -19,6 +21,8 @@ CHAVE_MODELO_PRONTO = "coach_embeddings_ready"
 PLIES_MESMA_ABERTURA = 6
 EXTRA_MESMA_ABERTURA = 3
 
+log = logging.getLogger(__name__)
+
 
 class Indexador:
     def __init__(self, engine: Engine, embeddings: Embeddings, forcar_numpy: bool = False):
@@ -31,20 +35,32 @@ class Indexador:
     # --- escrita ----------------------------------------------------------
 
     def indexar_capitulo(self, db: Session, chapter: StudyChapter) -> int:
-        """Reindexa um capítulo; só embute os trechos novos ou alterados. Devolve quantos trechos ele tem no índice."""
+        """Reindexa um capítulo; só embute os trechos novos ou alterados. Devolve quantos trechos ele tem no índice.
+
+        Nunca levanta: o índice é acessório e roda pendurado no salvamento do
+        capítulo. Se der errado (o modelo sumiu do disco, por exemplo), devolve 0
+        sem gravar a marca — o capítulo fica contando como desatualizado e o
+        "Recriar índice" o arruma."""
         if not self.modelo_pronto(db):
             return 0
-        estudo = chapter.study.title if chapter.study is not None else ""
-        trechos = trechos_do_capitulo(chapter.id, estudo, chapter.name, chapter_tree(chapter))
-        existentes = self.store.hashes_do_capitulo(db, chapter.id)
-        novos = [t for t in trechos if existentes.get(t.key) != t.content_hash]
-        chaves_atuais = {t.key for t in trechos}
-        if set(existentes) - chaves_atuais:
+        try:
+            estudo = chapter.study.title if chapter.study is not None else ""
+            trechos = trechos_do_capitulo(chapter.id, estudo, chapter.name, chapter_tree(chapter))
+            existentes = self.store.hashes_do_capitulo(db, chapter.id)
+            novos = [t for t in trechos if existentes.get(t.key) != t.content_hash]
             # algum trecho sumiu: recomeça o capítulo (poucas dezenas de linhas)
-            self.store.delete_chapter(db, chapter.id)
-            novos = trechos
-        if novos:
-            self.store.upsert(db, novos, self.embeddings.embed([t.text for t in novos]))
+            recomecar = bool(set(existentes) - {t.key for t in trechos})
+            if recomecar:
+                novos = trechos
+            # embute antes de apagar: uma falha aqui não deixa o capítulo sem os vetores antigos
+            vetores = self.embeddings.embed([t.text for t in novos]) if novos else []
+            if recomecar:
+                self.store.delete_chapter(db, chapter.id)
+            if novos:
+                self.store.upsert(db, novos, vetores)
+        except Exception:
+            log.warning("não deu para indexar o capítulo %s; ele fica desatualizado", chapter.id, exc_info=True)
+            return 0
         marca = db.get(CoachIndexedChapter, chapter.id)
         if marca is None:
             marca = CoachIndexedChapter(chapter_id=chapter.id)
@@ -60,8 +76,23 @@ class Indexador:
             db.delete(marca)
         db.flush()
 
+    def remover_estudo(self, db: Session, study: Study) -> None:
+        """Tira do índice todos os capítulos do estudo. O CASCADE do banco apaga
+        `coach_chunks`, mas não a tabela virtual dos vetores nem o cache da busca."""
+        for chapter in list(study.chapters):
+            self.remover_capitulo(db, chapter.id)
+
     def indexar_estudo(self, db: Session, study: Study) -> int:
-        return sum(self.indexar_capitulo(db, c) for c in study.chapters)
+        """Como `indexar_capitulo`, nunca levanta: também roda pendurada na importação."""
+        total = 0
+        try:
+            for chapter in study.chapters:
+                total += self.indexar_capitulo(db, chapter)
+            # capítulos que a reimportação derrubou deixam vetores órfãos na tabela virtual
+            self.store.purgar_orfaos(db)
+        except Exception:
+            log.warning("não deu para indexar o estudo %s", study.id, exc_info=True)
+        return total
 
     def recriar(self, db: Session, progress: ProgressFn) -> int:
         """Baixa o modelo se preciso, apaga o índice e reindexa todos os capítulos."""

@@ -199,8 +199,10 @@ def post_queue(study_id: str, body: QueueIn, db: Session = Depends(get_db)):
 
 
 @router.delete("/studies/{study_id}", status_code=204)
-def del_study(study_id: str, db: Session = Depends(get_db)):
-    delete_study(db, _get_study(db, study_id))
+def del_study(study_id: str, request: Request, db: Session = Depends(get_db)):
+    study = _get_study(db, study_id)
+    request.app.state.coach_index.remover_estudo(db, study)
+    delete_study(db, study)
     return Response(status_code=204)
 
 
