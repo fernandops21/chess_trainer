@@ -10,6 +10,35 @@ from sqlalchemy.schema import CreateIndex, CreateTable
 from chess_trainer.core.models import Base, Puzzle
 
 
+def _carregar_sqlite_vec(dbapi_conn) -> None:
+    """Carrega a extensão `sqlite-vec` na conexão; sem o pacote, sem suporte a
+    extensões ou com erro de carga, a busca vetorial cai no numpy (ver
+    `coach/retrieval/store.py`)."""
+    try:
+        import sqlite_vec
+    except ImportError:
+        return
+    try:
+        dbapi_conn.enable_load_extension(True)
+        sqlite_vec.load(dbapi_conn)
+    except Exception:  # noqa: BLE001 - AttributeError (sem extensões) ou OperationalError
+        return
+    finally:
+        try:
+            dbapi_conn.enable_load_extension(False)
+        except AttributeError:
+            pass
+
+
+def vec_disponivel(engine: Engine) -> bool:
+    with engine.connect() as conn:
+        try:
+            conn.exec_driver_sql("SELECT vec_version()").scalar()
+            return True
+        except Exception:  # noqa: BLE001
+            return False
+
+
 def make_engine(db_path: str | None) -> Engine:
     is_file = db_path is not None and db_path != ":memory:"
     if not is_file:
@@ -28,6 +57,7 @@ def make_engine(db_path: str | None) -> Engine:
 
     @event.listens_for(engine, "connect")
     def _pragmas(dbapi_conn, _):
+        _carregar_sqlite_vec(dbapi_conn)
         dbapi_conn.execute("PRAGMA foreign_keys=ON")
         if is_file:
             # WAL: leitores não bloqueiam o escritor (a API continua respondendo durante um job)

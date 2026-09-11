@@ -9,6 +9,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -262,3 +263,66 @@ class TacticsAttempt(Base):
     puzzle_rating: Mapped[int] = mapped_column(Integer)
 
     puzzle: Mapped[LichessPuzzle] = relationship()
+
+
+class CoachChunk(Base):
+    """Trecho de comentário de capítulo indexado para a busca do treinador; o vetor
+    fica aqui (float32) e, quando a extensão está disponível, também na tabela
+    virtual `coach_chunks_vec` (chave = este `id`)."""
+
+    __tablename__ = "coach_chunks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(String(16), unique=True)
+    chapter_id: Mapped[str] = mapped_column(ForeignKey("study_chapters.id", ondelete="CASCADE"), index=True)
+    node_id: Mapped[str | None] = mapped_column(String(32), default=None)
+    kind: Mapped[str] = mapped_column(String(8))
+    text: Mapped[str] = mapped_column(Text)
+    comment: Mapped[str] = mapped_column(Text, default="")
+    fen: Mapped[str] = mapped_column(String(100), default="")
+    path_san: Mapped[str] = mapped_column(Text, default="")
+    ply: Mapped[int] = mapped_column(Integer, default=0)
+    content_hash: Mapped[str] = mapped_column(String(16))
+    model: Mapped[str] = mapped_column(String(80), index=True)
+    dim: Mapped[int] = mapped_column(Integer)
+    embedding: Mapped[bytes] = mapped_column(LargeBinary)
+    embedded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class CoachIndexedChapter(Base):
+    """Quando cada capítulo foi indexado pela última vez (para saber o que está desatualizado)."""
+
+    __tablename__ = "coach_indexed_chapters"
+
+    chapter_id: Mapped[str] = mapped_column(ForeignKey("study_chapters.id", ondelete="CASCADE"), primary_key=True)
+    indexed_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    n_chunks: Mapped[int] = mapped_column(Integer, default=0)
+    model: Mapped[str] = mapped_column(String(80))
+
+
+class CoachExplanation(Base):
+    """Explicação do treinador para um exercício (guarda-se só a última por puzzle)."""
+
+    __tablename__ = "coach_explanations"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    puzzle_id: Mapped[str] = mapped_column(ForeignKey("puzzles.id", ondelete="CASCADE"), index=True)
+    review_id: Mapped[str | None] = mapped_column(ForeignKey("reviews.id", ondelete="SET NULL"), default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    model: Mapped[str] = mapped_column(String(40))
+    prompt_version: Mapped[str] = mapped_column(String(16))
+    effort: Mapped[str] = mapped_column(String(8))
+    variante: Mapped[str] = mapped_column(String(16), default="agente_rag")
+    text: Mapped[str] = mapped_column(Text)
+    lines_json: Mapped[str] = mapped_column(Text, default="[]")
+    citations_json: Mapped[str] = mapped_column(Text, default="[]")
+    verification_json: Mapped[str] = mapped_column(Text, default="{}")
+    status: Mapped[str] = mapped_column(String(8))  # ok | warnings | errors
+    repaired: Mapped[bool] = mapped_column(Boolean, default=False)
+    input_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cache_read_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cache_write_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    trace_id: Mapped[str | None] = mapped_column(String(64), default=None)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)

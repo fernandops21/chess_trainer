@@ -166,3 +166,9 @@ def test_study_com_capitulos_em_ordem_e_cascade(db_session):
     db_session.delete(estudo)
     db_session.commit()
     assert db_session.query(StudyChapter).count() == 0
+
+
+def test_tabelas_do_treinador_existem(db_engine):
+    from sqlalchemy import inspect
+    nomes = set(inspect(db_engine).get_table_names())
+    assert {"coach_chunks", "coach_indexed_chapters", "coach_explanations"} <= nomes
