@@ -68,7 +68,8 @@ def _registrar_tempos(puzzle_id: str, tempos: dict) -> None:
     """Uma linha por explicação: é por ela que se sabe se o minuto foi no modelo, na engine
     (as ferramentas e o verificador) ou na correção."""
     ferramentas = ", ".join(f"{nome} {c['n']}x {c['ms']} ms" for nome, c in sorted(tempos["ferramentas"].items()))
-    log.info("explicacao %s: total %d ms | llm %d chamadas, %d ms | ferramentas: %s | verificacao %d ms | correcao %s",
+    log.info("explicacao %s: total %d ms | llm %d chamadas, %d ms (inclui as ferramentas) | "
+             "ferramentas: %s | verificacao %d ms | correcao %s",
              puzzle_id, tempos["total_ms"], tempos["llm_chamadas"], tempos["llm_ms"], ferramentas or "nenhuma",
              tempos["verificacao_ms"], "sim" if tempos["correcao"] else "não")
 
@@ -127,6 +128,19 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
     if opcoes.variante not in VARIANTES:
         raise ValueError(f"variante desconhecida: {opcoes.variante}")
     inicio = time.monotonic()
+    uso = Uso()
+    n_api = 0
+    # o relógio do LLM inclui o tempo das ferramentas (elas rodam dentro da chamada),
+    # por isso cada ferramenta traz o seu próprio tempo em `ChamadaFerramenta.ms`
+    llm_ms = 0
+    verificacao_ms = 0
+    por_ferramenta: dict[str, dict[str, int]] = {}
+    repaired = False
+
+    def tempos_ate_agora() -> dict:
+        return {"total_ms": int((time.monotonic() - inicio) * 1000), "llm_ms": llm_ms, "llm_chamadas": n_api,
+                "ferramentas": por_ferramenta, "verificacao_ms": verificacao_ms, "correcao": repaired}
+
     try:
         with tracer.span("coach.explain", puzzle_id=contexto.puzzle_id, variante=opcoes.variante, prompt_version=PROMPT_VERSION, model=llm.model):
             trace_id = tracer.trace_id()
@@ -142,12 +156,6 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
                 ferramentas = ferramentas_do_treinador(contexto, analisar, estatisticas,
                                                        buscar if opcoes.variante == "agente_rag" else None)
             user = mensagem_inicial(texto_ctx, trechos)
-            uso = Uso()
-            n_api = 0
-            # o relógio do LLM inclui o tempo das ferramentas (elas rodam dentro da chamada),
-            # por isso cada ferramenta traz o seu próprio tempo em `ChamadaFerramenta.ms`
-            llm_ms = 0
-            por_ferramenta: dict[str, dict[str, int]] = {}
 
             def chamar(nome: str, mensagem: str):
                 nonlocal uso, n_api, llm_ms
@@ -180,7 +188,6 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
                 r1 = chamar("llm_retentativa", user + AVISO_RETENTATIVA)
                 if r1.estruturado is None:
                     raise ErroDoTreinador("resposta_fora_do_esquema", "o modelo não entregou a explicação no formato esperado")
-            verificacao_ms = 0
             with tracer.span("verificacao"):
                 inicio_v = time.perf_counter()
                 v1 = _verificar(r1.estruturado, contexto, trechos, analisar)
@@ -200,8 +207,7 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
             # a mesma união que o verificador usa: o campo `citacoes` e os marcadores [c:ID] do texto
             citadas = {str(c) for c in (est.get("citacoes") or [])} | set(CITACAO_RE.findall(texto))
             citacoes = [t for t in trechos if t["chunk_id"] in citadas]
-            tempos = {"total_ms": int((time.monotonic() - inicio) * 1000), "llm_ms": llm_ms, "llm_chamadas": n_api,
-                      "ferramentas": por_ferramenta, "verificacao_ms": verificacao_ms, "correcao": repaired}
+            tempos = tempos_ate_agora()
             _registrar_tempos(contexto.puzzle_id, tempos)
             resultado = ResultadoExplicacao(
                 contexto=contexto, model=llm.model, prompt_version=PROMPT_VERSION, effort=opcoes.effort, variante=opcoes.variante,
@@ -209,6 +215,10 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
                 verificacao=v, status=_status(v), repaired=repaired, uso=uso, custo_usd=custo_usd(llm.model, uso),
                 duration_ms=tempos["total_ms"], trace_id=trace_id, n_chamadas_api=n_api, tempos=tempos, trechos=trechos,
             )
+    except ErroDoTreinador:
+        # a explicação que morreu no meio já custou tempo: o log conta onde ele foi
+        _registrar_tempos(contexto.puzzle_id, tempos_ate_agora())
+        raise
     finally:
         tracer.flush()
     return resultado

@@ -115,15 +115,19 @@ def test_resposta_fora_do_esquema_tenta_de_novo_e_depois_falha(db_session):
     assert exc.value.codigo == "resposta_fora_do_esquema" and tracer.flushed is True
 
 
-def test_teto_de_tokens_vale_para_a_explicacao_inteira(db_session):
+def test_teto_de_tokens_vale_para_a_explicacao_inteira(db_session, caplog):
     """Cada chamada cabe no teto, a soma não: a explicação para em vez de seguir gastando."""
+    import logging
+
     import pytest
     ruim = {**BOA, "linhas": [{"inicio": "inicial", "lances": ["Qxf8"], "avaliacao_cp": None, "mate_em": None}]}
     llm = FakeLlm([[("final", ruim)], [("final", BOA)]], uso=Uso(0, 11_000, 0, 0))  # 11k + 11k > 20k
-    with pytest.raises(ErroDoTreinador) as exc:
+    with caplog.at_level(logging.INFO, logger="chess_trainer.coach.explain"), pytest.raises(ErroDoTreinador) as exc:
         rodar(db_session, llm)
     assert exc.value.codigo == "custo_excedido"
     assert len(llm.prompts) == 2  # a primeira passou; a correção é que estourou
+    # a explicação que morreu no meio também diz onde gastou o tempo
+    assert [x for x in caplog.messages if x.startswith("explicacao ")]
 
 
 def test_gravar_guarda_so_a_ultima(db_session):
@@ -157,7 +161,9 @@ def test_tempos_medidos_e_registrados_no_log(db_session, caplog):
     assert t["llm_ms"] >= 0
     linha = [x for x in caplog.messages if x.startswith("explicacao ")]
     assert len(linha) == 1 and r.contexto.puzzle_id in linha[0]
-    assert "total " in linha[0] and "llm 1 chamadas," in linha[0] and "verificacao " in linha[0]
+    # o relógio do LLM engloba as ferramentas (elas rodam dentro da chamada): o log avisa
+    assert "total " in linha[0] and "llm 1 chamadas," in linha[0] and "(inclui as ferramentas)" in linha[0]
+    assert "verificacao " in linha[0]
     assert "analisar_posicao 2x" in linha[0] and "fatos_taticos 1x" in linha[0] and "correcao não" in linha[0]
 
 

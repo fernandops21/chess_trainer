@@ -43,12 +43,17 @@ Regras que você não pode quebrar:
    (1) as ameaças do adversário: o que ele faria se você jogasse um lance calmo, tiradas do
    `analisar_posicao` com `apos_passar` na posição inicial do exercício. Nomeie o mate E qualquer
    outra linha dele que ganhe material — o campo `ganho_material` da linha diz o que se perde ali.
+   Se o lado a mover estiver em xeque (não dá para passar a vez), comece pela ameaça que já está
+   no tabuleiro: o que o xeque cobra e o que acontece se você só se defender.
    (2) a defesa natural e por que ela falha: o lance que o aluno jogaria. Se o contexto trouxer o
-   lance real dele (`minha_resposta`, ou `lance_errado` quando o erro é dele), use esse lance; se
-   não trouxer, use a segunda linha do `analisar_posicao` na posição inicial (peça `multipv` 3).
+   lance real dele (`minha_resposta`, ou `lance_errado` quando o erro é dele), use esse lance e
+   analise com `analisar_posicao` a posição depois dele: a melhor linha de lá é o que o adversário
+   faz em cima do lance. Se o contexto não trouxer, use a segunda linha do `analisar_posicao` na
+   posição inicial (peça `multipv` 3).
    Siga a continuação dessa linha até onde o material muda (`ganho_material`) e diga, com os lances
-   numerados, o que se perde ali. Se essa segunda linha também for boa (avaliação a menos de 100
-   centipeões da melhor), diga que ela também resolve, em vez de inventar uma falha.
+   numerados, o que se perde ali. Se essa segunda linha também for boa — avaliação a menos de 100
+   centipeões da melhor, em módulo, e, se a melhor for mate, só quando ela também der mate —, diga
+   que ela também resolve, em vez de inventar uma falha.
    (3) a solução: a primeira linha do `analisar_posicao` — a ideia em uma frase e depois a linha.
 5. Escreva os lances em notação inglesa (K, Q, R, B, N; ex.: Nf3, Bxf7+, O-O), como o app mostra.
    Na prosa (`na_partida`/`por_que`), escreva os lances com o número do lance, como numa anotação:

@@ -111,7 +111,7 @@ Todas finas, em cima do que existe; recebem `db` e `app.state` por fechamento.
 
 | Ferramenta | Entrada | Saída | Implementação |
 | --- | --- | --- | --- |
-| `analisar_posicao` | `fen`, `multipv` (1–3), `apos_passar` (padrão falso) | linhas com `lance`, `avaliacao_cp` **ou** `mate_em` (assinado: positivo = as brancas dão mate), `avaliacao` formatada, `continuacao` em SAN, `material_fim` (saldo de material no fim da linha, brancas menos pretas) e `ganho_material` (em português, o que muda de material na linha, do ponto de vista de quem move primeiro nela: `brancas ganham a dama pela torre (+4)`, `troca igual`, `nada`) — na mesma convenção de §4.4, nunca o código interno do mate. Com `apos_passar`, analisa a posição do lance nulo (o lado a mover passa a vez): as linhas são as **ameaças** do adversário e a saída traz `apos_passar` e `quem_ameaca`; em xeque ou em posição impossível, erro de ferramenta | `InteractiveAnalyzer.analyse` (cache e engine já existentes) |
+| `analisar_posicao` | `fen`, `multipv` (1–3), `apos_passar` (padrão falso) | linhas com `lance`, `avaliacao_cp` **ou** `mate_em` (assinado: positivo = as brancas dão mate), `avaliacao` formatada, `continuacao` em SAN, `material_fim` (saldo de material no fim da linha, brancas menos pretas) e `ganho_material` (em português, o que muda de material na linha, do ponto de vista de quem move primeiro nela: `brancas ganham a dama pela torre (+4)`, `troca igual`, `nada`; `material em disputa` quando a linha para logo depois de uma captura que o outro lado ainda pode responder, e o texto neutro `ganham material (+N)` quando há promoção) — na mesma convenção de §4.4, nunca o código interno do mate. Com `apos_passar`, analisa a posição do lance nulo (o lado a mover passa a vez): as linhas são as **ameaças** do adversário e a saída traz `apos_passar` e `quem_ameaca`; em xeque ou em posição impossível, erro de ferramenta | `InteractiveAnalyzer.analyse` (cache e engine já existentes) |
 | `fatos_taticos` | `fen` | fatos exatos da posição, sem engine: `lances_do_rei`, `xeques`, `mates_em_1`, `capturas_de_pecas_indefesas`, `pecas_atacadas_sem_defesa` (dos dois lados) e `ameacas_do_adversario` (o que ele faria se fosse a vez dele, pelo lance nulo); atacante e defensor conferidos por lance legal (peça cravada não ataca nem defende) e FEN impossível recusada; cada lista com no máximo 12 itens | python-chess puro |
 | `contexto_do_exercicio` | nenhuma (fixo por chamada) | puzzle, erro (`mistake`), lances da partida ±6 plies em SAN, `abertura` (os 6 primeiros plies, que a busca usa para "mesma abertura"), lance real do usuário, solução, avaliações antes/depois | `PuzzleOut` + `Position` + `Game.pgn` |
 | `estatisticas_por_tema` | `dias` (padrão 90) | linhas de `theme_stats` | `core/stats.theme_stats` |
@@ -132,9 +132,12 @@ System prompt em português, fixo e versionado em `prompts.py`
 - estrutura fixa do `por_que`, nesta ordem: (1) as ameaças do adversário (do
   `analisar_posicao` com `apos_passar` na posição inicial), nomeando o mate *e*
   qualquer outra linha que ganhe material (`ganho_material`); (2) a defesa
-  natural e por que ela falha — o lance real do aluno, quando o contexto tem, ou
-  a segunda linha da análise, seguida até onde o material muda (e, se essa
-  segunda linha também for boa, dizer que ela resolve); (3) a solução.
+  natural e por que ela falha — o lance real do aluno, quando o contexto tem
+  (analisando a posição depois dele), ou a segunda linha da análise, seguida até
+  onde o material muda (e, se essa segunda linha também for boa, a menos de 100
+  centipeões em módulo e mate só contra mate, dizer que ela resolve);
+  (3) a solução. Em xeque, onde não dá para passar a vez, (1) começa pela ameaça
+  que já está no tabuleiro.
 - regras duras: toda afirmação tática (a ameaça, o mate, o xeque, a casa de
   fuga do rei, a peça indefesa) vem de `fatos_taticos` naquela posição ou de
   uma linha de `analisar_posicao`, nunca da dedução do modelo, e lance escrito com
@@ -423,7 +426,7 @@ interativa é compartilhada; segunda chamada simultânea recebe 409
 - **Resultado do exercício** (`train/ResultPanel.tsx`): na coluna da direita,
   abaixo do cartão "Meu erro"/"Na partida", o botão "Explicar" aparece quando
   `coach.configured`. Estados do cartão "Treinador": carregando (com aviso de
-  que leva de 10 a 40 s), erro (mensagem da API, em português), pronto. Se já
+  que costuma levar cerca de um minuto), erro (mensagem da API, em português), pronto. Se já
   existe explicação para o puzzle, o cartão abre direto com ela e o botão vira
   "Explicar de novo".
 - Leitura em blocos, na ordem: "Na partida" (`na_partida`), "Por que"

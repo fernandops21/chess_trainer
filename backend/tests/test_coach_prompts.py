@@ -40,6 +40,12 @@ def test_prompt_de_sistema_tem_as_regras_duras():
                    "na_partida", "por_que", "120", "200", "ao lado do tabuleiro",
                    # o `por_que` tem estrutura fixa: ameaças, a defesa natural que falha, a solução
                    "defesa natural", "segunda linha", "ganho_material",
+                   # o lance real do aluno não tem linha pronta: a análise é da posição depois dele
+                   "depois dele",
+                   # "também resolve" compara em módulo, e mate só empata com mate
+                   "em módulo", "também der mate",
+                   # em xeque não há como pedir as ameaças com a vez passada
+                   "ameaça que já está",
                    # o piso do verificador (60 palavras) tem de estar no prompt também
                    "nunca abaixo de 60 palavras",
                    "português", "null", "citacoes",

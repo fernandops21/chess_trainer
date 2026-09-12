@@ -255,12 +255,21 @@ def _material_da_linha(board: chess.Board, continuacao: list[str]) -> tuple[int,
     """Reproduz a continuação no tabuleiro e conta o material: quanto sobra no fim (ponto de
     vista das brancas) e o que mudou, do ponto de vista de quem move primeiro na linha."""
     fim = board.copy()
+    promoveu = False
+    ultima_captura: chess.Move | None = None
     for san in continuacao:
         try:
-            fim.push_san(san)
+            lance = fim.parse_san(san)
         except ValueError:  # linha que não bate com a posição: o que deu para reproduzir basta
             break
+        promoveu = promoveu or lance.promotion is not None
+        ultima_captura = lance if fim.is_capture(lance) else None
+        fim.push(lance)
     material_fim = saldo_material(fim)
+    # a linha parou logo depois de uma captura numa casa que o outro lado ainda ataca: o
+    # saldo dali não é o da troca inteira, e dizer "ganha a dama" seria contar cedo demais
+    if ultima_captura is not None and fim.attackers(fim.turn, ultima_captura.to_square):
+        return material_fim, "material em disputa (a continuação para no meio de uma troca)"
     perdidas = {cor: {tipo: n for tipo in ORDEM_DAS_PECAS
                       if (n := len(board.pieces(tipo, cor)) - len(fim.pieces(tipo, cor))) > 0}
                 for cor in (chess.WHITE, chess.BLACK)}
@@ -273,7 +282,8 @@ def _material_da_linha(board: chess.Board, continuacao: list[str]) -> tuple[int,
     quem = board.turn if ganho > 0 else not board.turn
     lado = "brancas" if quem == chess.WHITE else "pretas"
     ganhas = _pecas_em_texto(perdidas[not quem])
-    if not ganhas:  # ganho sem captura do outro lado (promoção): não dá para nomear a peça
+    # com promoção, a peça "perdida" é o peão que virou dama: nomear as peças mentiria
+    if promoveu or not ganhas:
         return material_fim, f"{lado} ganham material (+{abs(ganho)})"
     return material_fim, f"{lado} ganham {_lista(ganhas)}{_em_troca_de(_pecas_em_texto(perdidas[quem]))} (+{abs(ganho)})"
 
@@ -443,7 +453,9 @@ def ferramentas_do_treinador(contexto: ContextoExercicio, analisar: Analisar,
                    "`#1`), `continuacao` (a linha em SAN), `material_fim` (o saldo de material no fim da "
                    "linha, brancas menos pretas) e `ganho_material` (em português, o que muda de material "
                    "na linha, do ponto de vista de quem move primeiro nela: `brancas ganham a dama pela "
-                   "torre (+4)`, `troca igual`, `nada`). Com `apos_passar` verdadeiro, analisa como se o "
+                   "torre (+4)`, `troca igual`, `nada`; quando a continuação para logo depois de uma "
+                   "captura que o outro lado ainda pode responder, vem `material em disputa` — nesse caso "
+                   "o saldo ainda não está fechado). Com `apos_passar` verdadeiro, analisa como se o "
                    "lado a mover passasse a vez: as linhas devolvidas são as AMEAÇAS do adversário (o que ele "
                    "faria se você jogasse um lance calmo). Use na posição do exercício e na posição do erro "
                    "antes de explicar 'por que'.",

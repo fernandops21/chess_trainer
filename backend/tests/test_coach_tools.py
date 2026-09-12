@@ -26,6 +26,8 @@ FEN_MUITOS_XEQUES = "7k/8/8/8/QQQ5/8/2R5/7K w - - 0 1"
 FEN_MATERIAL = "4k3/8/2p5/3q4/8/8/3R4/4K3 w - - 0 1"
 # a mesma com torre preta em d5: Rxd5 cxd5 é troca igual
 FEN_TROCA = "4k3/8/2p5/3r4/8/8/3R4/4K3 w - - 0 1"
+# a torre branca em d3, longe do rei: se as brancas passassem a vez, Qxd3 a ganharia de graça
+FEN_AMEACA = "4k3/8/2p5/3q4/8/3R4/8/4K3 w - - 0 1"
 PGN = '[Event "x"]\n[White "eu"]\n[Black "ele"]\n[Result "1-0"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0'
 
 
@@ -272,14 +274,36 @@ def test_linhas_da_analise_trazem_o_material(db_session):
 
 def test_material_da_linha_do_adversario_e_da_captura_de_graca(db_session):
     # `apos_passar`: quem move primeiro é o adversário, e o ganho é contado para ele
-    ameaca = json.loads(_analisar_posicao(db_session, analisador_de_pvs(["Qxd2"]))
-                        .fn({"fen": FEN_MATERIAL, "multipv": 1, "apos_passar": True}))["linhas"][0]
+    ameaca = json.loads(_analisar_posicao(db_session, analisador_de_pvs(["Qxd3"]))
+                        .fn({"fen": FEN_AMEACA, "multipv": 1, "apos_passar": True}))["linhas"][0]
     assert ameaca["ganho_material"] == "pretas ganham a torre (+5)" and ameaca["material_fim"] == -10
     # peça de graça, sem devolver nada: não aparece o "por ..."
-    livre = json.loads(_analisar_posicao(db_session, analisador_de_pvs(["Rxd5", "Kd8"]))
+    livre = json.loads(_analisar_posicao(db_session, analisador_de_pvs(["Rxd5", "Ke7"]))
                        .fn({"fen": FEN_MATERIAL, "multipv": 1}))["linhas"][0]
     assert livre["ganho_material"] == "brancas ganham a dama (+9)" and livre["material_fim"] == 4
     # a continuação (e o replay) param nos 8 primeiros lances
     longa = json.loads(_analisar_posicao(db_session, analisador_de_pvs(
         ["Rd3", "Kd8", "Rd4", "Kc8", "Rd3", "Kd8", "Rd4", "Kc8", "Rxd5"])).fn({"fen": FEN_MATERIAL, "multipv": 1}))["linhas"][0]
     assert len(longa["continuacao"]) == 8 and longa["ganho_material"] == "nada"
+
+
+def test_material_nao_finge_precisao_em_promocao_e_em_troca_pela_metade(db_session):
+    """Dois casos em que contar as peças perdidas enganaria: o peão que vira dama capturando
+    (a peça "perdida" é o próprio peão que promoveu) e a linha que para antes da recaptura."""
+    # b7xa8=Q: a torre preta some e o peão branco vira dama; nomear as peças diria "a torre pelo peão"
+    promocao = json.loads(_analisar_posicao(db_session, analisador_de_pvs(["bxa8=Q"]))
+                          .fn({"fen": "r3k3/1P6/8/8/8/8/8/4K3 w - - 0 1", "multipv": 1}))["linhas"][0]
+    assert promocao["ganho_material"] == "brancas ganham material (+13)" and promocao["material_fim"] == 9
+    # a continuação para logo depois de Rxd5, com cxd5 em cima: o saldo ali não é o da linha
+    meio = json.loads(_analisar_posicao(db_session, analisador_de_pvs(["Rxd5"]))
+                      .fn({"fen": FEN_MATERIAL, "multipv": 1}))["linhas"][0]
+    assert meio["ganho_material"] == "material em disputa (a continuação para no meio de uma troca)"
+    assert meio["material_fim"] == 4
+    assert "em disputa" in _analisar_posicao(db_session, analisador_de_pvs(["Rxd5"])).descricao
+
+
+def test_material_quando_quem_move_primeiro_e_quem_perde(db_session):
+    # Rd3?? Qxd3: quem move primeiro é quem entrega a torre, então quem ganha é o outro lado
+    linha = json.loads(_analisar_posicao(db_session, analisador_de_pvs(["Rd3", "Qxd3"]))
+                       .fn({"fen": FEN_MATERIAL, "multipv": 1}))["linhas"][0]
+    assert linha["ganho_material"] == "pretas ganham a torre (+5)" and linha["material_fim"] == -10
