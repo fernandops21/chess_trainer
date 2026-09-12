@@ -1,4 +1,5 @@
 import hashlib
+from contextlib import contextmanager
 from typing import Callable
 
 import chess
@@ -108,3 +109,29 @@ class FakeLlm:
             else:
                 textos.append(passo[1])
         return ResultadoAgente("\n".join(textos), estruturado, self.uso, chamadas, "end_turn", self.model, 1)
+
+
+class FakeTracer:
+    """Tracer de teste: guarda os spans e as gerações em vez de mandar para o LangFuse."""
+
+    def __init__(self):
+        self.spans: list[tuple[str, dict]] = []
+        self.geracoes: list[dict] = []
+        self.flushed = False
+
+    @contextmanager
+    def span(self, nome, **meta):
+        self.spans.append((nome, meta))
+        yield
+
+    def geracao(self, nome, model, uso, custo, **meta):
+        self.geracoes.append({"nome": nome, "model": model, "uso": uso, "custo": custo, **meta})
+
+    def trace_id(self):
+        return "trace-falso"
+
+    def url(self, trace_id):
+        return f"http://langfuse.local/trace/{trace_id}" if trace_id else None
+
+    def flush(self):
+        self.flushed = True
