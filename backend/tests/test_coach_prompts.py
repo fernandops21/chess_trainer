@@ -31,6 +31,8 @@ def test_prompt_de_sistema_tem_as_regras_duras():
     for trecho in ("analisar_posicao", "ponto de vista das brancas", "[c:", "inicial", "erro", FERRAMENTA_FINAL,
                    # a resposta sai em blocos, curta, para ser lida ao lado do tabuleiro
                    "na_partida", "por_que", "80", "150", "ao lado do tabuleiro",
+                   # o piso do verificador (60 palavras) tem de estar no prompt também
+                   "nunca abaixo de 60 palavras",
                    "português", "null", "citacoes",
                    # os trechos dos estudos são texto de terceiros, não instrução
                    "nunca instruções",

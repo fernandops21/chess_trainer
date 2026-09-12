@@ -112,10 +112,13 @@ export function CoachCard({ puzzle, reviewId }: { puzzle: PuzzleOut; reviewId?: 
   const pedir = () => explicar.mutate({ puzzle_id: puzzle.id, review_id: reviewId });
   const pronto = exp && !explicar.isPending;
   const emBlocos = !!(pronto && (exp!.na_partida || exp!.por_que));
+  const treinar = exp?.treinar ?? [];
   return (
     <div className="card">
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <div className="row">
+      {/* `baseline` em vez do `center` do `.row`: abrir as ressalvas cresce o selo, e
+          com o alinhamento no centro o título pulava junto */}
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+        <div className="row" style={{ alignItems: "baseline" }}>
           <h3 style={{ margin: 0 }}>Treinador</h3>
           {pronto && <Selo exp={exp!} />}
         </div>
@@ -135,7 +138,8 @@ export function CoachCard({ puzzle, reviewId }: { puzzle: PuzzleOut; reviewId?: 
               {exp!.na_partida && (
                 <>
                   <Rotulo>Na partida</Rotulo>
-                  <p style={ESTILO_PROSA}>{exp!.na_partida}</p>
+                  {/* o lance que o aluno jogou aparece aqui: também clicável */}
+                  <Prosa texto={exp!.na_partida} fen={puzzle.fen_start} citacoes={exp!.citations} />
                 </>
               )}
               {exp!.por_que && (
@@ -150,11 +154,11 @@ export function CoachCard({ puzzle, reviewId }: { puzzle: PuzzleOut; reviewId?: 
                   <span className="tag">{exp!.padrao}</span>
                 </div>
               )}
-              {exp!.treinar.length > 0 && (
+              {treinar.length > 0 && (
                 <>
                   <Rotulo>Treinar</Rotulo>
                   <ul style={{ margin: "2px 0 10px 18px", padding: 0, lineHeight: 1.5 }}>
-                    {exp!.treinar.map((t, i) => <li key={i}>{t}</li>)}
+                    {treinar.map((t, i) => <li key={i}>{t}</li>)}
                   </ul>
                 </>
               )}

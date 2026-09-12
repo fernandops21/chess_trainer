@@ -134,6 +134,15 @@ test("a explicação sai em blocos com rótulo, padrão e o que treinar", async 
   expect(screen.getByRole("link", { name: /Táticas › Mates/ })).toBeTruthy();
 });
 
+test("o bloco 'Na partida' também tem os lances clicáveis", async () => {
+  // o lance que o aluno jogou aparece aqui: tem de dar para ver no tabuleiro.
+  // (o lance precisa ser legal na posição do exercício para virar botão)
+  vi.spyOn(api, "coachExplanation").mockResolvedValue(explicacao({ na_partida: "Você jogou Bxf7+ e devolveu a vantagem." }));
+  const previa = renderCard();
+  fireEvent.click(await screen.findByRole("button", { name: "Bxf7+" }));
+  expect(previa).toHaveBeenCalled();
+});
+
 test("explicação antiga, sem blocos, cai no texto corrido", async () => {
   vi.spyOn(api, "coachExplanation").mockResolvedValue(
     explicacao({ na_partida: null, por_que: null, padrao: null, treinar: [], text: POR_QUE }));

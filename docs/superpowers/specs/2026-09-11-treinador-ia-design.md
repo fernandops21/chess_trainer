@@ -157,8 +157,9 @@ System prompt em português, fixo e versionado em `prompts.py`
 }
 ```
 
-Os quatro campos de texto são obrigatórios. `padrao` é um rótulo curto em
-português (2 a 5 palavras) ou `null`. A prosa que o verificador, a avaliação e
+Todos obrigatórios: `na_partida`, `por_que` (texto), `padrao` (texto ou nulo) e
+`treinar` (lista de 1 a 3). `padrao` é um rótulo curto em português, de 2 a 5
+palavras. A prosa que o verificador, a avaliação e
 o juiz leem é derivada: `na_partida` + `por_que`, e é ela que vai em `text` no
 banco (a resposta inteira fica em `structured_json`).
 
@@ -414,7 +415,7 @@ interativa é compartilhada; segunda chamada simultânea recebe 409
   avisos; "com ressalvas (N)" e "não verificado (N)" num `<details>` fechado,
   com as ressalvas sem repetição e os `lance_sem_linha` agrupados numa linha só.
   Nada escondido: tudo a um clique.
-- Rodapé discreto numa linha: modelo, custo em centavos de dólar, tempo, link do
+- Rodapé discreto numa linha: modelo, custo em dólares (US$ 0,04), tempo, link do
   trace, aviso de índice vazio e o botão secundário "Explicar de novo".
 - Em tela larga (≥ 900 px) a coluna do tabuleiro fica `sticky` enquanto a coluna
   da direita rola (`.two-col.tabuleiro-fixo`): a posição não sai da tela quando

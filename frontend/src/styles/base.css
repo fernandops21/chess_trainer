@@ -47,7 +47,11 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
    rola (a explicação do treinador cita lances, e a posição tem de ficar à vista).
    No celular o layout é empilhado e nada disso vale. */
 @media (min-width: 900px) {
-  .two-col.tabuleiro-fixo > :first-child { position: sticky; top: 12px; align-self: start; }
+  /* o `max-height` é defensivo: uma coluna mais alta que a janela (um chamador futuro
+     com lista de lances embaixo do tabuleiro) deixaria os controles presos fora da tela */
+  .two-col.tabuleiro-fixo > :first-child {
+    position: sticky; top: 12px; align-self: start; max-height: calc(100vh - 24px); overflow: auto;
+  }
 }
 @media (max-width: 899px) {
   .app { grid-template-columns: 1fr; grid-template-rows: 1fr; }
