@@ -18,8 +18,9 @@ MAX_ITERACOES = 12
 # teto por chamada: a resposta final traz texto longo, linhas e citações, e o raciocínio
 # adaptativo entra no mesmo orçamento — com folga de menos que isso a entrega vem cortada
 MAX_TOKENS_RESPOSTA = 16_000
-# teto da explicação inteira (soma das chamadas), conferido aqui e em `explain.chamar`
-TETO_TOKENS_SAIDA = 12_000
+# teto da explicação inteira (soma das chamadas), conferido aqui e em `explain.chamar`:
+# tem de ficar acima do teto por chamada, senão uma entrega válida e já paga seria jogada fora
+TETO_TOKENS_SAIDA = 20_000
 
 
 class ErroDoTreinador(Exception):

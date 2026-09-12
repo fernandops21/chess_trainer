@@ -111,6 +111,21 @@ def test_spearman_e_julgar():
     juiz = FakeLlm([[("final", {"nota": 2, "justificativa": "vaga"})]])
     nota = judge.julgar(juiz, "contexto", "explicação")
     assert nota == {"nota": 2, "justificativa": "vaga"} and "1 a 5" in judge.RUBRICA and juiz.prompts[0]["ferramentas"] == []
+    # folga de tokens: a nota é curta, mas o raciocínio sai do mesmo orçamento
+    assert juiz.prompts[0]["max_tokens"] == 4096
+
+
+def test_juiz_que_falha_nao_derruba_o_item():
+    """Erro do juiz (truncado, limite de uso) vira nota 0 com a justificativa: a amostra
+    inteira não pode ir embora por causa de uma nota."""
+    class JuizQuebrado:
+        model = "fake"
+
+        def run_agent(self, **kw):
+            raise ErroDoTreinador("resposta_truncada", "a resposta passou do limite de tokens e foi cortada")
+
+    nota = judge.julgar(JuizQuebrado(), "contexto", "explicação")
+    assert nota["nota"] == 0 and nota["justificativa"] == "juiz falhou: a resposta passou do limite de tokens e foi cortada"
 
 
 def test_main_le_o_dataset_e_escreve_a_rodada(db_session, tmp_path, monkeypatch):

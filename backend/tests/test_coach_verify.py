@@ -7,6 +7,8 @@ from chess_trainer.core.evals import MATE_SCORE
 FEN = "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4"
 # posição "do erro": as pretas acabaram de jogar Nf6?? (a mesma FEN serve de exemplo)
 FEN_ERRO = "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3"
+# mate do bobo: 1.f3 e5 2.g4, pretas a jogar — 2...Qh4# é mate das pretas
+FEN_MATE_DO_BOBO = "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2"
 TEXTO_OK = " ".join(["palavra"] * 80)
 
 
@@ -82,6 +84,51 @@ def test_mate_declarado_confere_com_a_engine():
     # avaliação numérica onde a engine dá mate: aviso, não erro
     numerica = checar({"texto": TEXTO_OK, "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "avaliacao_cp": 900}]})
     assert numerica.ok and "avaliacao_errada" in tipos(numerica)
+    # mate das brancas no meio da linha (não terminal): `mate_em` positivo
+    brancas = checar({"texto": TEXTO_OK, "linhas": [{"inicio": "inicial", "lances": ["Nf3"], "mate_em": 1}]},
+                     analisar=analisar_mate_das_brancas)
+    assert brancas.ok, brancas.issues
+
+
+def analisar_mate_das_pretas(fen: str, multipv: int) -> dict:
+    """Como `analisar_script`, mas fora da posição inicial quem dá mate em 1 são as pretas."""
+    board = chess.Board(fen)
+    if board.fen() == chess.Board(FEN).fen():
+        return analisar_script(fen, multipv)
+    mv = next(iter(board.legal_moves))
+    # score do lado a mover: as pretas mandam, as brancas levam
+    score = (MATE_SCORE - 1) if board.turn == chess.BLACK else -(MATE_SCORE - 1)
+    return {"fen": fen, "turn": "white" if board.turn else "black", "terminal": None,
+            "lines": [{"move": mv.uci(), "san": board.san(mv), "score": score, "pv": [mv.uci()], "pv_san": [board.san(mv)]}]}
+
+
+def analisar_mate_das_brancas(fen: str, multipv: int) -> dict:
+    board = chess.Board(fen)
+    if board.fen() == chess.Board(FEN).fen():
+        return analisar_script(fen, multipv)
+    mv = next(iter(board.legal_moves))
+    score = (MATE_SCORE - 1) if board.turn == chess.WHITE else -(MATE_SCORE - 1)
+    return {"fen": fen, "turn": "white" if board.turn else "black", "terminal": None,
+            "lines": [{"move": mv.uci(), "san": board.san(mv), "score": score, "pv": [mv.uci()], "pv_san": [board.san(mv)]}]}
+
+
+def test_mate_em_tem_sinal_de_quem_da_o_mate():
+    """`mate_em` é assinado (positivo = as brancas dão mate): sem isso, toda linha em que
+    as pretas matam virava `avaliacao_errada` à toa."""
+    linha = {"inicio": "inicial", "lances": ["Nf3"]}
+    certo = checar({"texto": TEXTO_OK, "linhas": [{**linha, "mate_em": -1}]}, analisar=analisar_mate_das_pretas)
+    assert certo.ok, certo.issues
+    trocado = checar({"texto": TEXTO_OK, "linhas": [{**linha, "mate_em": 1}]}, analisar=analisar_mate_das_pretas)
+    assert not trocado.ok and "avaliacao_errada" in tipos(trocado)
+    # número errado continua errado, com ou sem sinal
+    longe = checar({"texto": TEXTO_OK, "linhas": [{**linha, "mate_em": -3}]}, analisar=analisar_mate_das_pretas)
+    assert not longe.ok and "avaliacao_errada" in tipos(longe)
+    # `mate_em: 0` = "a linha termina em mate", de quem for: aqui são as pretas que matam
+    mate_das_pretas = checar({"texto": TEXTO_OK, "linhas": [{"inicio": "inicial", "lances": ["Qh4#"], "mate_em": 0}]},
+                             fen_inicial=FEN_MATE_DO_BOBO, fen_erro=None)
+    assert mate_das_pretas.ok, mate_das_pretas.issues
+    # e o mate das brancas da posição do exercício segue valendo com 0
+    assert checar({"texto": TEXTO_OK, "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]}).ok
 
 
 def test_avaliacao_nao_numerica_vira_erro_e_nao_excecao():

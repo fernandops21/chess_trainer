@@ -177,7 +177,10 @@ def verificar(resposta: dict, *, fen_inicial: str, fen_erro: str | None, lances_
             v.issues.append(Issue("engine_indisponivel", "erro", "a engine não devolveu avaliação para o fim da linha", idx))
         elif mate is not None:
             n = mate_in(score)
-            if n is None or n != mate:
+            # `mate_em` é assinado (positivo = as brancas dão mate, negativo = as pretas);
+            # `0` quer dizer "a linha termina em mate" e vale para qualquer um dos dois lados
+            sinal_certo = mate == 0 or (mate > 0) == (score > 0)
+            if n is None or n != abs(mate) or not sinal_certo:
                 v.issues.append(Issue("avaliacao_errada", "erro", f"a explicação diz mate em {mate}; a engine dá {_fmt(score)}", idx))
         elif is_mate(score):
             v.issues.append(Issue("avaliacao_errada", "aviso", f"a engine dá {_fmt(score)} onde a explicação dá {aval / 100:+.2f}", idx))

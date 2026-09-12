@@ -103,7 +103,7 @@ def test_teto_de_tokens_vale_para_a_explicacao_inteira(db_session):
     """Cada chamada cabe no teto, a soma não: a explicação para em vez de seguir gastando."""
     import pytest
     ruim = {**BOA, "linhas": [{"inicio": "inicial", "lances": ["Qxf8"], "avaliacao_cp": None, "mate_em": None}]}
-    llm = FakeLlm([[("final", ruim)], [("final", BOA)]], uso=Uso(0, 7_000, 0, 0))
+    llm = FakeLlm([[("final", ruim)], [("final", BOA)]], uso=Uso(0, 11_000, 0, 0))  # 11k + 11k > 20k
     with pytest.raises(ErroDoTreinador) as exc:
         rodar(db_session, llm)
     assert exc.value.codigo == "custo_excedido"

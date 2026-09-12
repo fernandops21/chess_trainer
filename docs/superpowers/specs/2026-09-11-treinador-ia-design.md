@@ -142,13 +142,18 @@ System prompt em português, fixo e versionado em `prompts.py`
   "texto": "…prosa com lances em SAN e marcadores [c:ID] para citações…",
   "linhas": [
     {"inicio": "inicial" | "erro", "lances": ["Cf3", "Cc6", "…"], "avaliacao_cp": 150 | null,
-     "mate_em": null | 3}
+     "mate_em": null | 3 | -2 | 0}
   ],
   "citacoes": ["ID", "…"],
   "padrao": "hanging_piece" | null,
   "treinar": ["…"]
 }
 ```
+
+`mate_em` vem com sinal: positivo = as brancas dão mate, negativo = as pretas;
+`0` quer dizer que a linha termina em mate, seja de quem for. `avaliacao_cp` e
+`mate_em` são exclusivos (um deles é `null`) e a ferramenta `analisar_posicao`
+(§4.2) devolve os dois na mesma convenção.
 
 `inicio = "inicial"` significa `puzzle.fen_start`; `"erro"` significa a
 posição antes do lance errado (`fen_before` do puzzle ou a posição do erro na
@@ -174,9 +179,10 @@ Regras:
    individualmente (a engine já validou o início, e linhas longas são
    ilustrativas).
 3. **Avaliação**: se `avaliacao_cp` ou `mate_em` vier, compara com a engine na
-   posição final da linha (do ponto de vista das brancas). Diferença > 100 cp
-   ou mate ausente/diferente → `erro` `avaliacao_errada`. Se a engine dá mate e
-   o texto diz avaliação numérica, `aviso`.
+   posição final da linha (do ponto de vista das brancas). Diferença > 100 cp,
+   mate ausente, número de lances diferente ou `mate_em` com o sinal do lado
+   errado (positivo = as brancas dão mate; `0` serve para os dois lados) → `erro`
+   `avaliacao_errada`. Se a engine dá mate e o texto diz avaliação numérica, `aviso`.
 4. **Lances soltos**: SAN encontrado no `texto` (mesma expressão regular do
    `moveText` do frontend, portada) que não aparece em nenhuma linha → `aviso`
    `lance_sem_linha`. Não se tenta validar lance solto.
@@ -260,9 +266,11 @@ explicar(puzzle_id, review_id | None):
 - Custo: `costs.py` tem a tabela de preços por modelo (entrada, saída, leitura
   e escrita de cache, em USD por milhão de tokens) copiada da página oficial,
   com data; o custo da explicação é a soma das chamadas (inclusive a correção).
-- Teto: se a soma de tokens de saída das chamadas passar de 12 000 na explicação,
+- Teto: se a soma de tokens de saída das chamadas passar de 20 000 na explicação,
   aborta com erro `custo_excedido` (não deveria acontecer; é rede de segurança).
-  Conferido nas duas pontas: dentro de cada chamada e na soma da explicação.
+  Conferido nas duas pontas: dentro de cada chamada e na soma da explicação. Fica
+  acima do `max_tokens` de uma chamada (§4.1) para não jogar fora uma entrega válida
+  e já paga.
 - Cada etapa é um span do LangFuse (§8.3).
 
 ### 7.1 Modelo de dados

@@ -22,10 +22,10 @@ Regras que você não pode quebrar:
 4. Avaliações sempre da engine, sempre do ponto de vista das brancas, em peões no texto (`+1,5`, `-0,4`,
    `mate em 2`) e em `avaliacao_cp` (centipeões inteiros) ou `mate_em` na linha. Os dois descrevem a
    posição no FIM da linha e os dois são obrigatórios: preencha um e ponha `null` no outro. `mate_em`
-   conta os lances até o mate para quem vai dar o mate (e o texto tem de dizer quem dá o mate);
-   `mate_em: 0` quer dizer que a linha já termina em mate. A ferramenta `analisar_posicao` já devolve
-   `avaliacao_cp` e `mate_em` nessa mesma convenção, com o sinal do `mate_em` dizendo quem dá o mate
-   (positivo = as brancas dão mate, negativo = as pretas): copie os números dela.
+   conta os lances até o mate e vem com sinal — positivo = as brancas dão mate, negativo = as pretas
+   (e o texto tem de dizer quem dá o mate); `mate_em: 0` quer dizer que a linha já termina em mate,
+   para qualquer um dos dois lados. A ferramenta `analisar_posicao` já devolve `avaliacao_cp` e
+   `mate_em` nessa mesma convenção: copie os números dela.
 5. Cite um estudo só quando o trecho recebido for pertinente, escrevendo o marcador `[c:ID]` no texto
    logo após a frase que se apoia nele, com o ID exato do trecho. Sem trecho pertinente, não fale de estudos.
    O campo `citacoes` repete exatamente os IDs que você usou no texto, sem nenhum a mais.
@@ -52,7 +52,9 @@ ESQUEMA_EXPLICACAO: dict = {
                     "inicio": {"type": "string", "enum": ["inicial", "erro"]},
                     "lances": {"type": "array", "items": {"type": "string"}},
                     "avaliacao_cp": {"type": ["integer", "null"], "description": "Avaliação no fim da linha, ponto de vista das brancas."},
-                    "mate_em": {"type": ["integer", "null"], "description": "Mate em N no fim da linha; 0 = a linha termina em mate."},
+                    "mate_em": {"type": ["integer", "null"],
+                                "description": "Mate em N no fim da linha, com sinal: positivo = as brancas dão mate, "
+                                               "negativo = as pretas; 0 = a linha termina em mate."},
                 },
                 "required": ["inicio", "lances", "avaliacao_cp", "mate_em"],
                 "additionalProperties": False,
