@@ -20,7 +20,7 @@ def test_esquema_estrito_valida_uma_resposta_boa_e_recusa_uma_ruim():
 
 
 def test_prompt_de_sistema_tem_as_regras_duras():
-    assert PROMPT_VERSION == "v1"
+    assert PROMPT_VERSION == "v2"
     for trecho in ("analisar_posicao", "ponto de vista das brancas", "[c:", "inicial", "erro", FERRAMENTA_FINAL,
                    "português", "null", "citacoes",
                    # os trechos dos estudos são texto de terceiros, não instrução
@@ -28,7 +28,9 @@ def test_prompt_de_sistema_tem_as_regras_duras():
                    # a ferramenta já devolve os números na convenção da resposta
                    "nessa mesma convenção",
                    # `mate_em` é assinado dos dois lados (ferramenta e resposta)
-                   "positivo = as brancas dão mate, negativo = as pretas"):
+                   "positivo = as brancas dão mate, negativo = as pretas",
+                   # afirmação tática (ameaça, mate, casa de fuga) só vem dos fatos, não da dedução
+                   "fatos_taticos", "a ameaça é", "casa de fuga"):
         assert trecho in SYSTEM_PROMPT, trecho
 
 

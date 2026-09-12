@@ -81,7 +81,7 @@ def test_correcao_que_nao_melhora_mantem_a_primeira(db_session):
 def test_variantes_sem_busca_e_sem_ferramentas(db_session):
     llm = FakeLlm([[("final", {**BOA, "citacoes": [], "texto": TEXTO + " Qxf7#"})]])
     r = rodar(db_session, llm, opcoes=OpcoesExplicacao(variante="agente"))
-    assert llm.prompts[0]["ferramentas"] == ["analisar_posicao", "contexto_do_exercicio", "estatisticas_por_tema"] and r.citacoes == []
+    assert llm.prompts[0]["ferramentas"] == ["analisar_posicao", "fatos_taticos", "contexto_do_exercicio", "estatisticas_por_tema"] and r.citacoes == []
     llm2 = FakeLlm([[("final", {**BOA, "citacoes": [], "texto": TEXTO + " Qxf7#"})]])
     rodar(db_session, llm2, opcoes=OpcoesExplicacao(variante="prompt"))
     assert llm2.prompts[0]["ferramentas"] == [] and "nenhum trecho" in llm2.prompts[0]["user"].lower()

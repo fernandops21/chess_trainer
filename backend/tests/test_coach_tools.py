@@ -2,13 +2,20 @@ import json
 
 import chess
 
-from chess_trainer.coach.tools import ContextoExercicio, contexto_do_exercicio, ferramentas_do_treinador
+from chess_trainer.coach.tools import (ContextoExercicio, contexto_do_exercicio, fatos_taticos,
+                                      ferramentas_do_treinador)
 from chess_trainer.core.evals import CLAMP_CP, MATE_SCORE
 from chess_trainer.core.models import Game, Position
 from tests.factories import make_puzzle
 
 FEN_ERRO = "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3"   # pretas jogam Nf6??
 FEN = "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4"        # exercício: Qxf7#
+# posição de uma partida do aluno depois de 32...Qh3: a ameaça é Qxf1#, não Qxh2#
+FEN_FATOS = "5R2/2p3pk/2pp3p/4p3/1P6/2PPbPrq/7P/5Q1K w - - 4 33"
+# a mesma depois de 33.Rh8+: as pretas estão em xeque
+FEN_FATOS_XEQUE = "7R/2p3pk/2pp3p/4p3/1P6/2PPbPrq/7P/5Q1K b - - 5 33"
+# três damas e uma torre contra o rei sozinho: mais xeques do que o limite das listas
+FEN_MUITOS_XEQUES = "7k/8/8/8/QQQ5/8/2R5/7K w - - 0 1"
 PGN = '[Event "x"]\n[White "eu"]\n[Black "ele"]\n[Result "1-0"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0'
 
 
@@ -75,7 +82,9 @@ def test_ferramentas_do_treinador(db_session):
     ferr = ferramentas_do_treinador(ctx, analisar, estatisticas=lambda dias: [{"theme": "fork", "label": "garfo", "attempts": 3, "accuracy": 0.5}],
                                     buscar=lambda consulta, k: buscas.append((consulta, k)) or [{"chunk_id": "ab12", "texto": "t"}])
     por_nome = {f.nome: f for f in ferr}
-    assert set(por_nome) == {"analisar_posicao", "contexto_do_exercicio", "estatisticas_por_tema", "buscar_estudos"}
+    assert set(por_nome) == {"analisar_posicao", "fatos_taticos", "contexto_do_exercicio", "estatisticas_por_tema", "buscar_estudos"}
+    fatos = json.loads(por_nome["fatos_taticos"].fn({"fen": FEN}))
+    assert fatos["mates_em_1"] == ["Qxf7#"] and "sem engine" in por_nome["fatos_taticos"].descricao
     linhas = json.loads(por_nome["analisar_posicao"].fn({"fen": FEN, "multipv": 1}))
     # o mate não vai como código interno (±(MATE_SCORE - n)): vira `mate_em` assinado
     linha = linhas["linhas"][0]
@@ -102,3 +111,42 @@ def test_ferramentas_do_treinador(db_session):
     import pytest
     with pytest.raises(ValueError):
         por_nome["analisar_posicao"].fn({"fen": "lixo", "multipv": 1})
+
+
+def test_fatos_taticos_da_posicao_da_ameaca_real():
+    """O caso que motivou a ferramenta: o modelo escreveu que a ameaça era Qxh2#
+    (só xeque); a ameaça exata é Qxf1#, e as brancas não têm casa para o rei."""
+    f = fatos_taticos(FEN_FATOS)
+    assert f["fen"] == chess.Board(FEN_FATOS).fen() and f["lado_a_mover"] == "brancas"
+    assert f["em_xeque"] is False and f["lances_do_rei"] == [] and f["mates_em_1"] == []
+    assert f["xeques"] == ["Rh8+"]
+    assert f["ameacas_do_adversario"]["mates_em_1"] == ["Qxf1#"]
+    assert "Qxf1#" in f["ameacas_do_adversario"]["capturas_de_pecas_indefesas"]
+    # a dama das brancas em f1 está atacada pela dama preta de h3 e ninguém a defende
+    assert {"casa": "f1", "peca": "dama branca", "atacada_por": ["h3"]} in f["pecas_atacadas_sem_defesa"]
+    assert json.loads(json.dumps(f))["em_xeque"] is False
+
+
+def test_fatos_taticos_em_xeque_nao_tem_ameacas_do_adversario():
+    f = fatos_taticos(FEN_FATOS_XEQUE)
+    assert f["em_xeque"] is True and f["lado_a_mover"] == "pretas"
+    assert f["lances_do_rei"] == ["Kxh8", "Kg6"]
+    # em xeque não existe "se fosse a vez dele": o lance nulo é ilegal
+    assert f["ameacas_do_adversario"] == {"mates_em_1": [], "capturas_de_pecas_indefesas": []}
+
+
+def test_fatos_taticos_do_mate_do_pastor():
+    f = fatos_taticos(FEN)
+    assert f["mates_em_1"] == ["Qxf7#"] and "Qxf7#" in f["xeques"]
+    # f7 é defendido pelo rei, então o mate não conta como captura de peça indefesa
+    assert f["capturas_de_pecas_indefesas"] == []
+    # a dama das brancas em h5 está atacada pelo cavalo de f6 e sem defensor
+    assert f["pecas_atacadas_sem_defesa"] == [{"casa": "h5", "peca": "dama branca", "atacada_por": ["f6"]}]
+    assert f["ameacas_do_adversario"]["capturas_de_pecas_indefesas"] == ["Nxh5", "Nxe4"]
+
+
+def test_fatos_taticos_limita_as_listas_e_recusa_fen_invalida():
+    import pytest
+    assert len(fatos_taticos(FEN_MUITOS_XEQUES)["xeques"]) == 12
+    with pytest.raises(ValueError):
+        fatos_taticos("lixo")

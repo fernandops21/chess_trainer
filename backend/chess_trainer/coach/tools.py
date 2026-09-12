@@ -23,6 +23,11 @@ from chess_trainer.core.tactics.themes import THEME_LABELS, normalize_own_theme
 JANELA_PLIES = 6
 # mesma janela que o índice usa para "mesma abertura" (`retrieval/index.py`)
 PLIES_ABERTURA = 6
+# teto de cada lista de `fatos_taticos`: o modelo precisa dos fatos, não da lista inteira
+LIMITE_FATOS = 12
+NOME_DA_PECA = {chess.KING: "rei", chess.QUEEN: "dama", chess.ROOK: "torre",
+                chess.BISHOP: "bispo", chess.KNIGHT: "cavalo", chess.PAWN: "peão"}
+PECAS_FEMININAS = {chess.QUEEN, chess.ROOK}
 
 
 def _aval(cp: int | None) -> str:
@@ -220,6 +225,79 @@ def _analisar_posicao(analisar: Analisar) -> Callable[[dict], str]:
     return fn
 
 
+def _nome_da_peca(peca: chess.Piece) -> str:
+    """`dama branca`, `cavalo preto`: nome em português com a cor concordando."""
+    nome = NOME_DA_PECA[peca.piece_type]
+    if peca.piece_type in PECAS_FEMININAS:
+        return f"{nome} {'branca' if peca.color == chess.WHITE else 'preta'}"
+    return f"{nome} {'branco' if peca.color == chess.WHITE else 'preto'}"
+
+
+def _casas(casas: chess.SquareSet) -> list[str]:
+    return sorted(chess.square_name(c) for c in casas)
+
+
+def _mates_em_1(board: chess.Board) -> list[str]:
+    """Lances legais que dão mate na hora (o SAN já sai com `#`)."""
+    out = []
+    for mv in board.legal_moves:
+        if not board.gives_check(mv):
+            continue
+        san = board.san(mv)
+        board.push(mv)
+        mate = board.is_checkmate()
+        board.pop()
+        if mate:
+            out.append(san)
+    return out[:LIMITE_FATOS]
+
+
+def _capturas_de_pecas_indefesas(board: chess.Board) -> list[str]:
+    """Capturas em que a casa de destino não tem nenhum defensor do adversário."""
+    return [board.san(mv) for mv in board.legal_moves
+            if board.is_capture(mv) and not board.attackers(not board.turn, mv.to_square)][:LIMITE_FATOS]
+
+
+def _pecas_atacadas_sem_defesa(board: chess.Board) -> list[dict]:
+    """Peças (sem peões nem reis) atacadas e sem nenhum defensor, dos dois lados: a
+    explicação fala tanto da peça que o aluno pode ganhar quanto da que ele deixou pendurada."""
+    out = []
+    for casa, peca in sorted(board.piece_map().items()):
+        if peca.piece_type in (chess.PAWN, chess.KING):
+            continue
+        atacantes = board.attackers(not peca.color, casa)
+        if not atacantes or board.attackers(peca.color, casa):
+            continue
+        out.append({"casa": chess.square_name(casa), "peca": _nome_da_peca(peca), "atacada_por": _casas(atacantes)})
+    return out[:LIMITE_FATOS]
+
+
+def fatos_taticos(fen: str) -> dict:
+    """Fatos exatos de uma posição, calculados só com o python-chess (sem engine): é
+    daqui que saem as afirmações táticas da explicação (ameaça, mate, casa de fuga do
+    rei, peça indefesa), que o modelo antes deduzia sozinho e errava."""
+    board = chess.Board(fen)  # ValueError em FEN inválida: vira erro de ferramenta
+    em_xeque = board.is_check()
+    ameacas: dict[str, list[str]] = {"mates_em_1": [], "capturas_de_pecas_indefesas": []}
+    if not em_xeque:
+        # o que o adversário faria se fosse a vez dele: lance nulo (ilegal em xeque)
+        passa = board.copy()
+        passa.push(chess.Move.null())
+        ameacas = {"mates_em_1": _mates_em_1(passa), "capturas_de_pecas_indefesas": _capturas_de_pecas_indefesas(passa)}
+    return {
+        "fen": board.fen(),
+        "lado_a_mover": "brancas" if board.turn == chess.WHITE else "pretas",
+        "em_xeque": em_xeque,
+        "lances_do_rei": [board.san(mv) for mv in board.legal_moves
+                          if board.piece_type_at(mv.from_square) == chess.KING][:LIMITE_FATOS],
+        "xeques": [board.san(mv) for mv in board.legal_moves if board.gives_check(mv)][:LIMITE_FATOS],
+        "mates_em_1": _mates_em_1(board),
+        "capturas_de_pecas_indefesas": _capturas_de_pecas_indefesas(board),
+        "pecas_atacadas_sem_defesa": _pecas_atacadas_sem_defesa(board),
+        "ameacas_do_adversario": ameacas,
+    }
+
+
 def ferramentas_do_treinador(contexto: ContextoExercicio, analisar: Analisar,
                              estatisticas: Callable[[int], list[dict]] | None,
                              buscar: Callable[[str, int], list[dict]] | None) -> list[Ferramenta]:
@@ -231,6 +309,14 @@ def ferramentas_do_treinador(contexto: ContextoExercicio, analisar: Analisar,
                    "`#1`) e `continuacao` (a linha em SAN).",
                    {"type": "object", "properties": {"fen": {"type": "string"}, "multipv": {"type": "integer", "minimum": 1, "maximum": 3}},
                     "required": ["fen"], "additionalProperties": False}, _analisar_posicao(analisar)),
+        Ferramenta("fatos_taticos",
+                   "Fatos exatos de uma posição, calculados sem engine: lances do rei, xeques, mates em 1, "
+                   "capturas de peças indefesas, peças atacadas sem defesa, e o que o adversário faria se fosse "
+                   "a vez dele (ameaças). Use antes de afirmar 'a ameaça é X', 'o rei não tem casa de fuga' ou "
+                   "'a única defesa é Y'.",
+                   {"type": "object", "properties": {"fen": {"type": "string"}},
+                    "required": ["fen"], "additionalProperties": False},
+                   lambda e: json.dumps(fatos_taticos(str(e.get("fen", ""))), ensure_ascii=False)),
         Ferramenta("contexto_do_exercicio", "Devolve de novo o contexto completo do exercício (posições, solução, lance errado, partida).",
                    {"type": "object", "properties": {}, "additionalProperties": False},
                    lambda _e: json.dumps(contexto.to_dict(), ensure_ascii=False)),
