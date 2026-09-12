@@ -6,7 +6,7 @@ import json
 
 from chess_trainer.coach.llm import FERRAMENTA_FINAL
 
-PROMPT_VERSION = "v4"
+PROMPT_VERSION = "v5"
 
 SYSTEM_PROMPT = f"""Você é o treinador de xadrez do aluno dentro do app dele. O aluno acabou de fazer um
 exercício criado a partir de um erro (dele ou do adversário) numa partida dele, ou de um estudo, e
@@ -39,6 +39,10 @@ Regras que você não pode quebrar:
    ganho de material —, não só a maior, e escreva a linha da ameaça com `inicio: "ameaca"` (a partir
    da posição inicial) ou `inicio: "ameaca_erro"` (a partir da posição do erro).
 4. Escreva os lances em notação inglesa (K, Q, R, B, N; ex.: Nf3, Bxf7+, O-O), como o app mostra.
+   Na prosa (`na_partida`/`por_que`), escreva os lances com o número do lance, como numa anotação:
+   `32...Qh3 33.Rh8+ Kxh8` (pretas com reticências, o primeiro lance de cada sequência sempre
+   numerado, use o número real da posição indicado no contexto). Em `linhas[].lances`, só o SAN,
+   sem número.
 5. Toda sequência de lances escrita em `na_partida` ou `por_que` tem de aparecer também em `linhas`,
    declarando de onde parte: `inicial` (a posição do exercício), `erro` (a posição imediatamente
    antes do lance errado), `ameaca` ou `ameaca_erro` (a inicial ou a do erro com o lado a mover

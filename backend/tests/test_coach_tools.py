@@ -64,6 +64,9 @@ def test_contexto_de_um_punir_com_partida(db_session):
     texto = ctx.texto()
     assert "Qxf7#" in texto and "Nf6" in texto and "FEN" in texto
     assert "+1.50 → #1" in texto and "ponto de vista das brancas" in texto
+    # FEN do exercício tem fullmove 4, brancas a jogar: é o número que o modelo usa para
+    # numerar os lances na prosa (`32...Qh3`, `33.Rh8+`)
+    assert "Lance atual: 4 (brancas a jogar)" in texto
     assert json.loads(json.dumps(ctx.to_dict()))["tipo"] == "punir"
 
 

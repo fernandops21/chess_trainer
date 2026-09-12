@@ -66,7 +66,10 @@ class ContextoExercicio:
         return d
 
     def texto(self) -> str:
+        board_inicial = chess.Board(self.fen_inicial)
+        lado_a_mover = "brancas" if board_inicial.turn == chess.WHITE else "pretas"
         linhas = ["## Exercício", f"Tipo: {self.tipo}. O aluno joga de {self.lado}. Tema: {self.tema}. Categoria: {self.categoria}.",
+                  f"Lance atual: {board_inicial.fullmove_number} ({lado_a_mover} a jogar)",
                   f"FEN da posição do exercício (inicial): {self.fen_inicial}",
                   f"Solução do exercício: {' '.join(self.solucao_san) or '(sem lances)'}"]
         if self.fen_erro:

@@ -144,6 +144,10 @@ System prompt em português, fixo e versionado em `prompts.py`
   abertura ou de padrão sem apoio.
 - resposta em blocos, lida ao lado do tabuleiro: sem repetir o FEN, sem lista
   dentro da prosa.
+- lances numerados na prosa (`na_partida`/`por_que`), como numa anotação
+  (`32...Qh3 33.Rh8+ Kxh8`): é pelo número que o segmentador do frontend acha a
+  posição certa quando a explicação cita várias linhas; em `linhas[].lances`
+  continua só o SAN, sem número.
 
 ### 4.4 Formato da resposta (saída estruturada)
 

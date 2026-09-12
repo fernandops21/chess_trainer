@@ -34,7 +34,7 @@ def test_esquema_estrito_valida_uma_resposta_boa_e_recusa_uma_ruim():
 
 
 def test_prompt_de_sistema_tem_as_regras_duras():
-    assert PROMPT_VERSION == "v4"
+    assert PROMPT_VERSION == "v5"
     for trecho in ("analisar_posicao", "ponto de vista das brancas", "[c:", "inicial", "erro", FERRAMENTA_FINAL,
                    # a resposta sai em blocos, curta, para ser lida ao lado do tabuleiro
                    "na_partida", "por_que", "80", "150", "ao lado do tabuleiro",
@@ -54,7 +54,10 @@ def test_prompt_de_sistema_tem_as_regras_duras():
                    # as ameaças do adversário saem da análise com a vez passada, e todas têm de ser nomeadas
                    "apos_passar", "ameaca", "ameaca_erro", "TODAS",
                    # passar a vez não existe em xeque: o prompt avisa antes de o modelo tentar
-                   "não estiver em xeque"):
+                   "não estiver em xeque",
+                   # a prosa cita os lances numerados, como numa anotação, para o segmentador do
+                   # frontend achar a posição certa quando há várias linhas na explicação
+                   "número do lance", "32...Qh3 33.Rh8+ Kxh8"):
         assert trecho in SYSTEM_PROMPT, trecho
 
 

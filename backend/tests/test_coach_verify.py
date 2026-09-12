@@ -267,6 +267,22 @@ def test_xeque_escrito_no_texto_tem_de_dar_xeque_em_alguma_posicao():
     assert falso.ok and "xeque_falso" in tipos(falso)
 
 
+def test_san_re_extrai_lances_numerados_da_prosa():
+    """A prosa agora cita lances numerados, como numa anotação (`32...Qh3 33.Rh8+ Kxh8`):
+    o número e as reticências não podem atrapalhar a extração do SAN nem gerar avisos falsos."""
+    linha = {"inicio": "inicial", "lances": ["Qh3", "Rh8+", "Kxh8"]}
+    v = checar({"texto": TEXTO_OK + " A chave é 32...Qh3 33.Rh8+ Kxh8.", "linhas": [linha]},
+               fen_inicial=FEN_AMEACA, fen_erro=None)
+    assert "lance_sem_linha" not in tipos(v)
+    assert "mate_falso" not in tipos(v) and "xeque_falso" not in tipos(v)
+    # o mate do pastor, na mesma convenção: "4.Qxf7#" com a linha declarada
+    pastor = checar({"texto": TEXTO_OK + " A sequência é 4.Qxf7#.",
+                     "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]})
+    assert pastor.ok
+    assert "lance_sem_linha" not in tipos(pastor)
+    assert "mate_falso" not in tipos(pastor) and "xeque_falso" not in tipos(pastor)
+
+
 def test_avisos_repetidos_do_mesmo_lance_colapsam_em_um():
     v = checar({"texto": TEXTO_OK + " Nc6 defende, e de novo Nc6 defende.",
                 "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]})
