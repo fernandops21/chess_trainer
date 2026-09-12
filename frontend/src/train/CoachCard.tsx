@@ -48,7 +48,7 @@ const usd = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFr
 export function CoachCard({ puzzle, reviewId }: { puzzle: PuzzleOut; reviewId?: string }) {
   const { data: status } = useCoachStatus();
   const configurado = !!status?.configured;
-  const { data: existente } = useCoachExplanation(puzzle.id, configurado);
+  const { data: existente, isLoading: carregando } = useCoachExplanation(puzzle.id, configurado);
   const explicar = useExplain();
   const previa = useContext(PreviaContext);
   if (!configurado) return null;
@@ -59,7 +59,9 @@ export function CoachCard({ puzzle, reviewId }: { puzzle: PuzzleOut; reviewId?: 
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between" }}>
         <h3 style={{ margin: 0 }}>Treinador</h3>
-        {!explicar.isPending && (
+        {/* fora do ar enquanto a explicação já guardada não chegou: clicar aqui pediria
+            uma explicação nova (e paga) para um exercício que talvez já tenha uma */}
+        {!explicar.isPending && !carregando && (
           <button className={exp ? undefined : "primary"} onClick={pedir}>{exp ? "Explicar de novo" : "Explicar"}</button>
         )}
       </div>

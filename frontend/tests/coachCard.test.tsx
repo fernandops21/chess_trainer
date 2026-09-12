@@ -53,6 +53,20 @@ test("sem treinador configurado o cartão não aparece", async () => {
   expect(screen.queryByRole("button", { name: "Explicar" })).toBeNull();
 });
 
+test("o botão não aparece enquanto a explicação guardada não chega", async () => {
+  // sem isso um clique durante a carga pediria uma explicação nova (e paga) para
+  // um exercício que talvez já tenha uma guardada
+  let responder = (_: CoachExplanation | null) => {};
+  vi.spyOn(api, "coachExplanation").mockReturnValue(new Promise<CoachExplanation | null>((r) => { responder = r; }));
+  renderCard();
+  expect(await screen.findByText("Treinador")).toBeTruthy();  // o cartão está lá
+  expect(screen.queryByRole("button", { name: "Explicar" })).toBeNull();
+  expect(api.coachExplain).not.toHaveBeenCalled();
+  responder(null);
+  const botao = (await screen.findByRole("button", { name: "Explicar" })) as HTMLButtonElement;
+  expect(botao.disabled).toBe(false);
+});
+
 test("Explicar chama a API com o exercício e mostra o texto com lance clicável, citação e selo", async () => {
   // a resposta só chega quando o teste manda: é o que deixa ver o aviso da espera
   let responder = (_: CoachExplanation) => {};
