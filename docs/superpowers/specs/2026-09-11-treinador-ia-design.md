@@ -112,6 +112,7 @@ Todas finas, em cima do que existe; recebem `db` e `app.state` por fechamento.
 | Ferramenta | Entrada | Saída | Implementação |
 | --- | --- | --- | --- |
 | `analisar_posicao` | `fen`, `multipv` (1–3) | linhas com `lance`, `avaliacao_cp` **ou** `mate_em` (assinado: positivo = as brancas dão mate), `avaliacao` formatada e `continuacao` em SAN — na mesma convenção de §4.4, nunca o código interno do mate | `InteractiveAnalyzer.analyse` (cache e engine já existentes) |
+| `fatos_taticos` | `fen` | fatos exatos da posição, sem engine: `lances_do_rei`, `xeques`, `mates_em_1`, `capturas_de_pecas_indefesas`, `pecas_atacadas_sem_defesa` (dos dois lados) e `ameacas_do_adversario` (o que ele faria se fosse a vez dele, pelo lance nulo); cada lista com no máximo 12 itens | python-chess puro |
 | `contexto_do_exercicio` | nenhuma (fixo por chamada) | puzzle, erro (`mistake`), lances da partida ±6 plies em SAN, `abertura` (os 6 primeiros plies, que a busca usa para "mesma abertura"), lance real do usuário, solução, avaliações antes/depois | `PuzzleOut` + `Position` + `Game.pgn` |
 | `estatisticas_por_tema` | `dias` (padrão 90) | linhas de `theme_stats` | `core/stats.theme_stats` |
 | `buscar_estudos` | `consulta`, `k` (padrão 5) | trechos `{chunk_id, estudo, capitulo, caminho_san, texto, url}` | §6 |
@@ -127,10 +128,13 @@ System prompt em português, fixo e versionado em `prompts.py`
 
 - papel: treinador de xadrez explicando para o aluno o erro dele naquele
   exercício; tom direto, sem elogio vazio; 120 a 250 palavras.
-- regras duras: só citar lances que vieram de `analisar_posicao` ou do
-  contexto; toda linha começa da posição inicial do exercício ou da posição do
-  erro, declarada; avaliações sempre da engine, em peões (`+1,5`) ou `M3`;
-  citar estudos só quando o trecho recuperado for pertinente, pelo `chunk_id`;
+- regras duras: toda afirmação tática (a ameaça, o mate, o xeque, a casa de
+  fuga do rei, a peça indefesa) vem de `fatos_taticos` naquela posição ou de
+  uma linha de `analisar_posicao`, nunca da dedução do modelo; só citar lances
+  que vieram de `analisar_posicao` ou do contexto; toda linha começa da posição
+  inicial do exercício ou da posição do erro, declarada; avaliações sempre da
+  engine, em peões (`+1,5`) ou `M3`; citar estudos só quando o trecho recuperado
+  for pertinente, pelo `chunk_id`;
   nunca inventar nome de abertura ou de padrão sem apoio.
 - estrutura sugerida: o que aconteceu, por que o lance perde, o padrão, onde
   isso aparece nos estudos (se houver), o que treinar.
@@ -183,9 +187,15 @@ Regras:
    mate ausente, número de lances diferente ou `mate_em` com o sinal do lado
    errado (positivo = as brancas dão mate; `0` serve para os dois lados) → `erro`
    `avaliacao_errada`. Se a engine dá mate e o texto diz avaliação numérica, `aviso`.
-4. **Lances soltos**: SAN encontrado no `texto` (mesma expressão regular do
-   `moveText` do frontend, portada) que não aparece em nenhuma linha → `aviso`
-   `lance_sem_linha`. Não se tenta validar lance solto.
+4. **Lances soltos, mates e xeques do texto**: SAN encontrado no `texto` (mesma
+   expressão regular do `moveText` do frontend, portada) que não aparece em nenhuma
+   linha → `aviso` `lance_sem_linha`; token que é só nome de casa (`h1`, `g3`) conta
+   como lance apenas quando é um lance de peão legal numa das posições do exercício.
+   Os lances do texto também são conferidos contra as posições alcançáveis (as duas do
+   exercício e cada posição depois de um prefixo legal de cada linha): lance escrito
+   com `#` que não é mate em nenhuma delas → `erro` `mate_falso`; lance escrito com
+   `+` que não dá xeque em nenhuma delas → `aviso` `xeque_falso`. Issues idênticas
+   (mesmo tipo e mesmo detalhe) entram uma vez só.
 5. **Citações**: cada `[c:ID]` do texto e cada item de `citacoes` deve ser um
    `chunk_id` entre os trechos recuperados *nesta* execução → senão `erro`
    `citacao_inexistente`. Texto que menciona "no estudo" sem citação → `aviso`.

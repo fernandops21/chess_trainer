@@ -9,6 +9,8 @@ FEN = "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4"
 FEN_ERRO = "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3"
 # mate do bobo: 1.f3 e5 2.g4, pretas a jogar — 2...Qh4# é mate das pretas
 FEN_MATE_DO_BOBO = "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2"
+# posição real de uma partida do aluno: as pretas jogam 32...Qh3 e ameaçam Qxf1# (Qxh2# é só xeque)
+FEN_AMEACA = "5R2/2p3pk/2pp3p/4p3/1P5q/2PPbPr1/7P/5Q1K b - - 3 32"
 TEXTO_OK = " ".join(["palavra"] * 80)
 
 
@@ -177,3 +179,45 @@ def test_engine_fora_do_ar_vira_erro_visivel():
                   fen_inicial=FEN, fen_erro=None, lances_permitidos=set(), trechos_ids=set(), analisar=quebrada)
     assert not v.ok and tipos(v) == {"engine_indisponivel"}
     assert v.to_dict()["ok"] is False and v.to_dict()["issues"][0]["tipo"] == "engine_indisponivel"
+
+
+def test_mate_escrito_no_texto_tem_de_ser_mate_em_alguma_posicao():
+    """O caso real: depois de 32...Qh3 a ameaça é Qxf1#, não Qxh2# (o rei recaptura)."""
+    falso = checar({"texto": TEXTO_OK + " A ameaça é Qxh2#.", "linhas": [{"inicio": "inicial", "lances": ["Qh3"]}]},
+                   fen_inicial=FEN_AMEACA, fen_erro=None)
+    assert not falso.ok and "mate_falso" in tipos(falso)
+    certo = checar({"texto": TEXTO_OK + " A ameaça é Qxf1#.",
+                    "linhas": [{"inicio": "inicial", "lances": ["Qh3", "c4", "Qxf1#"]}]},
+                   fen_inicial=FEN_AMEACA, fen_erro=None)
+    assert "mate_falso" not in tipos(certo)
+    # o mate do exercício do mate do pastor continua passando
+    pastor = checar({"texto": TEXTO_OK + " Qxf7# encerra.",
+                     "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]})
+    assert pastor.ok and "mate_falso" not in tipos(pastor)
+
+
+def test_xeque_escrito_no_texto_tem_de_dar_xeque_em_alguma_posicao():
+    base = {"linhas": [{"inicio": "inicial", "lances": ["Qh3"]}]}
+    # Rh8+ é xeque de verdade na posição depois de Qh3
+    real = checar({**base, "texto": TEXTO_OK + " As brancas tentam Rh8+ e não resolvem."},
+                  fen_inicial=FEN_AMEACA, fen_erro=None)
+    assert "xeque_falso" not in tipos(real)
+    falso = checar({**base, "texto": TEXTO_OK + " As brancas tentam Qg2+ e não resolvem."},
+                   fen_inicial=FEN_AMEACA, fen_erro=None)
+    assert falso.ok and "xeque_falso" in tipos(falso)
+
+
+def test_avisos_repetidos_do_mesmo_lance_colapsam_em_um():
+    v = checar({"texto": TEXTO_OK + " Nc6 defende, e de novo Nc6 defende.",
+                "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]})
+    assert len([i for i in v.issues if i.tipo == "lance_sem_linha"]) == 1
+
+
+def test_nome_de_casa_na_prosa_nao_e_lance_solto():
+    v = checar({"texto": TEXTO_OK + " O rei em h1 e a torre em g3 seguram a casa h2.",
+                "linhas": [{"inicio": "inicial", "lances": ["Qh3"]}]}, fen_inicial=FEN_AMEACA, fen_erro=None)
+    assert "lance_sem_linha" not in tipos(v)
+    # lance de peão legal continua sendo lance: e4 na posição inicial do xadrez
+    inicio = checar({"texto": TEXTO_OK + " Depois de e4 a partida abre.", "linhas": []},
+                    fen_inicial=chess.STARTING_FEN, fen_erro=None)
+    assert "lance_sem_linha" in tipos(inicio)

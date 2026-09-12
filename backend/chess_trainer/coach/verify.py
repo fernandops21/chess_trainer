@@ -23,6 +23,7 @@ Analisar = Callable[[str, int], dict]
 SAN_RE = re.compile(
     r"(?<![A-Za-z0-9-])(?:O-O-O|O-O|[KQRBN][a-h]?[1-8]?x?[a-h][1-8]|[a-h]x?[a-h]?[1-8](?:=[QRBN])?)[+#]?(?![A-Za-z0-9-])"
 )
+CASA_RE = re.compile(r"^[a-h][1-8]$")
 CITACAO_RE = re.compile(r"\[c:([^\]\s]+)\]")
 MENCAO_ESTUDO_RE = re.compile(r"\b(?:no|na|nos|nas|do|da|dos|das)\s+(?:estudo|cap[ií]tulo|livro)s?\b", re.IGNORECASE)
 TOLERANCIA_CP = 100
@@ -110,6 +111,79 @@ def _analisar_seguro(analisar: Analisar, fen: str, multipv: int, idx: int, v: Ve
         return None
 
 
+def _tabuleiro(fen: str | None) -> chess.Board | None:
+    try:
+        return chess.Board(fen) if fen else None
+    except ValueError:
+        return None
+
+
+def _posicoes_alcancaveis(fen_inicial: str, fen_erro: str | None, linhas: list) -> list[chess.Board]:
+    """Toda posição que a explicação alcança: as duas do exercício e cada posição depois de
+    um prefixo legal de cada linha. É nelas que os mates e os xeques escritos no texto têm
+    de ser verdade — antes o verificador conferia as linhas e deixava passar a prosa."""
+    boards: list[chess.Board] = []
+    vistas: set[str] = set()
+
+    def guardar(board: chess.Board) -> None:
+        if board.fen() not in vistas:
+            vistas.add(board.fen())
+            boards.append(board)
+
+    for fen in (fen_inicial, fen_erro):
+        board = _tabuleiro(fen)
+        if board is not None:
+            guardar(board)
+    for linha in linhas:
+        inicio = linha.get("inicio", "inicial")
+        board = _tabuleiro(fen_erro if inicio == "erro" and fen_erro else fen_inicial)
+        if board is None:
+            continue
+        for san in (str(l) for l in (linha.get("lances") or [])):
+            try:
+                board.push(board.parse_san(limpar_san(san)))
+            except ValueError:
+                break
+            guardar(board.copy())
+    return boards
+
+
+def _da_xeque(boards: list[chess.Board], san: str, *, mate: bool) -> bool:
+    """O lance é legal e dá xeque (ou mate, quando `mate`) em pelo menos uma das posições."""
+    for board in boards:
+        try:
+            mv = board.parse_san(san)
+        except ValueError:
+            continue
+        if not board.gives_check(mv):
+            continue
+        if not mate:
+            return True
+        board.push(mv)
+        eh_mate = board.is_checkmate()
+        board.pop()
+        if eh_mate:
+            return True
+    return False
+
+
+def _casa_na_prosa(token: str, fen_inicial: str, fen_erro: str | None) -> bool:
+    """`h1`, `g3`: nome de casa no meio da frase. Só conta como lance solto quando é um
+    lance de peão legal numa das posições do exercício."""
+    if not CASA_RE.match(token):
+        return False
+    for fen in (fen_inicial, fen_erro):
+        board = _tabuleiro(fen)
+        if board is None:
+            continue
+        try:
+            board.parse_san(token)
+        except ValueError:
+            continue
+        return False
+    return True
+
+
 def verificar(resposta: dict, *, fen_inicial: str, fen_erro: str | None, lances_permitidos: set[str],
               trechos_ids: set[str], analisar: Analisar) -> Verificacao:
     v = Verificacao()
@@ -187,10 +261,23 @@ def verificar(resposta: dict, *, fen_inicial: str, fen_erro: str | None, lances_
         elif abs(score - aval) > TOLERANCIA_CP:
             v.issues.append(Issue("avaliacao_errada", "erro", f"a explicação dá {aval / 100:+.2f}; a engine dá {score / 100:+.2f}", idx))
 
-    # 4. lances soltos no texto
+    # 4. lances soltos, mates e xeques no texto
+    alcancaveis = _posicoes_alcancaveis(fen_inicial, fen_erro, linhas)
+    # o mesmo lance repetido na prosa não rende dois avisos iguais: dedupe por (tipo, detalhe)
+    do_texto: dict[tuple[str, str], Issue] = {}
     for m in SAN_RE.finditer(texto):
-        if limpar_san(m.group(0)) not in lances_em_linhas:
-            v.issues.append(Issue("lance_sem_linha", "aviso", f"'{m.group(0)}' aparece no texto sem estar em nenhuma linha"))
+        token = m.group(0)
+        limpo = limpar_san(token)
+        if token.endswith("#") and not _da_xeque(alcancaveis, limpo, mate=True):
+            issue = Issue("mate_falso", "erro", f"'{token}' não é mate em nenhuma posição da explicação")
+            do_texto.setdefault((issue.tipo, issue.detalhe), issue)
+        elif token.endswith("+") and not _da_xeque(alcancaveis, limpo, mate=False):
+            issue = Issue("xeque_falso", "aviso", f"'{token}' não dá xeque em nenhuma posição da explicação")
+            do_texto.setdefault((issue.tipo, issue.detalhe), issue)
+        if limpo not in lances_em_linhas and not _casa_na_prosa(token, fen_inicial, fen_erro):
+            issue = Issue("lance_sem_linha", "aviso", f"'{token}' aparece no texto sem estar em nenhuma linha")
+            do_texto.setdefault((issue.tipo, issue.detalhe), issue)
+    v.issues.extend(do_texto.values())
 
     # 5. citações
     citadas = set(CITACAO_RE.findall(texto)) | {str(c) for c in (resposta.get("citacoes") or [])}

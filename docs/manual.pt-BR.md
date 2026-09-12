@@ -325,6 +325,13 @@ citação existe. O selo **verificado pela engine** quer dizer que nada foi apon
 lista avisos; **não verificado** lista erros que nem a correção automática resolveu. Nunca há lance
 escondido: o que não bateu aparece no cartão.
 
+Afirmação tática não sai da cabeça do modelo: ele consulta os **fatos da posição**, calculados lance
+por lance sem engine — as casas do rei, os xeques, os mates em um, as capturas de peças sem defesa e o
+que o adversário faria se fosse a vez dele. Do outro lado, o verificador confere também o que está
+escrito na prosa: mate anunciado no texto que não é mate em nenhuma posição da explicação vira erro,
+xeque que não dá xeque vira aviso, e nome de casa no meio da frase (o rei em h1, a torre em g3) deixou
+de ser confundido com lance.
+
 Os lances do texto são links (prévia no tabuleiro) e as citações abrem o capítulo no modo livro, no
 lance certo. O rodapé mostra o modelo, o custo em dólares e o tempo.
 
