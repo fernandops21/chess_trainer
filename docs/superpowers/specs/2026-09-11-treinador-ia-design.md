@@ -98,8 +98,10 @@ coach/
   no esquema de §4.4. Prompt caching: `cache_control` no system prompt e nas
   definições de ferramentas (estáveis); o contexto do exercício vai na mensagem
   do usuário, depois do último ponto de cache. Thinking adaptativo; `effort` da
-  configuração. `max_tokens` 4096 na resposta final. Trata `stop_reason`
-  `refusal` como erro legível. Erros do SDK mapeados por classe (§11).
+  configuração. `max_tokens` 16 000 na resposta final (texto, linhas e citações
+  mais o raciocínio adaptativo saem do mesmo orçamento). Trata `stop_reason`
+  `refusal` e `max_tokens` sem entrega como erro legível. Erros do SDK mapeados
+  por classe (§11).
 - `FakeLlm` (em `tests/fakes.py`): roteiro de chamadas de ferramenta e resposta
   final fixa; usado em todos os testes sem rede.
 
@@ -109,8 +111,8 @@ Todas finas, em cima do que existe; recebem `db` e `app.state` por fechamento.
 
 | Ferramenta | Entrada | Saída | Implementação |
 | --- | --- | --- | --- |
-| `analisar_posicao` | `fen`, `multipv` (1–3) | linhas com `san`, `score`, `pv_san` | `InteractiveAnalyzer.analyse` (cache e engine já existentes) |
-| `contexto_do_exercicio` | nenhuma (fixo por chamada) | puzzle, erro (`mistake`), lances da partida ±6 plies em SAN, lance real do usuário, solução, avaliações antes/depois | `PuzzleOut` + `Position` + `Game.pgn` |
+| `analisar_posicao` | `fen`, `multipv` (1–3) | linhas com `lance`, `avaliacao_cp` **ou** `mate_em` (assinado: positivo = as brancas dão mate), `avaliacao` formatada e `continuacao` em SAN — na mesma convenção de §4.4, nunca o código interno do mate | `InteractiveAnalyzer.analyse` (cache e engine já existentes) |
+| `contexto_do_exercicio` | nenhuma (fixo por chamada) | puzzle, erro (`mistake`), lances da partida ±6 plies em SAN, `abertura` (os 6 primeiros plies, que a busca usa para "mesma abertura"), lance real do usuário, solução, avaliações antes/depois | `PuzzleOut` + `Position` + `Game.pgn` |
 | `estatisticas_por_tema` | `dias` (padrão 90) | linhas de `theme_stats` | `core/stats.theme_stats` |
 | `buscar_estudos` | `consulta`, `k` (padrão 5) | trechos `{chunk_id, estudo, capitulo, caminho_san, texto, url}` | §6 |
 
@@ -258,8 +260,9 @@ explicar(puzzle_id, review_id | None):
 - Custo: `costs.py` tem a tabela de preços por modelo (entrada, saída, leitura
   e escrita de cache, em USD por milhão de tokens) copiada da página oficial,
   com data; o custo da explicação é a soma das chamadas (inclusive a correção).
-- Teto: se a soma de tokens de saída passar de 12 000 na explicação, aborta com
-  erro `custo_excedido` (não deveria acontecer; é rede de segurança).
+- Teto: se a soma de tokens de saída das chamadas passar de 12 000 na explicação,
+  aborta com erro `custo_excedido` (não deveria acontecer; é rede de segurança).
+  Conferido nas duas pontas: dentro de cada chamada e na soma da explicação.
 - Cada etapa é um span do LangFuse (§8.3).
 
 ### 7.1 Modelo de dados
@@ -397,6 +400,8 @@ interativa é compartilhada; segunda chamada simultânea recebe 409
 | `APIConnectionError` | 502 "sem conexão com a API" |
 | `BadRequestError` | 502 com o `message` da API; registrado no log com o corpo |
 | `stop_reason == "refusal"` | 502 "o modelo recusou responder" (não deve ocorrer; registrado) |
+| `stop_reason == "max_tokens"` sem a entrega | 502 "a resposta passou do limite de tokens e foi cortada" (`resposta_truncada`) |
+| engine (Stockfish) indisponível | 503 antes de chamar o modelo: o verificador não roda sem ela |
 | engine sem resposta na verificação | explicação entregue com `status = errors` e issue `engine_indisponivel`; cartão mostra "não verificado" |
 | resposta fora do esquema | uma nova tentativa; depois 502 |
 | índice vazio | pipeline segue sem trechos; cartão avisa "sem estudos indexados" |

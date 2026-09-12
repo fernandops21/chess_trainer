@@ -9,7 +9,8 @@ RUN npm run build
 # estágio 2: backend + Stockfish + frontend compilado
 FROM python:3.13-slim
 RUN apt-get update && apt-get install -y --no-install-recommends stockfish && rm -rf /var/lib/apt/lists/*
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+# versão fixa (a mesma do desenvolvimento): `latest` faria a imagem mudar sozinha entre builds
+COPY --from=ghcr.io/astral-sh/uv:0.10.0 /uv /uvx /bin/
 WORKDIR /app/backend
 COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project

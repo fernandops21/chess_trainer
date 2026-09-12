@@ -332,7 +332,9 @@ lance certo. O rodapé mostra o modelo, o custo em dólares e o tempo.
 
 Em **Configurações → Treinador (IA)**: cole a chave da API da Anthropic (crie no Console e defina lá
 um teto de gasto; cada explicação custa alguns centavos de dólar), escolha o modelo (Opus 5 ou
-Sonnet 5) e o esforço. A chave fica só no seu banco e nunca sai pela API do app.
+Sonnet 5) e o esforço. A chave fica só no seu banco e nunca sai pela API do app. O verificador
+precisa do Stockfish: sem a engine configurada, o **Explicar** recusa na hora em vez de gastar a
+chamada paga.
 
 **Busca nos estudos**: o primeiro **Recriar índice** baixa um modelo de embeddings (~250 MB) e indexa
 os comentários de todos os capítulos; depois disso, salvar um capítulo atualiza o índice sozinho.
