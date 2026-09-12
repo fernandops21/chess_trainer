@@ -5,6 +5,8 @@ import type {
   ChapterDetail,
   ChapterIn,
   ChapterSaveIn,
+  CoachExplanation,
+  CoachStatus,
   DashboardOut,
   GameDetail,
   GameOut,
@@ -215,6 +217,19 @@ export const api = {
     request<void>(`/studies/${id}/chapters/${cid}`, { method: "DELETE" }),
   duplicateChapter: (id: string, cid: string) =>
     request<ChapterDetail>(`/studies/${id}/chapters/${cid}/duplicate`, post("")),
+  coachStatus: () => request<CoachStatus>("/coach/status"),
+  coachExplain: (body: { puzzle_id: string; review_id?: string }) =>
+    request<CoachExplanation>("/coach/explain", post("", body)),
+  /** Explicação já guardada do exercício; 404 (ainda não pediram uma) vira `null`. */
+  coachExplanation: async (puzzleId: string): Promise<CoachExplanation | null> => {
+    try {
+      return await request<CoachExplanation>(`/coach/explanations/${puzzleId}`);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null;
+      throw e;
+    }
+  },
+  coachReindex: () => request<JobQueued>("/coach/reindex", post("")),
   themeStats: (days = 30) =>
     request<ThemeStat[]>(`/stats/themes${qs({ days })}`),
   progress: (days = 90) => request<ProgressOut>(`/stats/progress${qs({ days })}`),

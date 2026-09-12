@@ -74,6 +74,8 @@ beforeEach(() => {
   vi.spyOn(api, "analyse").mockResolvedValue(analyse);
   vi.spyOn(api, "openings").mockRejectedValue(new Error("sem livro"));
   vi.spyOn(api, "settings").mockRejectedValue(new Error("sem configurações"));
+  // sem treinador configurado o cartão dele não entra: estes testes são sobre o resultado
+  vi.spyOn(api, "coachStatus").mockResolvedValue({ configured: false, model: "", effort: "high", embeddings_ready: false, index_chunks: 0, index_model: "", index_stale: 0, vector_backend: "numpy", langfuse_configured: false });
 });
 afterEach(() => vi.restoreAllMocks());
 

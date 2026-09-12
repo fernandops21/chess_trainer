@@ -7,6 +7,7 @@ import { treeFromSolution, withMistakeVariation, withPlayedLine } from "../analy
 import { ErrorBox } from "../components/ErrorBox";
 import { categoryLabel, formatEval, themeLabel } from "../lib/format";
 import { buildLine } from "../board/line";
+import { CoachCard } from "./CoachCard";
 import { MistakeCard } from "./MistakeCard";
 import { QueueButtons } from "./QueueButtons";
 
@@ -74,6 +75,7 @@ export function ResultPanel({ puzzle, review, played, error, onRetry, onNext, ne
         </div>
       </div>
       {comErro && <MistakeCard puzzle={comErro} />}
+      <CoachCard puzzle={puzzle} reviewId={review?.id} />
     </>
   );
   return <AnalysisBoard tree={tree} initialNodeId={alternativa ?? "last"} engine={false} allowSetup={false} sidePanel={lateral} />;

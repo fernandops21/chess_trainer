@@ -16,6 +16,8 @@ textarea { padding: 8px 10px; }
 .msg { min-height: 24px; font-weight: 600; }
 .msg.ok { color: var(--ok); }
 .msg.bad { color: var(--bad); }
+/* o amarelo do `--warn` é para fundos; como texto quem lê bem nos dois temas é o `--warn-ink` */
+.msg.warn { color: var(--warn-ink); }
 .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--chip); font-size: 12px; margin-right: 6px; }
 button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line); margin-right: 0; }
 .tag.selected { background: var(--accent); color: var(--ink); border-color: var(--accent); font-weight: 600; }
@@ -150,6 +152,9 @@ button.lance-no-texto {
   color: inherit; font: inherit; text-decoration: underline dotted; cursor: pointer;
 }
 button.lance-no-texto:hover { color: var(--brand); }
+/* citação do treinador: leva ao lance do capítulo sem roubar a leitura da prosa */
+a.citacao { color: var(--muted); font-size: .9em; text-decoration: none; white-space: nowrap; }
+a.citacao:hover { color: var(--brand); text-decoration: underline; }
 /* faixa acima do tabuleiro enquanto uma prévia está na tela */
 .previa { margin-bottom: 8px; color: var(--muted); }
 

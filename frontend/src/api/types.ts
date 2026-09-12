@@ -565,3 +565,56 @@ export interface OpeningsOut {
   black: number;
   moves: OpeningMove[];
 }
+
+/** Estado do treinador com IA: sem a chave da API configurada, nada dele aparece. */
+export interface CoachStatus {
+  configured: boolean;
+  model: string;
+  effort: string;
+  embeddings_ready: boolean;
+  index_chunks: number;
+  index_model: string;
+  index_stale: number;
+  vector_backend: string;
+  langfuse_configured: boolean;
+}
+
+/** Trecho de estudo citado pela explicação, com o link do lance no capítulo. */
+export interface Citacao {
+  chunk_id: string;
+  study_id: string;
+  estudo: string;
+  chapter_id: string;
+  capitulo: string;
+  node_id: string | null;
+  caminho_san: string;
+  texto: string;
+  url: string;
+}
+
+/** Um problema que o verificador (engine) achou na explicação. */
+export interface IssueOut {
+  tipo: string;
+  gravidade: "erro" | "aviso";
+  detalhe: string;
+  linha_idx: number | null;
+}
+
+/** A explicação do erro escrita pelo treinador, já passada pelo verificador. */
+export interface CoachExplanation {
+  id: string;
+  puzzle_id: string;
+  created_at: string;
+  model: string;
+  prompt_version: string;
+  text: string;
+  lines: unknown[];
+  citations: Citacao[];
+  verification: { ok: boolean; issues: IssueOut[] };
+  status: "ok" | "warnings" | "errors";
+  repaired: boolean;
+  cost_usd: number;
+  tokens: { input: number; output: number; cache_read: number; cache_write: number };
+  duration_ms: number;
+  trace_url: string | null;
+}

@@ -33,6 +33,8 @@ export const keys = {
   tacticThemes: ["tactics", "themes"] as const,
   themeStats: (days: number) => ["stats", "themes", days] as const,
   progress: (days: number) => ["stats", "progress", days] as const,
+  coachStatus: ["coach", "status"] as const,
+  coachExplanation: (id: string) => ["coach", "explanation", id] as const,
 };
 
 export const useStatus = () =>
@@ -74,6 +76,21 @@ export const useProgress = (days = 90) =>
  * Livro de aberturas da posição. O explorador do Lichess é limitado por IP e a
  * resposta de uma FEN não muda: guardamos para sempre e não reintentamos.
  */
+/** Estado do treinador: quem manda no cartão aparecer ou não, e muda pouco. */
+export const useCoachStatus = () =>
+  useQuery({ queryKey: keys.coachStatus, queryFn: api.coachStatus, staleTime: 30_000 });
+/** Explicação já guardada do exercício (`null` quando ainda não pediram uma). */
+export const useCoachExplanation = (puzzleId: string, enabled: boolean) =>
+  useQuery({ queryKey: keys.coachExplanation(puzzleId), queryFn: () => api.coachExplanation(puzzleId), enabled });
+/** Pede a explicação ao treinador; a resposta já entra no cache do exercício. */
+export function useExplain() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { puzzle_id: string; review_id?: string }) => api.coachExplain(body),
+    onSuccess: (exp) => qc.setQueryData(keys.coachExplanation(exp.puzzle_id), exp),
+  });
+}
+
 export const useOpenings = (fen: string | null, db: OpeningsDb) =>
   useQuery({
     queryKey: ["openings", db, fen],
@@ -126,11 +143,12 @@ function useInvalidate(extra: readonly (readonly unknown[])[] = []) {
 export function useStartJob() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (p: { kind: "import" | "analyze" | "regenerate" | "import_lichess" | "import_study"; limit?: number; game_id?: string; avoidOnly?: boolean; study?: StudyImportIn }) =>
+    mutationFn: (p: { kind: "import" | "analyze" | "regenerate" | "import_lichess" | "import_study" | "coach_reindex"; limit?: number; game_id?: string; avoidOnly?: boolean; study?: StudyImportIn }) =>
       p.kind === "import" ? api.importGames()
         : p.kind === "analyze" ? api.analyze({ limit: p.limit, game_id: p.game_id })
         : p.kind === "import_lichess" ? api.importTactics()
         : p.kind === "import_study" ? api.importStudy(p.study ?? {})
+        : p.kind === "coach_reindex" ? api.coachReindex()
         : api.regenerate(p.avoidOnly ? "avoid" : undefined),
     onSettled: invalidate,
   });
