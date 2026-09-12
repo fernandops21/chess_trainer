@@ -298,6 +298,10 @@ tabuleiro de análise da tela `/analise`, já na última posição da solução.
 No "evitar", o lance que você jogou na partida aparece como variação da posição do exercício, com a
 continuação que o punia.
 
+Acima e abaixo do tabuleiro (no treino e na análise) ficam as barras de material capturado — as
+peças que cada lado tomou e o `+N` de quem está na frente —, e em tela larga o painel da engine
+sai de baixo dos cartões de resultado e fica ao lado deles.
+
 ### Refutação do lance errado
 
 Ao jogar um lance que não é a solução, o lance entra no tabuleiro, a engine responde com a melhor

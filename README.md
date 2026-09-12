@@ -375,6 +375,10 @@ After solving (or missing), the result panel is not a still image: it is the sam
 In the "avoid" exercises, the move you played in the game appears as a variation of the exercise position,
 with the continuation that punished it.
 
+Above and below the board (in training and in the analysis) sit the captured-material bars — the pieces
+each side has taken and the `+N` of whoever is ahead — and on a wide screen the engine panel moves out
+from under the result cards to sit beside them.
+
 #### Refutation of the wrong move
 
 When you play a move that is not the solution, the move goes onto the board, the engine answers with the

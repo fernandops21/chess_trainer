@@ -115,6 +115,16 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 .board > div { width: 100%; height: 100%; }
 .miniboard { width: 120px; aspect-ratio: 1; flex: none; }
 .miniboard .board { width: 120px; }
+/* material capturado, acima e abaixo do tabuleiro. Os desenhos das peças são os
+   do chessground (`.cg-wrap piece.<tipo>.<cor>`), daí a classe `cg-wrap` junto:
+   as regras abaixo vencem as dele por levarem as duas classes. O `min-height`
+   guarda o lugar da barra vazia, senão o tabuleiro salta na primeira captura. */
+.cg-wrap.material-bar { display: flex; align-items: center; gap: 2px; min-height: 22px; padding: 0 2px; color: var(--muted); font-size: 12px; }
+.cg-wrap.material-bar .material-grupo { display: flex; align-items: center; }
+.cg-wrap.material-bar piece { position: static; display: inline-block; width: 18px; height: 18px; background-size: cover; }
+/* peças do mesmo tipo se sobrepõem um pouco, como nos sites de xadrez */
+.cg-wrap.material-bar .material-grupo piece + piece { margin-left: -7px; }
+.cg-wrap.material-bar .material-saldo { margin-left: 2px; font-weight: 700; }
 
 .line { display: flex; flex-wrap: wrap; gap: 4px; font-family: ui-monospace, Menlo, Consolas, monospace; }
 .line .san { min-height: 32px; padding: 2px 6px; border: none; background: transparent; }

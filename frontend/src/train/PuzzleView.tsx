@@ -4,6 +4,7 @@ import { TextoComLances } from "../analysis/TextoComLances";
 import type { LanceDaLinha } from "../analysis/moveText";
 import type { PuzzleOut, TacticOut, Trainable } from "../api/types";
 import { Board } from "../board/Board";
+import { MaterialBar } from "../board/MaterialBar";
 import { novoChess } from "../lib/chess";
 import { colorName, kindLabel, themeLabel } from "../lib/format";
 import { MistakeCard } from "./MistakeCard";
@@ -101,6 +102,8 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDis
     if (previaAberta) setPrevia(null);
   }
   const previa = mudouAPosicao ? null : previaAberta;
+  // a posição que está à vista: a prévia, quando aberta, senão a do exercício
+  const fenNaTela = previa ? previa.fen : state.fen;
   const viva = history.length - 1;
   const atual = previa?.idx ?? viva;
   const irPara = useCallback((i: number) => {
@@ -167,8 +170,10 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDis
             </button>
           </div>
         )}
+        {/* material capturado de cada lado, quem está em cima primeiro */}
+        <MaterialBar fen={fenNaTela} lado={puzzle.side_to_move === "white" ? "black" : "white"} />
         <Board
-          fen={previa ? previa.fen : state.fen} orientation={puzzle.side_to_move}
+          fen={fenNaTela} orientation={puzzle.side_to_move}
           turnColor={previa ? (previa.fen.split(" ")[1] === "b" ? "black" : "white") : state.turn}
           movableColor={!previa && playable ? puzzle.side_to_move : undefined} dests={previa ? undefined : dests}
           lastMove={previa ? previa.lastMove : state.lastMove} check={emCheque}
@@ -176,6 +181,7 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDis
           arrows={arrows} squares={squares} drawable
           onMove={(o: Key, d: Key) => ctl.tryMove(o, d)}
         />
+        <MaterialBar fen={fenNaTela} lado={puzzle.side_to_move} />
         <div className="row" style={{ marginTop: 8 }}>
           <button onClick={() => irPara(0)} disabled={atual === 0} aria-label="Início">⏮</button>
           <button onClick={() => irPara(atual - 1)} disabled={atual === 0} aria-label="Lance anterior">◀</button>

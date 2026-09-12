@@ -661,3 +661,15 @@ test("sem painel ao lado o motor continua na coluna da direita", () => {
   const engine = container.querySelector(".painel-direito > .painel-engine")!;
   expect(engine.textContent).toContain("Analisar com a engine");
 });
+
+// --- material capturado -------------------------------------------------
+
+test("o material capturado aparece acima e abaixo do tabuleiro", () => {
+  // pretas sem dois peões (b7 e c7); com as brancas embaixo, a barra de baixo é a delas
+  const fen = "rnbqkbnr/p2ppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+  const { container } = renderBoard({ tree: emptyTree(fen) });
+  const barras = container.querySelectorAll(".material-bar");
+  expect(barras.length).toBe(2);
+  expect(barras[0].querySelectorAll("piece").length).toBe(0);
+  expect(barras[1].getAttribute("aria-label")).toBe("brancas capturaram: 2 peões; +2");
+});

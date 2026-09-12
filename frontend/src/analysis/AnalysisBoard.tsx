@@ -5,6 +5,7 @@ import type { Key } from "chessground/types";
 import { useAnalyse, useSettings } from "../api/queries";
 import type { Shape } from "../api/types";
 import { Board } from "../board/Board";
+import { MaterialBar } from "../board/MaterialBar";
 import { ErrorBox } from "../components/ErrorBox";
 import { EvalBar } from "./EvalBar";
 import { PreviaContext } from "./previaContext";
@@ -311,6 +312,8 @@ export function AnalysisBoard({
             )}
           </div>
         )}
+        {/* material capturado de cada lado, quem está em cima primeiro */}
+        <MaterialBar fen={fenNaTela} lado={orient === "white" ? "black" : "white"} />
         <div className="board-row">
         {motor && <EvalBar score={barra.score} turn={barra.turn} orientation={orient} terminal={barra.terminal} />}
         <Board
@@ -330,6 +333,7 @@ export function AnalysisBoard({
           onMove={onMove}
         />
         </div>
+        <MaterialBar fen={fenNaTela} lado={orient} />
         <div className="row" style={{ marginTop: 8 }}>
           <button onClick={semPrevia(goStart)} disabled={mt.currentId === null && !previa} aria-label="posição inicial">⏮</button>
           <button onClick={semPrevia(prev)} disabled={mt.currentId === null && !previa} aria-label="lance anterior">◀</button>

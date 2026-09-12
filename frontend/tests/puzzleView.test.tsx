@@ -510,3 +510,14 @@ test("durante a refutação ◀ mostra a posição de antes do lance errado", as
   expect(screen.getByText(/posição 1 de 3/)).toBeTruthy();
   expect(screen.getByRole("button", { name: "voltar ao lance atual" })).toBeTruthy();
 });
+
+test("as barras de material capturado ficam em volta do tabuleiro", () => {
+  const { container } = render(<Host puzzle={own} />);
+  const barras = container.querySelectorAll(".material-bar");
+  expect(barras.length).toBe(2);
+  // brancas embaixo: a barra de cima é das pretas, cinco pontos à frente aqui
+  expect(barras[0].getAttribute("aria-label")).toContain("pretas capturaram:");
+  expect(barras[0].getAttribute("aria-label")).toContain("+5");
+  expect(barras[1].getAttribute("aria-label")).toContain("brancas capturaram:");
+  expect(barras[1].getAttribute("aria-label")).not.toContain("+");
+});
