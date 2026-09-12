@@ -26,6 +26,12 @@ menu, pelo link "Explorar" no resultado do treino (abre em nova aba, para não p
 andamento), pelo botão "Explorar daqui" na partida e pelo botão "Explorar" na revisão de erros. É
 também por ali que se começa um capítulo de estudo (ver "Criar estudos aqui").
 
+### Rodar com Docker
+
+`docker compose up -d` sobe o app em http://localhost:8000 (com o Stockfish dentro da imagem e o
+banco em `backend/data`) e o LangFuse em http://localhost:3000. Copie `.env.example` para `.env` e
+troque os segredos antes. Para desenvolvimento, `uv run` e `npm run dev` continuam valendo.
+
 ## Táticas do Lichess
 
 Além dos puzzles dos seus erros, dá para treinar com o banco público de táticas do Lichess
@@ -305,6 +311,43 @@ no "Certo! — …" dos estudos.
 
 Ligue ou desligue em **Configurações → Refutar o lance errado com a engine** (ligado por padrão).
 Desligada — ou sem Stockfish disponível — a tentativa é só recusada, como antes.
+
+## Treinador (IA)
+
+Na tela de resultado de um exercício, o botão **Explicar** pede a um treinador com IA que escreva,
+em português, o que aconteceu na partida, por que o lance perde, qual é o padrão, onde ele aparece
+nos seus estudos e o que treinar. O treinador é um agente: consulta o Stockfish, o contexto da
+partida, as suas estatísticas por tema e busca nos comentários dos capítulos dos seus estudos.
+
+Antes de mostrar o texto, um **verificador** reproduz cada linha citada no tabuleiro, confere se o
+primeiro lance está entre os três melhores da engine, compara as avaliações e confirma que cada
+citação existe. O selo **verificado pela engine** quer dizer que nada foi apontado; **com ressalvas**
+lista avisos; **não verificado** lista erros que nem a correção automática resolveu. Nunca há lance
+escondido: o que não bateu aparece no cartão.
+
+Os lances do texto são links (prévia no tabuleiro) e as citações abrem o capítulo no modo livro, no
+lance certo. O rodapé mostra o modelo, o custo em dólares e o tempo.
+
+### Configurar
+
+Em **Configurações → Treinador (IA)**: cole a chave da API da Anthropic (crie no Console e defina lá
+um teto de gasto; cada explicação custa alguns centavos de dólar), escolha o modelo (Opus 5 ou
+Sonnet 5) e o esforço. A chave fica só no seu banco e nunca sai pela API do app.
+
+**Busca nos estudos**: o primeiro **Recriar índice** baixa um modelo de embeddings (~250 MB) e indexa
+os comentários de todos os capítulos; depois disso, salvar um capítulo atualiza o índice sozinho.
+O índice fica no mesmo SQLite (extensão `sqlite-vec`; sem ela, o app usa numpy).
+
+**LangFuse** (opcional): com o Docker Compose do projeto ele roda em http://localhost:3000; crie um
+projeto, cole host e chaves, e cada explicação vira um trace com as etapas, os tokens e o custo.
+
+### Avaliação
+
+A pasta `backend/evals/coach` mede o treinador contra um conjunto de exercícios com gabarito da
+engine, em três variantes (só prompt, agente, agente com busca) e dois modelos. Gere o conjunto com
+`uv run python -m evals.coach.dataset`, rode com `uv run python -m evals.coach.run --variante agente_rag
+--modelo opus` (chave em `ANTHROPIC_API_KEY`) e monte o relatório com `uv run python -m evals.coach.report`.
+O relatório fica em `docs/coach-eval.md`.
 
 ## Fontes de exercício
 

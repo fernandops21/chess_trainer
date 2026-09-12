@@ -28,6 +28,10 @@ read and build annotated studies, and trains tactics with a local rating.
   inaccuracy, blunder…), masters opening book, position setup, save as study chapter.
 - **Progress.** Rating over time, reviews per day, accuracy by theme and by source, streaks. Light and
   dark themes, sounds, keyboard navigation, mobile layout.
+- **AI coach.** After an exercise, "Explain" asks an LLM agent (engine, game context, your stats and a
+  search over your own studies) to explain the mistake in Portuguese. Every line it cites is replayed on
+  the board and checked against Stockfish before you see it; what does not check out is shown, never
+  hidden. Measured offline against a baseline (see `docs/coach-eval.md` once a run exists).
 
 ## Screenshots
 
@@ -43,6 +47,10 @@ read and build annotated studies, and trains tactics with a local rating.
 Open http://127.0.0.1:8000. You need a Stockfish binary (see `backend/README.md`) and a chess.com
 username in the settings page; a Lichess API token is optional (opening book). The interface is in
 Portuguese.
+
+Alternatively, `docker compose up -d` brings up the app at http://localhost:8000 (Stockfish bundled in
+the image, database under `backend/data`) and LangFuse at http://localhost:3000. Copy `.env.example` to
+`.env` and change the secrets first.
 
 ## Stack
 
@@ -382,6 +390,20 @@ author's comment in the "Certo! — …" (Correct! — …) of the studies.
 Turn it on or off in **"Configurações" → "Refutar o lance errado com a engine"** (Settings → Refute the
 wrong move with the engine) (on by default). Turned off — or with no Stockfish available — the attempt is
 simply refused, as before.
+
+### AI coach
+
+On an exercise's result screen, the **"Explicar"** (Explain) button asks an AI coach to write, in
+Portuguese, what happened in the game, why the move loses, what the pattern is, where it shows up in
+your studies and what to train. The coach is an agent: it consults Stockfish, the game context, your
+stats by theme and a search over the comments in your studies' chapters.
+
+Before showing the text, a **verifier** replays every cited line on the board, checks whether the first
+move is among the engine's top three, compares the evaluations and confirms that every citation exists.
+The **"verificado pela engine"** (verified by the engine) badge means nothing was flagged; **"com
+ressalvas"** (with caveats) lists warnings; **"não verificado"** (not verified) lists errors that even
+the automatic correction could not fix. No move is ever hidden: whatever did not check out shows up on
+the card.
 
 ### Exercise sources
 
