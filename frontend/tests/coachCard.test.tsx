@@ -77,7 +77,7 @@ test("Explicar chama a API com o exercício e mostra o texto com lance clicável
   vi.spyOn(api, "coachExplain").mockReturnValue(new Promise<CoachExplanation>((r) => { responder = r; }));
   const previa = renderCard();
   fireEvent.click(await screen.findByRole("button", { name: "Explicar" }));
-  expect(await screen.findByText(/leva de 10 a 40 s/)).toBeTruthy();
+  expect(await screen.findByText(/costuma levar cerca de um minuto/)).toBeTruthy();
   await waitFor(() => expect(api.coachExplain).toHaveBeenCalledWith({ puzzle_id: "p1", review_id: "r1" }));
   responder(explicacao());
   expect(await screen.findByText(/A dama e o bispo miram f7/)).toBeTruthy();

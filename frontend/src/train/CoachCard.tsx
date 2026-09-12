@@ -129,7 +129,7 @@ export function CoachCard({ puzzle, reviewId }: { puzzle: PuzzleOut; reviewId?: 
           <button className="primary" onClick={pedir}>Explicar</button>
         )}
       </div>
-      {explicar.isPending && <p className="muted">Pensando… leva de 10 a 40 s.</p>}
+      {explicar.isPending && <p className="muted">Pensando… costuma levar cerca de um minuto.</p>}
       {!!explicar.error && <ErrorBox error={explicar.error} />}
       {pronto && (
         <>
