@@ -219,6 +219,9 @@ def _analisar_posicao(analisar: Analisar) -> Callable[[dict], str]:
         apos_passar = bool(entrada.get("apos_passar", False))
         if apos_passar:
             # passar a vez é o lance nulo: as melhores linhas do adversário são as ameaças dele
+            if not board.is_valid():
+                # xeque do lado errado, rei faltando: o lance nulo só esconderia o problema
+                raise ValueError(f"posição impossível: {board.fen()}")
             if board.is_check():
                 raise ValueError("em xeque: não dá para passar a vez")
             board.push(chess.Move.null())

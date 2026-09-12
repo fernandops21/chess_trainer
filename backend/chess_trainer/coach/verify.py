@@ -26,6 +26,9 @@ SAN_RE = re.compile(
 CASA_RE = re.compile(r"^[a-h][1-8]$")
 CITACAO_RE = re.compile(r"\[c:([^\]\s]+)\]")
 MENCAO_ESTUDO_RE = re.compile(r"\b(?:no|na|nos|nas|do|da|dos|das)\s+(?:estudo|cap[ií]tulo|livro)s?\b", re.IGNORECASE)
+# os dois `inicio` que partem do lance nulo: a ameaça do adversário na posição do
+# exercício e na posição do erro
+INICIOS_DE_AMEACA = ("ameaca", "ameaca_erro")
 TOLERANCIA_CP = 100
 MIN_PALAVRAS, MAX_PALAVRAS = 60, 400
 
@@ -118,23 +121,29 @@ def _tabuleiro(fen: str | None) -> chess.Board | None:
         return None
 
 
-def _base_da_linha(inicio: str, fen_inicial: str, fen_erro: str | None) -> chess.Board | None:
-    """A posição de onde a linha parte: a do exercício, a do erro, ou — numa linha de
+def _base_da_linha(inicio: str, fen_inicial: str, fen_erro: str | None) -> tuple[chess.Board | None, str]:
+    """A posição de onde a linha parte: a do exercício, a do erro, ou — nas linhas de
     ameaça — a do lance nulo, em que o adversário move como se o aluno passasse a vez.
-    None quando a FEN não presta ou quando não dá para passar a vez (em xeque)."""
-    board = _tabuleiro(fen_erro if inicio == "erro" and fen_erro else fen_inicial)
-    if board is None or inicio != "ameaca":
-        return board
+    Devolve (tabuleiro, motivo): o tabuleiro é None quando não dá para partir dali, e o
+    motivo é o detalhe que a linha recebe como `lance_ilegal`."""
+    if inicio == "ameaca_erro" and not fen_erro:
+        return None, "linha de ameaça: este exercício não tem posição do erro"
+    fen = fen_erro if inicio in ("erro", "ameaca_erro") and fen_erro else fen_inicial
+    board = _tabuleiro(fen)
+    if board is None:
+        return None, f"a FEN da posição declarada não presta: '{fen}'"
+    if inicio not in INICIOS_DE_AMEACA:
+        return board, ""
     if board.is_check():
-        return None
+        return None, "linha de ameaça: o lado a mover está em xeque, não dá para passar a vez"
     board.push(chess.Move.null())
-    return board
+    return board, ""
 
 
 def _posicoes_alcancaveis(fen_inicial: str, fen_erro: str | None, linhas: list) -> list[chess.Board]:
-    """Toda posição que a explicação alcança: as duas do exercício, a do lance nulo (de onde
-    saem as ameaças do adversário) e cada posição depois de um prefixo legal de cada linha.
-    É nelas que os mates e os xeques escritos no texto têm de ser verdade — antes o
+    """Toda posição que a explicação alcança: as duas do exercício, as dos lances nulos (de
+    onde saem as ameaças do adversário nas duas) e cada posição depois de um prefixo legal de
+    cada linha. É nelas que os mates e os xeques escritos no texto têm de ser verdade — antes o
     verificador conferia as linhas e deixava passar a prosa."""
     boards: list[chess.Board] = []
     vistas: set[str] = set()
@@ -148,12 +157,13 @@ def _posicoes_alcancaveis(fen_inicial: str, fen_erro: str | None, linhas: list) 
         board = _tabuleiro(fen)
         if board is not None:
             guardar(board)
-    passa = _base_da_linha("ameaca", fen_inicial, fen_erro)
-    if passa is not None:
-        guardar(passa)
+    for inicio in INICIOS_DE_AMEACA:
+        passa, _ = _base_da_linha(inicio, fen_inicial, fen_erro)
+        if passa is not None:
+            guardar(passa)
     for linha in linhas:
         inicio = linha.get("inicio", "inicial")
-        board = _base_da_linha(inicio, fen_inicial, fen_erro)
+        board, _ = _base_da_linha(inicio, fen_inicial, fen_erro)
         if board is None:
             continue
         for san in (str(l) for l in (linha.get("lances") or [])):
@@ -212,14 +222,11 @@ def verificar(resposta: dict, *, fen_inicial: str, fen_erro: str | None, lances_
         inicio = linha.get("inicio", "inicial")
         lances = [str(l) for l in (linha.get("lances") or [])]
         lances_em_linhas.update(limpar_san(l) for l in lances)
-        board = chess.Board(fen_erro if inicio == "erro" and fen_erro else fen_inicial)
-        if inicio == "ameaca":
-            # linha de ameaça: parte do lance nulo, e em xeque não existe "se você passasse a vez"
-            if board.is_check():
-                v.issues.append(Issue("lance_ilegal", "erro",
-                                      "linha de ameaça: o lado a mover está em xeque, não dá para passar a vez", idx))
-                continue
-            board.push(chess.Move.null())
+        # a linha de ameaça parte do lance nulo: sem posição do erro ou em xeque, não dá
+        board, motivo = _base_da_linha(inicio, fen_inicial, fen_erro)
+        if board is None:
+            v.issues.append(Issue("lance_ilegal", "erro", motivo, idx))
+            continue
         fen = board.fen()
 
         # 1. legalidade: reproduz a linha inteira
@@ -245,7 +252,7 @@ def verificar(resposta: dict, *, fen_inicial: str, fen_erro: str | None, lances_
             continue
         principais = [str(l.get("san", "")) for l in analise.get("lines") or []]
         # numa linha de ameaça o primeiro lance é do adversário: os lances do exercício não valem
-        permitido = inicio != "ameaca" and jogados[0].uci() in lances_permitidos
+        permitido = inicio not in INICIOS_DE_AMEACA and jogados[0].uci() in lances_permitidos
         if not any(limpar_san(lances[0]) == limpar_san(s) for s in principais) and not permitido:
             v.issues.append(Issue("lance_fora_das_principais", "aviso",
                                   f"'{lances[0]}' não está entre as três melhores da engine nem é um lance do exercício", idx))

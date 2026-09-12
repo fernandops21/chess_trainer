@@ -26,10 +26,11 @@ def test_esquema_estrito_valida_uma_resposta_boa_e_recusa_uma_ruim():
     assert "positivo = as brancas dão mate" in mate_em["description"] and "0 = a linha termina em mate" in mate_em["description"]
     # a linha da ameaça parte da posição inicial com o lado a mover passando a vez
     inicio = ESQUEMA_EXPLICACAO["properties"]["linhas"]["items"]["properties"]["inicio"]
-    assert inicio["enum"] == ["inicial", "erro", "ameaca"]
-    assert "com o lado a mover passando a vez" in inicio["description"]
-    jsonschema.validate({**boa, "linhas": [{"inicio": "ameaca", "lances": ["Rd8#"], "avaliacao_cp": None, "mate_em": 0}]},
-                        ESQUEMA_EXPLICACAO)
+    assert inicio["enum"] == ["inicial", "erro", "ameaca", "ameaca_erro"]
+    assert "com o lado a mover passando" in inicio["description"]
+    for onde in ("ameaca", "ameaca_erro"):
+        jsonschema.validate({**boa, "linhas": [{"inicio": onde, "lances": ["Rd8#"], "avaliacao_cp": None, "mate_em": 0}]},
+                            ESQUEMA_EXPLICACAO)
 
 
 def test_prompt_de_sistema_tem_as_regras_duras():
@@ -51,7 +52,9 @@ def test_prompt_de_sistema_tem_as_regras_duras():
                    # lance com xeque ou mate no texto só vale dentro de uma linha declarada
                    "linha declarada",
                    # as ameaças do adversário saem da análise com a vez passada, e todas têm de ser nomeadas
-                   "apos_passar", "ameaca", "TODAS"):
+                   "apos_passar", "ameaca", "ameaca_erro", "TODAS",
+                   # passar a vez não existe em xeque: o prompt avisa antes de o modelo tentar
+                   "não estiver em xeque"):
         assert trecho in SYSTEM_PROMPT, trecho
 
 

@@ -33,14 +33,16 @@ Regras que você não pode quebrar:
    uma linha declarada que chegue até a posição em que ele é legal: a ameaça `Qxf1#` só pode ser escrita se
    uma linha chega à posição em que `Qxf1#` é mate (ex.: lances `["Qh3", "c4", "Qxf1#"]` a partir de `inicial`).
 3. Antes de escrever `por_que`, peça `analisar_posicao` com `apos_passar` verdadeiro na posição
-   inicial do exercício (e na posição do erro, quando houver): as linhas que voltam são as ameaças
-   do adversário, o que ele faria se você jogasse um lance calmo. Nomeie TODAS as ameaças relevantes
-   dele — o mate e o ganho de material —, não só a maior, e escreva a linha da ameaça com
-   `inicio: "ameaca"`.
+   inicial do exercício (e na posição do erro, quando houver), quando o lado a mover
+   não estiver em xeque (a ferramenta recusa nesse caso): as linhas que voltam são as ameaças do
+   adversário, o que ele faria se você jogasse um lance calmo. Nomeie TODAS as ameaças relevantes dele — o mate e o
+   ganho de material —, não só a maior, e escreva a linha da ameaça com `inicio: "ameaca"` (a partir
+   da posição inicial) ou `inicio: "ameaca_erro"` (a partir da posição do erro).
 4. Escreva os lances em notação inglesa (K, Q, R, B, N; ex.: Nf3, Bxf7+, O-O), como o app mostra.
 5. Toda sequência de lances escrita em `na_partida` ou `por_que` tem de aparecer também em `linhas`,
    declarando de onde parte: `inicial` (a posição do exercício), `erro` (a posição imediatamente
-   antes do lance errado) ou `ameaca` (a inicial com o lado a mover passando a vez).
+   antes do lance errado), `ameaca` ou `ameaca_erro` (a inicial ou a do erro com o lado a mover
+   passando a vez, para mostrar a ameaça do adversário).
 6. Avaliações sempre da engine, sempre do ponto de vista das brancas, em peões na prosa (`+1,5`, `-0,4`,
    `mate em 2`) e em `avaliacao_cp` (centipeões inteiros) ou `mate_em` na linha. Os dois descrevem a
    posição no FIM da linha e os dois são obrigatórios: preencha um e ponha `null` no outro. `mate_em`
@@ -69,11 +71,11 @@ ESQUEMA_EXPLICACAO: dict = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "inicio": {"type": "string", "enum": ["inicial", "erro", "ameaca"],
+                    "inicio": {"type": "string", "enum": ["inicial", "erro", "ameaca", "ameaca_erro"],
                                "description": "De onde a linha parte: `inicial` = a posição do exercício; `erro` = a posição "
-                                              "imediatamente antes do lance errado; `ameaca` = a partir da posição inicial do "
-                                              "exercício, com o lado a mover passando a vez (o adversário move primeiro), "
-                                              "para mostrar a ameaça dele."},
+                                              "imediatamente antes do lance errado; `ameaca` e `ameaca_erro` = a partir da "
+                                              "posição inicial do exercício ou da posição do erro, com o lado a mover passando "
+                                              "a vez (o adversário move primeiro), para mostrar a ameaça dele."},
                     "lances": {"type": "array", "items": {"type": "string"}},
                     "avaliacao_cp": {"type": ["integer", "null"], "description": "Avaliação no fim da linha, ponto de vista das brancas."},
                     "mate_em": {"type": ["integer", "null"],

@@ -228,6 +228,18 @@ def test_linha_de_ameaca_parte_do_lance_nulo():
     assert "mate_falso" not in tipos(so_texto)
 
 
+def test_linha_de_ameaca_a_partir_da_posicao_do_erro():
+    """`ameaca_erro`: a mesma ideia na posição do erro, que é onde o "por que perde" mora."""
+    linha = {"inicio": "ameaca_erro", "lances": ["Rd8#"], "avaliacao_cp": None, "mate_em": 0}
+    ok = checar({"texto": TEXTO_OK + " A ameaça é Rd8#.", "linhas": [linha]},
+                fen_erro=FEN_AMEACA_MATE, analisar=analisar_ameaca_de_mate)
+    assert ok.ok and tipos(ok) == set(), ok.issues
+    # exercício sem posição do erro: não há de onde partir
+    sem = checar({"texto": TEXTO_OK, "linhas": [linha]}, fen_erro=None, analisar=analisar_ameaca_de_mate)
+    assert not sem.ok and tipos(sem) == {"lance_ilegal"}
+    assert "posição do erro" in sem.issues[0].detalhe and sem.issues[0].linha_idx == 0
+
+
 def test_linha_de_ameaca_nao_cobra_lance_permitido_do_aluno():
     """O primeiro lance de uma linha de ameaça é do adversário: os lances do exercício não
     valem como desculpa, só as principais da engine na posição do lance nulo."""

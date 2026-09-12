@@ -111,7 +111,7 @@ Todas finas, em cima do que existe; recebem `db` e `app.state` por fechamento.
 
 | Ferramenta | Entrada | Saída | Implementação |
 | --- | --- | --- | --- |
-| `analisar_posicao` | `fen`, `multipv` (1–3), `apos_passar` (padrão falso) | linhas com `lance`, `avaliacao_cp` **ou** `mate_em` (assinado: positivo = as brancas dão mate), `avaliacao` formatada e `continuacao` em SAN — na mesma convenção de §4.4, nunca o código interno do mate. Com `apos_passar`, analisa a posição do lance nulo (o lado a mover passa a vez): as linhas são as **ameaças** do adversário e a saída traz `apos_passar` e `quem_ameaca`; em xeque, erro de ferramenta | `InteractiveAnalyzer.analyse` (cache e engine já existentes) |
+| `analisar_posicao` | `fen`, `multipv` (1–3), `apos_passar` (padrão falso) | linhas com `lance`, `avaliacao_cp` **ou** `mate_em` (assinado: positivo = as brancas dão mate), `avaliacao` formatada e `continuacao` em SAN — na mesma convenção de §4.4, nunca o código interno do mate. Com `apos_passar`, analisa a posição do lance nulo (o lado a mover passa a vez): as linhas são as **ameaças** do adversário e a saída traz `apos_passar` e `quem_ameaca`; em xeque ou em posição impossível, erro de ferramenta | `InteractiveAnalyzer.analyse` (cache e engine já existentes) |
 | `fatos_taticos` | `fen` | fatos exatos da posição, sem engine: `lances_do_rei`, `xeques`, `mates_em_1`, `capturas_de_pecas_indefesas`, `pecas_atacadas_sem_defesa` (dos dois lados) e `ameacas_do_adversario` (o que ele faria se fosse a vez dele, pelo lance nulo); atacante e defensor conferidos por lance legal (peça cravada não ataca nem defende) e FEN impossível recusada; cada lista com no máximo 12 itens | python-chess puro |
 | `contexto_do_exercicio` | nenhuma (fixo por chamada) | puzzle, erro (`mistake`), lances da partida ±6 plies em SAN, `abertura` (os 6 primeiros plies, que a busca usa para "mesma abertura"), lance real do usuário, solução, avaliações antes/depois | `PuzzleOut` + `Position` + `Game.pgn` |
 | `estatisticas_por_tema` | `dias` (padrão 90) | linhas de `theme_stats` | `core/stats.theme_stats` |
@@ -137,7 +137,8 @@ System prompt em português, fixo e versionado em `prompts.py`
   `apos_passar` na posição inicial (e na do erro) e nomear *todas* as ameaças
   relevantes do adversário, não só a maior; só citar lances que vieram de
   `analisar_posicao` ou do contexto; toda linha começa da posição inicial do
-  exercício, da posição do erro ou da posição do lance nulo (`ameaca`), declarada;
+  exercício, da posição do erro ou de um dos lances nulos (`ameaca`, `ameaca_erro`),
+  declarada;
   avaliações sempre da engine, em peões (`+1,5`) ou `M3`; citar estudos só quando
   o trecho recuperado for pertinente, pelo `chunk_id`; nunca inventar nome de
   abertura ou de padrão sem apoio.
@@ -151,7 +152,7 @@ System prompt em português, fixo e versionado em `prompts.py`
   "na_partida": "…1 ou 2 frases: o lance errado e o que o aluno jogou…",
   "por_que": "…2 a 4 frases com a ideia e a linha, em SAN, com marcadores [c:ID]…",
   "linhas": [
-    {"inicio": "inicial" | "erro" | "ameaca", "lances": ["Cf3", "Cc6", "…"], "avaliacao_cp": 150 | null,
+    {"inicio": "inicial" | "erro" | "ameaca" | "ameaca_erro", "lances": ["Cf3", "Cc6", "…"], "avaliacao_cp": 150 | null,
      "mate_em": null | 3 | -2 | 0}
   ],
   "citacoes": ["ID", "…"],
@@ -173,9 +174,10 @@ banco (a resposta inteira fica em `structured_json`).
 
 `inicio = "inicial"` significa `puzzle.fen_start`; `"erro"` significa a
 posição antes do lance errado (`fen_before` do puzzle ou a posição do erro na
-partida, conforme o tipo); `"ameaca"` significa a posição inicial do exercício
-com o lado a mover passando a vez (lance nulo), de onde parte a ameaça do
-adversário — o primeiro lance da linha é dele. Toda sequência de lances que
+partida, conforme o tipo); `"ameaca"` e `"ameaca_erro"` significam a posição
+inicial do exercício ou a posição do erro com o lado a mover passando a vez
+(lance nulo), de onde parte a ameaça do adversário — o primeiro lance da linha é
+dele; `"ameaca_erro"` num exercício sem posição do erro é `lance_ilegal`. Toda sequência de lances que
 aparecer na prosa deve estar em `linhas`.
 
 ## 5. Verificador (`verify.py`)
@@ -187,10 +189,11 @@ gravidade ("erro" | "aviso"), detalhe, linha_idx | None}`.
 Regras:
 
 1. **Legalidade**: cada linha é reproduzida com python-chess a partir da
-   posição declarada — numa linha de ameaça, a posição inicial com o lance nulo
-   aplicado; lance ilegal ou SAN não reconhecido → `erro` `lance_ilegal` na
+   posição declarada — numa linha de ameaça, a posição inicial (`ameaca`) ou a do
+   erro (`ameaca_erro`) com o lance nulo aplicado; lance ilegal ou SAN não reconhecido → `erro` `lance_ilegal` na
    linha, e a linha para ali. Linha de ameaça com o lado a mover em xeque também
-   é `lance_ilegal`: não existe passar a vez em xeque.
+   é `lance_ilegal`: não existe passar a vez em xeque; e `ameaca_erro` sem posição
+   do erro também.
 2. **Aderência à engine**: para cada linha, a posição de partida é analisada
    com `multipv=3`; o primeiro lance da linha deve ser um dos três primeiros da
    engine, *ou* ser o lance errado do usuário/adversário (quando a linha mostra
@@ -210,8 +213,8 @@ Regras:
    linha → `aviso` `lance_sem_linha`; token que é só nome de casa (`h1`, `g3`) conta
    como lance apenas quando é um lance de peão legal numa das posições do exercício.
    Os lances do texto também são conferidos contra as posições alcançáveis (as duas do
-   exercício, a do lance nulo — de onde saem as ameaças — e cada posição depois de um
-   prefixo legal de cada linha, inclusive as de ameaça): lance escrito
+   exercício, as dos lances nulos das duas — de onde saem as ameaças — e cada posição
+   depois de um prefixo legal de cada linha, inclusive as de ameaça): lance escrito
    com `#` que não é mate em nenhuma delas → `erro` `mate_falso`; lance escrito com
    `+` que não dá xeque em nenhuma delas → `aviso` `xeque_falso`. Issues idênticas
    (mesmo tipo e mesmo detalhe) entram uma vez só.
@@ -475,7 +478,8 @@ Logs no `server.log` existente, com `trace_id` quando houver.
 
 Backend (pytest, sem rede, sem Stockfish real salvo `slow`):
 
-- `test_coach_verify.py`: linhas legais/ilegais, início `inicial` × `erro`,
+- `test_coach_verify.py`: linhas legais/ilegais, início `inicial` × `erro` ×
+  `ameaca` × `ameaca_erro` (lance nulo, sem posição do erro, em xeque),
   aderência às três principais (com engine falsa), avaliação dentro/fora da
   tolerância, mate, citação existente/inexistente, lances soltos, tamanho.
 - `test_coach_chunks.py`: árvore sintética → trechos (intro, comentário,

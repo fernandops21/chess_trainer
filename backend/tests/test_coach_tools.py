@@ -14,6 +14,8 @@ FEN = "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4"     
 FEN_FATOS = "5R2/2p3pk/2pp3p/4p3/1P6/2PPbPrq/7P/5Q1K w - - 4 33"
 # a mesma depois de 33.Rh8+: as pretas estão em xeque
 FEN_FATOS_XEQUE = "7R/2p3pk/2pp3p/4p3/1P6/2PPbPrq/7P/5Q1K b - - 5 33"
+# brancas a jogar com o rei preto já em xeque: posição impossível, o lance nulo só esconderia
+FEN_XEQUE_DO_LADO_ERRADO = "4k3/4R3/8/8/8/8/8/4K3 w - - 0 1"
 # cavalo de e2 cravado pela dama de e8: na geometria ele ataca g3, mas não pode capturar
 FEN_CRAVADA = "4q2k/8/8/8/8/6n1/4N3/4K3 w - - 0 1"
 # três damas contra o rei sozinho: mais mates em 1 do que o limite das listas
@@ -154,6 +156,9 @@ def test_analisar_posicao_apos_passar_analisa_o_lance_nulo(db_session):
     # em xeque não existe "se você passasse a vez": erro de ferramenta
     with pytest.raises(ValueError, match="passar"):
         ferramenta.fn({"fen": FEN_FATOS_XEQUE, "apos_passar": True})
+    # posição impossível (xeque do lado errado) é recusada antes de o lance nulo escondê-la
+    with pytest.raises(ValueError, match="impossível"):
+        ferramenta.fn({"fen": FEN_XEQUE_DO_LADO_ERRADO, "apos_passar": True})
     # o esquema e a descrição avisam o modelo de quando usar a bandeira
     assert ferramenta.schema["properties"]["apos_passar"] == {"type": "boolean"}
     assert ferramenta.schema["required"] == ["fen"] and ferramenta.schema["additionalProperties"] is False
