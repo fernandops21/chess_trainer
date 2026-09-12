@@ -3,6 +3,8 @@ from typing import Callable
 
 import chess
 
+from chess_trainer.coach.costs import Uso
+from chess_trainer.coach.llm import ResultadoAgente, executar_ferramenta
 from chess_trainer.core.analysis.engine import LineEval
 
 
@@ -80,3 +82,29 @@ class EmbeddingsFalso:
                 v[int(hashlib.md5(palavra.encode()).hexdigest(), 16) % self.dim] += 1.0
             out.append(v)
         return out
+
+
+class FakeLlm:
+    """Roteiros por chamada: cada passo é ("ferramenta", nome, entrada), ("texto", str) ou ("final", dict).
+    As ferramentas do roteiro são executadas de verdade (exercitam o código das ferramentas)."""
+
+    model = "fake"
+
+    def __init__(self, roteiros: list[list[tuple]], uso: Uso = Uso(1000, 200, 500, 0)):
+        self.roteiros = [list(r) for r in roteiros]
+        self.uso = uso
+        self.prompts: list[dict] = []
+
+    def run_agent(self, *, system, user, ferramentas, esquema_final, effort, max_tokens=4096) -> ResultadoAgente:
+        self.prompts.append({"system": system, "user": user, "ferramentas": [f.nome for f in ferramentas], "effort": effort})
+        assert self.roteiros, "FakeLlm sem roteiro para esta chamada"
+        roteiro = self.roteiros.pop(0)
+        chamadas, textos, estruturado = [], [], None
+        for passo in roteiro:
+            if passo[0] == "ferramenta":
+                chamadas.append(executar_ferramenta(ferramentas, passo[1], passo[2]))
+            elif passo[0] == "final":
+                estruturado = dict(passo[1])
+            else:
+                textos.append(passo[1])
+        return ResultadoAgente("\n".join(textos), estruturado, self.uso, chamadas, "end_turn", self.model, 1)
