@@ -54,6 +54,15 @@ def test_caminho_feliz_com_rag_e_citacao(db_session):
     assert "Qxf7#" in consulta_de_busca(r.contexto) and "mate em 1" in consulta_de_busca(r.contexto)
 
 
+def test_trecho_achado_pela_ferramenta_pode_ser_citado(db_session):
+    # a recuperação inicial não acha nada; quem acha é o agente, chamando `buscar_estudos`
+    llm = FakeLlm([[("ferramenta", "buscar_estudos", {"consulta": "mate", "k": 1}), ("final", BOA)]])
+    r = rodar(db_session, llm, buscar=lambda consulta, k: TRECHOS if consulta == "mate" else [])
+    assert r.status == "ok" and r.verificacao.ok and r.citacoes == TRECHOS
+    assert [t["chunk_id"] for t in r.trechos] == ["ab12"]
+    assert "nenhum trecho" in llm.prompts[0]["user"].lower()
+
+
 def test_erro_de_verificacao_dispara_uma_correcao(db_session):
     ruim = {**BOA, "linhas": [{"inicio": "inicial", "lances": ["Qxf8"], "avaliacao_cp": None, "mate_em": None}]}
     llm = FakeLlm([[("final", ruim)], [("final", BOA)]])
@@ -81,10 +90,13 @@ def test_variantes_sem_busca_e_sem_ferramentas(db_session):
 def test_resposta_fora_do_esquema_tenta_de_novo_e_depois_falha(db_session):
     llm = FakeLlm([[("texto", "sem entrega")], [("final", BOA)]])
     assert rodar(db_session, llm).status == "ok"
+    # a retentativa avisa que a resposta anterior não veio pela ferramenta
+    assert "entregar_explicacao" in llm.prompts[1]["user"] and llm.prompts[1]["user"] != llm.prompts[0]["user"]
     import pytest
+    tracer = FakeTracer()
     with pytest.raises(ErroDoTreinador) as exc:
-        rodar(db_session, FakeLlm([[("texto", "x")], [("texto", "y")]]))
-    assert exc.value.codigo == "resposta_fora_do_esquema"
+        rodar(db_session, FakeLlm([[("texto", "x")], [("texto", "y")]]), tracer)
+    assert exc.value.codigo == "resposta_fora_do_esquema" and tracer.flushed is True
 
 
 def test_gravar_guarda_so_a_ultima(db_session):
