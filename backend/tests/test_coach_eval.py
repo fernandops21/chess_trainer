@@ -75,6 +75,9 @@ def test_rodar_resumir_e_relatorio(db_session, tmp_path):
     juiz = FakeLlm([[("final", {"nota": 4, "justificativa": "clara"})]])
     linhas = run.rodar(items, llm, analisar, buscar=None, opcoes=OpcoesExplicacao(variante="agente"), juiz=juiz)
     assert len(linhas) == 1 and linhas[0]["status"] == "errors" and linhas[0]["nota"] == 4 and linhas[0]["erros"] == 1
+    # a rodada guarda onde o tempo foi, para comparar variantes sem reler o log
+    assert linhas[0]["tempos"]["llm_chamadas"] == 2 and linhas[0]["tempos"]["correcao"] is False
+    assert json.loads(json.dumps(linhas[0]))["tempos"]["total_ms"] >= 0
     r = metrics.resumir(linhas)
     assert r["n"] == 1 and r["taxa_erros"] == 1.0 and r["por_tipo"]["lance_ilegal"] == 100.0 and r["nota_media"] == 4.0
     assert r["custo_total_usd"] == 0.0 and r["latencia_p50_ms"] >= 0

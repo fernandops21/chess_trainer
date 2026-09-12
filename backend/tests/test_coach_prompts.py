@@ -34,10 +34,12 @@ def test_esquema_estrito_valida_uma_resposta_boa_e_recusa_uma_ruim():
 
 
 def test_prompt_de_sistema_tem_as_regras_duras():
-    assert PROMPT_VERSION == "v5"
+    assert PROMPT_VERSION == "v6"
     for trecho in ("analisar_posicao", "ponto de vista das brancas", "[c:", "inicial", "erro", FERRAMENTA_FINAL,
                    # a resposta sai em blocos, curta, para ser lida ao lado do tabuleiro
-                   "na_partida", "por_que", "80", "150", "ao lado do tabuleiro",
+                   "na_partida", "por_que", "120", "200", "ao lado do tabuleiro",
+                   # o `por_que` tem estrutura fixa: ameaças, a defesa natural que falha, a solução
+                   "defesa natural", "segunda linha", "ganho_material",
                    # o piso do verificador (60 palavras) tem de estar no prompt também
                    "nunca abaixo de 60 palavras",
                    "português", "null", "citacoes",

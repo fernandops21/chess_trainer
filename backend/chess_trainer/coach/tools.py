@@ -27,7 +27,17 @@ PLIES_ABERTURA = 6
 LIMITE_FATOS = 12
 NOME_DA_PECA = {chess.KING: "rei", chess.QUEEN: "dama", chess.ROOK: "torre",
                 chess.BISHOP: "bispo", chess.KNIGHT: "cavalo", chess.PAWN: "peão"}
+PLURAL_DA_PECA = {chess.QUEEN: "damas", chess.ROOK: "torres", chess.BISHOP: "bispos",
+                  chess.KNIGHT: "cavalos", chess.PAWN: "peões"}
 PECAS_FEMININAS = {chess.QUEEN, chess.ROOK}
+# valores de sempre; o rei não entra (está sempre nos dois lados)
+VALOR_DA_PECA = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9}
+# da mais cara para a mais barata: é nessa ordem que a frase do ganho lista as peças
+ORDEM_DAS_PECAS = (chess.QUEEN, chess.ROOK, chess.BISHOP, chess.KNIGHT, chess.PAWN)
+NUMERO_POR_EXTENSO = {2: ("dois", "duas"), 3: ("três", "três"), 4: ("quatro", "quatro"),
+                      5: ("cinco", "cinco"), 6: ("seis", "seis"), 7: ("sete", "sete"), 8: ("oito", "oito")}
+# quantos plies da linha vão para a resposta (e são reproduzidos para contar o material)
+PLIES_DA_CONTINUACAO = 8
 
 
 def _aval(cp: int | None) -> str:
@@ -200,17 +210,89 @@ def contexto_do_exercicio(db: Session, puzzle: Puzzle) -> ContextoExercicio:
     )
 
 
-def _linha_analisada(score_brancas: int, san: str, pv_san: list[str]) -> dict:
+def saldo_material(board: chess.Board) -> int:
+    """Material das brancas menos o das pretas (peão 1, cavalo e bispo 3, torre 5, dama 9);
+    os reis não contam. É com ele que a linha diz quanto se ganha ou se perde nela."""
+    total = 0
+    for peca in board.piece_map().values():
+        valor = VALOR_DA_PECA.get(peca.piece_type, 0)
+        total += valor if peca.color == chess.WHITE else -valor
+    return total
+
+
+def _pecas_em_texto(perdidas: dict[int, int]) -> list[str]:
+    """`{dama: 1, peão: 2}` -> `["a dama", "dois peões"]`, da peça mais cara para a mais barata."""
+    partes = []
+    for tipo in ORDEM_DAS_PECAS:
+        n = perdidas.get(tipo, 0)
+        if n <= 0:
+            continue
+        feminina = tipo in PECAS_FEMININAS
+        if n == 1:
+            partes.append(("a " if feminina else "o ") + NOME_DA_PECA[tipo])
+        else:
+            numero = NUMERO_POR_EXTENSO.get(n, (str(n), str(n)))[1 if feminina else 0]
+            partes.append(f"{numero} {PLURAL_DA_PECA[tipo]}")
+    return partes
+
+
+def _lista(partes: list[str]) -> str:
+    return " e ".join([", ".join(partes[:-1]), partes[-1]]) if len(partes) > 1 else (partes[0] if partes else "")
+
+
+def _em_troca_de(partes: list[str]) -> str:
+    """O que se devolve na linha: `pela torre`, `pelo cavalo`, `por duas torres`."""
+    if not partes:
+        return ""
+    if len(partes) == 1 and partes[0].startswith("a "):
+        return f" pela {partes[0][2:]}"
+    if len(partes) == 1 and partes[0].startswith("o "):
+        return f" pelo {partes[0][2:]}"
+    return f" por {_lista(partes)}"
+
+
+def _material_da_linha(board: chess.Board, continuacao: list[str]) -> tuple[int, str]:
+    """Reproduz a continuação no tabuleiro e conta o material: quanto sobra no fim (ponto de
+    vista das brancas) e o que mudou, do ponto de vista de quem move primeiro na linha."""
+    fim = board.copy()
+    for san in continuacao:
+        try:
+            fim.push_san(san)
+        except ValueError:  # linha que não bate com a posição: o que deu para reproduzir basta
+            break
+    material_fim = saldo_material(fim)
+    perdidas = {cor: {tipo: n for tipo in ORDEM_DAS_PECAS
+                      if (n := len(board.pieces(tipo, cor)) - len(fim.pieces(tipo, cor))) > 0}
+                for cor in (chess.WHITE, chess.BLACK)}
+    if not perdidas[chess.WHITE] and not perdidas[chess.BLACK]:
+        return material_fim, "nada"
+    # o ganho é sempre contado para quem move primeiro; negativo quer dizer que quem ganha é o outro
+    ganho = (material_fim - saldo_material(board)) * (1 if board.turn == chess.WHITE else -1)
+    if ganho == 0:
+        return material_fim, "troca igual"
+    quem = board.turn if ganho > 0 else not board.turn
+    lado = "brancas" if quem == chess.WHITE else "pretas"
+    ganhas = _pecas_em_texto(perdidas[not quem])
+    if not ganhas:  # ganho sem captura do outro lado (promoção): não dá para nomear a peça
+        return material_fim, f"{lado} ganham material (+{abs(ganho)})"
+    return material_fim, f"{lado} ganham {_lista(ganhas)}{_em_troca_de(_pecas_em_texto(perdidas[quem]))} (+{abs(ganho)})"
+
+
+def _linha_analisada(board: chess.Board, score_brancas: int, san: str, pv_san: list[str]) -> dict:
     """Uma linha da engine na mesma convenção da resposta final: centipeões OU mate, nunca
     o código interno do mate (±(MATE_SCORE - n)). `mate_em` vem assinado: positivo = as
     brancas dão mate, negativo = as pretas."""
     n = mate_in(score_brancas) if is_mate(score_brancas) else None
+    continuacao = list(pv_san)[:PLIES_DA_CONTINUACAO]
+    material_fim, ganho = _material_da_linha(board, continuacao)
     return {
         "lance": san,
         "avaliacao_cp": None if n is not None else clamp(score_brancas),
         "mate_em": None if n is None else (n if score_brancas > 0 else -n),
         "avaliacao": format_score(score_brancas),
-        "continuacao": list(pv_san)[:8],
+        "continuacao": continuacao,
+        "material_fim": material_fim,
+        "ganho_material": ganho,
     }
 
 
@@ -230,7 +312,7 @@ def _analisar_posicao(analisar: Analisar) -> Callable[[dict], str]:
             board.push(chess.Move.null())
         a = analisar(board.fen(), multipv)
         sinal = 1 if board.turn == chess.WHITE else -1
-        linhas = [_linha_analisada(sinal * int(l["score"]), l["san"], list(l.get("pv_san", [])))
+        linhas = [_linha_analisada(board, sinal * int(l["score"]), l["san"], list(l.get("pv_san", [])))
                   for l in a.get("lines", [])]
         saida = {"fen": board.fen(), "lado_a_mover": "brancas" if board.turn else "pretas",
                  "terminal": a.get("terminal"), "linhas": linhas}
@@ -358,7 +440,10 @@ def ferramentas_do_treinador(contexto: ContextoExercicio, analisar: Analisar,
                    "Analisa uma posição com o Stockfish. Cada linha traz `lance`, `avaliacao_cp` (centipeões "
                    "inteiros, ponto de vista das brancas) ou `mate_em` (positivo = as brancas dão mate, negativo "
                    "= as pretas; o outro campo vem nulo), `avaliacao` (a mesma coisa como o app mostra: `+1.50`, "
-                   "`#1`) e `continuacao` (a linha em SAN). Com `apos_passar` verdadeiro, analisa como se o "
+                   "`#1`), `continuacao` (a linha em SAN), `material_fim` (o saldo de material no fim da "
+                   "linha, brancas menos pretas) e `ganho_material` (em português, o que muda de material "
+                   "na linha, do ponto de vista de quem move primeiro nela: `brancas ganham a dama pela "
+                   "torre (+4)`, `troca igual`, `nada`). Com `apos_passar` verdadeiro, analisa como se o "
                    "lado a mover passasse a vez: as linhas devolvidas são as AMEAÇAS do adversário (o que ele "
                    "faria se você jogasse um lance calmo). Use na posição do exercício e na posição do erro "
                    "antes de explicar 'por que'.",

@@ -34,7 +34,7 @@ def _linha_de_falha(item: ItemAvaliacao, tipo: str, detalhe: str, inicio: float)
             "issues": [{"tipo": tipo, "gravidade": "erro", "detalhe": detalhe, "linha_idx": None}],
             "repaired": False, "custo_usd": 0.0, "duration_ms": int((time.monotonic() - inicio) * 1000),
             "tokens": {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}, "n_chamadas_api": 0,
-            "texto": "", "estruturado": None, "nota": None, "justificativa": None}
+            "texto": "", "estruturado": None, "tempos": None, "nota": None, "justificativa": None}
 
 
 def rodar(items: list[ItemAvaliacao], llm: LlmClient, analisar: Analisar, buscar, opcoes: OpcoesExplicacao,
@@ -54,7 +54,8 @@ def rodar(items: list[ItemAvaliacao], llm: LlmClient, analisar: Analisar, buscar
                 "id": item.id, "origem": item.origem, "status": r.status, "ok": r.verificacao.ok,
                 "erros": r.verificacao.erros, "avisos": r.verificacao.avisos, "issues": r.verificacao.to_dict()["issues"],
                 "repaired": r.repaired, "custo_usd": r.custo_usd, "duration_ms": r.duration_ms, "tokens": r.uso.to_dict(),
-                "n_chamadas_api": r.n_chamadas_api, "texto": r.texto, "estruturado": r.estruturado, **nota,
+                "n_chamadas_api": r.n_chamadas_api, "texto": r.texto, "estruturado": r.estruturado,
+                "tempos": r.tempos, **nota,
             }
         except ErroDoTreinador as exc:
             linha = _linha_de_falha(item, exc.codigo, exc.mensagem, inicio)

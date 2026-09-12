@@ -138,3 +138,35 @@ def test_gravar_guarda_so_a_ultima(db_session):
     est = json.loads(b.structured_json)
     assert est["na_partida"] == NA_PARTIDA and est["por_que"].endswith("[c:ab12]")
     assert est["padrao"] == "mate do pastor" and est["treinar"] == ["mates com dama e bispo"]
+
+
+def test_tempos_medidos_e_registrados_no_log(db_session, caplog):
+    """Uma explicação real leva perto de um minuto: o log diz onde o tempo foi."""
+    import logging
+
+    llm = FakeLlm([[("ferramenta", "analisar_posicao", {"fen": FEN, "multipv": 1}),
+                    ("ferramenta", "fatos_taticos", {"fen": FEN}),
+                    ("ferramenta", "analisar_posicao", {"fen": FEN_ERRO, "multipv": 1}), ("final", BOA)]])
+    with caplog.at_level(logging.INFO, logger="chess_trainer.coach.explain"):
+        r = rodar(db_session, llm)
+    t = r.tempos
+    assert set(t) == {"total_ms", "llm_ms", "llm_chamadas", "ferramentas", "verificacao_ms", "correcao"}
+    assert t["llm_chamadas"] == 1 and t["correcao"] is False and t["total_ms"] >= 0 and t["verificacao_ms"] >= 0
+    assert t["ferramentas"]["analisar_posicao"]["n"] == 2 and t["ferramentas"]["fatos_taticos"]["n"] == 1
+    assert all(f["ms"] >= 0 for f in t["ferramentas"].values())
+    assert t["llm_ms"] >= 0
+    linha = [x for x in caplog.messages if x.startswith("explicacao ")]
+    assert len(linha) == 1 and r.contexto.puzzle_id in linha[0]
+    assert "total " in linha[0] and "llm 1 chamadas," in linha[0] and "verificacao " in linha[0]
+    assert "analisar_posicao 2x" in linha[0] and "fatos_taticos 1x" in linha[0] and "correcao não" in linha[0]
+
+
+def test_tempos_somam_a_correcao_e_as_duas_verificacoes(db_session, caplog):
+    import logging
+
+    ruim = {**BOA, "linhas": [{"inicio": "inicial", "lances": ["Qxf8"], "avaliacao_cp": None, "mate_em": None}]}
+    with caplog.at_level(logging.INFO, logger="chess_trainer.coach.explain"):
+        r = rodar(db_session, FakeLlm([[("final", ruim)], [("final", BOA)]]))
+    assert r.repaired and r.tempos["correcao"] is True and r.tempos["llm_chamadas"] == 2
+    # sem ferramenta nenhuma o log ainda sai, dizendo que não houve
+    assert r.tempos["ferramentas"] == {} and "ferramentas: nenhuma" in caplog.text and "correcao sim" in caplog.text

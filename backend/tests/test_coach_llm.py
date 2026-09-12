@@ -171,3 +171,17 @@ def test_pedido_recusado_vai_para_o_log_com_o_corpo(caplog):
         with pytest.raises(ErroDoTreinador):
             AnthropicClient("sk", "claude-opus-5", client=cliente).run_agent(system="S", user="U", ferramentas=[FERR], esquema_final=ESQUEMA, effort="high")
     assert "Invalid request data" in caplog.text and "PEDIDO" in caplog.text and '"somar"' in caplog.text
+
+
+def test_executar_ferramenta_mede_o_tempo_de_cada_chamada():
+    """O tempo por ferramenta é o que o log da explicação soma: sem ele, os ~50 s de uma
+    explicação não têm como ser atribuídos."""
+    import time
+
+    lenta = Ferramenta("lenta", "Demora.", {"type": "object", "properties": {}, "additionalProperties": False},
+                       lambda _e: time.sleep(0.02) or "ok")
+    c = executar_ferramenta([lenta, FERR], "lenta", {})
+    assert c.resultado == "ok" and not c.erro and c.ms >= 10
+    assert executar_ferramenta([FERR], "somar", {"a": 1, "b": 2}).ms >= 0
+    # erro da ferramenta também traz o tempo; ferramenta inexistente nem chega a rodar
+    assert executar_ferramenta([FERR], "somar", {"a": 1}).erro and executar_ferramenta([FERR], "nada", {}).ms == 0

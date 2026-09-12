@@ -3,7 +3,7 @@ import json
 import chess
 
 from chess_trainer.coach.tools import (ContextoExercicio, contexto_do_exercicio, fatos_taticos,
-                                      ferramentas_do_treinador)
+                                      ferramentas_do_treinador, saldo_material)
 from chess_trainer.core.evals import CLAMP_CP, MATE_SCORE
 from chess_trainer.core.models import Game, Position
 from tests.factories import make_puzzle
@@ -22,6 +22,10 @@ FEN_CRAVADA = "4q2k/8/8/8/8/6n1/4N3/4K3 w - - 0 1"
 FEN_MUITOS_MATES = "k1K5/8/8/1QQ5/8/8/8/6Q1 w - - 0 1"
 # três damas e uma torre contra o rei sozinho: mais xeques do que o limite das listas
 FEN_MUITOS_XEQUES = "7k/8/8/8/QQQ5/8/2R5/7K w - - 0 1"
+# torre branca em d2, dama preta em d5 defendida pelo peão de c6: Rxd5 cxd5 ganha a dama pela torre
+FEN_MATERIAL = "4k3/8/2p5/3q4/8/8/3R4/4K3 w - - 0 1"
+# a mesma com torre preta em d5: Rxd5 cxd5 é troca igual
+FEN_TROCA = "4k3/8/2p5/3r4/8/8/3R4/4K3 w - - 0 1"
 PGN = '[Event "x"]\n[White "eu"]\n[Black "ele"]\n[Result "1-0"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0'
 
 
@@ -149,7 +153,7 @@ def test_analisar_posicao_apos_passar_analisa_o_lance_nulo(db_session):
     assert saida["fen"] == passa.fen() and saida["lado_a_mover"] == "brancas"
     # a linha da ameaça vem no formato das outras, ponto de vista das brancas
     linha = saida["linhas"][0]
-    assert set(linha) == {"lance", "avaliacao_cp", "mate_em", "avaliacao", "continuacao"}
+    assert set(linha) == {"lance", "avaliacao_cp", "mate_em", "avaliacao", "continuacao", "material_fim", "ganho_material"}
     assert linha["avaliacao_cp"] == 250 and linha["mate_em"] is None and linha["avaliacao"] == "+2.50"
     # sem a bandeira nada muda: analisa a posição pedida e não fala de ameaça
     chamadas.clear()
@@ -221,3 +225,61 @@ def test_fatos_taticos_limita_as_listas_e_recusa_fen_invalida():
     # posição impossível (sem rei) também é erro de ferramenta, não resposta sem sentido
     with pytest.raises(ValueError):
         fatos_taticos("8/8/8/8/8/8/8/8 w - - 0 1")
+
+
+def analisador_de_pvs(*pvs: list[str]):
+    """Analisador roteirizado: uma linha por continuação em SAN, todas com o mesmo score."""
+    def analisar(fen, multipv):
+        b = chess.Board(fen)
+        return {"fen": fen, "turn": "white" if b.turn else "black", "terminal": None,
+                "lines": [{"move": "", "san": pv[0], "score": 100, "pv": [], "pv_san": list(pv)} for pv in pvs][:multipv]}
+    return analisar
+
+
+def _analisar_posicao(db, analisar):
+    # o mesmo exercício a cada chamada: `puzzle_punir` cria uma partida com `source_id` único
+    from chess_trainer.core.models import Puzzle
+    ctx = contexto_do_exercicio(db, db.query(Puzzle).first() or puzzle_punir(db))
+    return {f.nome: f for f in ferramentas_do_treinador(ctx, analisar, None, None)}["analisar_posicao"]
+
+
+def test_saldo_material_conta_as_pecas_dos_dois_lados():
+    assert saldo_material(chess.Board()) == 0
+    # torre branca (5) contra dama e peão pretos (10)
+    assert saldo_material(chess.Board(FEN_MATERIAL)) == -5
+    # reis não contam
+    assert saldo_material(chess.Board("4k3/8/8/8/8/8/8/4K3 w - - 0 1")) == 0
+    assert saldo_material(chess.Board("4k3/8/8/8/8/8/8/3QK3 w - - 0 1")) == 9
+
+
+def test_linhas_da_analise_trazem_o_material(db_session):
+    """O caso que motivou os campos: a linha do adversário dizia só `+3,9`, sem contar
+    que o que se perde ali é a dama."""
+    ferramenta = _analisar_posicao(db_session, analisador_de_pvs(["Rxd5", "cxd5"], ["Rd3", "Kd8"]))
+    linhas = json.loads(ferramenta.fn({"fen": FEN_MATERIAL, "multipv": 2}))["linhas"]
+    # quem move primeiro na linha são as brancas: elas ganham a dama e devolvem a torre
+    assert linhas[0]["ganho_material"] == "brancas ganham a dama pela torre (+4)"
+    assert linhas[0]["material_fim"] == -1
+    # linha sem captura nenhuma: o material não muda
+    assert linhas[1]["ganho_material"] == "nada" and linhas[1]["material_fim"] == -5
+    # torre por torre: troca igual
+    troca = json.loads(_analisar_posicao(db_session, analisador_de_pvs(["Rxd5", "cxd5"]))
+                       .fn({"fen": FEN_TROCA, "multipv": 1}))["linhas"][0]
+    assert troca["ganho_material"] == "troca igual" and troca["material_fim"] == -1
+    # a descrição da ferramenta anuncia os dois campos
+    assert "ganho_material" in ferramenta.descricao and "material_fim" in ferramenta.descricao
+
+
+def test_material_da_linha_do_adversario_e_da_captura_de_graca(db_session):
+    # `apos_passar`: quem move primeiro é o adversário, e o ganho é contado para ele
+    ameaca = json.loads(_analisar_posicao(db_session, analisador_de_pvs(["Qxd2"]))
+                        .fn({"fen": FEN_MATERIAL, "multipv": 1, "apos_passar": True}))["linhas"][0]
+    assert ameaca["ganho_material"] == "pretas ganham a torre (+5)" and ameaca["material_fim"] == -10
+    # peça de graça, sem devolver nada: não aparece o "por ..."
+    livre = json.loads(_analisar_posicao(db_session, analisador_de_pvs(["Rxd5", "Kd8"]))
+                       .fn({"fen": FEN_MATERIAL, "multipv": 1}))["linhas"][0]
+    assert livre["ganho_material"] == "brancas ganham a dama (+9)" and livre["material_fim"] == 4
+    # a continuação (e o replay) param nos 8 primeiros lances
+    longa = json.loads(_analisar_posicao(db_session, analisador_de_pvs(
+        ["Rd3", "Kd8", "Rd4", "Kc8", "Rd3", "Kd8", "Rd4", "Kc8", "Rxd5"])).fn({"fen": FEN_MATERIAL, "multipv": 1}))["linhas"][0]
+    assert len(longa["continuacao"]) == 8 and longa["ganho_material"] == "nada"

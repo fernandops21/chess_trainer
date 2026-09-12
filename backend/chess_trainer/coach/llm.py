@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
@@ -56,6 +57,8 @@ class ChamadaFerramenta:
     entrada: dict
     resultado: str
     erro: bool = False
+    # quanto a ferramenta demorou: é daqui que sai a conta por ferramenta no log da explicação
+    ms: int = 0
 
 
 @dataclass
@@ -76,15 +79,20 @@ class LlmClient(Protocol):
                   effort: str, max_tokens: int = MAX_TOKENS_RESPOSTA) -> ResultadoAgente: ...
 
 
+def _ms(inicio: float) -> int:
+    return int((time.perf_counter() - inicio) * 1000)
+
+
 def executar_ferramenta(ferramentas: list[Ferramenta], nome: str, entrada: dict) -> ChamadaFerramenta:
     """Roda a ferramenta; qualquer exceção vira resultado de erro (o modelo lê e se ajusta)."""
     f = next((x for x in ferramentas if x.nome == nome), None)
     if f is None:
         return ChamadaFerramenta(nome, entrada, f"ferramenta desconhecida: {nome}", erro=True)
+    inicio = time.perf_counter()
     try:
-        return ChamadaFerramenta(nome, entrada, f.fn(entrada))
+        return ChamadaFerramenta(nome, entrada, f.fn(entrada), ms=_ms(inicio))
     except Exception as exc:  # noqa: BLE001 - o erro é devolvido ao modelo como texto
-        return ChamadaFerramenta(nome, entrada, f"erro na ferramenta {nome}: {exc}", erro=True)
+        return ChamadaFerramenta(nome, entrada, f"erro na ferramenta {nome}: {exc}", erro=True, ms=_ms(inicio))
 
 
 def _ferramenta_final(esquema: dict) -> dict:

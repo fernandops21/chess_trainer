@@ -4,6 +4,7 @@ verificação -> uma correção -> resultado. Não toca em banco: quem persiste 
 from __future__ import annotations
 
 import json
+import logging
 import time
 from dataclasses import dataclass, field
 from typing import Callable
@@ -16,6 +17,8 @@ from chess_trainer.coach.prompts import ESQUEMA_EXPLICACAO, PROMPT_VERSION, SYST
 from chess_trainer.coach.tools import ContextoExercicio, ferramentas_do_treinador
 from chess_trainer.coach.verify import CITACAO_RE, Analisar, Verificacao, verificar
 from chess_trainer.core.models import CoachExplanation
+
+log = logging.getLogger(__name__)
 
 VARIANTES = ("prompt", "agente", "agente_rag")
 FERRAMENTA_BUSCA = "buscar_estudos"
@@ -52,7 +55,22 @@ class ResultadoExplicacao:
     duration_ms: int
     trace_id: str | None
     n_chamadas_api: int
+    # onde o tempo foi: total, LLM, cada ferramenta, verificação (e se houve correção)
+    tempos: dict = field(default_factory=dict)
     trechos: list[dict] = field(default_factory=list)
+
+
+def _ms(inicio: float) -> int:
+    return int((time.perf_counter() - inicio) * 1000)
+
+
+def _registrar_tempos(puzzle_id: str, tempos: dict) -> None:
+    """Uma linha por explicação: é por ela que se sabe se o minuto foi no modelo, na engine
+    (as ferramentas e o verificador) ou na correção."""
+    ferramentas = ", ".join(f"{nome} {c['n']}x {c['ms']} ms" for nome, c in sorted(tempos["ferramentas"].items()))
+    log.info("explicacao %s: total %d ms | llm %d chamadas, %d ms | ferramentas: %s | verificacao %d ms | correcao %s",
+             puzzle_id, tempos["total_ms"], tempos["llm_chamadas"], tempos["llm_ms"], ferramentas or "nenhuma",
+             tempos["verificacao_ms"], "sim" if tempos["correcao"] else "não")
 
 
 def consulta_de_busca(ctx: ContextoExercicio) -> str:
@@ -126,12 +144,18 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
             user = mensagem_inicial(texto_ctx, trechos)
             uso = Uso()
             n_api = 0
+            # o relógio do LLM inclui o tempo das ferramentas (elas rodam dentro da chamada),
+            # por isso cada ferramenta traz o seu próprio tempo em `ChamadaFerramenta.ms`
+            llm_ms = 0
+            por_ferramenta: dict[str, dict[str, int]] = {}
 
             def chamar(nome: str, mensagem: str):
-                nonlocal uso, n_api
+                nonlocal uso, n_api, llm_ms
                 with tracer.span(nome):
+                    inicio_llm = time.perf_counter()
                     r = llm.run_agent(system=SYSTEM_PROMPT, user=mensagem, ferramentas=ferramentas,
                                       esquema_final=ESQUEMA_EXPLICACAO, effort=opcoes.effort)
+                    llm_ms += _ms(inicio_llm)
                     uso = uso + r.uso
                     n_api += r.n_chamadas_api
                     tracer.geracao(nome, llm.model, r.uso, custo_usd(llm.model, r.uso), chamadas=[c.nome for c in r.chamadas])
@@ -139,6 +163,10 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
                 # retentativa + correção podem somar bem mais do que cada uma por si
                 if uso.output_tokens > TETO_TOKENS_SAIDA:
                     raise ErroDoTreinador("custo_excedido", "a explicação passou do teto de tokens e foi interrompida")
+                for c in r.chamadas:
+                    conta = por_ferramenta.setdefault(c.nome, {"n": 0, "ms": 0})
+                    conta["n"] += 1
+                    conta["ms"] += c.ms
                 # o que o agente buscou sozinho vale tanto quanto o que veio da recuperação
                 ids = {t["chunk_id"] for t in trechos}
                 for t in _trechos_das_ferramentas(r.chamadas):
@@ -152,14 +180,19 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
                 r1 = chamar("llm_retentativa", user + AVISO_RETENTATIVA)
                 if r1.estruturado is None:
                     raise ErroDoTreinador("resposta_fora_do_esquema", "o modelo não entregou a explicação no formato esperado")
+            verificacao_ms = 0
             with tracer.span("verificacao"):
+                inicio_v = time.perf_counter()
                 v1 = _verificar(r1.estruturado, contexto, trechos, analisar)
+                verificacao_ms += _ms(inicio_v)
             escolhido, v, repaired = r1, v1, False
             if not v1.ok:
                 r2 = chamar("correcao", user + mensagem_de_correcao(r1.estruturado, v1.to_dict()))
                 if r2.estruturado is not None:
                     with tracer.span("verificacao_correcao"):
+                        inicio_v = time.perf_counter()
                         v2 = _verificar(r2.estruturado, contexto, trechos, analisar)
+                        verificacao_ms += _ms(inicio_v)
                     if v2.erros < v1.erros:
                         escolhido, v, repaired = r2, v2, True
             est = escolhido.estruturado or {}
@@ -167,11 +200,14 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
             # a mesma união que o verificador usa: o campo `citacoes` e os marcadores [c:ID] do texto
             citadas = {str(c) for c in (est.get("citacoes") or [])} | set(CITACAO_RE.findall(texto))
             citacoes = [t for t in trechos if t["chunk_id"] in citadas]
+            tempos = {"total_ms": int((time.monotonic() - inicio) * 1000), "llm_ms": llm_ms, "llm_chamadas": n_api,
+                      "ferramentas": por_ferramenta, "verificacao_ms": verificacao_ms, "correcao": repaired}
+            _registrar_tempos(contexto.puzzle_id, tempos)
             resultado = ResultadoExplicacao(
                 contexto=contexto, model=llm.model, prompt_version=PROMPT_VERSION, effort=opcoes.effort, variante=opcoes.variante,
                 texto=texto, estruturado=est, linhas=list(est.get("linhas") or []), citacoes=citacoes,
                 verificacao=v, status=_status(v), repaired=repaired, uso=uso, custo_usd=custo_usd(llm.model, uso),
-                duration_ms=int((time.monotonic() - inicio) * 1000), trace_id=trace_id, n_chamadas_api=n_api, trechos=trechos,
+                duration_ms=tempos["total_ms"], trace_id=trace_id, n_chamadas_api=n_api, tempos=tempos, trechos=trechos,
             )
     finally:
         tracer.flush()

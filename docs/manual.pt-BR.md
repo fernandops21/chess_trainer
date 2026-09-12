@@ -341,7 +341,9 @@ por lance sem engine — as casas do rei, os xeques, os mates em um, as capturas
 que o adversário faria se fosse a vez dele. O treinador enxerga as ameaças analisando a posição como
 se você passasse a vez: as melhores linhas do adversário ali são exatamente o que ele faria se você
 jogasse um lance calmo, e é assim que a explicação nomeia todas as ameaças (o mate e o ganho de
-material), não só a maior. Do outro lado, o verificador confere também o que está
+material), não só a maior. O treinador explica também por que a defesa natural falha: o lance que você
+jogaria ali (o seu lance real, quando a partida tem um) é seguido até onde o material muda, para ficar
+claro o que se perde nele. Do outro lado, o verificador confere também o que está
 escrito na prosa: mate anunciado no texto que não é mate em nenhuma posição da explicação vira erro,
 xeque que não dá xeque vira aviso, e nome de casa no meio da frase (o rei em h1, a torre em g3) deixou
 de ser confundido com lance.
