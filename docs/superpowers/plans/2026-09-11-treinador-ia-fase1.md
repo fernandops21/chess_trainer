@@ -327,7 +327,7 @@ from chess_trainer.core.evals import MATE_SCORE
 # brancas a jogar: Qxf7# é mate; Nf3 e a3 são lances normais
 FEN = "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4"
 # posição "do erro": as pretas acabaram de jogar Nf6?? (a mesma FEN serve de exemplo)
-FEN_ERRO = "r1bqkb1r/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3"
+FEN_ERRO = "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3"
 TEXTO_OK = " ".join(["palavra"] * 80)
 
 
@@ -2027,7 +2027,7 @@ from chess_trainer.core.evals import MATE_SCORE
 from chess_trainer.core.models import Game, Position
 from tests.factories import make_puzzle
 
-FEN_ERRO = "r1bqkb1r/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3"   # pretas jogam Nf6??
+FEN_ERRO = "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3"   # pretas jogam Nf6??
 FEN = "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4"        # exercício: Qxf7#
 PGN = '[Event "x"]\n[White "eu"]\n[Black "ele"]\n[Result "1-0"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0'
 
@@ -3686,8 +3686,8 @@ def lichess(db, id_, fen, moves, rating, temas):
 def test_montar_salvar_e_carregar(db_session, tmp_path):
     puzzle_punir(db_session)
     # dois puzzles sintéticos do Lichess: mate do pastor de cada lado (o FEN é antes do lance do adversário)
-    lichess(db_session, "L1", "r1bqkb1r/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3", "g8f6 h5f7", 1100, ["mateIn1", "short", "mate"])
-    lichess(db_session, "L2", "r1bqkb1r/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3", "g8f6 h5f7", 1700, ["mateIn1", "short", "mate"])
+    lichess(db_session, "L1", "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3", "g8f6 h5f7", 1100, ["mateIn1", "short", "mate"])
+    lichess(db_session, "L2", "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3", "g8f6 h5f7", 1700, ["mateIn1", "short", "mate"])
     db_session.commit()
     items = dataset.montar(db_session, analisar, n_lichess=2, seed=1)
     assert [i.origem for i in items] == ["own", "lichess", "lichess"]
