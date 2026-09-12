@@ -30,7 +30,9 @@ def test_prompt_de_sistema_tem_as_regras_duras():
                    # `mate_em` é assinado dos dois lados (ferramenta e resposta)
                    "positivo = as brancas dão mate, negativo = as pretas",
                    # afirmação tática (ameaça, mate, casa de fuga) só vem dos fatos, não da dedução
-                   "fatos_taticos", "a ameaça é", "casa de fuga"):
+                   "fatos_taticos", "a ameaça é", "casa de fuga",
+                   # lance com xeque ou mate no texto só vale dentro de uma linha declarada
+                   "linha declarada"):
         assert trecho in SYSTEM_PROMPT, trecho
 
 

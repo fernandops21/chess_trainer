@@ -112,7 +112,7 @@ Todas finas, em cima do que existe; recebem `db` e `app.state` por fechamento.
 | Ferramenta | Entrada | Saída | Implementação |
 | --- | --- | --- | --- |
 | `analisar_posicao` | `fen`, `multipv` (1–3) | linhas com `lance`, `avaliacao_cp` **ou** `mate_em` (assinado: positivo = as brancas dão mate), `avaliacao` formatada e `continuacao` em SAN — na mesma convenção de §4.4, nunca o código interno do mate | `InteractiveAnalyzer.analyse` (cache e engine já existentes) |
-| `fatos_taticos` | `fen` | fatos exatos da posição, sem engine: `lances_do_rei`, `xeques`, `mates_em_1`, `capturas_de_pecas_indefesas`, `pecas_atacadas_sem_defesa` (dos dois lados) e `ameacas_do_adversario` (o que ele faria se fosse a vez dele, pelo lance nulo); cada lista com no máximo 12 itens | python-chess puro |
+| `fatos_taticos` | `fen` | fatos exatos da posição, sem engine: `lances_do_rei`, `xeques`, `mates_em_1`, `capturas_de_pecas_indefesas`, `pecas_atacadas_sem_defesa` (dos dois lados) e `ameacas_do_adversario` (o que ele faria se fosse a vez dele, pelo lance nulo); atacante e defensor conferidos por lance legal (peça cravada não ataca nem defende) e FEN impossível recusada; cada lista com no máximo 12 itens | python-chess puro |
 | `contexto_do_exercicio` | nenhuma (fixo por chamada) | puzzle, erro (`mistake`), lances da partida ±6 plies em SAN, `abertura` (os 6 primeiros plies, que a busca usa para "mesma abertura"), lance real do usuário, solução, avaliações antes/depois | `PuzzleOut` + `Position` + `Game.pgn` |
 | `estatisticas_por_tema` | `dias` (padrão 90) | linhas de `theme_stats` | `core/stats.theme_stats` |
 | `buscar_estudos` | `consulta`, `k` (padrão 5) | trechos `{chunk_id, estudo, capitulo, caminho_san, texto, url}` | §6 |
@@ -130,12 +130,13 @@ System prompt em português, fixo e versionado em `prompts.py`
   exercício; tom direto, sem elogio vazio; 120 a 250 palavras.
 - regras duras: toda afirmação tática (a ameaça, o mate, o xeque, a casa de
   fuga do rei, a peça indefesa) vem de `fatos_taticos` naquela posição ou de
-  uma linha de `analisar_posicao`, nunca da dedução do modelo; só citar lances
-  que vieram de `analisar_posicao` ou do contexto; toda linha começa da posição
-  inicial do exercício ou da posição do erro, declarada; avaliações sempre da
-  engine, em peões (`+1,5`) ou `M3`; citar estudos só quando o trecho recuperado
-  for pertinente, pelo `chunk_id`;
-  nunca inventar nome de abertura ou de padrão sem apoio.
+  uma linha de `analisar_posicao`, nunca da dedução do modelo, e lance escrito com
+  `+` ou `#` só vale dentro de uma linha declarada que chegue à posição em que ele
+  é legal; só citar lances que vieram de `analisar_posicao` ou do contexto; toda
+  linha começa da posição inicial do exercício ou da posição do erro, declarada;
+  avaliações sempre da engine, em peões (`+1,5`) ou `M3`; citar estudos só quando
+  o trecho recuperado for pertinente, pelo `chunk_id`; nunca inventar nome de
+  abertura ou de padrão sem apoio.
 - estrutura sugerida: o que aconteceu, por que o lance perde, o padrão, onde
   isso aparece nos estudos (se houver), o que treinar.
 

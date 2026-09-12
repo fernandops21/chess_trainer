@@ -258,17 +258,50 @@ def _capturas_de_pecas_indefesas(board: chess.Board) -> list[str]:
             if board.is_capture(mv) and not board.attackers(not board.turn, mv.to_square)][:LIMITE_FATOS]
 
 
+def _captura(board: chess.Board, de: int, casa: int) -> chess.Move:
+    """A captura de `de` para `casa`, promovendo a dama quando é peão chegando na oitava."""
+    peca = board.piece_at(de)
+    promove = peca is not None and peca.piece_type == chess.PAWN and chess.square_rank(casa) in (0, 7)
+    return chess.Move(de, casa, promotion=chess.QUEEN if promove else None)
+
+
+def _atacantes_de_fato(board: chess.Board, casa: int, cor: int) -> list[int]:
+    """`attackers` é só geometria: peça cravada não ataca nada. Aqui só entram as que
+    podem capturar em `casa` de verdade (`board` tem de ser do lado que captura)."""
+    return [de for de in board.attackers(cor, casa) if board.is_legal(_captura(board, de, casa))]
+
+
+def _sem_recaptura(board: chess.Board, de: int, casa: int) -> bool:
+    """Depois da captura em `casa`, ninguém do outro lado pode recapturar legalmente --
+    é assim que um defensor cravado deixa de contar como defensor."""
+    board.push(_captura(board, de, casa))
+    recaptura = any(mv.to_square == casa for mv in board.legal_moves)
+    board.pop()
+    return not recaptura
+
+
 def _pecas_atacadas_sem_defesa(board: chess.Board) -> list[dict]:
-    """Peças (sem peões nem reis) atacadas e sem nenhum defensor, dos dois lados: a
-    explicação fala tanto da peça que o aluno pode ganhar quanto da que ele deixou pendurada."""
+    """Peças (sem peões nem reis) que podem ser capturadas de graça, dos dois lados: a
+    explicação fala tanto da peça que o aluno pode ganhar quanto da que ele deixou
+    pendurada. Quem captura a peça de quem tem a vez é o adversário, então essa metade
+    é medida no tabuleiro do lance nulo (e não existe quando se está em xeque)."""
+    passa = None
+    if not board.is_check():
+        passa = board.copy()
+        passa.push(chess.Move.null())
     out = []
     for casa, peca in sorted(board.piece_map().items()):
         if peca.piece_type in (chess.PAWN, chess.KING):
             continue
-        atacantes = board.attackers(not peca.color, casa)
-        if not atacantes or board.attackers(peca.color, casa):
+        # o tabuleiro em que a captura é lance legal: o atual, ou o do lance nulo
+        tabuleiro = board if peca.color != board.turn else passa
+        if tabuleiro is None:
             continue
-        out.append({"casa": chess.square_name(casa), "peca": _nome_da_peca(peca), "atacada_por": _casas(atacantes)})
+        atacantes = _atacantes_de_fato(tabuleiro, casa, not peca.color)
+        if not any(_sem_recaptura(tabuleiro, de, casa) for de in atacantes):
+            continue
+        out.append({"casa": chess.square_name(casa), "peca": _nome_da_peca(peca),
+                    "atacada_por": sorted(chess.square_name(de) for de in atacantes)})
     return out[:LIMITE_FATOS]
 
 
@@ -277,6 +310,9 @@ def fatos_taticos(fen: str) -> dict:
     daqui que saem as afirmações táticas da explicação (ameaça, mate, casa de fuga do
     rei, peça indefesa), que o modelo antes deduzia sozinho e errava."""
     board = chess.Board(fen)  # ValueError em FEN inválida: vira erro de ferramenta
+    if not board.is_valid():
+        # FEN cortada, sem rei, com xeque do lado errado: responder fatos aqui seria inventar
+        raise ValueError(f"posição impossível: {board.fen()}")
     em_xeque = board.is_check()
     ameacas: dict[str, list[str]] = {"mates_em_1": [], "capturas_de_pecas_indefesas": []}
     if not em_xeque:
@@ -311,7 +347,8 @@ def ferramentas_do_treinador(contexto: ContextoExercicio, analisar: Analisar,
                     "required": ["fen"], "additionalProperties": False}, _analisar_posicao(analisar)),
         Ferramenta("fatos_taticos",
                    "Fatos exatos de uma posição, calculados sem engine: lances do rei, xeques, mates em 1, "
-                   "capturas de peças indefesas, peças atacadas sem defesa, e o que o adversário faria se fosse "
+                   "capturas de peças indefesas, peças atacadas sem defesa (dos dois lados; a cor vem no campo "
+                   "`peca`), e o que o adversário faria se fosse "
                    "a vez dele (ameaças). Use antes de afirmar 'a ameaça é X', 'o rei não tem casa de fuga' ou "
                    "'a única defesa é Y'.",
                    {"type": "object", "properties": {"fen": {"type": "string"}},

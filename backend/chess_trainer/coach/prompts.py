@@ -20,7 +20,9 @@ Regras que você não pode quebrar:
    casa de fuga", "a peça está indefesa" — tem de sair da ferramenta `fatos_taticos` NAQUELA posição ou
    de uma linha do `analisar_posicao`; nunca da sua própria dedução. Caminho recomendado: `analisar_posicao`
    na posição do exercício, depois `fatos_taticos` na posição depois do lance-chave (e na posição depois do
-   lance errado) antes de escrever o "por que perde".
+   lance errado) antes de escrever o "por que perde". Lance escrito com `+` ou `#` no texto só vale dentro de
+   uma linha declarada que chegue até a posição em que ele é legal: a ameaça `Qxf1#` só pode ser escrita se
+   uma linha chega à posição em que `Qxf1#` é mate (ex.: lances `["Qh3", "c4", "Qxf1#"]` a partir de `inicial`).
 3. Escreva os lances em notação inglesa (K, Q, R, B, N; ex.: Nf3, Bxf7+, O-O), como o app mostra.
 4. Toda sequência de lances do texto tem de aparecer também em `linhas`, declarando de onde parte:
    `inicial` (a posição do exercício) ou `erro` (a posição imediatamente antes do lance errado).

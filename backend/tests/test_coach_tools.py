@@ -14,6 +14,10 @@ FEN = "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4"     
 FEN_FATOS = "5R2/2p3pk/2pp3p/4p3/1P6/2PPbPrq/7P/5Q1K w - - 4 33"
 # a mesma depois de 33.Rh8+: as pretas estão em xeque
 FEN_FATOS_XEQUE = "7R/2p3pk/2pp3p/4p3/1P6/2PPbPrq/7P/5Q1K b - - 5 33"
+# cavalo de e2 cravado pela dama de e8: na geometria ele ataca g3, mas não pode capturar
+FEN_CRAVADA = "4q2k/8/8/8/8/6n1/4N3/4K3 w - - 0 1"
+# três damas contra o rei sozinho: mais mates em 1 do que o limite das listas
+FEN_MUITOS_MATES = "k1K5/8/8/1QQ5/8/8/8/6Q1 w - - 0 1"
 # três damas e uma torre contra o rei sozinho: mais xeques do que o limite das listas
 FEN_MUITOS_XEQUES = "7k/8/8/8/QQQ5/8/2R5/7K w - - 0 1"
 PGN = '[Event "x"]\n[White "eu"]\n[Black "ele"]\n[Result "1-0"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0'
@@ -85,6 +89,8 @@ def test_ferramentas_do_treinador(db_session):
     assert set(por_nome) == {"analisar_posicao", "fatos_taticos", "contexto_do_exercicio", "estatisticas_por_tema", "buscar_estudos"}
     fatos = json.loads(por_nome["fatos_taticos"].fn({"fen": FEN}))
     assert fatos["mates_em_1"] == ["Qxf7#"] and "sem engine" in por_nome["fatos_taticos"].descricao
+    # a descrição tem de avisar que as peças atacadas vêm dos dois lados
+    assert "dos dois lados" in por_nome["fatos_taticos"].descricao
     linhas = json.loads(por_nome["analisar_posicao"].fn({"fen": FEN, "multipv": 1}))
     # o mate não vai como código interno (±(MATE_SCORE - n)): vira `mate_em` assinado
     linha = linhas["linhas"][0]
@@ -130,7 +136,7 @@ def test_fatos_taticos_da_posicao_da_ameaca_real():
 def test_fatos_taticos_em_xeque_nao_tem_ameacas_do_adversario():
     f = fatos_taticos(FEN_FATOS_XEQUE)
     assert f["em_xeque"] is True and f["lado_a_mover"] == "pretas"
-    assert f["lances_do_rei"] == ["Kxh8", "Kg6"]
+    assert sorted(f["lances_do_rei"]) == ["Kg6", "Kxh8"]
     # em xeque não existe "se fosse a vez dele": o lance nulo é ilegal
     assert f["ameacas_do_adversario"] == {"mates_em_1": [], "capturas_de_pecas_indefesas": []}
 
@@ -145,8 +151,24 @@ def test_fatos_taticos_do_mate_do_pastor():
     assert f["ameacas_do_adversario"]["capturas_de_pecas_indefesas"] == ["Nxh5", "Nxe4"]
 
 
+def test_fatos_taticos_ignora_atacante_cravado():
+    """`attackers` é geometria: o cavalo de e2 está cravado pela dama de e8, então Nxg3
+    é ilegal e g3 não está atacada de fato."""
+    f = fatos_taticos(FEN_CRAVADA)
+    assert f["capturas_de_pecas_indefesas"] == []
+    casas = [x["casa"] for x in f["pecas_atacadas_sem_defesa"]]
+    assert "g3" not in casas
+    # o cavalo de e2 entra: depois de Nxe2 (ou Qxe2) o rei não pode recapturar, porque a
+    # dama de e8 cobre a casa -- é peça do aluno pendurada de verdade
+    assert casas == ["e2"] and f["pecas_atacadas_sem_defesa"][0]["peca"] == "cavalo branco"
+
+
 def test_fatos_taticos_limita_as_listas_e_recusa_fen_invalida():
     import pytest
     assert len(fatos_taticos(FEN_MUITOS_XEQUES)["xeques"]) == 12
+    assert len(fatos_taticos(FEN_MUITOS_MATES)["mates_em_1"]) == 12
     with pytest.raises(ValueError):
         fatos_taticos("lixo")
+    # posição impossível (sem rei) também é erro de ferramenta, não resposta sem sentido
+    with pytest.raises(ValueError):
+        fatos_taticos("8/8/8/8/8/8/8/8 w - - 0 1")
