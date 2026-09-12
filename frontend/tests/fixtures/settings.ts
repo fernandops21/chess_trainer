@@ -8,4 +8,6 @@ export const SETTINGS: Settings = {
   analysis_seconds: 15, puzzle_search_seconds: 20,
   tactics_rating: 1200, tactics_window: 150, lichess_min_plays: 2000, lichess_min_popularity: 90,
   classify_moves: true, refute_wrong_moves: true, lichess_token_set: false,
+  anthropic_api_key_set: false, coach_model: "claude-opus-5", coach_effort: "high",
+  langfuse_public_key: "", langfuse_secret_key_set: false, langfuse_host: "",
 };

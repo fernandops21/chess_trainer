@@ -4,7 +4,9 @@ const ok = { chesscom_username: "x", categories: ["rapid"], stockfish_path: "", 
   mistake_threshold_cp: 100, blunder_threshold_cp: 200, avoid_gap_cp: 150, new_per_day: 10, new_order: "random" as const, leech_lapses: 5,
   analysis_seconds: 15, puzzle_search_seconds: 20,
   tactics_rating: 1500, tactics_window: 300, lichess_min_plays: 100, lichess_min_popularity: 80,
-  classify_moves: true, refute_wrong_moves: true, lichess_token_set: false };
+  classify_moves: true, refute_wrong_moves: true, lichess_token_set: false,
+  anthropic_api_key_set: false, coach_model: "claude-opus-5" as const, coach_effort: "high" as const,
+  langfuse_public_key: "", langfuse_secret_key_set: false, langfuse_host: "" };
 
 test("validate", () => {
   expect(validate(ok)).toEqual([]);

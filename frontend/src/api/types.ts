@@ -39,13 +39,25 @@ export interface Settings {
   refute_wrong_moves: boolean;
   /** Só diz se há um token do Lichess guardado: o valor nunca sai da API. */
   lichess_token_set: boolean;
+  /** Só diz se há uma chave da Anthropic guardada: o valor nunca sai da API. */
+  anthropic_api_key_set: boolean;
+  coach_model: "claude-opus-5" | "claude-sonnet-5";
+  coach_effort: "low" | "medium" | "high";
+  langfuse_public_key: string;
+  /** Só diz se há uma chave secreta do LangFuse guardada: o valor nunca sai da API. */
+  langfuse_secret_key_set: boolean;
+  langfuse_host: string;
 }
 
 /**
- * Corpo do `PUT /api/settings`. O token viaja à parte porque ele não volta no
+ * Corpo do `PUT /api/settings`. Os segredos viajam à parte porque não voltam no
  * `GET`: mandar o campo ausente mantém o que está guardado, `""` apaga.
  */
-export type SettingsIn = Omit<Partial<Settings>, "lichess_token_set"> & { lichess_token?: string };
+export type SettingsIn = Omit<Partial<Settings>, "lichess_token_set" | "anthropic_api_key_set" | "langfuse_secret_key_set"> & {
+  lichess_token?: string;
+  anthropic_api_key?: string;
+  langfuse_secret_key?: string;
+};
 
 export interface JobStatus {
   state: "idle" | "running" | "error";
