@@ -70,7 +70,7 @@ def test_amostra_incompleta_avisa_e_devolve_o_que_tem(db_session, caplog):
 def test_rodar_resumir_e_relatorio(db_session, tmp_path):
     puzzle_punir(db_session)
     items = dataset.montar(db_session, analisar, n_lichess=0, seed=1)
-    ruim = {**BOA, "linhas": [{"inicio": "inicial", "lances": ["Qxf8"], "avaliacao_cp": None, "mate_em": None}], "citacoes": [], "texto": TEXTO}
+    ruim = {**BOA, "linhas": [{"inicio": "inicial", "lances": ["Qxf8"], "avaliacao_cp": None, "mate_em": None}], "citacoes": [], "por_que": TEXTO}
     llm = FakeLlm([[("final", ruim)], [("final", ruim)]])
     juiz = FakeLlm([[("final", {"nota": 4, "justificativa": "clara"})]])
     linhas = run.rodar(items, llm, analisar, buscar=None, opcoes=OpcoesExplicacao(variante="agente"), juiz=juiz)
@@ -86,7 +86,7 @@ def test_rodar_resumir_e_relatorio(db_session, tmp_path):
 def test_uma_excecao_nao_derruba_a_rodada(db_session):
     puzzle_punir(db_session)
     items = dataset.montar(db_session, analisar, n_lichess=0, seed=1) * 2
-    boa = {**BOA, "citacoes": [], "texto": TEXTO + " Qxf7#"}
+    boa = {**BOA, "citacoes": [], "por_que": TEXTO + " Qxf7#"}
     llm = LlmQueEstoura(RuntimeError("engine morreu"), [[("final", boa)]])
     linhas = run.rodar(items, llm, analisar, buscar=None, opcoes=OpcoesExplicacao(variante="agente"))
     assert len(linhas) == 2
@@ -132,7 +132,7 @@ def test_main_le_o_dataset_e_escreve_a_rodada(db_session, tmp_path, monkeypatch)
     puzzle_punir(db_session)
     items = dataset.montar(db_session, analisar, n_lichess=0, seed=1)
     dataset.salvar(items, tmp_path / "v1.json")
-    monkeypatch.setattr(run, "_llm", lambda modelo: FakeLlm([[("final", {**BOA, "citacoes": [], "texto": TEXTO + " Qxf7#"})]]))
+    monkeypatch.setattr(run, "_llm", lambda modelo: FakeLlm([[("final", {**BOA, "citacoes": [], "por_que": TEXTO + " Qxf7#"})]]))
     monkeypatch.setattr(run, "_analisar", lambda: analisar)
     monkeypatch.setattr(run, "_buscar", lambda: None)
     run.main(["--dataset", str(tmp_path / "v1.json"), "--variante", "agente", "--modelo", "opus", "--saida", str(tmp_path / "runs"), "--sem-juiz"])

@@ -314,6 +314,9 @@ class CoachExplanation(Base):
     effort: Mapped[str] = mapped_column(String(8))
     variante: Mapped[str] = mapped_column(String(16), default="agente_rag")
     text: Mapped[str] = mapped_column(Text)
+    # a resposta em blocos como o modelo a entregou (`na_partida`, `por_que`, `padrao`,
+    # `treinar`); explicações gravadas antes dos blocos ficam com `{}` e caem no `text`
+    structured_json: Mapped[str] = mapped_column(Text, default="{}")
     lines_json: Mapped[str] = mapped_column(Text, default="[]")
     citations_json: Mapped[str] = mapped_column(Text, default="[]")
     verification_json: Mapped[str] = mapped_column(Text, default="{}")

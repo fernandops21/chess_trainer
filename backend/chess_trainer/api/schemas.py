@@ -560,6 +560,11 @@ class CoachExplanationOut(BaseModel):
     model: str
     prompt_version: str
     text: str
+    # a resposta em blocos; explicação antiga (antes dos blocos) vem sem eles e o cartão usa o `text`
+    na_partida: str | None = None
+    por_que: str | None = None
+    padrao: str | None = None
+    treinar: list[str] = []
     lines: list[dict]
     citations: list[CitacaoOut]
     verification: VerificacaoOut

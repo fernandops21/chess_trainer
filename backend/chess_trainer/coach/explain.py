@@ -39,6 +39,7 @@ class ResultadoExplicacao:
     prompt_version: str
     effort: str
     variante: str
+    # prosa derivada dos blocos (`na_partida` + `por_que`), para o verificador e a avaliação
     texto: str
     estruturado: dict | None
     linhas: list[dict]
@@ -87,7 +88,16 @@ def _trechos_das_ferramentas(chamadas: list[ChamadaFerramenta]) -> list[dict]:
     return achados
 
 
+def texto_da_resposta(estruturado: dict) -> str:
+    """A prosa da resposta em blocos: `na_partida` e `por_que` colados. É o que o
+    verificador confere, o que o juiz da avaliação lê e o que fica em `text` no banco."""
+    partes = [str(estruturado.get(campo) or "").strip() for campo in ("na_partida", "por_que")]
+    return "\n\n".join(p for p in partes if p)
+
+
 def _verificar(estruturado: dict, ctx: ContextoExercicio, trechos: list[dict], analisar: Analisar) -> Verificacao:
+    # o verificador trabalha com um `texto`: os blocos entram derivados nele
+    estruturado = {**estruturado, "texto": texto_da_resposta(estruturado)}
     return verificar(estruturado, fen_inicial=ctx.fen_inicial, fen_erro=ctx.fen_erro,
                      lances_permitidos=set(ctx.lances_permitidos), trechos_ids={t["chunk_id"] for t in trechos}, analisar=analisar)
 
@@ -153,7 +163,7 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
                     if v2.erros < v1.erros:
                         escolhido, v, repaired = r2, v2, True
             est = escolhido.estruturado or {}
-            texto = str(est.get("texto") or "")
+            texto = texto_da_resposta(est)
             # a mesma união que o verificador usa: o campo `citacoes` e os marcadores [c:ID] do texto
             citadas = {str(c) for c in (est.get("citacoes") or [])} | set(CITACAO_RE.findall(texto))
             citacoes = [t for t in trechos if t["chunk_id"] in citadas]
@@ -175,7 +185,8 @@ def gravar(db, resultado: ResultadoExplicacao, review_id: str | None) -> CoachEx
     row = CoachExplanation(
         puzzle_id=resultado.contexto.puzzle_id, review_id=review_id, model=resultado.model,
         prompt_version=resultado.prompt_version, effort=resultado.effort, variante=resultado.variante,
-        text=resultado.texto, lines_json=json.dumps(resultado.linhas, ensure_ascii=False),
+        text=resultado.texto, structured_json=json.dumps(resultado.estruturado or {}, ensure_ascii=False),
+        lines_json=json.dumps(resultado.linhas, ensure_ascii=False),
         citations_json=json.dumps(resultado.citacoes, ensure_ascii=False),
         verification_json=json.dumps(resultado.verificacao.to_dict(), ensure_ascii=False),
         status=resultado.status, repaired=resultado.repaired,

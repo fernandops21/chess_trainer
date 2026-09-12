@@ -11,6 +11,8 @@ from tests.fakes import FakeLlm, FakeTracer
 from tests.test_coach_tools import FEN, FEN_ERRO, puzzle_punir
 
 TEXTO = " ".join(["explicação"] * 70)
+# o bloco "na partida" não cita lance nenhum: lance na prosa fora das linhas viraria aviso
+NA_PARTIDA = "Na partida a dama branca já apontava para o ponto mais fraco do lado do rei."
 
 
 def analisar(fen, multipv):
@@ -26,8 +28,9 @@ def analisar(fen, multipv):
 
 TRECHOS = [{"chunk_id": "ab12", "study_id": "s1", "estudo": "E", "chapter_id": "c1", "capitulo": "C", "node_id": "n1",
             "caminho_san": "1.e4", "texto": "Trecho sintético sobre mate com dama e bispo.", "url": "/estudos/s1/capitulos/c1?lance=n1"}]
-BOA = {"texto": TEXTO + " A linha Qxf7# fecha. [c:ab12]", "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "avaliacao_cp": None, "mate_em": 0}],
-       "citacoes": ["ab12"], "padrao": "mateIn1", "treinar": ["mates com dama e bispo"]}
+BOA = {"na_partida": NA_PARTIDA, "por_que": TEXTO + " A linha Qxf7# fecha. [c:ab12]",
+       "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "avaliacao_cp": None, "mate_em": 0}],
+       "citacoes": ["ab12"], "padrao": "mate do pastor", "treinar": ["mates com dama e bispo"]}
 
 
 def _exercicio(db):
@@ -52,6 +55,19 @@ def test_caminho_feliz_com_rag_e_citacao(db_session):
     assert "[c:ab12]" in llm.prompts[0]["user"] and "buscar_estudos" in llm.prompts[0]["ferramentas"]
     assert [s[0] for s in tracer.spans][:2] == ["coach.explain", "contexto"] and tracer.geracoes[0]["model"] == "fake"
     assert "Qxf7#" in consulta_de_busca(r.contexto) and "mate em 1" in consulta_de_busca(r.contexto)
+    # o `texto` é derivado dos dois blocos: é o que o verificador, a avaliação e o juiz leem
+    assert r.texto == f"{NA_PARTIDA}\n\n{BOA['por_que']}"
+    assert r.estruturado is not None and r.estruturado["padrao"] == "mate do pastor"
+    assert r.estruturado["treinar"] == ["mates com dama e bispo"]
+
+
+def test_texto_derivado_junta_os_blocos_e_ignora_o_que_falta():
+    from chess_trainer.coach.explain import texto_da_resposta
+
+    assert texto_da_resposta({"na_partida": " a ", "por_que": " b "}) == "a\n\nb"
+    assert texto_da_resposta({"na_partida": "", "por_que": "b"}) == "b"
+    assert texto_da_resposta({"na_partida": "a", "por_que": "   "}) == "a"
+    assert texto_da_resposta({}) == ""
 
 
 def test_trecho_achado_pela_ferramenta_pode_ser_citado(db_session):
@@ -73,16 +89,16 @@ def test_erro_de_verificacao_dispara_uma_correcao(db_session):
 
 def test_correcao_que_nao_melhora_mantem_a_primeira(db_session):
     ruim = {**BOA, "linhas": [{"inicio": "inicial", "lances": ["Qxf8"], "avaliacao_cp": None, "mate_em": None}]}
-    pior = {**ruim, "citacoes": ["zzzz"], "texto": ruim["texto"] + " [c:zzzz]"}
+    pior = {**ruim, "citacoes": ["zzzz"], "por_que": ruim["por_que"] + " [c:zzzz]"}
     r = rodar(db_session, FakeLlm([[("final", ruim)], [("final", pior)]]))
     assert not r.repaired and r.status == "errors" and r.verificacao.erros == 1
 
 
 def test_variantes_sem_busca_e_sem_ferramentas(db_session):
-    llm = FakeLlm([[("final", {**BOA, "citacoes": [], "texto": TEXTO + " Qxf7#"})]])
+    llm = FakeLlm([[("final", {**BOA, "citacoes": [], "por_que": TEXTO + " Qxf7#"})]])
     r = rodar(db_session, llm, opcoes=OpcoesExplicacao(variante="agente"))
     assert llm.prompts[0]["ferramentas"] == ["analisar_posicao", "fatos_taticos", "contexto_do_exercicio", "estatisticas_por_tema"] and r.citacoes == []
-    llm2 = FakeLlm([[("final", {**BOA, "citacoes": [], "texto": TEXTO + " Qxf7#"})]])
+    llm2 = FakeLlm([[("final", {**BOA, "citacoes": [], "por_que": TEXTO + " Qxf7#"})]])
     rodar(db_session, llm2, opcoes=OpcoesExplicacao(variante="prompt"))
     assert llm2.prompts[0]["ferramentas"] == [] and "nenhum trecho" in llm2.prompts[0]["user"].lower()
 
@@ -117,4 +133,8 @@ def test_gravar_guarda_so_a_ultima(db_session):
     rows = db_session.query(CoachExplanation).filter_by(puzzle_id=r.contexto.puzzle_id).all()
     assert [x.id for x in rows] == [b.id] and a.id != b.id
     assert json.loads(b.verification_json)["ok"] and json.loads(b.citations_json)[0]["chunk_id"] == "ab12"
-    assert b.status == "ok" and b.model == "fake" and b.input_tokens == 1000 and b.text.startswith("explicação")
+    assert b.status == "ok" and b.model == "fake" and b.input_tokens == 1000 and b.text.startswith("Na partida")
+    # a resposta em blocos vai guardada como veio: é dela que o cartão monta a leitura
+    est = json.loads(b.structured_json)
+    assert est["na_partida"] == NA_PARTIDA and est["por_que"].endswith("[c:ab12]")
+    assert est["padrao"] == "mate do pastor" and est["treinar"] == ["mates com dama e bispo"]

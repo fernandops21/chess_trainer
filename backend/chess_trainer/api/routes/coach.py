@@ -24,10 +24,28 @@ router = APIRouter(prefix="/api/coach")
 STATUS_POR_CODIGO = {"engine_indisponivel": 503}
 
 
+def _blocos(row: CoachExplanation) -> dict:
+    """Os blocos da resposta guardada. Explicação gravada antes deles (ou linha
+    de banco migrado) vem vazia: o cartão cai no texto corrido."""
+    try:
+        est = json.loads(row.structured_json or "{}")
+    except ValueError:
+        est = {}
+    if not isinstance(est, dict):
+        est = {}
+    treinar = est.get("treinar")
+    return {
+        "na_partida": est.get("na_partida") or None,
+        "por_que": est.get("por_que") or None,
+        "padrao": est.get("padrao") or None,
+        "treinar": [str(t) for t in treinar] if isinstance(treinar, list) else [],
+    }
+
+
 def _out(row: CoachExplanation, trace_url: str | None) -> CoachExplanationOut:
     return CoachExplanationOut(
         id=row.id, puzzle_id=row.puzzle_id, created_at=row.created_at, model=row.model, prompt_version=row.prompt_version,
-        text=row.text, lines=json.loads(row.lines_json), citations=json.loads(row.citations_json),
+        text=row.text, **_blocos(row), lines=json.loads(row.lines_json), citations=json.loads(row.citations_json),
         verification=json.loads(row.verification_json), status=row.status, repaired=row.repaired, cost_usd=row.cost_usd,
         tokens={"input": row.input_tokens, "output": row.output_tokens, "cache_read": row.cache_read_tokens, "cache_write": row.cache_write_tokens},
         duration_ms=row.duration_ms, trace_url=trace_url,

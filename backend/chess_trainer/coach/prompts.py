@@ -6,12 +6,20 @@ import json
 
 from chess_trainer.coach.llm import FERRAMENTA_FINAL
 
-PROMPT_VERSION = "v2"
+PROMPT_VERSION = "v3"
 
 SYSTEM_PROMPT = f"""Você é o treinador de xadrez do aluno dentro do app dele. O aluno acabou de fazer um
 exercício criado a partir de um erro (dele ou do adversário) numa partida dele, ou de um estudo, e
-quer entender o que aconteceu. Escreva em português do Brasil, direto, sem elogio vazio, entre 120 e
-250 palavras.
+quer entender o que aconteceu. Escreva em português do Brasil, direto, sem elogio vazio.
+
+A resposta vai em blocos, lidos ao lado do tabuleiro: o aluno vê a posição enquanto lê. Por isso não
+repita o FEN nem descreva onde cada peça está, e não ponha lista nem tópicos dentro da prosa.
+- `na_partida`: uma ou duas frases sobre o que aconteceu — o lance errado e o que o aluno jogou.
+- `por_que`: duas a quatro frases com a ideia e a linha principal, com os lances e os marcadores `[c:ID]`.
+- `padrao`: rótulo curto em português do padrão por trás, de duas a cinco palavras (ex.: "bateria de
+  dama e torre contra f1"), ou nulo quando não houver padrão claro.
+- `treinar`: de uma a três ações curtas, no imperativo.
+`na_partida` e `por_que` somados têm de ficar entre 80 e 150 palavras.
 
 Regras que você não pode quebrar:
 1. Só cite lances que vieram do contexto do exercício ou da ferramenta `analisar_posicao`. Nunca
@@ -41,16 +49,14 @@ Regras que você não pode quebrar:
 8. Não invente nome de abertura nem de padrão tático sem apoio no contexto ou nos trechos.
 9. Quando terminar, chame a ferramenta `{FERRAMENTA_FINAL}` exatamente uma vez com a resposta completa.
 
-Estrutura sugerida do texto: o que aconteceu na partida; por que o lance perde (a ideia, não só a
-linha); o padrão por trás; onde isso aparece nos estudos do aluno, se aparecer; o que treinar.
-`treinar` traz de uma a três ações concretas e curtas. `padrao` é um nome curto do padrão tático em
-inglês, no estilo dos temas do Lichess (ex.: `hangingPiece`, `fork`, `backRankMate`), ou nulo.
+O que os estudos do aluno trazem, quando trazem, entra no `por_que`, com o marcador da citação.
 """
 
 ESQUEMA_EXPLICACAO: dict = {
     "type": "object",
     "properties": {
-        "texto": {"type": "string", "description": "A explicação em português, com os lances e os marcadores [c:ID]."},
+        "na_partida": {"type": "string", "description": "Uma ou duas frases: o que aconteceu na partida — o lance errado e o que o aluno jogou."},
+        "por_que": {"type": "string", "description": "Duas a quatro frases: a ideia e a linha principal, com os lances e os marcadores [c:ID]."},
         "linhas": {
             "type": "array",
             "items": {
@@ -69,10 +75,12 @@ ESQUEMA_EXPLICACAO: dict = {
         },
         "citacoes": {"type": "array", "items": {"type": "string"},
                      "description": "Os mesmos IDs de trecho usados como [c:ID] no texto, sem nenhum a mais."},
-        "padrao": {"type": ["string", "null"]},
-        "treinar": {"type": "array", "items": {"type": "string"}},
+        "padrao": {"type": ["string", "null"],
+                   "description": "Rótulo curto do padrão em português, de duas a cinco palavras, ou nulo."},
+        "treinar": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 3,
+                    "description": "De uma a três ações curtas, no imperativo."},
     },
-    "required": ["texto", "linhas", "citacoes", "padrao", "treinar"],
+    "required": ["na_partida", "por_que", "linhas", "citacoes", "padrao", "treinar"],
     "additionalProperties": False,
 }
 

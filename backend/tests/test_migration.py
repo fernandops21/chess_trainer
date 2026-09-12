@@ -11,7 +11,7 @@ from datetime import datetime
 import pytest
 
 from chess_trainer.core.db import init_db, make_engine, make_session_factory
-from chess_trainer.core.models import Puzzle, Review, Study, StudyChapter
+from chess_trainer.core.models import CoachExplanation, Puzzle, Review, Study, StudyChapter
 
 OLD_SCHEMA = """
 CREATE TABLE games (
@@ -441,5 +441,46 @@ def test_migracao_grava_a_arvore_do_capitulo_antigo_na_primeira_leitura(db_do_ci
             db.commit()
             assert [n["san"] for n in tree["root"]["children"]] == ["e4"]
             assert db.get(StudyChapter, "c1").tree_json
+    finally:
+        engine.dispose()
+
+
+# --- coluna da resposta em blocos do treinador ---------------------------
+
+
+@pytest.fixture
+def db_sem_a_resposta_em_blocos(tmp_path):
+    """Banco do ciclo anterior do treinador: `coach_explanations` sem o
+    `structured_json` (o `DROP COLUMN` do SQLite o tira do banco novo)."""
+    path = tmp_path / "treinador.db"
+    engine = make_engine(str(path))
+    init_db(engine)
+    with make_session_factory(engine)() as db:
+        db.add(Puzzle(id="pz1", kind="punish", fen_start="fen-do-puzzle", side_to_move="white",
+                      solution="[]", end_reason="mate", theme="mate_in_1", category="rapid", solver_moves=1))
+        db.flush()
+        db.add(CoachExplanation(id="ex1", puzzle_id="pz1", model="claude-opus-5", prompt_version="v2",
+                                effort="high", text="explicação antiga", status="ok"))
+        db.commit()
+    engine.dispose()
+    conn = sqlite3.connect(path)
+    conn.execute("ALTER TABLE coach_explanations DROP COLUMN structured_json")
+    conn.commit()
+    conn.close()
+    return path
+
+
+def test_migracao_acrescenta_a_coluna_da_resposta_em_blocos(db_sem_a_resposta_em_blocos):
+    assert "structured_json" not in _colunas(db_sem_a_resposta_em_blocos, "coach_explanations")
+    engine = make_engine(str(db_sem_a_resposta_em_blocos))
+    init_db(engine)
+    init_db(engine)  # segunda passada não pode falhar nem duplicar a coluna
+    try:
+        assert "structured_json" in _colunas(db_sem_a_resposta_em_blocos, "coach_explanations")
+        with make_session_factory(engine)() as db:
+            antiga = db.get(CoachExplanation, "ex1")
+            # a explicação que já existia não se perde e fica sem blocos
+            assert antiga is not None and antiga.text == "explicação antiga"
+            assert not antiga.structured_json or antiga.structured_json == "{}"
     finally:
         engine.dispose()

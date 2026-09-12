@@ -9,7 +9,9 @@ from tests.test_api_system import chesscom_factory
 from tests.test_api_training import engine_factory
 
 TEXTO = " ".join(["explicação"] * 70)
-FINAL = {"texto": TEXTO, "linhas": [], "citacoes": [], "padrao": None, "treinar": ["revisar mates simples"]}
+NA_PARTIDA = "Na partida o lance natural devolveu a vantagem."
+FINAL = {"na_partida": NA_PARTIDA, "por_que": TEXTO, "linhas": [], "citacoes": [],
+         "padrao": "peça pendurada", "treinar": ["revisar mates simples", "conferir capturas antes de mover"]}
 
 
 def montar(llm):
@@ -41,7 +43,10 @@ def test_explain_feliz_reabrir_e_404():
     r = client.post("/api/coach/explain", json={"puzzle_id": pid})
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["status"] == "ok" and body["text"] == TEXTO and body["verification"]["ok"] and body["tokens"]["input"] == 1000
+    assert body["status"] == "ok" and body["text"] == NA_PARTIDA + "\n\n" + TEXTO and body["verification"]["ok"] and body["tokens"]["input"] == 1000
+    # os blocos vão junto: o cartão lê deles, não do texto corrido
+    assert body["na_partida"] == NA_PARTIDA and body["por_que"] == TEXTO and body["padrao"] == "peça pendurada"
+    assert body["treinar"] == ["revisar mates simples", "conferir capturas antes de mover"]
     assert body["citations"] == [] and body["trace_url"] is None and body["model"] == "fake" and llm.prompts[0]["effort"] == "low"
     assert client.get(f"/api/coach/explanations/{pid}").json()["id"] == body["id"]
     assert client.get("/api/coach/explanations/nao-existe").status_code == 404
@@ -140,3 +145,17 @@ def test_reindex_via_job():
     app.state.jobs.wait()
     assert app.state.jobs.snapshot()["state"] == "idle"
     assert client.get("/api/coach/status").json()["embeddings_ready"] is True
+
+
+def test_explicacao_antiga_sem_blocos_volta_so_com_o_texto():
+    """Linha gravada antes dos blocos: `structured_json` vazio, e o cartão cai no `text`."""
+    app, client, pid = montar(FakeLlm([[("final", FINAL)]]))
+    client.put("/api/settings", json={"anthropic_api_key": "sk-ant-x"})
+    assert client.post("/api/coach/explain", json={"puzzle_id": pid}).status_code == 200
+    with app.state.session_factory() as db:
+        row = db.query(CoachExplanation).filter_by(puzzle_id=pid).one()
+        row.structured_json = "{}"
+        db.commit()
+    body = client.get(f"/api/coach/explanations/{pid}").json()
+    assert body["na_partida"] is None and body["por_que"] is None and body["padrao"] is None
+    assert body["treinar"] == [] and body["text"].startswith(NA_PARTIDA)

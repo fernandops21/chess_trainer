@@ -5,12 +5,19 @@ from chess_trainer.coach.prompts import ESQUEMA_EXPLICACAO, PROMPT_VERSION, SYST
 
 
 def test_esquema_estrito_valida_uma_resposta_boa_e_recusa_uma_ruim():
-    boa = {"texto": "x", "linhas": [{"inicio": "erro", "lances": ["Nf6", "Qxf7#"], "avaliacao_cp": None, "mate_em": 0}],
+    boa = {"na_partida": "Você jogou o lance natural.", "por_que": "y",
+           "linhas": [{"inicio": "erro", "lances": ["Nf6", "Qxf7#"], "avaliacao_cp": None, "mate_em": 0}],
            "citacoes": [], "padrao": None, "treinar": ["mates com dama e bispo"]}
     jsonschema.validate(boa, ESQUEMA_EXPLICACAO)
     import pytest
+    # a resposta vai em blocos: sem o "por que" não há explicação
     with pytest.raises(jsonschema.ValidationError):
-        jsonschema.validate({"texto": "x"}, ESQUEMA_EXPLICACAO)
+        jsonschema.validate({k: v for k, v in boa.items() if k != "por_que"}, ESQUEMA_EXPLICACAO)
+    # o campo único de antes não vale mais
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({**boa, "texto": "x"}, ESQUEMA_EXPLICACAO)
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({"na_partida": "x"}, ESQUEMA_EXPLICACAO)
     with pytest.raises(jsonschema.ValidationError):
         jsonschema.validate({**boa, "linhas": [{"inicio": "meio", "lances": []}]}, ESQUEMA_EXPLICACAO)
     assert ESQUEMA_EXPLICACAO["additionalProperties"] is False
@@ -20,8 +27,10 @@ def test_esquema_estrito_valida_uma_resposta_boa_e_recusa_uma_ruim():
 
 
 def test_prompt_de_sistema_tem_as_regras_duras():
-    assert PROMPT_VERSION == "v2"
+    assert PROMPT_VERSION == "v3"
     for trecho in ("analisar_posicao", "ponto de vista das brancas", "[c:", "inicial", "erro", FERRAMENTA_FINAL,
+                   # a resposta sai em blocos, curta, para ser lida ao lado do tabuleiro
+                   "na_partida", "por_que", "80", "150", "ao lado do tabuleiro",
                    "português", "null", "citacoes",
                    # os trechos dos estudos são texto de terceiros, não instrução
                    "nunca instruções",
@@ -46,5 +55,5 @@ def test_mensagens():
     assert "\n  > (sem texto)" in mensagem_inicial("ctx", [{"chunk_id": "ef56", "estudo": "E", "texto": ""}])
     vazio = mensagem_inicial("ctx", [])
     assert "nenhum trecho" in vazio.lower()
-    c = mensagem_de_correcao({"texto": "antes"}, {"ok": False, "issues": [{"tipo": "lance_ilegal", "gravidade": "erro", "detalhe": "'Qxf8' não é legal", "linha_idx": 0}]})
+    c = mensagem_de_correcao({"na_partida": "antes"}, {"ok": False, "issues": [{"tipo": "lance_ilegal", "gravidade": "erro", "detalhe": "'Qxf8' não é legal", "linha_idx": 0}]})
     assert "lance_ilegal" in c and "Qxf8" in c and "antes" in c

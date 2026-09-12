@@ -94,6 +94,12 @@ _NEW_CHAPTER_COLUMNS: tuple[tuple[str, str], ...] = (
     ("updated_at", "DATETIME"),
 )
 
+# Coluna acrescentada a `coach_explanations` no ciclo da resposta em blocos. As
+# explicações que já existiam não têm blocos: ficam com `{}` e o cartão cai no `text`.
+_NEW_COACH_EXPLANATION_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("structured_json", "TEXT NOT NULL DEFAULT '{}'"),
+)
+
 # Índices de `puzzles` que não saem de um `CREATE INDEX` do metadata: o
 # `uq_puzzle_fen_kind_source` acompanha a `UniqueConstraint` declarada dentro do
 # `CREATE TABLE`, e num banco antigo a tabela já existe quando o `create_all` roda.
@@ -209,6 +215,7 @@ def migrate(engine: Engine) -> None:
             conn.exec_driver_sql(statement)
         _acrescenta_colunas(conn, "studies", _NEW_STUDY_COLUMNS)
         _acrescenta_colunas(conn, "study_chapters", _NEW_CHAPTER_COLUMNS)
+        _acrescenta_colunas(conn, "coach_explanations", _NEW_COACH_EXPLANATION_COLUMNS)
 
 
 def init_db(engine: Engine) -> None:

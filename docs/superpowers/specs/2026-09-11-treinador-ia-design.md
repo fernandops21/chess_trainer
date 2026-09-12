@@ -127,7 +127,8 @@ System prompt em português, fixo e versionado em `prompts.py`
 (`PROMPT_VERSION`), gravado em cada explicação. Conteúdo, em linhas gerais:
 
 - papel: treinador de xadrez explicando para o aluno o erro dele naquele
-  exercício; tom direto, sem elogio vazio; 120 a 250 palavras.
+  exercício; tom direto, sem elogio vazio; 80 a 150 palavras somando os dois
+  blocos de prosa (`na_partida` e `por_que`).
 - regras duras: toda afirmação tática (a ameaça, o mate, o xeque, a casa de
   fuga do rei, a peça indefesa) vem de `fatos_taticos` naquela posição ou de
   uma linha de `analisar_posicao`, nunca da dedução do modelo, e lance escrito com
@@ -137,23 +138,29 @@ System prompt em português, fixo e versionado em `prompts.py`
   avaliações sempre da engine, em peões (`+1,5`) ou `M3`; citar estudos só quando
   o trecho recuperado for pertinente, pelo `chunk_id`; nunca inventar nome de
   abertura ou de padrão sem apoio.
-- estrutura sugerida: o que aconteceu, por que o lance perde, o padrão, onde
-  isso aparece nos estudos (se houver), o que treinar.
+- resposta em blocos, lida ao lado do tabuleiro: sem repetir o FEN, sem lista
+  dentro da prosa.
 
 ### 4.4 Formato da resposta (saída estruturada)
 
 ```json
 {
-  "texto": "…prosa com lances em SAN e marcadores [c:ID] para citações…",
+  "na_partida": "…1 ou 2 frases: o lance errado e o que o aluno jogou…",
+  "por_que": "…2 a 4 frases com a ideia e a linha, em SAN, com marcadores [c:ID]…",
   "linhas": [
     {"inicio": "inicial" | "erro", "lances": ["Cf3", "Cc6", "…"], "avaliacao_cp": 150 | null,
      "mate_em": null | 3 | -2 | 0}
   ],
   "citacoes": ["ID", "…"],
-  "padrao": "hanging_piece" | null,
-  "treinar": ["…"]
+  "padrao": "bateria de dama e torre contra f1" | null,
+  "treinar": ["…de 1 a 3 ações curtas, no imperativo…"]
 }
 ```
+
+Os quatro campos de texto são obrigatórios. `padrao` é um rótulo curto em
+português (2 a 5 palavras) ou `null`. A prosa que o verificador, a avaliação e
+o juiz leem é derivada: `na_partida` + `por_que`, e é ela que vai em `text` no
+banco (a resposta inteira fica em `structured_json`).
 
 `mate_em` vem com sinal: positivo = as brancas dão mate, negativo = as pretas;
 `0` quer dizer que a linha termina em mate, seja de quem for. `avaliacao_cp` e
@@ -162,7 +169,7 @@ System prompt em português, fixo e versionado em `prompts.py`
 
 `inicio = "inicial"` significa `puzzle.fen_start`; `"erro"` significa a
 posição antes do lance errado (`fen_before` do puzzle ou a posição do erro na
-partida, conforme o tipo). Toda sequência de lances que aparecer em `texto`
+partida, conforme o tipo). Toda sequência de lances que aparecer na prosa
 deve estar em `linhas`.
 
 ## 5. Verificador (`verify.py`)
@@ -295,7 +302,8 @@ explicar(puzzle_id, review_id | None):
 | review_id | FK reviews, nulo | a revisão que gerou o pedido |
 | created_at | datetime | |
 | model, prompt_version, effort | str | |
-| text | text | prosa final |
+| text | text | prosa final derivada (`na_partida` + `por_que`) |
+| structured_json | text | a resposta em blocos de §4.4; `{}` nas explicações antigas |
 | lines_json, citations_json | text | do formato §4.4 |
 | verification_json | text | `Verificacao` serializada |
 | status | str | `ok` \| `warnings` \| `errors` |
