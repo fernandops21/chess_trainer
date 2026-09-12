@@ -6,5 +6,6 @@ __pycache__/
 frontend/dist/
 frontend/node_modules/
 backend/evals/coach/runs/
+backend/evals/coach/dataset/
 .env
 .smoke-data/

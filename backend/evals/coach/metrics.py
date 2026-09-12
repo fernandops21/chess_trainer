@@ -15,7 +15,7 @@ def resumir(linhas: list[dict]) -> dict:
     if n == 0:
         return {"n": 0}
     tipos = Counter(i["tipo"] for l in linhas for i in l["issues"])
-    notas = [l["nota"] for l in linhas if l.get("nota")]
+    notas = [l["nota"] for l in linhas if l.get("nota") is not None]  # nota 0 (juiz sem resposta) também conta
     lat = [l["duration_ms"] for l in linhas]
     return {
         "n": n,

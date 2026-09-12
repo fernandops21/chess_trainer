@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import random
 from collections import Counter
 from dataclasses import asdict, dataclass
@@ -28,6 +29,8 @@ TEMAS_GENERICOS = {"short", "long", "veryLong", "oneMove", "middlegame", "endgam
                    "equality", "mate", "master", "masterVsMaster", "superGM"}
 FAIXAS = ((0, 1399), (1400, 1799), (1800, 9999))
 N_TEMAS = 10
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -72,6 +75,8 @@ def _contexto_lichess(row: LichessPuzzle) -> ContextoExercicio:
 
 
 def _amostra_lichess(db: Session, n: int, seed: int) -> list[LichessPuzzle]:
+    """Amostra estratificada por tema × faixa de rating; se as células não encherem
+    a cota, completa com o que sobrou dos mesmos temas."""
     if n <= 0:
         return []
     rnd = random.Random(seed)
@@ -79,17 +84,37 @@ def _amostra_lichess(db: Session, n: int, seed: int) -> list[LichessPuzzle]:
     temas = [t for t, _ in contagem.most_common(N_TEMAS)]
     por_celula = max(1, n // max(1, len(temas) * len(FAIXAS)))
     escolhidos: dict[str, LichessPuzzle] = {}
+
+    def juntar(ids: list[str]) -> bool:
+        """Acrescenta até chegar em `n`; devolve True quando a cota fechou."""
+        for pid in ids:
+            if len(escolhidos) >= n:
+                return True
+            if pid not in escolhidos:
+                escolhidos[pid] = db.get(LichessPuzzle, pid)
+        return len(escolhidos) >= n
+
+    cheio = False
     for tema in temas:
         for lo, hi in FAIXAS:
             ids = list(db.scalars(select(LichessPuzzleTheme.puzzle_id).join(LichessPuzzle, LichessPuzzle.id == LichessPuzzleTheme.puzzle_id)
                                   .where(LichessPuzzleTheme.theme == tema, LichessPuzzle.rating >= lo, LichessPuzzle.rating <= hi)))
             rnd.shuffle(ids)
-            for pid in ids[:por_celula]:
-                if pid not in escolhidos:
-                    escolhidos[pid] = db.get(LichessPuzzle, pid)
-            if len(escolhidos) >= n:
+            cheio = juntar(ids[:por_celula])
+            if cheio:
                 break
-    return list(escolhidos.values())[:n]
+        if cheio:
+            break
+    if not cheio and temas:
+        # sobras dos mesmos temas, sem estratificar: um tema pode ter menos puzzles que a cota da célula
+        restantes = sorted({pid for pid in db.scalars(select(LichessPuzzleTheme.puzzle_id).where(LichessPuzzleTheme.theme.in_(temas)))
+                            if pid not in escolhidos})
+        rnd.shuffle(restantes)
+        juntar(restantes)
+    if len(escolhidos) < n:
+        log.warning("amostra do Lichess incompleta: %d de %d puzzles pedidos (faltaram %d)",
+                    len(escolhidos), n, n - len(escolhidos))
+    return list(escolhidos.values())
 
 
 def montar(db: Session, analisar: Analisar, n_lichess: int = 120, seed: int = 7) -> list[ItemAvaliacao]:

@@ -8,10 +8,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Callable
 
 from chess_trainer.coach.explain import OpcoesExplicacao, explicar
 from chess_trainer.coach.llm import AnthropicClient, ErroDoTreinador, LlmClient
@@ -23,29 +25,45 @@ from evals.coach.judge import julgar
 
 MODELOS = {"opus": "claude-opus-5", "sonnet": "claude-sonnet-5"}
 
+log = logging.getLogger(__name__)
+
+
+def _linha_de_falha(item: ItemAvaliacao, tipo: str, detalhe: str, inicio: float) -> dict:
+    """Item que nem chegou a produzir explicação: entra na rodada como erro, com o mesmo formato das outras linhas."""
+    return {"id": item.id, "origem": item.origem, "status": "errors", "ok": False, "erros": 1, "avisos": 0,
+            "issues": [{"tipo": tipo, "gravidade": "erro", "detalhe": detalhe, "linha_idx": None}],
+            "repaired": False, "custo_usd": 0.0, "duration_ms": int((time.monotonic() - inicio) * 1000),
+            "tokens": {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}, "n_chamadas_api": 0,
+            "texto": "", "estruturado": None, "nota": None, "justificativa": None}
+
 
 def rodar(items: list[ItemAvaliacao], llm: LlmClient, analisar: Analisar, buscar, opcoes: OpcoesExplicacao,
-          juiz: LlmClient | None = None) -> list[dict]:
+          juiz: LlmClient | None = None, ao_terminar_item: Callable[[dict], None] | None = None) -> list[dict]:
+    """Uma linha por item. Nada aborta a rodada: um item que estoura vira linha de erro.
+
+    `ao_terminar_item` é chamado assim que cada linha fica pronta, para quem quiser
+    gravar incrementalmente (uma rodada longa não pode perder o que já custou)."""
     linhas = []
     for item in items:
         ctx = contexto_de_item(item)
         inicio = time.monotonic()
         try:
             r = explicar(contexto=ctx, llm=llm, analisar=analisar, estatisticas=None, buscar=buscar, opcoes=opcoes)
+            nota = julgar(juiz, ctx.texto(), r.texto) if juiz is not None else {"nota": None, "justificativa": None}
+            linha = {
+                "id": item.id, "origem": item.origem, "status": r.status, "ok": r.verificacao.ok,
+                "erros": r.verificacao.erros, "avisos": r.verificacao.avisos, "issues": r.verificacao.to_dict()["issues"],
+                "repaired": r.repaired, "custo_usd": r.custo_usd, "duration_ms": r.duration_ms, "tokens": r.uso.to_dict(),
+                "n_chamadas_api": r.n_chamadas_api, "texto": r.texto, "estruturado": r.estruturado, **nota,
+            }
         except ErroDoTreinador as exc:
-            linhas.append({"id": item.id, "origem": item.origem, "status": "errors", "ok": False, "erros": 1, "avisos": 0,
-                           "issues": [{"tipo": exc.codigo, "gravidade": "erro", "detalhe": exc.mensagem, "linha_idx": None}],
-                           "repaired": False, "custo_usd": 0.0, "duration_ms": int((time.monotonic() - inicio) * 1000),
-                           "tokens": {"input": 0, "output": 0, "cache_read": 0, "cache_write": 0}, "n_chamadas_api": 0,
-                           "texto": "", "estruturado": None, "nota": None, "justificativa": None})
-            continue
-        nota = julgar(juiz, ctx.texto(), r.texto) if juiz is not None else {"nota": None, "justificativa": None}
-        linhas.append({
-            "id": item.id, "origem": item.origem, "status": r.status, "ok": r.verificacao.ok,
-            "erros": r.verificacao.erros, "avisos": r.verificacao.avisos, "issues": r.verificacao.to_dict()["issues"],
-            "repaired": r.repaired, "custo_usd": r.custo_usd, "duration_ms": r.duration_ms, "tokens": r.uso.to_dict(),
-            "n_chamadas_api": r.n_chamadas_api, "texto": r.texto, "estruturado": r.estruturado, **nota,
-        })
+            linha = _linha_de_falha(item, exc.codigo, exc.mensagem, inicio)
+        except Exception as exc:  # noqa: BLE001 - engine morta, rede fora, banco travado: o item falha, a rodada segue
+            log.exception("item %s falhou", item.id)
+            linha = _linha_de_falha(item, "excecao", f"{type(exc).__name__}: {exc}", inicio)
+        linhas.append(linha)
+        if ao_terminar_item is not None:
+            ao_terminar_item(linha)
     return linhas
 
 
@@ -107,12 +125,19 @@ def main(argv: list[str] | None = None) -> None:
     juiz = None if args.sem_juiz else _llm(MODELOS[args.juiz])
     buscar = _buscar() if args.variante == "agente_rag" else None
     opcoes = OpcoesExplicacao(variante=args.variante, effort=args.effort)
-    linhas = rodar(items, llm, _analisar(), buscar, opcoes, juiz)
 
     saida = Path(args.saida)
     saida.mkdir(parents=True, exist_ok=True)
     nome = f"{datetime.now().strftime('%Y%m%d-%H%M%S')}-{args.variante}-{args.modelo}"
-    (saida / f"{nome}.jsonl").write_text("\n".join(json.dumps(l, ensure_ascii=False) for l in linhas) + "\n", encoding="utf-8")
+    # linha a linha e com flush: uma rodada de 30 explicações leva minutos e custa dinheiro;
+    # se ela morrer no meio, o que já saiu está no disco
+    with (saida / f"{nome}.jsonl").open("a", encoding="utf-8") as arquivo:
+        def gravar_linha(linha: dict) -> None:
+            arquivo.write(json.dumps(linha, ensure_ascii=False) + "\n")
+            arquivo.flush()
+
+        linhas = rodar(items, llm, _analisar(), buscar, opcoes, juiz, gravar_linha)
+
     resumo = {"variante": args.variante, "modelo": modelo, "effort": args.effort, "prompt_version": PROMPT_VERSION,
               "dataset": str(args.dataset), "data": datetime.now().date().isoformat(), **metrics.resumir(linhas)}
     (saida / f"{nome}.resumo.json").write_text(json.dumps(resumo, ensure_ascii=False, indent=1), encoding="utf-8")
