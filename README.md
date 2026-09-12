@@ -398,12 +398,15 @@ Portuguese, what happened in the game, why the move loses, what the pattern is, 
 your studies and what to train. The coach is an agent: it consults Stockfish, the game context, your
 stats by theme and a search over the comments in your studies' chapters.
 
+The answer comes in four short blocks — **"Na partida"** (what happened in the game), **"Por que"** (the
+idea and the main line), **"Padrão"** (the pattern's name) and **"Treinar"** (what to train) — and on a
+wide screen the board stays put while the text scrolls beside it.
+
 Before showing the text, a **verifier** replays every cited line on the board, checks whether the first
 move is among the engine's top three, compares the evaluations and confirms that every citation exists.
 The **"verificado pela engine"** (verified by the engine) badge means nothing was flagged; **"com
-ressalvas"** (with caveats) lists warnings; **"não verificado"** (not verified) lists errors that even
-the automatic correction could not fix. No move is ever hidden: whatever did not check out shows up on
-the card.
+ressalvas (N)"** (with caveats) and **"não verificado (N)"** (not verified) keep the N findings one
+click away, behind the badge. No move is ever hidden: whatever did not check out is there.
 
 ### Exercise sources
 

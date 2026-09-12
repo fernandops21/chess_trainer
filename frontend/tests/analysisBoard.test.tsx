@@ -633,3 +633,16 @@ test("a barra de avaliação guarda a última leitura enquanto a engine calcula 
   expect(container.querySelector(".eval-bar")?.getAttribute("aria-label")).toBe("avaliação +3.00");
   expect(resolver).not.toBeNull();
 });
+
+// --- tabuleiro fixo ao lado do painel -----------------------------------
+
+test("com painel ao lado, a coluna do tabuleiro ganha a classe do tabuleiro fixo", () => {
+  // o texto do treinador rola na coluna da direita; o tabuleiro tem de ficar à vista
+  const { container } = renderBoard({ sidePanel: <div>painel</div> });
+  expect(container.querySelector(".two-col")!.className).toContain("tabuleiro-fixo");
+});
+
+test("sem painel ao lado nada muda no layout", () => {
+  const { container } = renderBoard();
+  expect(container.querySelector(".two-col")!.className).not.toContain("tabuleiro-fixo");
+});

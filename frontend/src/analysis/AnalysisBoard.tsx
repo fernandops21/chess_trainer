@@ -296,7 +296,9 @@ export function AnalysisBoard({
   }
 
   return (
-    <div className="two-col">
+    // com painel ao lado (resultado do exercício), o tabuleiro fica preso no topo
+    // enquanto o texto da direita rola: ler a explicação não pode tirar a posição da tela
+    <div className={`two-col${sidePanel ? " tabuleiro-fixo" : ""}`}>
       <div>
         {previa && (
           <div className="previa row">

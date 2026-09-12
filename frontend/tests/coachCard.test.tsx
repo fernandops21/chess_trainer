@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import type { CoachExplanation, CoachStatus, PuzzleOut } from "../src/api/types";
+import type { CoachExplanation, CoachStatus, IssueOut, PuzzleOut } from "../src/api/types";
 import { api } from "../src/api/client";
 import { ApiError } from "../src/api/client";
 import { CoachCard } from "../src/train/CoachCard";
@@ -20,9 +20,13 @@ const status = (over: Partial<CoachStatus> = {}): CoachStatus => ({
   configured: true, model: "claude-opus-5", effort: "high", embeddings_ready: true, index_chunks: 3, index_model: "m",
   index_stale: 0, vector_backend: "sqlite-vec", langfuse_configured: false, ...over,
 });
+const NA_PARTIDA = "Na partida a dama e o bispo já miravam a casa mais fraca.";
+const POR_QUE = "A dama e o bispo miram f7: Qxf7# encerra. [c:ab12] Treine mates rápidos.";
 const explicacao = (over: Partial<CoachExplanation> = {}): CoachExplanation => ({
-  id: "e1", puzzle_id: "p1", created_at: "2026-09-11T10:00:00", model: "claude-opus-5", prompt_version: "v1",
-  text: "A dama e o bispo miram f7: Qxf7# encerra. [c:ab12] Treine mates rápidos.",
+  id: "e1", puzzle_id: "p1", created_at: "2026-09-11T10:00:00", model: "claude-opus-5", prompt_version: "v3",
+  text: `${NA_PARTIDA}\n\n${POR_QUE}`,
+  na_partida: NA_PARTIDA, por_que: POR_QUE, padrao: "mate do pastor",
+  treinar: ["mates com dama e bispo", "conferir a casa f7 antes de mover"],
   lines: [], citations: [{ chunk_id: "ab12", study_id: "s1", estudo: "Táticas", chapter_id: "c1", capitulo: "Mates", node_id: "n1", caminho_san: "1.e4", texto: "t", url: "/estudos/s1/capitulos/c1?lance=n1" }],
   verification: { ok: true, issues: [] }, status: "ok", repaired: false, cost_usd: 0.0421,
   tokens: { input: 5000, output: 400, cache_read: 3000, cache_write: 0 }, duration_ms: 12000, trace_url: "http://localhost:3000/trace/x", ...over,
@@ -92,7 +96,7 @@ test("explicação já existente abre direto", async () => {
   vi.spyOn(api, "coachExplanation").mockResolvedValue(explicacao({ status: "warnings", verification: { ok: true, issues: [{ tipo: "lance_fora_das_principais", gravidade: "aviso", detalhe: "'a3' não está entre as três melhores", linha_idx: 0 }] } }));
   renderCard();
   expect(await screen.findByText(/A dama e o bispo/)).toBeTruthy();
-  expect(screen.getByText("com ressalvas")).toBeTruthy();
+  expect(screen.getByText("com ressalvas (1)")).toBeTruthy();
   expect(screen.getByText(/'a3' não está entre as três melhores/)).toBeTruthy();
   expect(screen.getByRole("button", { name: "Explicar de novo" })).toBeTruthy();
 });
@@ -108,6 +112,89 @@ test("erro da API aparece e o botão volta", async () => {
 test("status errors mostra 'não verificado' com os erros", async () => {
   vi.spyOn(api, "coachExplanation").mockResolvedValue(explicacao({ status: "errors", verification: { ok: false, issues: [{ tipo: "lance_ilegal", gravidade: "erro", detalhe: "'Qxf8' não é legal", linha_idx: 0 }] } }));
   renderCard();
-  expect(await screen.findByText("não verificado")).toBeTruthy();
+  expect(await screen.findByText("não verificado (1)")).toBeTruthy();
   expect(screen.getByText(/'Qxf8' não é legal/)).toBeTruthy();
+});
+
+// --- leitura em blocos --------------------------------------------------
+
+test("a explicação sai em blocos com rótulo, padrão e o que treinar", async () => {
+  vi.spyOn(api, "coachExplanation").mockResolvedValue(explicacao());
+  renderCard();
+  expect(await screen.findByText("Na partida")).toBeTruthy();
+  expect(screen.getByText(NA_PARTIDA)).toBeTruthy();
+  expect(screen.getByText("Por que")).toBeTruthy();
+  expect(screen.getByText("Padrão")).toBeTruthy();
+  expect(screen.getByText("mate do pastor")).toBeTruthy();
+  expect(screen.getByText("Treinar")).toBeTruthy();
+  const itens = screen.getAllByRole("listitem").map((li) => li.textContent);
+  expect(itens).toEqual(["mates com dama e bispo", "conferir a casa f7 antes de mover"]);
+  // o lance do bloco "por que" segue clicável e a citação segue virando link
+  expect(screen.getByRole("button", { name: "Qxf7#" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: /Táticas › Mates/ })).toBeTruthy();
+});
+
+test("explicação antiga, sem blocos, cai no texto corrido", async () => {
+  vi.spyOn(api, "coachExplanation").mockResolvedValue(
+    explicacao({ na_partida: null, por_que: null, padrao: null, treinar: [], text: POR_QUE }));
+  renderCard();
+  expect(await screen.findByText(/A dama e o bispo miram f7/)).toBeTruthy();
+  expect(screen.queryByText("Na partida")).toBeNull();
+  expect(screen.queryByText("Por que")).toBeNull();
+  expect(screen.queryByText("Treinar")).toBeNull();
+  // o texto antigo mantém os lances clicáveis e as citações
+  expect(screen.getByRole("button", { name: "Qxf7#" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: /Táticas › Mates/ })).toBeTruthy();
+});
+
+// --- ressalvas escondidas e agrupadas -----------------------------------
+
+const ressalvas: IssueOut[] = [
+  { tipo: "lance_sem_linha", gravidade: "aviso", detalhe: "'Rf8' aparece no texto sem estar em nenhuma linha", linha_idx: null },
+  { tipo: "lance_sem_linha", gravidade: "aviso", detalhe: "'Ra1' aparece no texto sem estar em nenhuma linha", linha_idx: null },
+  { tipo: "tamanho", gravidade: "aviso", detalhe: "38 palavras (esperado entre 60 e 400)", linha_idx: null },
+];
+
+test("as ressalvas ficam fechadas e os lances soltos entram numa linha só", async () => {
+  vi.spyOn(api, "coachExplanation").mockResolvedValue(explicacao({ status: "warnings", verification: { ok: true, issues: ressalvas } }));
+  renderCard();
+  const selo = await screen.findByText("com ressalvas (3)");
+  const detalhes = selo.closest("details") as HTMLDetailsElement;
+  // nada de ressalva aberta na frente do texto: o aluno abre se quiser
+  expect(detalhes.hasAttribute("open")).toBe(false);
+  fireEvent.click(selo);
+  expect(detalhes.open).toBe(true);
+  expect(screen.getAllByText("Lances citados fora das linhas: Rf8, Ra1").length).toBe(1);
+  expect(screen.getByText("38 palavras (esperado entre 60 e 400)")).toBeTruthy();
+});
+
+test("ressalva repetida aparece uma vez só", async () => {
+  const repetida: IssueOut = { tipo: "citacao_ausente", gravidade: "aviso", detalhe: "o texto menciona um estudo sem citar o trecho", linha_idx: null };
+  vi.spyOn(api, "coachExplanation").mockResolvedValue(explicacao({ status: "warnings", verification: { ok: true, issues: [repetida, { ...repetida }] } }));
+  renderCard();
+  expect(await screen.findByText("com ressalvas (2)")).toBeTruthy();
+  expect(screen.getAllByText(repetida.detalhe).length).toBe(1);
+});
+
+// --- rodapé -------------------------------------------------------------
+
+test("o rodapé leva o custo, o botão de repetir e o aviso do índice vazio", async () => {
+  vi.spyOn(api, "coachStatus").mockResolvedValue(status({ index_chunks: 0 }));
+  vi.spyOn(api, "coachExplanation").mockResolvedValue(explicacao());
+  renderCard();
+  const botao = await screen.findByRole("button", { name: "Explicar de novo" });
+  // secundário, no rodapé, junto do custo e do aviso do índice
+  expect(botao.className).not.toContain("primary");
+  const rodape = botao.parentElement as HTMLElement;
+  expect(rodape.textContent).toMatch(/claude-opus-5 · US\$ 0,04 · 12 s/);
+  expect(rodape.textContent).toMatch(/sem estudos indexados \(Configurações → Recriar índice\)/);
+  // o cabeçalho não repete o botão principal quando já existe explicação
+  expect(screen.queryByRole("button", { name: "Explicar" })).toBeNull();
+});
+
+test("com índice cheio o rodapé não fala de estudos indexados", async () => {
+  vi.spyOn(api, "coachExplanation").mockResolvedValue(explicacao());
+  renderCard();
+  expect(await screen.findByText("Na partida")).toBeTruthy();
+  expect(screen.queryByText(/sem estudos indexados/)).toBeNull();
 });

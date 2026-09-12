@@ -402,14 +402,23 @@ interativa é compartilhada; segunda chamada simultânea recebe 409
   que leva de 10 a 40 s), erro (mensagem da API, em português), pronto. Se já
   existe explicação para o puzzle, o cartão abre direto com ela e o botão vira
   "Explicar de novo".
+- Leitura em blocos, na ordem: "Na partida" (`na_partida`), "Por que"
+  (`por_que`), o `padrao` como etiqueta e "Treinar" com a lista de `treinar`,
+  cada um com um rótulo pequeno em maiúsculas (`.bloco-rotulo`). Explicação
+  gravada antes dos blocos cai no texto corrido (`text`).
 - Texto renderizado pelo `TextoComLances` existente (lances clicáveis com
   prévia); marcadores `[c:ID]` viram links "Estudo › Capítulo › 12.Cf3" que
   abrem o capítulo em modo livro no lance (`?lance=`), reusando o formato de
   link dos estudos.
-- Selo "verificado pela engine" quando `verification.ok` sem avisos; "com
-  ressalvas" listando os avisos; "não verificado" listando os erros. Nunca
-  escondido.
-- Rodapé discreto: modelo, custo em centavos de dólar, tempo, link do trace.
+- Selo ao lado do título: "verificado pela engine" quando `verification.ok` sem
+  avisos; "com ressalvas (N)" e "não verificado (N)" num `<details>` fechado,
+  com as ressalvas sem repetição e os `lance_sem_linha` agrupados numa linha só.
+  Nada escondido: tudo a um clique.
+- Rodapé discreto numa linha: modelo, custo em centavos de dólar, tempo, link do
+  trace, aviso de índice vazio e o botão secundário "Explicar de novo".
+- Em tela larga (≥ 900 px) a coluna do tabuleiro fica `sticky` enquanto a coluna
+  da direita rola (`.two-col.tabuleiro-fixo`): a posição não sai da tela quando
+  o texto cita um lance. No celular o layout empilhado não muda.
 - **Configurações** (`SettingsPage.tsx`): seção "Treinador (IA)": chave da API
   (mesmo padrão do token do Lichess: placeholder "guardada; digite para
   trocar", string vazia apaga), modelo (Opus 5 / Sonnet 5), esforço

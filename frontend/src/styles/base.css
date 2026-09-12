@@ -36,10 +36,19 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 .nav .nav-botao { background: transparent; border: none; color: var(--nav-ink); padding: 10px 12px; border-radius: 8px; display: flex; align-items: center; gap: 10px; min-height: var(--tap); text-align: left; }
 /* só o som fica apagado quando desligado: no tema, os dois estados valem igual */
 .nav .nav-som[aria-pressed="false"] { opacity: .65; }
-.content { padding: 20px; max-width: 1100px; width: 100%; min-width: 0; overflow-x: hidden; }
+/* `clip` (e não `hidden`) corta o que passa da largura sem virar área de rolagem:
+   com `hidden`, quem rolaria seria esta caixa e o `position: sticky` do tabuleiro
+   (`.tabuleiro-fixo`) não teria efeito nenhum */
+.content { padding: 20px; max-width: 1100px; width: 100%; min-width: 0; overflow-x: clip; }
 /* o tabuleiro não passa da altura da janela: a coluna da direita (cartões,
    lista de lances) rola sozinha em vez de esticar a página inteira */
 .two-col { display: grid; grid-template-columns: minmax(300px, min(640px, calc(100vh - 180px))) minmax(0, 1fr); gap: 24px; align-items: start; }
+/* tela larga com painel ao lado: o tabuleiro para no topo e só a coluna da direita
+   rola (a explicação do treinador cita lances, e a posição tem de ficar à vista).
+   No celular o layout é empilhado e nada disso vale. */
+@media (min-width: 900px) {
+  .two-col.tabuleiro-fixo > :first-child { position: sticky; top: 12px; align-self: start; }
+}
 @media (max-width: 899px) {
   .app { grid-template-columns: 1fr; grid-template-rows: 1fr; }
   .nav { flex-direction: row; position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; padding: 6px; padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); justify-content: space-around; border-right: none; border-top: 1px solid var(--line); }
@@ -155,6 +164,13 @@ button.lance-no-texto:hover { color: var(--brand); }
 /* citação do treinador: leva ao lance do capítulo sem roubar a leitura da prosa */
 a.citacao { color: var(--muted); font-size: .9em; text-decoration: none; white-space: nowrap; }
 a.citacao:hover { color: var(--brand); text-decoration: underline; }
+/* rótulo dos blocos do treinador ("Na partida", "Por que", "Padrão", "Treinar"):
+   marca a divisão sem competir com a prosa */
+.bloco-rotulo { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+/* as ressalvas do verificador ficam atrás do selo: aberto por padrão, o aviso
+   tapava a explicação. O triângulo do `summary` é o convite para abrir */
+details.selo-ressalvas > summary { cursor: pointer; list-style-position: outside; }
+details.selo-ressalvas > ul { margin: 6px 0 0 18px; padding: 0; color: var(--muted); font-size: .95em; line-height: 1.4; }
 /* faixa acima do tabuleiro enquanto uma prévia está na tela */
 .previa { margin-bottom: 8px; color: var(--muted); }
 

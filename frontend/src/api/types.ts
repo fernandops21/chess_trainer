@@ -619,7 +619,12 @@ export interface CoachExplanation {
   created_at: string;
   model: string;
   prompt_version: string;
+  /** Prosa derivada dos blocos; explicação gravada antes deles só tem isto. */
   text: string;
+  na_partida: string | null;
+  por_que: string | null;
+  padrao: string | null;
+  treinar: string[];
   lines: unknown[];
   citations: Citacao[];
   verification: { ok: boolean; issues: IssueOut[] };

@@ -319,11 +319,18 @@ em português, o que aconteceu na partida, por que o lance perde, qual é o padr
 nos seus estudos e o que treinar. O treinador é um agente: consulta o Stockfish, o contexto da
 partida, as suas estatísticas por tema e busca nos comentários dos capítulos dos seus estudos.
 
+A resposta vem em quatro blocos curtos, para ler de um olhar: **Na partida** (uma ou duas frases sobre
+o lance errado e o que você jogou), **Por que** (a ideia e a linha principal), **Padrão** (o nome do
+padrão por trás, em duas a cinco palavras) e **Treinar** (de uma a três ações). Em tela larga o
+tabuleiro fica parado enquanto o texto rola ao lado: a posição não sai da vista na hora em que a
+explicação cita um lance.
+
 Antes de mostrar o texto, um **verificador** reproduz cada linha citada no tabuleiro, confere se o
 primeiro lance está entre os três melhores da engine, compara as avaliações e confirma que cada
-citação existe. O selo **verificado pela engine** quer dizer que nada foi apontado; **com ressalvas**
-lista avisos; **não verificado** lista erros que nem a correção automática resolveu. Nunca há lance
-escondido: o que não bateu aparece no cartão.
+citação existe. O selo ao lado do título diz o resultado: **verificado pela engine** quer dizer que
+nada foi apontado; **com ressalvas (N)** e **não verificado (N)** trazem as N ressalvas fechadas — um
+clique no selo abre a lista, com os lances soltos agrupados numa linha só. Nunca há lance escondido:
+o que não bateu está ali, a um clique.
 
 Afirmação tática não sai da cabeça do modelo: ele consulta os **fatos da posição**, calculados lance
 por lance sem engine — as casas do rei, os xeques, os mates em um, as capturas de peças sem defesa e o
@@ -333,7 +340,8 @@ xeque que não dá xeque vira aviso, e nome de casa no meio da frase (o rei em h
 de ser confundido com lance.
 
 Os lances do texto são links (prévia no tabuleiro) e as citações abrem o capítulo no modo livro, no
-lance certo. O rodapé mostra o modelo, o custo em dólares e o tempo.
+lance certo. O rodapé mostra o modelo, o custo em dólares, o tempo, o aviso de índice vazio quando
+for o caso e o botão **Explicar de novo**.
 
 ### Configurar
 
