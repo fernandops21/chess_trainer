@@ -16,11 +16,13 @@ from sqlalchemy.orm import Session
 from chess_trainer.coach.llm import Ferramenta
 from chess_trainer.coach.verify import Analisar
 from chess_trainer.core.analysis.mistakes import mover_color
-from chess_trainer.core.evals import format_score
+from chess_trainer.core.evals import clamp, format_score, is_mate, mate_in
 from chess_trainer.core.models import Position, Puzzle
 from chess_trainer.core.tactics.themes import THEME_LABELS, normalize_own_theme
 
 JANELA_PLIES = 6
+# mesma janela que o índice usa para "mesma abertura" (`retrieval/index.py`)
+PLIES_ABERTURA = 6
 
 
 def _aval(cp: int | None) -> str:
@@ -49,6 +51,9 @@ class ContextoExercicio:
     tema: str
     categoria: str
     lances_permitidos: set[str] = field(default_factory=set)
+    # primeiros plies da partida em SAN numerado, no formato dos caminhos dos trechos
+    # (`1.e4 e5 2.Nf3 ...`): é por ele que a busca acha trechos da mesma abertura
+    abertura: str = ""
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -90,26 +95,42 @@ def _san_da_solucao(fen: str, moves: list[dict]) -> list[str]:
     return out
 
 
-def _lances_em_volta(pgn: str, ply: int) -> str:
-    """Janela de ±6 plies em volta do lance de número `ply` (1 = primeiro lance), em SAN numerado."""
+def _lances_da_partida(pgn: str) -> list[tuple[int, bool, str]]:
+    """Linha principal do PGN como (número do lance, é das brancas, SAN)."""
     game = chess.pgn.read_game(io.StringIO(pgn))
     if game is None:
-        return ""
+        return []
     board = game.board()
     tokens: list[tuple[int, bool, str]] = []
     for mv in game.mainline_moves():
         tokens.append((board.fullmove_number, board.turn == chess.WHITE, board.san(mv)))
         board.push(mv)
-    ini, fim = max(0, ply - 1 - JANELA_PLIES), min(len(tokens), ply + JANELA_PLIES)
+    return tokens
+
+
+def _numerar(tokens: list[tuple[int, bool, str]]) -> str:
+    """SAN numerado no mesmo formato dos caminhos dos trechos (`1.e4 e5 2.Nf3 ...`)."""
     out = []
-    for i, (numero, brancas, san) in enumerate(tokens[ini:fim]):
+    for i, (numero, brancas, san) in enumerate(tokens):
         if brancas:
             out.append(f"{numero}.{san}")
         elif i == 0:
-            out.append(f"{numero}...{san}")  # a janela começa num lance das pretas
+            out.append(f"{numero}...{san}")  # a sequência começa num lance das pretas
         else:
             out.append(san)
     return " ".join(out)
+
+
+def _lances_em_volta(pgn: str, ply: int) -> str:
+    """Janela de ±6 plies em volta do lance de número `ply` (1 = primeiro lance), em SAN numerado."""
+    tokens = _lances_da_partida(pgn)
+    ini, fim = max(0, ply - 1 - JANELA_PLIES), min(len(tokens), ply + JANELA_PLIES)
+    return _numerar(tokens[ini:fim])
+
+
+def _tokens_san(pgn: str, n_plies: int) -> str:
+    """Os `n_plies` primeiros lances da partida, em SAN numerado desde o início."""
+    return _numerar(_lances_da_partida(pgn)[:n_plies])
 
 
 def _tema(theme: str) -> str:
@@ -148,7 +169,9 @@ def contexto_do_exercicio(db: Session, puzzle: Puzzle) -> ContextoExercicio:
                                   "aval_depois": _pdv_brancas(seguinte.eval_after, seguinte.ply)}
                 permitidos.add(seguinte.move_uci)
     game = puzzle.game
+    abertura = ""
     if game is not None and pos is not None:
+        abertura = _tokens_san(game.pgn, PLIES_ABERTURA)
         partida = {"brancas": game.white, "pretas": game.black, "resultado": game.result,
                    "data": game.played_at.date().isoformat(), "meu_lado": "brancas" if game.my_color == "white" else "pretas",
                    "lances_em_volta": _lances_em_volta(game.pgn, pos.ply)}
@@ -165,7 +188,22 @@ def contexto_do_exercicio(db: Session, puzzle: Puzzle) -> ContextoExercicio:
         puzzle_id=puzzle.id, tipo=tipo, lado=lado, fen_inicial=puzzle.fen_start, fen_erro=fen_erro,
         solucao_san=_san_da_solucao(puzzle.fen_start, sol), lance_errado=lance_errado, minha_resposta=minha_resposta,
         partida=partida, tema=_tema(puzzle.theme), categoria=puzzle.category, lances_permitidos=permitidos,
+        abertura=abertura,
     )
+
+
+def _linha_analisada(score_brancas: int, san: str, pv_san: list[str]) -> dict:
+    """Uma linha da engine na mesma convenção da resposta final: centipeões OU mate, nunca
+    o código interno do mate (±(MATE_SCORE - n)). `mate_em` vem assinado: positivo = as
+    brancas dão mate, negativo = as pretas."""
+    n = mate_in(score_brancas) if is_mate(score_brancas) else None
+    return {
+        "lance": san,
+        "avaliacao_cp": None if n is not None else clamp(score_brancas),
+        "mate_em": None if n is None else (n if score_brancas > 0 else -n),
+        "avaliacao": format_score(score_brancas),
+        "continuacao": list(pv_san)[:8],
+    }
 
 
 def _analisar_posicao(analisar: Analisar) -> Callable[[dict], str]:
@@ -175,7 +213,7 @@ def _analisar_posicao(analisar: Analisar) -> Callable[[dict], str]:
         multipv = max(1, min(3, int(entrada.get("multipv", 3))))
         a = analisar(board.fen(), multipv)
         sinal = 1 if board.turn == chess.WHITE else -1
-        linhas = [{"lance": l["san"], "avaliacao_brancas_cp": sinal * int(l["score"]), "continuacao": list(l.get("pv_san", []))[:8]}
+        linhas = [_linha_analisada(sinal * int(l["score"]), l["san"], list(l.get("pv_san", [])))
                   for l in a.get("lines", [])]
         return json.dumps({"fen": board.fen(), "lado_a_mover": "brancas" if board.turn else "pretas",
                            "terminal": a.get("terminal"), "linhas": linhas}, ensure_ascii=False)
@@ -186,7 +224,11 @@ def ferramentas_do_treinador(contexto: ContextoExercicio, analisar: Analisar,
                              estatisticas: Callable[[int], list[dict]] | None,
                              buscar: Callable[[str, int], list[dict]] | None) -> list[Ferramenta]:
     ferr = [
-        Ferramenta("analisar_posicao", "Analisa uma posição com o Stockfish: melhores lances, avaliação (ponto de vista das brancas, centipeões) e continuação.",
+        Ferramenta("analisar_posicao",
+                   "Analisa uma posição com o Stockfish. Cada linha traz `lance`, `avaliacao_cp` (centipeões "
+                   "inteiros, ponto de vista das brancas) ou `mate_em` (positivo = as brancas dão mate, negativo "
+                   "= as pretas; o outro campo vem nulo), `avaliacao` (a mesma coisa como o app mostra: `+1.50`, "
+                   "`#1`) e `continuacao` (a linha em SAN).",
                    {"type": "object", "properties": {"fen": {"type": "string"}, "multipv": {"type": "integer", "minimum": 1, "maximum": 3}},
                     "required": ["fen"], "additionalProperties": False}, _analisar_posicao(analisar)),
         Ferramenta("contexto_do_exercicio", "Devolve de novo o contexto completo do exercício (posições, solução, lance errado, partida).",

@@ -215,13 +215,17 @@ def post_study(body: StudyCreateIn, db: Session = Depends(get_db)):
 
 
 @router.put("/studies/{study_id}", response_model=StudyOut)
-def put_study(study_id: str, body: StudyUpdateIn, db: Session = Depends(get_db)):
+def put_study(study_id: str, body: StudyUpdateIn, request: Request, db: Session = Depends(get_db)):
     study = _get_study(db, study_id)
     try:
         update_study(db, study, body.title, body.author, body.chapter_order)
     except ChapterOrderError as exc:
         db.rollback()
         raise HTTPException(400, str(exc)) from exc
+    # o título do estudo entra no texto indexado de cada trecho: renomear muda o hash
+    # do conteúdo e `indexar_estudo` reembute só o que mudou
+    request.app.state.coach_index.indexar_estudo(db, study)
+    db.commit()
     return _study_out(db, study)
 
 

@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from chess_trainer.api.app import create_app
 from chess_trainer.api.routes.studies import _download
 from chess_trainer.config import set_setting
-from chess_trainer.core.models import Puzzle, Review, utcnow
+from chess_trainer.core.models import CoachChunk, Puzzle, Review, utcnow
 from tests.fakes import EmbeddingsFalso, FakeEngine, first_legal_default
 
 FIXTURE = Path(__file__).parent / "fixtures" / "study_4JKVAfaE.pgn"
@@ -798,6 +798,27 @@ def test_salvar_capitulo_indexa_e_apagar_tira_do_indice(client):
     assert client.delete(f"/api/studies/{estudo['id']}/chapters/{cap['id']}").status_code == 204
     with client.app.state.session_factory() as db:
         assert client.app.state.coach_index.status(db)["index_chunks"] == 0
+
+
+def test_renomear_o_estudo_reindexa_os_trechos(client):
+    """O título do estudo faz parte do texto indexado: depois de renomear, o trecho no
+    índice tem de falar do nome novo (senão a busca continua casando com o antigo)."""
+    with client.app.state.session_factory() as db:
+        set_setting(db, "coach_embeddings_ready", "falso")
+    estudo = criar_estudo(client, "Nome antigo")
+    cap = criar_capitulo(client, estudo["id"], name="Um")
+    tree = cap["tree"]
+    tree["intro"] = "Enunciado sintético longo o bastante para virar um trecho indexado."
+    salvar_capitulo(client, estudo["id"], cap["id"], tree, name="Um", mode="read")
+    with client.app.state.session_factory() as db:
+        assert db.scalar(select(CoachChunk.text)).startswith("Nome antigo — Um")
+
+    assert client.put(f"/api/studies/{estudo['id']}", json={"title": "Nome novo"}).status_code == 200
+
+    with client.app.state.session_factory() as db:
+        assert db.scalar(select(func.count()).select_from(CoachChunk)) == 1
+        assert db.scalar(select(CoachChunk.text)).startswith("Nome novo — Um")
+        assert client.app.state.coach_index.status(db)["index_stale"] == 0
 
 
 def test_apagar_estudo_tira_os_capitulos_dele_do_indice(client):

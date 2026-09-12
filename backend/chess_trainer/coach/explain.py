@@ -9,7 +9,8 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from chess_trainer.coach.costs import Uso, custo_usd
-from chess_trainer.coach.llm import FERRAMENTA_FINAL, ChamadaFerramenta, ErroDoTreinador, LlmClient
+from chess_trainer.coach.llm import (FERRAMENTA_FINAL, TETO_TOKENS_SAIDA, ChamadaFerramenta, ErroDoTreinador,
+                                     LlmClient)
 from chess_trainer.coach.observability import NoopTracer, Tracer
 from chess_trainer.coach.prompts import ESQUEMA_EXPLICACAO, PROMPT_VERSION, SYSTEM_PROMPT, mensagem_de_correcao, mensagem_inicial
 from chess_trainer.coach.tools import ContextoExercicio, ferramentas_do_treinador
@@ -124,6 +125,10 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
                     uso = uso + r.uso
                     n_api += r.n_chamadas_api
                     tracer.geracao(nome, llm.model, r.uso, custo_usd(llm.model, r.uso), chamadas=[c.nome for c in r.chamadas])
+                # o teto vale para a explicação inteira: o cliente só vê uma chamada, e
+                # retentativa + correção podem somar bem mais do que cada uma por si
+                if uso.output_tokens > TETO_TOKENS_SAIDA:
+                    raise ErroDoTreinador("custo_excedido", "a explicação passou do teto de tokens e foi interrompida")
                 # o que o agente buscou sozinho vale tanto quanto o que veio da recuperação
                 ids = {t["chunk_id"] for t in trechos}
                 for t in _trechos_das_ferramentas(r.chamadas):

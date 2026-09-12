@@ -4,8 +4,8 @@ import httpx
 import pytest
 
 from chess_trainer.coach.costs import Uso
-from chess_trainer.coach.llm import (FERRAMENTA_FINAL, TETO_TOKENS_SAIDA, AnthropicClient, ErroDoTreinador,
-                                     Ferramenta, executar_ferramenta)
+from chess_trainer.coach.llm import (FERRAMENTA_FINAL, MAX_ITERACOES, MAX_TOKENS_RESPOSTA, TETO_TOKENS_SAIDA,
+                                     AnthropicClient, ErroDoTreinador, Ferramenta, executar_ferramenta)
 from tests.fakes import FakeLlm
 
 ESQUEMA = {"type": "object", "properties": {"texto": {"type": "string"}}, "required": ["texto"], "additionalProperties": False}
@@ -69,6 +69,8 @@ def test_loop_chama_ferramenta_e_para_na_entrega():
     assert r.uso == Uso(200, 40, 500, 0) and r.n_chamadas_api == 2 and r.model == "claude-opus-5"
     p = cliente.pedidos[0]
     assert p["model"] == "claude-opus-5" and p["output_config"] == {"effort": "medium"} and p["thinking"] == {"type": "adaptive"}
+    # folga de saída: a explicação inteira (texto, linhas, citações) não pode vir cortada
+    assert p["max_tokens"] == MAX_TOKENS_RESPOSTA == 16_000 and MAX_ITERACOES == 12
     assert p["system"][0]["cache_control"] == {"type": "ephemeral"} and p["tools"][-1]["name"] == FERRAMENTA_FINAL
     assert p["tools"][-1]["strict"] is True and p["tools"][-1]["cache_control"] == {"type": "ephemeral"}
     # o segundo pedido carrega a resposta do assistente e o resultado da ferramenta
@@ -114,6 +116,19 @@ def test_recusa_e_teto_de_tokens():
     with pytest.raises(ErroDoTreinador) as exc:
         AnthropicClient("sk", "claude-opus-5", client=cliente).run_agent(system="S", user="U", ferramentas=[FERR], esquema_final=ESQUEMA, effort="high")
     assert exc.value.codigo == "custo_excedido"
+
+
+def test_resposta_cortada_no_limite_de_tokens_vira_erro():
+    """Sem a entrega final, uma resposta truncada não serve de explicação: melhor um erro
+    legível do que `estruturado=None` (que viraria \"fora do esquema\" depois de outra chamada)."""
+    cliente = ClienteFalso([resposta([bloco_texto("a explicação começa e")], stop_reason="max_tokens")])
+    with pytest.raises(ErroDoTreinador) as exc:
+        AnthropicClient("sk", "claude-opus-5", client=cliente).run_agent(system="S", user="U", ferramentas=[], esquema_final=ESQUEMA, effort="high")
+    assert exc.value.codigo == "resposta_truncada" and "cortada" in exc.value.mensagem
+    # entrega que chegou no mesmo turno do limite ainda vale
+    cliente = ClienteFalso([resposta([bloco_tool("t1", FERRAMENTA_FINAL, {"texto": "x"})], stop_reason="max_tokens")])
+    r = AnthropicClient("sk", "claude-opus-5", client=cliente).run_agent(system="S", user="U", ferramentas=[], esquema_final=ESQUEMA, effort="high")
+    assert r.estruturado == {"texto": "x"}
 
 
 def test_erros_do_sdk_viram_codigos():

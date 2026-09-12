@@ -1,5 +1,7 @@
-"""Rastreio das etapas do treinador (spec §8.3). `NoopTracer` quando o LangFuse
-não está configurado; `LangfuseTracer` entra na tarefa seguinte."""
+"""Rastreio das etapas do treinador (spec §8.3). Dois tracers atrás da mesma
+interface: `LangfuseTracer` manda os spans e as gerações (modelo, tokens, custo)
+para o LangFuse configurado em Configurações; `NoopTracer` engole tudo quando não
+há host nem chaves. `tracer_de` escolhe um dos dois a cada pedido."""
 from __future__ import annotations
 
 from contextlib import contextmanager

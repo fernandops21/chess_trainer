@@ -14,7 +14,11 @@ from typing import Any, Callable, Protocol
 from chess_trainer.coach.costs import Uso
 
 FERRAMENTA_FINAL = "entregar_explicacao"
-MAX_ITERACOES = 8
+MAX_ITERACOES = 12
+# teto por chamada: a resposta final traz texto longo, linhas e citações, e o raciocínio
+# adaptativo entra no mesmo orçamento — com folga de menos que isso a entrega vem cortada
+MAX_TOKENS_RESPOSTA = 16_000
+# teto da explicação inteira (soma das chamadas), conferido aqui e em `explain.chamar`
 TETO_TOKENS_SAIDA = 12_000
 
 
@@ -59,7 +63,7 @@ class LlmClient(Protocol):
     model: str
 
     def run_agent(self, *, system: str, user: str, ferramentas: list[Ferramenta], esquema_final: dict,
-                  effort: str, max_tokens: int = 4096) -> ResultadoAgente: ...
+                  effort: str, max_tokens: int = MAX_TOKENS_RESPOSTA) -> ResultadoAgente: ...
 
 
 def executar_ferramenta(ferramentas: list[Ferramenta], nome: str, entrada: dict) -> ChamadaFerramenta:
@@ -109,7 +113,7 @@ class AnthropicClient:
             raise ErroDoTreinador("sem_conexao", "sem conexão com a API da Anthropic") from exc
 
     def run_agent(self, *, system: str, user: str, ferramentas: list[Ferramenta], esquema_final: dict,
-                  effort: str, max_tokens: int = 4096) -> ResultadoAgente:
+                  effort: str, max_tokens: int = MAX_TOKENS_RESPOSTA) -> ResultadoAgente:
         tools = [f.definicao() for f in ferramentas] + [_ferramenta_final(esquema_final)]
         messages: list[dict] = [{"role": "user", "content": user}]
         uso = Uso()
@@ -132,6 +136,9 @@ class AnthropicClient:
                 raise ErroDoTreinador("custo_excedido", "a explicação passou do teto de tokens e foi interrompida")
             if stop_reason == "refusal":
                 raise ErroDoTreinador("recusa", "o modelo recusou responder a este pedido")
+            # cortado no meio: sem a entrega final, o que sobrou não serve de explicação
+            if stop_reason == "max_tokens" and not any(b.type == "tool_use" and b.name == FERRAMENTA_FINAL for b in resp.content):
+                raise ErroDoTreinador("resposta_truncada", "a resposta passou do limite de tokens e foi cortada")
             textos.extend(b.text for b in resp.content if b.type == "text")
             usos = [b for b in resp.content if b.type == "tool_use"]
             if not usos:

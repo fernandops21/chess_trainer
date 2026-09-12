@@ -100,7 +100,11 @@ class Indexador:
 
         `should_stop` é consultado antes de cada capítulo: pedida a parada, o que já
         foi indexado é commitado e os capítulos restantes ficam desatualizados (o
-        "Recriar índice" seguinte os arruma). Devolve quantos capítulos foram feitos."""
+        "Recriar índice" seguinte os arruma). Devolve quantos capítulos foram feitos.
+
+        Commita capítulo a capítulo: além de ser o que a durabilidade acima promete,
+        é o que solta a trava de escrita do SQLite entre um capítulo e o próximo — um
+        índice grande levaria minutos e travaria o resto do app até o fim."""
         progress("coach_reindex", 0, 0, "preparando o modelo de embeddings")
         self.embeddings.preparar()
         set_setting(db, CHAVE_MODELO_PRONTO, self.embeddings.modelo)
@@ -108,6 +112,7 @@ class Indexador:
         for c in capitulos:
             self.store.delete_chapter(db, c.id)
         self.store.purgar_orfaos(db)
+        db.commit()
         total = len(capitulos)
         for i, c in enumerate(capitulos, start=1):
             if should_stop is not None and should_stop():
@@ -115,6 +120,7 @@ class Indexador:
                 db.commit()
                 return i - 1
             self.indexar_capitulo(db, c)
+            db.commit()
             progress("coach_reindex", i, total, f"{i}/{total} capítulos")
         db.commit()
         return total

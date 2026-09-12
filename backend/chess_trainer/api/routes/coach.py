@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from chess_trainer.api.deps import get_db
+from chess_trainer.api.routes.system import _engine_available
 from chess_trainer.api.schemas import CoachExplainIn, CoachExplanationOut, CoachStatusOut
 from chess_trainer.coach.explain import OpcoesExplicacao, explicar, gravar
 from chess_trainer.coach.llm import ErroDoTreinador
@@ -55,11 +56,18 @@ def coach_explain(body: CoachExplainIn, request: Request, db: Session = Depends(
     # só reclamaria no `gravar`, depois da explicação inteira já ter rodado
     if body.review_id is not None and db.get(Review, body.review_id) is None:
         raise HTTPException(404, "revisão não encontrada")
+    # o verificador precisa da engine para conferir as linhas: sem Stockfish a explicação
+    # inteira sairia "não verificada" depois de gastar a chamada ao modelo
+    disponivel, _ = _engine_available(request, settings)
+    if not disponivel:
+        raise HTTPException(503, "a engine (Stockfish) não está disponível; configure o caminho em Configurações")
     if not app.state.coach_lock.acquire(blocking=False):
         raise HTTPException(409, "já há uma explicação em andamento; espere ela terminar")
     try:
         contexto = contexto_do_exercicio(db, puzzle)
-        caminho = contexto.partida["lances_em_volta"] if contexto.partida else None
+        # "mesma abertura" compara com o caminho dos trechos, que conta do início da partida:
+        # a janela em volta do erro não casaria com nada
+        caminho = contexto.abertura or None
         index = app.state.coach_index
         tracer = tracer_de(settings, app.state.coach_tracers)
         resultado = explicar(

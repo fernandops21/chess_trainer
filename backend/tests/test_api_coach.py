@@ -2,7 +2,8 @@ from fastapi.testclient import TestClient
 
 from chess_trainer.api.app import create_app
 from chess_trainer.coach.llm import ErroDoTreinador
-from chess_trainer.core.models import CoachExplanation
+from chess_trainer.coach.tools import contexto_do_exercicio
+from chess_trainer.core.models import CoachExplanation, Puzzle
 from tests.fakes import EmbeddingsFalso, FakeEngine, FakeLlm, first_legal_default
 from tests.test_api_system import chesscom_factory
 from tests.test_api_training import engine_factory
@@ -85,6 +86,40 @@ def test_erros_do_treinador_viram_502_ou_503():
         # o erro não pode deixar o lock preso: a próxima tentativa tem de passar
         assert app.state.coach_lock.acquire(blocking=False), codigo
         app.state.coach_lock.release()
+
+
+def test_busca_usa_a_abertura_da_partida():
+    """A busca por "mesma abertura" compara com o caminho dos trechos, que conta do início
+    da partida: quem vai no `caminho_san` é a abertura, não a janela em volta do erro."""
+    app, client, pid = montar(FakeLlm([[("final", FINAL)]]))
+    client.put("/api/settings", json={"anthropic_api_key": "sk-ant-x"})
+    chamadas = []
+    original = app.state.coach_index.buscar
+
+    def espiao(db, consulta, k, caminho_san=None):
+        chamadas.append(caminho_san)
+        return original(db, consulta, k, caminho_san=caminho_san)
+
+    app.state.coach_index.buscar = espiao
+    assert client.post("/api/coach/explain", json={"puzzle_id": pid}).status_code == 200
+    with app.state.session_factory() as db:
+        ctx = contexto_do_exercicio(db, db.get(Puzzle, pid))
+    assert chamadas and chamadas[0] == ctx.abertura
+    assert len(ctx.abertura.split()) == 6 and ctx.abertura.startswith("1.")
+    assert chamadas[0] != ctx.partida["lances_em_volta"]
+
+
+def test_sem_engine_da_503_e_nao_chama_o_modelo():
+    """O verificador não roda sem Stockfish: melhor recusar antes de gastar a chamada paga."""
+    llm = FakeLlm([])  # sem roteiro: qualquer chamada ao modelo quebraria o teste
+    app, client, pid = montar(llm)
+    client.put("/api/settings", json={"anthropic_api_key": "sk-ant-x"})
+    app.state.engine_probe = lambda s: (False, None)
+    r = client.post("/api/coach/explain", json={"puzzle_id": pid})
+    assert r.status_code == 503 and "Stockfish" in r.json()["detail"]
+    assert llm.prompts == []
+    assert app.state.coach_lock.acquire(blocking=False)  # nem chegou a pegar a trava
+    app.state.coach_lock.release()
 
 
 def test_uma_explicacao_por_vez():

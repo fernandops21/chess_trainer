@@ -5,7 +5,7 @@ from typing import Callable
 import chess
 
 from chess_trainer.coach.costs import Uso
-from chess_trainer.coach.llm import ResultadoAgente, executar_ferramenta
+from chess_trainer.coach.llm import MAX_TOKENS_RESPOSTA, ResultadoAgente, executar_ferramenta
 from chess_trainer.core.analysis.engine import LineEval
 
 
@@ -96,8 +96,9 @@ class FakeLlm:
         self.uso = uso
         self.prompts: list[dict] = []
 
-    def run_agent(self, *, system, user, ferramentas, esquema_final, effort, max_tokens=4096) -> ResultadoAgente:
-        self.prompts.append({"system": system, "user": user, "ferramentas": [f.nome for f in ferramentas], "effort": effort})
+    def run_agent(self, *, system, user, ferramentas, esquema_final, effort, max_tokens=MAX_TOKENS_RESPOSTA) -> ResultadoAgente:
+        self.prompts.append({"system": system, "user": user, "ferramentas": [f.nome for f in ferramentas],
+                             "effort": effort, "max_tokens": max_tokens})
         assert self.roteiros, "FakeLlm sem roteiro para esta chamada"
         roteiro = self.roteiros.pop(0)
         chamadas, textos, estruturado = [], [], None

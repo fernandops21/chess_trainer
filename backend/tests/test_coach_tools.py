@@ -3,7 +3,7 @@ import json
 import chess
 
 from chess_trainer.coach.tools import ContextoExercicio, contexto_do_exercicio, ferramentas_do_treinador
-from chess_trainer.core.evals import MATE_SCORE
+from chess_trainer.core.evals import CLAMP_CP, MATE_SCORE
 from chess_trainer.core.models import Game, Position
 from tests.factories import make_puzzle
 
@@ -45,6 +45,8 @@ def test_contexto_de_um_punir_com_partida(db_session):
     assert ctx.minha_resposta == {"san": "Qxf7#", "uci": "h5f7", "achou": True, "aval_antes": MATE_SCORE - 1, "aval_depois": MATE_SCORE}
     assert ctx.partida["brancas"] == "eu" and ctx.partida["meu_lado"] == "brancas"
     assert ctx.partida["lances_em_volta"] == "1.e4 e5 2.Qh5 Nc6 3.Bc4 Nf6 4.Qxf7#"
+    # a abertura são só os 6 primeiros plies, no formato dos caminhos dos trechos dos estudos
+    assert ctx.abertura == "1.e4 e5 2.Qh5 Nc6 3.Bc4 Nf6"
     assert ctx.lances_permitidos == {"h5f7", "g8f6"}
     texto = ctx.texto()
     assert "Qxf7#" in texto and "Nf6" in texto and "FEN" in texto
@@ -75,10 +77,22 @@ def test_ferramentas_do_treinador(db_session):
     por_nome = {f.nome: f for f in ferr}
     assert set(por_nome) == {"analisar_posicao", "contexto_do_exercicio", "estatisticas_por_tema", "buscar_estudos"}
     linhas = json.loads(por_nome["analisar_posicao"].fn({"fen": FEN, "multipv": 1}))
-    assert linhas["linhas"][0]["lance"] == "Qxf7#" and linhas["linhas"][0]["avaliacao_brancas_cp"] == MATE_SCORE - 1
-    # com as pretas a mover, o score do lado a mover vira negativo para as brancas
+    # o mate não vai como código interno (±(MATE_SCORE - n)): vira `mate_em` assinado
+    linha = linhas["linhas"][0]
+    assert linha["lance"] == "Qxf7#" and linha["mate_em"] == 1 and linha["avaliacao_cp"] is None
+    assert linha["avaliacao"] == "#1" and linha["continuacao"] == ["Qxf7#"]
+    # com as pretas a mover, o score do lado a mover vira negativo para as brancas: são elas que dão o mate
     linhas2 = json.loads(por_nome["analisar_posicao"].fn({"fen": FEN_ERRO, "multipv": 1}))
-    assert linhas2["linhas"][0]["avaliacao_brancas_cp"] == -(MATE_SCORE - 1)
+    assert linhas2["linhas"][0]["mate_em"] == -1 and linhas2["linhas"][0]["avaliacao_cp"] is None
+    assert linhas2["linhas"][0]["avaliacao"] == "#-1"
+    # sem mate, `avaliacao_cp` vem em centipeões limitados e `mate_em` nulo
+    def analisar_cp(fen, multipv):
+        return {"fen": fen, "turn": "white", "terminal": None,
+                "lines": [{"move": "h5f7", "san": "Qxf7", "score": 9_000, "pv": ["h5f7"], "pv_san": ["Qxf7"]}][:multipv]}
+
+    cp = json.loads({f.nome: f for f in ferramentas_do_treinador(ctx, analisar_cp, None, None)}["analisar_posicao"]
+                    .fn({"fen": FEN, "multipv": 1}))["linhas"][0]
+    assert cp["avaliacao_cp"] == CLAMP_CP and cp["mate_em"] is None and cp["avaliacao"] == "+90.00"
     assert json.loads(por_nome["contexto_do_exercicio"].fn({}))["tipo"] == "punir"
     assert json.loads(por_nome["estatisticas_por_tema"].fn({"dias": 30}))[0]["label"] == "garfo"
     assert json.loads(por_nome["buscar_estudos"].fn({"consulta": "garfo", "k": 2}))[0]["chunk_id"] == "ab12" and buscas == [("garfo", 2)]

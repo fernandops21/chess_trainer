@@ -3,12 +3,12 @@ from datetime import datetime, timedelta
 
 import chess
 import pytest
-from sqlalchemy import text
+from sqlalchemy import func, select, text
 
 from chess_trainer.coach.retrieval.index import Indexador
 from chess_trainer.config import get_setting, set_setting
 from chess_trainer.core.db import init_db, make_engine, make_session_factory
-from chess_trainer.core.models import Study, StudyChapter, utcnow
+from chess_trainer.core.models import CoachChunk, Study, StudyChapter, utcnow
 from tests.fakes import EmbeddingsFalso
 
 
@@ -66,6 +66,36 @@ def test_recriar_baixa_o_modelo_indexa_tudo_e_busca(ambiente):
         assert len(hits) == 1 and hits[0]["chapter_id"] == "c1" and hits[0]["capitulo"] == "Cravadas"
         assert hits[0]["url"] == "/estudos/s1/capitulos/c1?lance=n1" and hits[0]["caminho_san"] == "1.e4"
         assert hits[0]["texto"].startswith("A cravada absoluta") and len(hits[0]["chunk_id"]) == 10
+
+
+def test_recriar_commita_cada_capitulo(tmp_path):
+    """Durabilidade capítulo a capítulo: o commit está dentro do laço, então uma segunda
+    conexão já vê o primeiro capítulo enquanto o segundo ainda está sendo indexado — e a
+    trava de escrita do SQLite não fica presa do começo ao fim da recriação.
+
+    Precisa de um banco em arquivo: com `:memory:` as duas sessões compartilham a mesma
+    conexão (StaticPool) e veriam até o que ainda não foi commitado."""
+    engine = make_engine(str(tmp_path / "coach.db"))
+    init_db(engine)
+    factory = make_session_factory(engine)
+    idx = Indexador(engine, EmbeddingsFalso())
+    with factory() as db:
+        db.add(Study(id="s1", title="Táticas básicas"))
+        db.add(StudyChapter(id="c1", study_id="s1", order=1, name="Cravadas", updated_at=datetime(2026, 1, 1),
+                            tree_json=json.dumps(arvore("A cravada absoluta prende a peça ao rei e decide a partida."))))
+        db.add(StudyChapter(id="c2", study_id="s1", order=2, name="Garfos", updated_at=datetime(2026, 1, 1),
+                            tree_json=json.dumps(arvore("O garfo de cavalo ataca duas peças ao mesmo tempo sem defesa."))))
+        db.commit()
+    vistos = []
+
+    def progresso(job, feito, total, msg):
+        if total:
+            with factory() as outra:  # conexão separada: só enxerga o que já foi commitado
+                vistos.append((feito, outra.scalar(select(func.count()).select_from(CoachChunk))))
+
+    with factory() as db:
+        assert idx.recriar(db, progresso) == 2
+    assert vistos == [(1, 1), (2, 2)]
 
 
 def test_recriar_para_quando_o_job_pede_cancelamento(ambiente):
