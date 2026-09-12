@@ -216,12 +216,22 @@ def _analisar_posicao(analisar: Analisar) -> Callable[[dict], str]:
         fen = str(entrada.get("fen", ""))
         board = chess.Board(fen)  # ValueError em FEN inválida: vira erro de ferramenta
         multipv = max(1, min(3, int(entrada.get("multipv", 3))))
+        apos_passar = bool(entrada.get("apos_passar", False))
+        if apos_passar:
+            # passar a vez é o lance nulo: as melhores linhas do adversário são as ameaças dele
+            if board.is_check():
+                raise ValueError("em xeque: não dá para passar a vez")
+            board.push(chess.Move.null())
         a = analisar(board.fen(), multipv)
         sinal = 1 if board.turn == chess.WHITE else -1
         linhas = [_linha_analisada(sinal * int(l["score"]), l["san"], list(l.get("pv_san", [])))
                   for l in a.get("lines", [])]
-        return json.dumps({"fen": board.fen(), "lado_a_mover": "brancas" if board.turn else "pretas",
-                           "terminal": a.get("terminal"), "linhas": linhas}, ensure_ascii=False)
+        saida = {"fen": board.fen(), "lado_a_mover": "brancas" if board.turn else "pretas",
+                 "terminal": a.get("terminal"), "linhas": linhas}
+        if apos_passar:
+            saida["apos_passar"] = True
+            saida["quem_ameaca"] = "brancas" if board.turn else "pretas"
+        return json.dumps(saida, ensure_ascii=False)
     return fn
 
 
@@ -342,8 +352,12 @@ def ferramentas_do_treinador(contexto: ContextoExercicio, analisar: Analisar,
                    "Analisa uma posição com o Stockfish. Cada linha traz `lance`, `avaliacao_cp` (centipeões "
                    "inteiros, ponto de vista das brancas) ou `mate_em` (positivo = as brancas dão mate, negativo "
                    "= as pretas; o outro campo vem nulo), `avaliacao` (a mesma coisa como o app mostra: `+1.50`, "
-                   "`#1`) e `continuacao` (a linha em SAN).",
-                   {"type": "object", "properties": {"fen": {"type": "string"}, "multipv": {"type": "integer", "minimum": 1, "maximum": 3}},
+                   "`#1`) e `continuacao` (a linha em SAN). Com `apos_passar` verdadeiro, analisa como se o "
+                   "lado a mover passasse a vez: as linhas devolvidas são as AMEAÇAS do adversário (o que ele "
+                   "faria se você jogasse um lance calmo). Use na posição do exercício e na posição do erro "
+                   "antes de explicar 'por que'.",
+                   {"type": "object", "properties": {"fen": {"type": "string"}, "multipv": {"type": "integer", "minimum": 1, "maximum": 3},
+                                                     "apos_passar": {"type": "boolean"}},
                     "required": ["fen"], "additionalProperties": False}, _analisar_posicao(analisar)),
         Ferramenta("fatos_taticos",
                    "Fatos exatos de uma posição, calculados sem engine: lances do rei, xeques, mates em 1, "

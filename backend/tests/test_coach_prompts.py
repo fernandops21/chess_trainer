@@ -24,10 +24,16 @@ def test_esquema_estrito_valida_uma_resposta_boa_e_recusa_uma_ruim():
     # o esquema tem de dizer que `mate_em` vem com sinal: é assim que o verificador confere
     mate_em = ESQUEMA_EXPLICACAO["properties"]["linhas"]["items"]["properties"]["mate_em"]
     assert "positivo = as brancas dão mate" in mate_em["description"] and "0 = a linha termina em mate" in mate_em["description"]
+    # a linha da ameaça parte da posição inicial com o lado a mover passando a vez
+    inicio = ESQUEMA_EXPLICACAO["properties"]["linhas"]["items"]["properties"]["inicio"]
+    assert inicio["enum"] == ["inicial", "erro", "ameaca"]
+    assert "com o lado a mover passando a vez" in inicio["description"]
+    jsonschema.validate({**boa, "linhas": [{"inicio": "ameaca", "lances": ["Rd8#"], "avaliacao_cp": None, "mate_em": 0}]},
+                        ESQUEMA_EXPLICACAO)
 
 
 def test_prompt_de_sistema_tem_as_regras_duras():
-    assert PROMPT_VERSION == "v3"
+    assert PROMPT_VERSION == "v4"
     for trecho in ("analisar_posicao", "ponto de vista das brancas", "[c:", "inicial", "erro", FERRAMENTA_FINAL,
                    # a resposta sai em blocos, curta, para ser lida ao lado do tabuleiro
                    "na_partida", "por_que", "80", "150", "ao lado do tabuleiro",
@@ -43,7 +49,9 @@ def test_prompt_de_sistema_tem_as_regras_duras():
                    # afirmação tática (ameaça, mate, casa de fuga) só vem dos fatos, não da dedução
                    "fatos_taticos", "a ameaça é", "casa de fuga",
                    # lance com xeque ou mate no texto só vale dentro de uma linha declarada
-                   "linha declarada"):
+                   "linha declarada",
+                   # as ameaças do adversário saem da análise com a vez passada, e todas têm de ser nomeadas
+                   "apos_passar", "ameaca", "TODAS"):
         assert trecho in SYSTEM_PROMPT, trecho
 
 

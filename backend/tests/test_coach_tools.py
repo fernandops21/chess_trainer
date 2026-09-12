@@ -119,6 +119,47 @@ def test_ferramentas_do_treinador(db_session):
         por_nome["analisar_posicao"].fn({"fen": "lixo", "multipv": 1})
 
 
+def test_analisar_posicao_apos_passar_analisa_o_lance_nulo(db_session):
+    """O caso que motivou a bandeira: as ameaças do adversário são as melhores linhas
+    dele na posição em que o lado a mover passa a vez (lance nulo)."""
+    import pytest
+
+    ctx = contexto_do_exercicio(db_session, puzzle_punir(db_session))
+    chamadas = []
+
+    def analisar(fen, multipv):
+        chamadas.append((fen, multipv))
+        b = chess.Board(fen)
+        mv = next(iter(b.legal_moves))
+        return {"fen": fen, "turn": "white" if b.turn else "black", "terminal": None,
+                "lines": [{"move": mv.uci(), "san": b.san(mv), "score": 250, "pv": [mv.uci()], "pv_san": [b.san(mv)]}][:multipv]}
+
+    ferramenta = {f.nome: f for f in ferramentas_do_treinador(ctx, analisar, None, None)}["analisar_posicao"]
+    # FEN_ERRO: as pretas movem, então quem ameaça (e move depois do lance nulo) são as brancas
+    passa = chess.Board(FEN_ERRO)
+    passa.push(chess.Move.null())
+    saida = json.loads(ferramenta.fn({"fen": FEN_ERRO, "multipv": 1, "apos_passar": True}))
+    assert chamadas == [(passa.fen(), 1)]
+    assert saida["apos_passar"] is True and saida["quem_ameaca"] == "brancas"
+    assert saida["fen"] == passa.fen() and saida["lado_a_mover"] == "brancas"
+    # a linha da ameaça vem no formato das outras, ponto de vista das brancas
+    linha = saida["linhas"][0]
+    assert set(linha) == {"lance", "avaliacao_cp", "mate_em", "avaliacao", "continuacao"}
+    assert linha["avaliacao_cp"] == 250 and linha["mate_em"] is None and linha["avaliacao"] == "+2.50"
+    # sem a bandeira nada muda: analisa a posição pedida e não fala de ameaça
+    chamadas.clear()
+    normal = json.loads(ferramenta.fn({"fen": FEN_ERRO, "multipv": 1}))
+    assert chamadas == [(chess.Board(FEN_ERRO).fen(), 1)]
+    assert "apos_passar" not in normal and "quem_ameaca" not in normal and normal["lado_a_mover"] == "pretas"
+    # em xeque não existe "se você passasse a vez": erro de ferramenta
+    with pytest.raises(ValueError, match="passar"):
+        ferramenta.fn({"fen": FEN_FATOS_XEQUE, "apos_passar": True})
+    # o esquema e a descrição avisam o modelo de quando usar a bandeira
+    assert ferramenta.schema["properties"]["apos_passar"] == {"type": "boolean"}
+    assert ferramenta.schema["required"] == ["fen"] and ferramenta.schema["additionalProperties"] is False
+    assert "apos_passar" in ferramenta.descricao and "AMEAÇAS" in ferramenta.descricao
+
+
 def test_fatos_taticos_da_posicao_da_ameaca_real():
     """O caso que motivou a ferramenta: o modelo escreveu que a ameaça era Qxh2#
     (só xeque); a ameaça exata é Qxf1#, e as brancas não têm casa para o rei."""

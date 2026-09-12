@@ -11,6 +11,10 @@ FEN_ERRO = "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 3 3"
 FEN_MATE_DO_BOBO = "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2"
 # posição real de uma partida do aluno: as pretas jogam 32...Qh3 e ameaçam Qxf1# (Qxh2# é só xeque)
 FEN_AMEACA = "5R2/2p3pk/2pp3p/4p3/1P5q/2PPbPr1/7P/5Q1K b - - 3 32"
+# pretas a jogar; se elas passassem a vez, as brancas dariam Rd8# — é a ameaça do adversário
+FEN_AMEACA_MATE = "6k1/5ppp/8/8/8/8/5PPP/3R2K1 b - - 0 1"
+# a mesma com a torre já em h8: as pretas estão em xeque, não existe passar a vez
+FEN_AMEACA_XEQUE = "6kR/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1"
 TEXTO_OK = " ".join(["palavra"] * 80)
 
 
@@ -194,6 +198,50 @@ def test_mate_escrito_no_texto_tem_de_ser_mate_em_alguma_posicao():
     pastor = checar({"texto": TEXTO_OK + " Qxf7# encerra.",
                      "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]})
     assert pastor.ok and "mate_falso" not in tipos(pastor)
+
+
+def analisar_ameaca_de_mate(fen: str, multipv: int) -> dict:
+    """Engine de mentira para as ameaças: na posição do lance nulo de `FEN_AMEACA_MATE`
+    a melhor das brancas é Rd8#; nas outras, o script comum."""
+    passa = chess.Board(FEN_AMEACA_MATE)
+    passa.push(chess.Move.null())
+    if chess.Board(fen).fen() == passa.fen():
+        return {"fen": fen, "turn": "white", "terminal": None,
+                "lines": [{"move": "d1d8", "san": "Rd8#", "score": MATE_SCORE - 1, "pv": ["d1d8"], "pv_san": ["Rd8#"]}][:multipv]}
+    return analisar_script(fen, multipv)
+
+
+def test_linha_de_ameaca_parte_do_lance_nulo():
+    """`inicio: "ameaca"`: a partir da posição do exercício com o lado a mover passando
+    a vez, é o adversário que move — é assim que a explicação nomeia a ameaça dele."""
+    linha = {"inicio": "ameaca", "lances": ["Rd8#"], "avaliacao_cp": None, "mate_em": 0}
+    ok = checar({"texto": TEXTO_OK + " A ameaça é Rd8#.", "linhas": [linha]},
+                fen_inicial=FEN_AMEACA_MATE, fen_erro=None, analisar=analisar_ameaca_de_mate)
+    assert ok.ok and tipos(ok) == set(), ok.issues
+    # a mesma linha declarada como `inicial` é ilegal: quem move ali são as pretas
+    inicial = checar({"texto": TEXTO_OK, "linhas": [{**linha, "inicio": "inicial"}]},
+                     fen_inicial=FEN_AMEACA_MATE, fen_erro=None, analisar=analisar_ameaca_de_mate)
+    assert not inicial.ok and "lance_ilegal" in tipos(inicial)
+    # o mate da ameaça escrito na prosa vale pela posição do lance nulo, mesmo sem linha
+    so_texto = checar({"texto": TEXTO_OK + " A ameaça é Rd8#.", "linhas": []},
+                      fen_inicial=FEN_AMEACA_MATE, fen_erro=None, analisar=analisar_ameaca_de_mate)
+    assert "mate_falso" not in tipos(so_texto)
+
+
+def test_linha_de_ameaca_nao_cobra_lance_permitido_do_aluno():
+    """O primeiro lance de uma linha de ameaça é do adversário: os lances do exercício não
+    valem como desculpa, só as principais da engine na posição do lance nulo."""
+    fora = checar({"texto": TEXTO_OK, "linhas": [{"inicio": "ameaca", "lances": ["Rd2"], "avaliacao_cp": None, "mate_em": None}]},
+                  fen_inicial=FEN_AMEACA_MATE, fen_erro=None, analisar=analisar_ameaca_de_mate,
+                  lances_permitidos={"d1d2"})
+    assert "lance_fora_das_principais" in tipos(fora)
+
+
+def test_linha_de_ameaca_com_o_lado_a_mover_em_xeque_e_erro():
+    v = checar({"texto": TEXTO_OK, "linhas": [{"inicio": "ameaca", "lances": ["Rd8"], "avaliacao_cp": None, "mate_em": None}]},
+               fen_inicial=FEN_AMEACA_XEQUE, fen_erro=None, analisar=analisar_ameaca_de_mate)
+    assert not v.ok and tipos(v) == {"lance_ilegal"}
+    assert "passar a vez" in v.issues[0].detalhe and v.issues[0].linha_idx == 0
 
 
 def test_xeque_escrito_no_texto_tem_de_dar_xeque_em_alguma_posicao():
