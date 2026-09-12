@@ -503,3 +503,69 @@ class ProgressOut(BaseModel):
     by_source: dict[str, SourceReviewsOut] = {}
     streak_days: int
     totals: ProgressTotalsOut
+
+
+class CoachStatusOut(BaseModel):
+    configured: bool
+    model: str
+    effort: str
+    embeddings_ready: bool
+    index_chunks: int
+    index_model: str
+    index_stale: int
+    vector_backend: str
+    langfuse_configured: bool
+
+
+class CoachExplainIn(BaseModel):
+    puzzle_id: str
+    review_id: str | None = None
+
+
+class IssueOut(BaseModel):
+    tipo: str
+    gravidade: str
+    detalhe: str
+    linha_idx: int | None = None
+
+
+class VerificacaoOut(BaseModel):
+    ok: bool
+    issues: list[IssueOut]
+
+
+class CitacaoOut(BaseModel):
+    chunk_id: str
+    study_id: str
+    estudo: str
+    chapter_id: str
+    capitulo: str
+    node_id: str | None
+    caminho_san: str
+    texto: str
+    url: str
+
+
+class TokensOut(BaseModel):
+    input: int
+    output: int
+    cache_read: int
+    cache_write: int
+
+
+class CoachExplanationOut(BaseModel):
+    id: str
+    puzzle_id: str
+    created_at: datetime
+    model: str
+    prompt_version: str
+    text: str
+    lines: list[dict]
+    citations: list[CitacaoOut]
+    verification: VerificacaoOut
+    status: str
+    repaired: bool
+    cost_usd: float
+    tokens: TokensOut
+    duration_ms: int
+    trace_url: str | None = None

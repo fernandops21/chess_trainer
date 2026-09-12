@@ -1,4 +1,5 @@
 import os
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -8,7 +9,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
 from chess_trainer.api.jobs import JobRunner
-from chess_trainer.api.routes import analysis, games, openings, stats, studies, system, tactics, training
+from chess_trainer.api.routes import analysis, coach, games, openings, stats, studies, system, tactics, training
+from chess_trainer.coach.llm import AnthropicClient
 from chess_trainer.coach.retrieval.embeddings import FastembedEmbeddings
 from chess_trainer.coach.retrieval.index import Indexador
 from chess_trainer.config import AppSettings, load_settings
@@ -78,6 +80,7 @@ def create_app(
     study_http_factory=None,
     openings_http_factory=None,
     embeddings_factory=None,
+    coach_llm_factory=None,
 ) -> FastAPI:
     # tudo o que é dado local (banco, banco de táticas, modelo de embeddings) mora aqui
     data_dir = Path(os.environ.get("CHESS_TRAINER_DATA", str(BACKEND_DIR / "data")))
@@ -124,6 +127,15 @@ def create_app(
     embeddings = embeddings_factory() if embeddings_factory else FastembedEmbeddings(cache_dir=data_dir / "fastembed")
     app.state.coach_index = Indexador(db_engine, embeddings)
 
+    def _default_llm_factory(settings: AppSettings):
+        if not settings.anthropic_api_key:
+            return None
+        return AnthropicClient(settings.anthropic_api_key, settings.coach_model)
+
+    app.state.coach_llm_factory = coach_llm_factory or _default_llm_factory
+    app.state.coach_lock = threading.Lock()   # uma explicação por vez: a engine interativa é compartilhada
+    app.state.coach_tracers = {}              # instâncias do LangFuse por (chaves, host)
+
     app.include_router(system.router)
     app.include_router(games.router)
     app.include_router(training.router)
@@ -132,6 +144,7 @@ def create_app(
     app.include_router(studies.router)
     app.include_router(openings.router)
     app.include_router(stats.router)
+    app.include_router(coach.router)
 
     dist = Path(dist_dir) if dist_dir is not None else BACKEND_DIR.parent / "frontend" / "dist"
     if dist.is_dir():
