@@ -382,9 +382,14 @@ export function AnalysisBoard({
           )
         )}
       </div>
-      <div>
-        {/* `painel-lateral` é só gancho de teste e de estilo futuro — sem CSS hoje, e nada de `max-height`: rolagem aqui cortaria o botão "Próximo" */}
+      {/* Coluna da direita em duas partes: os cartões do dono (`painel-lateral`)
+          e o motor com a lista de lances (`painel-engine`). Em tela larga com
+          painel ao lado elas ficam lado a lado — as linhas do motor deixam de
+          nascer no fim da rolagem. Sem `sidePanel` o CSS mantém uma coluna só. */}
+      <div className="painel-direito">
+        {/* nada de `max-height` no `painel-lateral`: rolagem aqui cortaria o botão "Próximo" */}
         {sidePanel && <PreviaContext.Provider value={setPrevia}><div className="painel-lateral">{sidePanel}</div></PreviaContext.Provider>}
+        <div className="painel-engine">
         {!motor ? (
           <div className="card">
             <button onClick={() => setMotor(true)}>Analisar com a engine</button>
@@ -483,6 +488,7 @@ export function AnalysisBoard({
               onContextMenu={editable ? (id, pos) => setMenu({ id, ...pos }) : undefined}
             />
           )}
+        </div>
         </div>
       </div>
       {menu && (

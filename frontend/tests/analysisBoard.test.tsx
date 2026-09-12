@@ -646,3 +646,18 @@ test("sem painel ao lado nada muda no layout", () => {
   const { container } = renderBoard();
   expect(container.querySelector(".two-col")!.className).not.toContain("tabuleiro-fixo");
 });
+
+test("com painel ao lado, a direita vira painel dos cartões e painel do motor", () => {
+  // em tela larga o motor fica ao lado dos cartões; o HTML é o mesmo nas duas larguras
+  const { container } = renderBoard({ sidePanel: <div>painel</div> });
+  const direito = container.querySelector(".painel-direito")!;
+  expect(direito.querySelector(":scope > .painel-lateral")).toBeTruthy();
+  expect(direito.querySelector(":scope > .painel-engine")).toBeTruthy();
+});
+
+test("sem painel ao lado o motor continua na coluna da direita", () => {
+  const { container } = renderBoard({ engine: false });
+  expect(container.querySelector(".painel-direito > .painel-lateral")).toBeNull();
+  const engine = container.querySelector(".painel-direito > .painel-engine")!;
+  expect(engine.textContent).toContain("Analisar com a engine");
+});

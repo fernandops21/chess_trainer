@@ -39,7 +39,7 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 /* `clip` (e não `hidden`) corta o que passa da largura sem virar área de rolagem:
    com `hidden`, quem rolaria seria esta caixa e o `position: sticky` do tabuleiro
    (`.tabuleiro-fixo`) não teria efeito nenhum */
-.content { padding: 20px; max-width: 1100px; width: 100%; min-width: 0; overflow-x: clip; }
+.content { padding: 20px; max-width: 1500px; width: 100%; min-width: 0; overflow-x: clip; }
 /* o tabuleiro não passa da altura da janela: a coluna da direita (cartões,
    lista de lances) rola sozinha em vez de esticar a página inteira */
 .two-col { display: grid; grid-template-columns: minmax(300px, min(640px, calc(100vh - 180px))) minmax(0, 1fr); gap: 24px; align-items: start; }
@@ -50,6 +50,20 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
   /* o `max-height` é defensivo: uma coluna mais alta que a janela (um chamador futuro
      com lista de lances embaixo do tabuleiro) deixaria os controles presos fora da tela */
   .two-col.tabuleiro-fixo > :first-child {
+    position: sticky; top: 12px; align-self: start; max-height: calc(100vh - 24px); overflow: auto;
+  }
+}
+/* coluna da direita: cartões do dono e painel do motor, um embaixo do outro */
+.painel-direito { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 24px; }
+/* tela bem larga com painel ao lado (resultado do exercício): o motor sai de baixo
+   dos cartões e vai para uma sub-coluna própria, presa no topo como o tabuleiro —
+   as linhas da engine ficam à vista enquanto a explicação rola ao lado. A sub-coluna
+   rola por dentro porque o painel cresce (MultiPV mais a tabela de aberturas). */
+@media (min-width: 1400px) {
+  .two-col.tabuleiro-fixo .painel-direito {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr); align-items: start;
+  }
+  .two-col.tabuleiro-fixo .painel-direito > .painel-engine {
     position: sticky; top: 12px; align-self: start; max-height: calc(100vh - 24px); overflow: auto;
   }
 }
