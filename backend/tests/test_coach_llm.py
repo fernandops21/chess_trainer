@@ -91,6 +91,20 @@ def test_ferramenta_com_erro_volta_como_is_error():
     assert cliente.pedidos[1]["messages"][2]["content"][0]["is_error"] is True
 
 
+def test_entrega_e_outra_ferramenta_no_mesmo_turno():
+    """O modelo pode chamar `entregar_explicacao` junto de outra ferramenta no mesmo turno:
+    o loop entrega e para, sem um segundo pedido à API — mas as duas ferramentas do turno
+    são processadas (a `somar` é executada, o resultado de `entregar_explicacao` é capturado)."""
+    cliente = ClienteFalso([
+        resposta([bloco_tool("t1", "somar", {"a": 1, "b": 2}), bloco_tool("t2", FERRAMENTA_FINAL, {"texto": "três"})]),
+    ])
+    r = AnthropicClient("sk", "claude-opus-5", client=cliente).run_agent(system="S", user="U", ferramentas=[FERR], esquema_final=ESQUEMA, effort="high")
+    assert r.estruturado == {"texto": "três"}
+    assert r.chamadas[0].resultado == "3"
+    assert r.n_chamadas_api == 1
+    assert len(cliente.pedidos) == 1  # o loop parou ao ver a entrega; não houve segundo pedido
+
+
 def test_recusa_e_teto_de_tokens():
     cliente = ClienteFalso([resposta([], stop_reason="refusal")])
     with pytest.raises(ErroDoTreinador) as exc:
