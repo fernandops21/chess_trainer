@@ -59,3 +59,10 @@ def test_mensagens():
     assert "nenhum trecho" in vazio.lower()
     c = mensagem_de_correcao({"na_partida": "antes"}, {"ok": False, "issues": [{"tipo": "lance_ilegal", "gravidade": "erro", "detalhe": "'Qxf8' não é legal", "linha_idx": 0}]})
     assert "lance_ilegal" in c and "Qxf8" in c and "antes" in c
+
+
+def test_esquema_nao_usa_palavras_que_a_api_recusa_no_modo_estrito():
+    """A API recusa `minItems`/`maxItems` em ferramentas estritas (erro 400 visto em produção)."""
+    import json
+    texto = json.dumps(ESQUEMA_EXPLICACAO)
+    assert "minItems" not in texto and "maxItems" not in texto

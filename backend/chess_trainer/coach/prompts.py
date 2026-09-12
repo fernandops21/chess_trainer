@@ -79,7 +79,7 @@ ESQUEMA_EXPLICACAO: dict = {
                      "description": "Os mesmos IDs de trecho usados como [c:ID] no texto, sem nenhum a mais."},
         "padrao": {"type": ["string", "null"],
                    "description": "Rótulo curto do padrão em português, de duas a cinco palavras, ou nulo."},
-        "treinar": {"type": "array", "items": {"type": "string"}, "minItems": 1, "maxItems": 3,
+        "treinar": {"type": "array", "items": {"type": "string"},
                     "description": "De uma a três ações curtas, no imperativo."},
     },
     "required": ["na_partida", "por_que", "linhas", "citacoes", "padrao", "treinar"],
