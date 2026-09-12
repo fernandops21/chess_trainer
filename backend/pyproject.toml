@@ -23,7 +23,8 @@ dev = ["jsonschema>=4.26", "pytest>=8", "pytest-timeout>=2"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["slow: precisa do Stockfish real"]
+markers = ["slow: precisa do Stockfish real", "network: chama a API de verdade (precisa de ANTHROPIC_API_KEY)"]
+addopts = "-m 'not slow and not network'"
 timeout = 120
 
 [build-system]
