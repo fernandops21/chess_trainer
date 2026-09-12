@@ -93,6 +93,17 @@ def test_find_stockfish_prefers_configured(tmp_path):
     assert find_stockfish(str(exe)) == str(exe)
 
 
+def test_find_stockfish_respeita_a_variavel_de_ambiente(tmp_path, monkeypatch):
+    from chess_trainer.core.analysis.engine import find_stockfish
+    binario = tmp_path / "stockfish"
+    binario.write_bytes(b"")
+    monkeypatch.setenv("STOCKFISH_PATH", str(binario))
+    assert find_stockfish("") == str(binario)
+    monkeypatch.setenv("STOCKFISH_PATH", str(tmp_path / "nao-existe"))
+    monkeypatch.setattr("shutil.which", lambda _n: None)
+    assert find_stockfish("") is None or not find_stockfish("").endswith("nao-existe")
+
+
 @pytest.mark.slow
 def test_real_stockfish_finds_mate_in_one():
     path = find_stockfish(os.environ.get("STOCKFISH_PATH", ""))

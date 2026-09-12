@@ -1,0 +1,13 @@
+include:
+  - docker/langfuse.compose.yml
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/data:/data
+    environment:
+      CHESS_TRAINER_HOST: "0.0.0.0"
+    restart: unless-stopped

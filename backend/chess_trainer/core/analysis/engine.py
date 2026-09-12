@@ -98,6 +98,9 @@ class StockfishEngine:
 def find_stockfish(configured: str) -> str | None:
     if configured and Path(configured).is_file():
         return configured
+    env = os.environ.get("STOCKFISH_PATH", "")
+    if env and Path(env).is_file():
+        return env
     on_path = shutil.which("stockfish")
     if on_path:
         return on_path
