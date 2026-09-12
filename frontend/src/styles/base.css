@@ -58,14 +58,20 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 /* tela bem larga com painel ao lado (resultado do exercício): o motor sai de baixo
    dos cartões e vai para uma sub-coluna própria, presa no topo como o tabuleiro —
    as linhas da engine ficam à vista enquanto a explicação rola ao lado. A sub-coluna
-   rola por dentro porque o painel cresce (MultiPV mais a tabela de aberturas). */
-@media (min-width: 1400px) {
+   rola por dentro porque o painel cresce (MultiPV mais a tabela de aberturas).
+   Os 1660 px são a soma do que já está ocupado: barra de navegação (220), padding
+   do conteúdo (40), tabuleiro (até 640) e o vão (24) — abaixo disso a coluna dos
+   cartões ficaria estreita demais e o empilhado lê melhor. */
+@media (min-width: 1660px) {
   .two-col.tabuleiro-fixo .painel-direito {
     grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr); align-items: start;
   }
   .two-col.tabuleiro-fixo .painel-direito > .painel-engine {
     position: sticky; top: 12px; align-self: start; max-height: calc(100vh - 24px); overflow: auto;
   }
+  /* a lista de lances já está dentro de um painel que rola: duas barras de
+     rolagem encaixadas fazem a roda do mouse parar na de dentro */
+  .two-col.tabuleiro-fixo .painel-direito > .painel-engine .tree { max-height: none; }
 }
 @media (max-width: 899px) {
   .app { grid-template-columns: 1fr; grid-template-rows: 1fr; }
@@ -125,6 +131,9 @@ button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line);
 /* peças do mesmo tipo se sobrepõem um pouco, como nos sites de xadrez */
 .cg-wrap.material-bar .material-grupo piece + piece { margin-left: -7px; }
 .cg-wrap.material-bar .material-saldo { margin-left: 2px; font-weight: 700; }
+/* com a engine ligada a barra de vantagem (24 px) e o vão (6) ficam à esquerda
+   do tabuleiro: a faixa se desloca para começar na borda dele */
+.cg-wrap.material-bar--deslocada { padding-left: 30px; }
 
 .line { display: flex; flex-wrap: wrap; gap: 4px; font-family: ui-monospace, Menlo, Consolas, monospace; }
 .line .san { min-height: 32px; padding: 2px 6px; border: none; background: transparent; }

@@ -312,8 +312,10 @@ export function AnalysisBoard({
             )}
           </div>
         )}
-        {/* material capturado de cada lado, quem está em cima primeiro */}
-        <MaterialBar fen={fenNaTela} lado={orient === "white" ? "black" : "white"} />
+        {/* Material capturado de cada lado, quem está em cima primeiro. Fora do
+            modo livro: ali as posições são diagramas montados pelo autor (peças
+            escolhidas a dedo), e contar o que "falta" não quer dizer nada. */}
+        {!livro && <MaterialBar fen={fenNaTela} lado={orient === "white" ? "black" : "white"} deslocar={motor} />}
         <div className="board-row">
         {motor && <EvalBar score={barra.score} turn={barra.turn} orientation={orient} terminal={barra.terminal} />}
         <Board
@@ -333,7 +335,7 @@ export function AnalysisBoard({
           onMove={onMove}
         />
         </div>
-        <MaterialBar fen={fenNaTela} lado={orient} />
+        {!livro && <MaterialBar fen={fenNaTela} lado={orient} deslocar={motor} />}
         <div className="row" style={{ marginTop: 8 }}>
           <button onClick={semPrevia(goStart)} disabled={mt.currentId === null && !previa} aria-label="posição inicial">⏮</button>
           <button onClick={semPrevia(prev)} disabled={mt.currentId === null && !previa} aria-label="lance anterior">◀</button>

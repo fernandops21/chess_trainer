@@ -1,17 +1,8 @@
 import { useMemo } from "react";
 import { TIPOS, materialCapturado, type Tipo } from "./material";
-
-// O `<piece>` é do chessground: os desenhos das peças são imagens de fundo de
-// `.cg-wrap piece.<tipo>.<cor>` (arquivo `chessground.cburnett.css`, que o
-// `Board` importa). Reaproveitá-los aqui evita um segundo conjunto de imagens,
-// e o preço é ensinar o elemento ao TypeScript.
-declare module "react" {
-  namespace JSX {
-    interface IntrinsicElements {
-      piece: DetailedHTMLProps<HTMLAttributes<HTMLElement>, HTMLElement>;
-    }
-  }
-}
+// os sprites das peças vêm daqui (`.cg-wrap piece.<tipo>.<cor>`); a importação é
+// desta barra também, para não depender de o `Board` estar na tela
+import "chessground/assets/chessground.cburnett.css";
 
 /** Nome da peça no CSS do chessground. */
 const CLASSE: Record<Tipo, string> = { p: "pawn", n: "knight", b: "bishop", r: "rook", q: "queen" };
@@ -29,6 +20,8 @@ export interface MaterialBarProps {
   fen: string;
   /** De quem é a barra: mostra o que ESTE lado capturou. */
   lado: "white" | "black";
+  /** Com a barra de vantagem à esquerda do tabuleiro, a faixa anda o mesmo tanto. */
+  deslocar?: boolean;
 }
 
 /**
@@ -39,7 +32,7 @@ export interface MaterialBarProps {
  * Sem captura nenhuma a faixa continua desenhada (vazia): é o `min-height` do
  * CSS que impede o tabuleiro de saltar quando a primeira peça cai.
  */
-export function MaterialBar({ fen, lado }: MaterialBarProps) {
+export function MaterialBar({ fen, lado, deslocar = false }: MaterialBarProps) {
   const { capturadasPor, saldo } = useMemo(() => materialCapturado(fen), [fen]);
   const capturadas = capturadasPor[lado];
   // quem capturou branco vê peças pretas, e vice-versa
@@ -52,12 +45,12 @@ export function MaterialBar({ fen, lado }: MaterialBarProps) {
   const rotulo = grupos.length > 0
     ? `${LADO[lado]} capturaram: ${lista}${vantagem > 0 ? `; +${vantagem}` : ""}`
     : vantagem > 0
-      ? `${LADO[lado]}: +${vantagem}`
+      ? `${LADO[lado]}: +${vantagem} de material`
       : undefined;
   return (
     // barra vazia é enfeite de layout: sem rótulo, sai da leitura de tela
     <div
-      className="cg-wrap material-bar"
+      className={`cg-wrap material-bar${deslocar ? " material-bar--deslocada" : ""}`}
       role={rotulo === undefined ? undefined : "img"}
       aria-label={rotulo}
       aria-hidden={rotulo === undefined ? true : undefined}

@@ -673,3 +673,19 @@ test("o material capturado aparece acima e abaixo do tabuleiro", () => {
   expect(barras[0].querySelectorAll("piece").length).toBe(0);
   expect(barras[1].getAttribute("aria-label")).toBe("brancas capturaram: 2 peões; +2");
 });
+
+test("no modo livro não há barras de material", () => {
+  // as páginas do livro são diagramas montados pelo autor: peça que falta não é peça capturada
+  const { container } = renderBoard({ layout: "livro" });
+  expect(container.querySelector(".material-bar")).toBeNull();
+});
+
+test("com a engine ligada as barras se deslocam para a borda do tabuleiro", () => {
+  // a barra de vantagem fica à esquerda do tabuleiro e empurraria as faixas
+  const ligada = renderBoard();
+  for (const barra of ligada.container.querySelectorAll(".material-bar"))
+    expect(barra.className).toContain("material-bar--deslocada");
+  const desligada = renderBoard({ engine: false });
+  for (const barra of desligada.container.querySelectorAll(".material-bar"))
+    expect(barra.className).not.toContain("material-bar--deslocada");
+});
