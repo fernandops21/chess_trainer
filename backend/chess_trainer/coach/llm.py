@@ -8,10 +8,19 @@ com um código curto que a API traduz em mensagem."""
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Callable, Protocol
 
 from chess_trainer.coach.costs import Uso
+
+log = logging.getLogger(__name__)
+
+
+def _serializavel(obj):
+    """Blocos do SDK (thinking, tool_use...) viram dicts no log; o resto vira texto."""
+    dump = getattr(obj, "model_dump", None)
+    return dump() if callable(dump) else str(obj)
 
 FERRAMENTA_FINAL = "entregar_explicacao"
 MAX_ITERACOES = 12
@@ -107,6 +116,13 @@ class AnthropicClient:
         except anthropic.RateLimitError as exc:
             raise ErroDoTreinador("limite_de_uso", "limite de uso da API atingido; tente de novo em alguns minutos") from exc
         except anthropic.BadRequestError as exc:
+            # o corpo do erro e o pedido inteiro (sem a chave) vão para o log: sem isso um
+            # "Invalid request data" genérico não tem como ser diagnosticado
+            try:
+                pedido = json.dumps(kwargs, ensure_ascii=False, default=_serializavel)
+            except Exception:  # noqa: BLE001
+                pedido = "(pedido não serializável)"
+            log.error("a API recusou o pedido (400): %s | PEDIDO: %s", getattr(exc, "body", exc.message), pedido)
             raise ErroDoTreinador("requisicao_invalida", f"a API recusou o pedido: {exc.message}") from exc
         except anthropic.APIStatusError as exc:
             raise ErroDoTreinador("erro_da_api", f"erro da API ({exc.status_code}): {exc.message}") from exc

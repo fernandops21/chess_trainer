@@ -159,3 +159,15 @@ def test_fake_llm_segue_o_roteiro_e_executa_as_ferramentas():
     assert fake.prompts[0]["ferramentas"] == ["somar"] and fake.prompts[0]["effort"] == "low"
     with pytest.raises(AssertionError):
         fake.run_agent(system="S", user="U", ferramentas=[], esquema_final=ESQUEMA, effort="low")
+
+
+def test_pedido_recusado_vai_para_o_log_com_o_corpo(caplog):
+    import anthropic
+    import logging
+    req = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    erro = anthropic.BadRequestError("x", response=httpx.Response(400, request=req), body={"error": {"message": "Invalid request data"}})
+    cliente = ClienteFalso([erro])
+    with caplog.at_level(logging.ERROR, logger="chess_trainer.coach.llm"):
+        with pytest.raises(ErroDoTreinador):
+            AnthropicClient("sk", "claude-opus-5", client=cliente).run_agent(system="S", user="U", ferramentas=[FERR], esquema_final=ESQUEMA, effort="high")
+    assert "Invalid request data" in caplog.text and "PEDIDO" in caplog.text and '"somar"' in caplog.text
