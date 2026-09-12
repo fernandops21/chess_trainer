@@ -18,7 +18,8 @@ def test_esquema_estrito_valida_uma_resposta_boa_e_recusa_uma_ruim():
 
 def test_prompt_de_sistema_tem_as_regras_duras():
     assert PROMPT_VERSION == "v1"
-    for trecho in ("analisar_posicao", "ponto de vista das brancas", "[c:", "inicial", "erro", FERRAMENTA_FINAL, "português"):
+    for trecho in ("analisar_posicao", "ponto de vista das brancas", "[c:", "inicial", "erro", FERRAMENTA_FINAL,
+                   "português", "null", "citacoes"):
         assert trecho in SYSTEM_PROMPT, trecho
 
 

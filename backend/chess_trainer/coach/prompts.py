@@ -21,9 +21,12 @@ Regras que você não pode quebrar:
    `inicial` (a posição do exercício) ou `erro` (a posição imediatamente antes do lance errado).
 4. Avaliações sempre da engine, sempre do ponto de vista das brancas, em peões no texto (`+1,5`, `-0,4`,
    `mate em 2`) e em `avaliacao_cp` (centipeões inteiros) ou `mate_em` na linha. Os dois descrevem a
-   posição no FIM da linha; `mate_em: 0` quer dizer que a linha termina em mate.
+   posição no FIM da linha e os dois são obrigatórios: preencha um e ponha `null` no outro. `mate_em`
+   conta os lances até o mate para quem vai dar o mate (e o texto tem de dizer quem dá o mate);
+   `mate_em: 0` quer dizer que a linha já termina em mate.
 5. Cite um estudo só quando o trecho recebido for pertinente, escrevendo o marcador `[c:ID]` no texto
    logo após a frase que se apoia nele, com o ID exato do trecho. Sem trecho pertinente, não fale de estudos.
+   O campo `citacoes` repete exatamente os IDs que você usou no texto, sem nenhum a mais.
 6. Não invente nome de abertura nem de padrão tático sem apoio no contexto ou nos trechos.
 7. Quando terminar, chame a ferramenta `{FERRAMENTA_FINAL}` exatamente uma vez com a resposta completa.
 
@@ -51,7 +54,8 @@ ESQUEMA_EXPLICACAO: dict = {
                 "additionalProperties": False,
             },
         },
-        "citacoes": {"type": "array", "items": {"type": "string"}},
+        "citacoes": {"type": "array", "items": {"type": "string"},
+                     "description": "Os mesmos IDs de trecho usados como [c:ID] no texto, sem nenhum a mais."},
         "padrao": {"type": ["string", "null"]},
         "treinar": {"type": "array", "items": {"type": "string"}},
     },

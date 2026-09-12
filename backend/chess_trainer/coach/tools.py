@@ -15,10 +15,24 @@ from sqlalchemy.orm import Session
 
 from chess_trainer.coach.llm import Ferramenta
 from chess_trainer.coach.verify import Analisar
+from chess_trainer.core.analysis.mistakes import mover_color
+from chess_trainer.core.evals import format_score
 from chess_trainer.core.models import Position, Puzzle
 from chess_trainer.core.tactics.themes import THEME_LABELS, normalize_own_theme
 
 JANELA_PLIES = 6
+
+
+def _aval(cp: int | None) -> str:
+    """Centipeões (ponto de vista das brancas) no formato que o app mostra; `?` quando não há número."""
+    return "?" if cp is None else format_score(cp)
+
+
+def _pdv_brancas(cp: int | None, ply: int) -> int | None:
+    """`Position.eval_*` é do ponto de vista de quem jogou; aqui vira sempre o das brancas."""
+    if cp is None:
+        return None
+    return cp if mover_color(ply) == "white" else -cp
 
 
 @dataclass
@@ -49,12 +63,13 @@ class ContextoExercicio:
             linhas.append(f"FEN da posição antes do lance errado (erro): {self.fen_erro}")
         if self.lance_errado:
             e = self.lance_errado
-            linhas.append(f"Lance errado ({e['de_quem']}, {e.get('nivel') or 'erro'}): {e['san']}; avaliação como o app mostra: "
-                          f"{e['aval_antes']} → {e['aval_depois']} (use `analisar_posicao` para números confiáveis).")
+            linhas.append(f"Lance errado ({e['de_quem']}, {e.get('nivel') or 'erro'}): {e['san']}; avaliação "
+                          f"(ponto de vista das brancas, como o app mostra): {_aval(e['aval_antes'])} → {_aval(e['aval_depois'])} "
+                          "(use `analisar_posicao` para números confiáveis).")
         if self.minha_resposta:
             r = self.minha_resposta
             linhas.append(("Na partida o aluno achou a solução: " if r["achou"] else "Na partida o aluno respondeu ") + r["san"]
-                          + ("" if r["achou"] else f" ({r['aval_antes']} → {r['aval_depois']}) e deixou passar a solução."))
+                          + ("" if r["achou"] else f" ({_aval(r['aval_antes'])} → {_aval(r['aval_depois'])}) e deixou passar a solução."))
         if self.partida:
             p = self.partida
             linhas.append(f"Partida: {p['brancas']} x {p['pretas']} ({p['resultado']}, {p['data']}); o aluno era {p['meu_lado']}.")
@@ -121,14 +136,16 @@ def contexto_do_exercicio(db: Session, puzzle: Puzzle) -> ContextoExercicio:
         fen_erro = pos.fen
         de_quem = "você" if (pos.mistake_by == "me" or (pos.mistake_by is None and tipo == "evitar")) else "adversário"
         lance_errado = {"san": pos.move_played, "uci": pos.move_uci, "de_quem": de_quem, "nivel": pos.mistake_level,
-                        "aval_antes": pos.eval_before, "aval_depois": pos.eval_after}
+                        "aval_antes": _pdv_brancas(pos.eval_before, pos.ply),
+                        "aval_depois": _pdv_brancas(pos.eval_after, pos.ply)}
         permitidos.add(pos.move_uci)
         if tipo == "punir":
             seguinte = db.scalar(select(Position).where(Position.game_id == pos.game_id, Position.ply == pos.ply + 1))
             if seguinte is not None:
                 achou = bool(sol) and (seguinte.move_uci == sol[0]["uci"] or seguinte.move_uci in sol[0].get("alternatives", []))
                 minha_resposta = {"san": seguinte.move_played, "uci": seguinte.move_uci, "achou": achou,
-                                  "aval_antes": seguinte.eval_before, "aval_depois": seguinte.eval_after}
+                                  "aval_antes": _pdv_brancas(seguinte.eval_before, seguinte.ply),
+                                  "aval_depois": _pdv_brancas(seguinte.eval_after, seguinte.ply)}
                 permitidos.add(seguinte.move_uci)
     game = puzzle.game
     if game is not None and pos is not None:

@@ -17,8 +17,10 @@ def puzzle_punir(db):
                 played_at=__import__("datetime").datetime(2026, 8, 1), my_color="white")
     db.add(game)
     db.flush()
-    pos = Position(game_id=game.id, ply=6, fen=FEN_ERRO, move_played="Nf6", move_uci="g8f6", eval_before=200, eval_after=MATE_SCORE - 1,
-                   best_move="g7g6", best_eval=200, is_mistake=True, mistake_level="blunder", mistake_by="opponent")
+    # `eval_before/eval_after` são do ponto de vista de quem jogou: no ply 6 quem joga são as pretas
+    pos = Position(game_id=game.id, ply=6, fen=FEN_ERRO, move_played="Nf6", move_uci="g8f6", eval_before=-150,
+                   eval_after=-(MATE_SCORE - 1),
+                   best_move="g7g6", best_eval=-150, is_mistake=True, mistake_level="blunder", mistake_by="opponent")
     db.add(pos)
     db.flush()
     db.add(Position(game_id=game.id, ply=7, fen=FEN, move_played="Qxf7#", move_uci="h5f7", eval_before=MATE_SCORE - 1,
@@ -37,14 +39,16 @@ def test_contexto_de_um_punir_com_partida(db_session):
     ctx = contexto_do_exercicio(db_session, p)
     assert ctx.tipo == "punir" and ctx.lado == "brancas" and ctx.fen_inicial == FEN and ctx.fen_erro == FEN_ERRO
     assert ctx.solucao_san == ["Qxf7#"] and ctx.tema == "mate em 1"
+    # avaliações do banco (ponto de vista de quem jogou) viradas para o ponto de vista das brancas
     assert ctx.lance_errado == {"san": "Nf6", "uci": "g8f6", "de_quem": "adversário", "nivel": "blunder",
-                                "aval_antes": 200, "aval_depois": MATE_SCORE - 1}
+                                "aval_antes": 150, "aval_depois": MATE_SCORE - 1}
     assert ctx.minha_resposta == {"san": "Qxf7#", "uci": "h5f7", "achou": True, "aval_antes": MATE_SCORE - 1, "aval_depois": MATE_SCORE}
     assert ctx.partida["brancas"] == "eu" and ctx.partida["meu_lado"] == "brancas"
     assert ctx.partida["lances_em_volta"] == "1.e4 e5 2.Qh5 Nc6 3.Bc4 Nf6 4.Qxf7#"
     assert ctx.lances_permitidos == {"h5f7", "g8f6"}
     texto = ctx.texto()
     assert "Qxf7#" in texto and "Nf6" in texto and "FEN" in texto
+    assert "+1.50 → #1" in texto and "ponto de vista das brancas" in texto
     assert json.loads(json.dumps(ctx.to_dict()))["tipo"] == "punir"
 
 
@@ -53,6 +57,8 @@ def test_contexto_de_um_evitar_sem_resposta(db_session):
     ctx = contexto_do_exercicio(db_session, p)
     assert ctx.tipo == "evitar" and ctx.lance_errado["de_quem"] == "você" and ctx.minha_resposta is None
     assert "a2a4" in ctx.lances_permitidos and "d1h5" in ctx.lances_permitidos
+    # ply 1: quem jogou foram as brancas, então as avaliações da factory não mudam de sinal
+    assert ctx.lance_errado["aval_antes"] == 0 and ctx.lance_errado["aval_depois"] == -300
 
 
 def test_ferramentas_do_treinador(db_session):
