@@ -15,7 +15,7 @@ from chess_trainer.coach.llm import ErroDoTreinador
 from chess_trainer.coach.observability import tracer_de
 from chess_trainer.coach.tools import contexto_do_exercicio
 from chess_trainer.config import load_settings
-from chess_trainer.core.models import CoachExplanation, Puzzle, utcnow
+from chess_trainer.core.models import CoachExplanation, Puzzle, Review, utcnow
 from chess_trainer.core.stats import theme_stats
 
 router = APIRouter(prefix="/api/coach")
@@ -51,6 +51,10 @@ def coach_explain(body: CoachExplainIn, request: Request, db: Session = Depends(
     puzzle = db.get(Puzzle, body.puzzle_id)
     if puzzle is None:
         raise HTTPException(404, "puzzle não encontrado")
+    # confere a revisão antes de gastar uma chamada ao modelo: a chave estrangeira
+    # só reclamaria no `gravar`, depois da explicação inteira já ter rodado
+    if body.review_id is not None and db.get(Review, body.review_id) is None:
+        raise HTTPException(404, "revisão não encontrada")
     if not app.state.coach_lock.acquire(blocking=False):
         raise HTTPException(409, "já há uma explicação em andamento; espere ela terminar")
     try:
@@ -89,7 +93,7 @@ def coach_reindex(request: Request):
     def job(progress):
         db = app.state.session_factory()
         try:
-            app.state.coach_index.recriar(db, progress)
+            app.state.coach_index.recriar(db, progress, should_stop=app.state.jobs.should_stop)
         finally:
             db.close()
 

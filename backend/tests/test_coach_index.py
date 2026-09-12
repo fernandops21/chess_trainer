@@ -68,6 +68,25 @@ def test_recriar_baixa_o_modelo_indexa_tudo_e_busca(ambiente):
         assert hits[0]["texto"].startswith("A cravada absoluta") and len(hits[0]["chunk_id"]) == 10
 
 
+def test_recriar_para_quando_o_job_pede_cancelamento(ambiente):
+    idx, factory, emb = ambiente
+    progresso = []
+    chamadas = []
+
+    def parar():
+        # deixa o primeiro capítulo passar e pede parada a partir do segundo
+        chamadas.append(1)
+        return len(chamadas) > 1
+
+    with factory() as db:
+        n = idx.recriar(db, lambda *a: progresso.append(a), should_stop=parar)
+        db.commit()
+        assert n == 1 and progresso[-1] == ("coach_reindex", 2, 2, "cancelado")
+        st = idx.status(db)
+        # o que deu tempo de indexar ficou; o capítulo que faltou conta como desatualizado
+        assert st["index_chunks"] == 1 and st["index_stale"] == 1
+
+
 def test_indexar_capitulo_pula_trechos_iguais_e_remove_os_que_sumiram(ambiente):
     idx, factory, emb = ambiente
     with factory() as db:

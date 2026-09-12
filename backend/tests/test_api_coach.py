@@ -1,9 +1,8 @@
-import pytest
 from fastapi.testclient import TestClient
 
 from chess_trainer.api.app import create_app
 from chess_trainer.coach.llm import ErroDoTreinador
-from chess_trainer.config import set_setting
+from chess_trainer.core.models import CoachExplanation
 from tests.fakes import EmbeddingsFalso, FakeEngine, FakeLlm, first_legal_default
 from tests.test_api_system import chesscom_factory
 from tests.test_api_training import engine_factory
@@ -48,6 +47,26 @@ def test_explain_feliz_reabrir_e_404():
     assert client.post("/api/coach/explain", json={"puzzle_id": "nao-existe"}).status_code == 404
 
 
+def test_review_inexistente_da_404_antes_de_chamar_o_modelo():
+    llm = FakeLlm([])  # sem roteiro: qualquer chamada ao modelo quebraria o teste
+    app, client, pid = montar(llm)
+    client.put("/api/settings", json={"anthropic_api_key": "sk-ant-x"})
+    r = client.post("/api/coach/explain", json={"puzzle_id": pid, "review_id": "nao-existe"})
+    assert r.status_code == 404 and r.json()["detail"] == "revisão não encontrada"
+    assert llm.prompts == []
+
+
+def test_explain_guarda_a_revisao_informada():
+    app, client, pid = montar(FakeLlm([[("final", FINAL)]]))
+    client.put("/api/settings", json={"anthropic_api_key": "sk-ant-x"})
+    review_id = client.post("/api/reviews", json={"puzzle_id": pid, "correct": True}).json()["id"]
+    r = client.post("/api/coach/explain", json={"puzzle_id": pid, "review_id": review_id})
+    assert r.status_code == 200, r.text
+    assert client.get(f"/api/coach/explanations/{pid}").json()["id"] == r.json()["id"]
+    with app.state.session_factory() as db:
+        assert db.get(CoachExplanation, r.json()["id"]).review_id == review_id
+
+
 def test_erros_do_treinador_viram_502_ou_503():
     class Quebrado:
         model = "fake"
@@ -63,6 +82,9 @@ def test_erros_do_treinador_viram_502_ou_503():
         client.put("/api/settings", json={"anthropic_api_key": "sk-ant-x"})
         r = client.post("/api/coach/explain", json={"puzzle_id": pid})
         assert r.status_code == status and r.json()["detail"] == "mensagem legível", codigo
+        # o erro não pode deixar o lock preso: a próxima tentativa tem de passar
+        assert app.state.coach_lock.acquire(blocking=False), codigo
+        app.state.coach_lock.release()
 
 
 def test_uma_explicacao_por_vez():

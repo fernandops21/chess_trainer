@@ -5,6 +5,7 @@ desatualizados e a busca devolve vazio."""
 from __future__ import annotations
 
 import logging
+from typing import Callable
 
 from sqlalchemy import Engine, select
 from sqlalchemy.orm import Session
@@ -94,8 +95,12 @@ class Indexador:
             log.warning("não deu para indexar o estudo %s", study.id, exc_info=True)
         return total
 
-    def recriar(self, db: Session, progress: ProgressFn) -> int:
-        """Baixa o modelo se preciso, apaga o índice e reindexa todos os capítulos."""
+    def recriar(self, db: Session, progress: ProgressFn, should_stop: Callable[[], bool] | None = None) -> int:
+        """Baixa o modelo se preciso, apaga o índice e reindexa todos os capítulos.
+
+        `should_stop` é consultado antes de cada capítulo: pedida a parada, o que já
+        foi indexado é commitado e os capítulos restantes ficam desatualizados (o
+        "Recriar índice" seguinte os arruma). Devolve quantos capítulos foram feitos."""
         progress("coach_reindex", 0, 0, "preparando o modelo de embeddings")
         self.embeddings.preparar()
         set_setting(db, CHAVE_MODELO_PRONTO, self.embeddings.modelo)
@@ -105,6 +110,10 @@ class Indexador:
         self.store.purgar_orfaos(db)
         total = len(capitulos)
         for i, c in enumerate(capitulos, start=1):
+            if should_stop is not None and should_stop():
+                progress("coach_reindex", i, total, "cancelado")
+                db.commit()
+                return i - 1
             self.indexar_capitulo(db, c)
             progress("coach_reindex", i, total, f"{i}/{total} capítulos")
         db.commit()
