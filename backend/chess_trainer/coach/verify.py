@@ -5,8 +5,10 @@ o primeiro lance é conferido com as três melhores da engine, a avaliação do
 fim da linha é comparada com a da engine, cada citação de estudo tem de
 existir entre os trechos recuperados e cada "peça de casa" da prosa (e cada
 "apoiada/defendida/atacada por" ela) tem de bater com alguma posição
-alcançada. Puro: recebe a função de análise e não
-toca em banco nem rede, o que permite reusá-lo na avaliação offline."""
+alcançada. A checagem das demais afirmações da prosa (quem ataca o quê, mais
+atacantes do que defensores, cravada, indefesa...) mora em `afirmacoes.py`, que
+importa daqui as posições alcançáveis e os auxiliares. Puro: recebe a função de
+análise e não toca em banco nem rede, o que permite reusá-lo na avaliação offline."""
 from __future__ import annotations
 
 import math
@@ -185,6 +187,12 @@ def _posicoes_alcancaveis(fen_inicial: str, fen_erro: str | None, linhas: list) 
                 break
             guardar(board.copy())
     return boards
+
+
+def posicoes_da_resposta(resposta: dict, *, fen_inicial: str, fen_erro: str | None) -> list[chess.Board]:
+    """As posições alcançáveis de uma resposta estruturada: a mesma lista que `verificar` usa
+    nas regras 4 e 7, para a checagem de afirmações conferir contra as mesmas posições."""
+    return _posicoes_alcancaveis(fen_inicial, fen_erro, resposta.get("linhas") or [])
 
 
 def _da_xeque(boards: list[chess.Board], san: str, *, mate: bool) -> bool:
@@ -366,7 +374,7 @@ def verificar(resposta: dict, *, fen_inicial: str, fen_erro: str | None, lances_
             v.issues.append(Issue("avaliacao_errada", "erro", f"a explicação dá {aval / 100:+.2f}; a engine dá {score / 100:+.2f}", idx))
 
     # 4. lances soltos, mates e xeques no texto
-    alcancaveis = _posicoes_alcancaveis(fen_inicial, fen_erro, linhas)
+    alcancaveis = posicoes_da_resposta(resposta, fen_inicial=fen_inicial, fen_erro=fen_erro)
     # o mesmo lance repetido na prosa não rende dois avisos iguais: dedupe por (tipo, detalhe)
     do_texto: dict[tuple[str, str], Issue] = {}
     for m in SAN_RE.finditer(texto):
