@@ -45,11 +45,12 @@ def test_status_and_settings_roundtrip(client):
     assert initial["classify_moves"] is True
     assert initial["refute_wrong_moves"] is True
     assert initial["new_order"] == "random"
+    assert initial["unique_gap_cp"] == 150
     r = client.put("/api/settings", json={
         "chesscom_username": " TheRealZibs ", "new_per_day": 5,
         # chave antiga (removida): é ignorada como qualquer chave desconhecida, sem 422
         "analysis_seconds": 30, "puzzle_search_seconds": 25, "puzzle_reply_seconds": 8,
-        "classify_moves": False, "refute_wrong_moves": False,
+        "classify_moves": False, "refute_wrong_moves": False, "unique_gap_cp": 250,
     })
     assert r.status_code == 200
     body = r.json()
@@ -59,6 +60,7 @@ def test_status_and_settings_roundtrip(client):
     assert body["puzzle_search_seconds"] == 25 and "puzzle_reply_seconds" not in body
     assert body["classify_moves"] is False
     assert body["refute_wrong_moves"] is False
+    assert body["unique_gap_cp"] == 250
     assert client.get("/api/settings").json()["classify_moves"] is False
     assert client.get("/api/settings").json()["refute_wrong_moves"] is False
 

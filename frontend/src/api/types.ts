@@ -23,6 +23,8 @@ export interface Settings {
   mistake_threshold_cp: number;
   blunder_threshold_cp: number;
   avoid_gap_cp: number;
+  /** Lance único: distância mínima da melhor linha para a segunda enquanto o exercício continua. */
+  unique_gap_cp: number;
   new_per_day: number;
   /** Ordem dos exercícios novos: sorteados ou pela partida mais recente. */
   new_order: NewOrder;

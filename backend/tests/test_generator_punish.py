@@ -9,7 +9,7 @@ from chess_trainer.core.puzzles.generator import (
     generate_punish,
 )
 from chess_trainer.core.puzzles.material import material_balance
-from tests.fakes import FakeEngine, first_legal_default
+from tests.fakes import FakeEngine, first_legal_default, no_more_lines
 
 CFG = PuzzleConfig(depth=10)
 M = MATE_SCORE
@@ -35,13 +35,14 @@ def test_hanging_queen_ends_at_capture():
     fake = FakeEngine({
         chess.Board(HANGING_QUEEN).epd(): [LineEval("c3d5", 900, ("c3d5", "e8d7"))],
         _after(HANGING_QUEEN, "c3d5").epd(): [LineEval("e8d7", -900, ("e8d7",))],
-    })
+    }, default=no_more_lines)
     draft = generate_punish(chess.Board(HANGING_QUEEN), drop_cp=900, engine=fake, cfg=CFG)
     assert draft is not None
     assert draft.end_reason == "material_gain" and draft.solver_moves == 1
     assert [(m.uci, m.by) for m in draft.moves] == [("c3d5", "solver")]
     assert draft.side_to_move == "white" and draft.fen_start == HANGING_QUEEN
-    assert len(fake.calls) == 2
+    # 2 chamadas do laço + 2 da extensão por lances únicos, que aqui não acrescenta nada
+    assert len(fake.calls) == 4
 
 
 def test_mate_in_two_runs_to_checkmate():
@@ -68,7 +69,7 @@ def test_two_capturing_moves_become_alternatives():
             LineEval("e3d5", 890, ("e3d5", "e8d7")),
         ],
         _after(TWO_CAPTURES, "c3d5").epd(): [LineEval("e8d7", -900, ("e8d7",))],
-    })
+    }, default=no_more_lines)
     draft = generate_punish(chess.Board(TWO_CAPTURES), drop_cp=900, engine=fake, cfg=CFG)
     assert draft is not None
     assert draft.moves[0].alternatives == ["e3d5"]
@@ -108,14 +109,15 @@ def test_gain_must_survive_best_reply():
         _after(RECAPTURE, "d1d5").epd(): [LineEval("e6d5", -50, ("e6d5",))],
     }
     # alvo 3 (queda 400, solver +4.50): ganho líquido 9-5=4 sobrevive → termina em Rxd5
-    draft = generate_punish(chess.Board(RECAPTURE), 400, FakeEngine(script, first_legal_default(450)), CFG)
+    # o dublê devolve 0 fora do roteiro: depois da recaptura não há vantagem e a extensão para ali
+    draft = generate_punish(chess.Board(RECAPTURE), 400, FakeEngine(script, first_legal_default(0)), CFG)
     assert draft is not None and [m.uci for m in draft.moves] == ["d1d5"]
     # alvo 9 (queda e solver +9.00): 4 < 9 → continua e, sem mais material, é descartado
     big = {
         chess.Board(RECAPTURE).epd(): [LineEval("d1d5", 900, ("d1d5", "e6d5"))],
         _after(RECAPTURE, "d1d5").epd(): [LineEval("e6d5", -50, ("e6d5",))],
     }
-    assert generate_punish(chess.Board(RECAPTURE), 900, FakeEngine(big, first_legal_default(900)), CFG) is None
+    assert generate_punish(chess.Board(RECAPTURE), 900, FakeEngine(big, first_legal_default(0)), CFG) is None
 
 
 def test_slower_mate_is_not_an_alternative():
@@ -148,26 +150,27 @@ def test_reply_analysis_uses_full_depth_in_material_mode():
     fake = FakeEngine({
         chess.Board(HANGING_QUEEN).epd(): [LineEval("c3d5", 900, ("c3d5", "e8d7"))],
         _after(HANGING_QUEEN, "c3d5").epd(): [LineEval("e8d7", -900, ("e8d7",))],
-    })
+    }, default=no_more_lines)
     cfg = PuzzleConfig(depth=22)
     draft = generate_punish(chess.Board(HANGING_QUEEN), drop_cp=900, engine=fake, cfg=cfg)
     assert draft is not None
     # fora do modo mate também: a resposta é a defesa mais resistente na mesma
     # profundidade do lance do solver, e basta a primeira linha da busca (multipv=1).
-    assert fake.depths == [22, 22]
-    assert fake.multipvs == [3, 1]
+    # As duas últimas chamadas são da extensão por lances únicos, na mesma profundidade.
+    assert fake.depths == [22, 22, 22, 22]
+    assert fake.multipvs == [3, 1, 1, 3]
 
 
 def test_search_seconds_are_passed_to_engine():
     fake = FakeEngine({
         chess.Board(HANGING_QUEEN).epd(): [LineEval("c3d5", 900, ("c3d5", "e8d7"))],
         _after(HANGING_QUEEN, "c3d5").epd(): [LineEval("e8d7", -900, ("e8d7",))],
-    })
+    }, default=no_more_lines)
     cfg = PuzzleConfig(depth=22, search_seconds=20.0)
     draft = generate_punish(chess.Board(HANGING_QUEEN), drop_cp=900, engine=fake, cfg=cfg)
     assert draft is not None
-    # a busca principal (multipv) e a resposta do defensor usam o mesmo search_seconds.
-    assert fake.max_seconds == [20.0, 20.0]
+    # a busca principal (multipv), a resposta do defensor e a extensão usam o mesmo search_seconds.
+    assert fake.max_seconds == [20.0, 20.0, 20.0, 20.0]
 
 
 def test_draft_json_shape():
@@ -234,7 +237,7 @@ def test_target_is_capped_by_solver_eval():
     fake = FakeEngine({
         chess.Board(HANGING_KNIGHT).epd(): [LineEval("b3d5", 300, ("b3d5", "e8d7"))],
         _after(HANGING_KNIGHT, "b3d5").epd(): [LineEval("e8d7", -300, ("e8d7",))],
-    })
+    }, default=no_more_lines)
     draft = generate_punish(chess.Board(HANGING_KNIGHT), drop_cp=100_297, engine=fake, cfg=CFG)
     assert draft is not None
     assert draft.end_reason == "material_gain" and draft.solver_moves == 1

@@ -19,6 +19,8 @@ class AppSettings:
     mistake_threshold_cp: int = 100
     blunder_threshold_cp: int = 200
     avoid_gap_cp: int = 150
+    # lance único: distância mínima da melhor linha para a segunda enquanto o exercício continua
+    unique_gap_cp: int = 150
     new_per_day: int = 10
     # ordem dos exercícios novos: "random" (sorteada) ou "recent" (partida mais recente primeiro)
     new_order: str = "random"
@@ -93,6 +95,7 @@ def puzzle_config_from(settings: AppSettings) -> PuzzleConfig:
     return PuzzleConfig(
         depth=settings.puzzle_depth,
         avoid_gap_cp=settings.avoid_gap_cp,
+        unique_gap_cp=settings.unique_gap_cp,
         # a resposta do adversário usa a mesma profundidade e o mesmo tempo do lance do solver
         search_seconds=settings.puzzle_search_seconds,
     )

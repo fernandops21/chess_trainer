@@ -11,7 +11,7 @@ const nf = new Intl.NumberFormat("pt-BR");
 const CATEGORIES = ["rapid", "daily", "classical", "blitz", "bullet"];
 const RANGES: Record<string, [number, number]> = {
   analysis_depth: [6, 30], puzzle_depth: [6, 30], mistake_threshold_cp: [50, 1000], blunder_threshold_cp: [50, 1000],
-  avoid_gap_cp: [50, 1000], new_per_day: [1, 100], leech_lapses: [2, 20],
+  avoid_gap_cp: [50, 1000], unique_gap_cp: [50, 1000], new_per_day: [1, 100], leech_lapses: [2, 20],
   analysis_seconds: [1, 120], puzzle_search_seconds: [1, 120],
 };
 
@@ -122,6 +122,7 @@ export function SettingsPage() {
         {field("limiar de mistake (cp)", "mistake_threshold_cp")}
         {field("limiar de blunder (cp)", "blunder_threshold_cp")}
         {field("gap mínimo do puzzle evitar (cp)", "avoid_gap_cp")}
+        {field("lance único: distância mínima para a 2ª linha (cp)", "unique_gap_cp")}
         {field("puzzles novos por dia", "new_per_day")}
         <label className="row" style={{ justifyContent: "space-between" }}>
           Ordem dos novos

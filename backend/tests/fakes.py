@@ -9,6 +9,12 @@ from chess_trainer.coach.llm import MAX_TOKENS_RESPOSTA, ResultadoAgente, execut
 from chess_trainer.core.analysis.engine import LineEval
 
 
+def no_more_lines(board: chess.Board) -> list[LineEval]:
+    """Engine sem linha fora do roteiro: a extensão por lances únicos para na primeira
+    posição não roteirizada, deixando a solução como o roteiro a descreve."""
+    return []
+
+
 def first_legal_default(score: int) -> Callable[[chess.Board], list[LineEval]]:
     def _default(board: chess.Board) -> list[LineEval]:
         legal = list(board.legal_moves)

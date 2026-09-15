@@ -13,6 +13,7 @@ class SettingsOut(BaseModel):
     mistake_threshold_cp: int
     blunder_threshold_cp: int
     avoid_gap_cp: int
+    unique_gap_cp: int
     new_per_day: int
     # "random" (sorteada) ou "recent" (partida mais recente primeiro)
     new_order: str
@@ -45,6 +46,7 @@ class SettingsIn(BaseModel):
     mistake_threshold_cp: int | None = None
     blunder_threshold_cp: int | None = None
     avoid_gap_cp: int | None = None
+    unique_gap_cp: int | None = None
     new_per_day: int | None = None
     new_order: Literal["random", "recent"] | None = None
     leech_lapses: int | None = None

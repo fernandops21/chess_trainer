@@ -39,7 +39,13 @@ class PuzzleConfig:
     max_mate_moves: int = 15
     min_solver_eval_cp: int = 100
     avoid_gap_cp: int = 150
+    unique_gap_cp: int = 150
     search_seconds: float = 20.0
+
+
+# Proteção contra laço, não regra: a regra é o exercício continuar enquanto o lance do aluno
+# for único, sem teto de lances. Este limite só existe para a linha não crescer sem fim.
+MAX_EXTENSION_PLIES = 60
 
 
 def _color_name(color: chess.Color) -> str:
@@ -132,6 +138,47 @@ def _pv_never_materializes(
     return True
 
 
+def extend_unique_line(
+    board_after_solution: chess.Board, engine: EngineLike, cfg: PuzzleConfig, solver: chess.Color,
+) -> list[SolutionMove]:
+    """Continua a linha depois da solução enquanto o lance do aluno for único.
+
+    Na vez do adversário joga a primeira linha da engine. Na vez do aluno pede três linhas:
+    o lance só entra no exercício se estiver à frente do segundo por `cfg.unique_gap_cp` (dois
+    lances bons seriam técnica, não tática) e se ainda ganhar (`cfg.min_solver_eval_cp`). Em
+    mate, posição terminal ou engine sem linha a extensão acaba ali, e a linha devolvida nunca
+    termina com lance do adversário."""
+    extra: list[SolutionMove] = []
+    current = board_after_solution.copy()
+    for _ in range(MAX_EXTENSION_PLIES):
+        if current.is_game_over():
+            break
+        if current.turn != solver:
+            lines = engine.analyse(current, cfg.depth, multipv=1, max_seconds=cfg.search_seconds)
+            if not lines:
+                break
+            current.push_uci(lines[0].move)
+            extra.append(SolutionMove(lines[0].move, "engine"))
+            continue
+        lines = engine.analyse(current, cfg.depth, multipv=3, max_seconds=cfg.search_seconds)
+        if not lines:
+            break
+        best = lines[0]
+        # uma linha só: não há segundo lance para comparar, o gap é infinito
+        gap = 10**6 if len(lines) < 2 else best.score - lines[1].score
+        if gap < cfg.unique_gap_cp:
+            break  # dois lances bons: daqui para a frente é técnica
+        if best.score < cfg.min_solver_eval_cp:
+            break  # o lance único já não ganha; a solução fica como estava até aqui
+        current.push_uci(best.move)
+        extra.append(SolutionMove(best.move, "solver", []))
+        if current.is_checkmate():
+            break  # em mate a linha termina com o lance que dá mate
+    if extra and extra[-1].by == "engine":
+        extra.pop()  # a solução nunca termina com lance do adversário
+    return extra
+
+
 def _draft(board: chess.Board, moves: list[SolutionMove], end_reason: str) -> PuzzleDraft:
     return PuzzleDraft(
         fen_start=board.fen(),
@@ -194,6 +241,8 @@ def _materializing_line(
             if alts is None:
                 return None
             moves.append(SolutionMove(best.move, "solver", alts))
+            # o ganho já está de pé; se o aluno ainda tem lance único a seguir, o exercício continua
+            moves.extend(extend_unique_line(after, engine, cfg, solver))
             return _draft(board, moves, "material_gain")
 
         if close_alts:

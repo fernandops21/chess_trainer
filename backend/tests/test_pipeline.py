@@ -9,7 +9,7 @@ from chess_trainer.core.evals import MATE_SCORE
 from chess_trainer.core.models import Game, Position, Puzzle, Review, Study, StudyChapter
 from chess_trainer.core.pipeline import analyze_pending
 from chess_trainer.core.puzzles.service import regenerate_all, regenerate_avoid
-from tests.fakes import FakeEngine, first_legal_default
+from tests.fakes import FakeEngine, first_legal_default, no_more_lines
 from tests.test_models import _game
 
 SCHOLAR = "1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0"
@@ -243,7 +243,7 @@ def test_regenerate_avoid_creates_avoid_for_my_mistake(db_session):
     fake = FakeEngine({
         chess.Board(fen).epd(): [LineEval("c3d5", 900, ("c3d5", "e8d7")), LineEval("e1e2", 0, ("e1e2",))],
         _after("c3d5").epd(): [LineEval("e8d7", -900, ("e8d7",))],
-    })
+    }, default=no_more_lines)
 
     n = regenerate_avoid(db_session, fake, SETTINGS)
 

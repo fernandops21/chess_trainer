@@ -3,7 +3,7 @@ import chess
 from chess_trainer.core.analysis.engine import LineEval
 from chess_trainer.core.evals import MATE_SCORE
 from chess_trainer.core.puzzles.generator import PuzzleConfig, generate_avoid
-from tests.fakes import FakeEngine, first_legal_default
+from tests.fakes import FakeEngine, first_legal_default, no_more_lines
 
 CFG = PuzzleConfig(depth=10, avoid_gap_cp=150)
 M = MATE_SCORE
@@ -22,7 +22,7 @@ def test_avoid_runs_the_line_to_material_gain():
     fake = FakeEngine({
         chess.Board(BEFORE).epd(): [LineEval("c3d5", 900, ("c3d5", "e8d7")), LineEval("e1e2", 0, ("e1e2",))],
         _after(BEFORE, "c3d5").epd(): [LineEval("e8d7", -900, ("e8d7",))],
-    })
+    }, default=no_more_lines)
     d = generate_avoid(chess.Board(BEFORE), fake, CFG, played_uci="e1e2")
     assert d is not None and d.end_reason == "material_gain" and d.solver_moves == 1
     assert [m.uci for m in d.moves] == ["c3d5"] and d.explanation_pv == []

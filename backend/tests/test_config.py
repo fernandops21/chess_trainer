@@ -8,6 +8,7 @@ def test_defaults_when_empty(db_session):
     assert s.analysis_depth == 18 and s.puzzle_depth == 20
     assert s.mistake_threshold_cp == 100 and s.blunder_threshold_cp == 200
     assert s.avoid_gap_cp == 150 and s.new_per_day == 10 and s.leech_lapses == 5
+    assert s.unique_gap_cp == 150
     assert s.new_order == "random"
     assert s.analysis_seconds == 15
     assert s.puzzle_search_seconds == 20
@@ -36,6 +37,11 @@ def test_puzzle_config_from_maps_depth_without_a_separate_reply_depth():
     assert cfg.depth == 20
     # a resposta do adversário usa a mesma busca do lance do solver: não há profundidade à parte.
     assert not hasattr(cfg, "reply_depth")
+
+
+def test_puzzle_config_from_maps_unique_gap():
+    cfg = puzzle_config_from(AppSettings(unique_gap_cp=250))
+    assert cfg.unique_gap_cp == 250
 
 
 def test_puzzle_config_from_maps_time_cap():
