@@ -88,8 +88,8 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
   // API aceita em `/api/puzzles/<código>` — o `#` que a etiqueta mostra sai fora
   const nav = useNavigate();
   const [codigo, setCodigo] = useState("");
+  const limpo = codigo.trim().replace(/^#/, "");
   const abrirPorCodigo = () => {
-    const limpo = codigo.trim().replace(/^#/, "");
     if (limpo) nav(`/treinar?puzzle=${encodeURIComponent(limpo)}`);
   };
 
@@ -190,7 +190,7 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
         <input value={codigo} onChange={(e) => setCodigo(e.target.value)} aria-label="Código do exercício"
           placeholder="#ff466803" style={{ width: 110 }}
           onKeyDown={(e) => { if (e.key === "Enter") abrirPorCodigo(); }} />
-        <button onClick={abrirPorCodigo} disabled={!codigo.trim()}>Abrir</button>
+        <button onClick={abrirPorCodigo} disabled={!limpo}>Abrir</button>
       </div>
     </div>
   );

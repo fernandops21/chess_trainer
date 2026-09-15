@@ -120,14 +120,15 @@ export function MistakesPage() {
       {isLoading && <p className="muted">Carregando…</p>}
       <div className="card" style={{ padding: 0 }}>
         {items.map((m) => (
-          <button key={m.position_id} className="mistakerow" onClick={() => setOpen(m)}>
+          <div key={m.position_id} role="button" tabIndex={0} className="mistakerow" onClick={() => setOpen(m)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(m); } }}>
             <MiniBoard fen={m.fen} orientation={m.my_color} />
             <div style={{ flex: 1, textAlign: "left" }}>
               <div><b>{m.move_played}</b> <span className={`tag ${m.mistake_level}`}>{levelLabel(m.mistake_level)}</span>{m.mistake_by === "opponent" && <span className="tag">adversário</span>}{m.puzzles.length === 0 && m.mistake_by === "me" && <span className="tag">posicional</span>}<OutOfQueueTags puzzles={m.puzzles} />{m.puzzles[0] && <CodeTag id={m.puzzles[0].id} />}</div>
               <div className="muted">{formatEval(m.eval_before)} → {formatEval(m.eval_after)} · melhor {melhorSan(m)} {m.puzzles[0] && `· ${themeLabel(m.puzzles[0].theme)}`}</div>
               <div className="muted">{m.white} × {m.black} · {formatDate(m.played_at)} · {m.category}</div>
             </div>
-          </button>
+          </div>
         ))}
         {!isLoading && items.length === 0 && <p className="muted" style={{ padding: 16 }}>Nenhum erro com esses filtros.</p>}
         {items.length >= (q.limit ?? 50) && <div style={{ padding: 16, textAlign: "center" }}><button onClick={() => setQ({ ...q, limit: (q.limit ?? 50) + 50 })}>Mostrar mais</button></div>}

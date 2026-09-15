@@ -162,6 +162,12 @@ test("abrir por código leva ao exercício, com ou sem o # na frente", () => {
   expect(screen.getByTestId("where").textContent).toBe("/treinar?puzzle=ff466803");
 });
 
+test("só # no campo não é código: o botão continua desabilitado", () => {
+  renderStart();
+  fireEvent.change(screen.getByLabelText("Código do exercício"), { target: { value: "#" } });
+  expect((screen.getByText("Abrir") as HTMLButtonElement).disabled).toBe(true);
+});
+
 test("Enter no campo do código abre do mesmo jeito", () => {
   renderStart();
   fireEvent.change(screen.getByLabelText("Código do exercício"), { target: { value: "ff466803" } });
