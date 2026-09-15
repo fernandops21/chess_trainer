@@ -129,24 +129,44 @@ System prompt em português, fixo e versionado em `prompts.py`
 - papel: treinador de xadrez explicando para o aluno o erro dele naquele
   exercício; tom direto, sem elogio vazio; 120 a 200 palavras somando os dois
   blocos de prosa (`na_partida` e `por_que`).
-- estrutura fixa do `por_que`, nesta ordem: (1) as ameaças do adversário (do
-  `analisar_posicao` com `apos_passar` na posição inicial), nomeando o mate *e*
-  qualquer outra linha que ganhe material (`ganho_material`); (2) a defesa
-  natural e por que ela falha — o lance real do aluno, quando o contexto tem
-  (analisando a posição depois dele), ou a segunda linha da análise, seguida até
-  onde o material muda (e, se essa segunda linha também for boa, a menos de 100
-  centipeões em módulo e mate só contra mate, dizer que ela resolve);
-  (3) a solução. Em xeque, onde não dá para passar a vez, (1) começa pela ameaça
-  que já está no tabuleiro.
+- dossiê (prompt v8): a mensagem inicial traz, entre o contexto e os trechos,
+  um dossiê de fatos já calculados pela engine e pelo python-chess
+  (`dossie.py`), no mesmo formato que as ferramentas devolvem, para o modelo
+  redigir em vez de explorar. Seções: `inicial` (a posição do exercício, 3
+  melhores linhas); `ameacas_inicial` (a análise com `apos_passar`: o que o
+  adversário faria se o aluno passasse a vez; em xeque vem `indisponivel`);
+  `fatos_inicial` (os fatos táticos da posição); `apos_solucao` (a posição
+  depois do lance-chave, com os fatos e a análise dela, ou `terminal` quando a
+  partida acabou ali); `defesa_natural` (o lance que o aluno jogaria em vez da
+  solução — a resposta real dele na partida, o lance errado dele quando o
+  exercício começa na posição do erro, ou a segunda linha da engine —, com a
+  `origem`, a análise e os fatos da posição depois dele; omitida quando não há
+  lance a comentar); e, quando há posição do erro diferente da inicial, `erro`,
+  `ameacas_erro` e `fatos_erro`. Uma seção que não pôde ser calculada vem como
+  `erro` e o modelo não pode inventar o que ela diria. As ferramentas
+  `analisar_posicao` / `fatos_taticos` ficam só para uma posição que o dossiê
+  não cobre (mais adiante numa linha); nunca repetir uma análise que já está
+  nele. No caso comum a explicação sai em uma chamada à API.
+- estrutura fixa do `por_que`, nesta ordem: (1) as ameaças do adversário (de
+  `ameacas_inicial`), nomeando o mate *e* qualquer outra linha que ganhe
+  material (`ganho_material`); (2) a defesa natural e por que ela falha — o
+  lance de `defesa_natural`: a primeira linha da análise dela é o que o
+  adversário faz na posição depois dele, seguida até onde o material muda (e,
+  se essa defesa também for boa, a menos de 100 centipeões em módulo e mate só
+  contra mate, dizer que ela resolve); sem `defesa_natural`, vai direto à
+  solução; (3) a solução: a primeira linha de `inicial`, e `apos_solucao` diz o
+  que o adversário tem depois do lance-chave. Em xeque, onde não dá para passar
+  a vez, (1) começa pela ameaça que já está no tabuleiro.
 - regras duras: toda afirmação tática (a ameaça, o mate, o xeque, a casa de
-  fuga do rei, a peça indefesa) vem de `fatos_taticos` naquela posição ou de
-  uma linha de `analisar_posicao`, nunca da dedução do modelo, e lance escrito com
+  fuga do rei, a peça indefesa) vem dos fatos táticos naquela posição (os do
+  dossiê, ou `fatos_taticos` numa posição que ele não cobre) ou de uma linha de
+  análise, nunca da dedução do modelo, e lance escrito com
   `+` ou `#` só vale dentro de uma linha declarada que chegue à posição em que ele
   é legal; quem apoia, defende ou ataca uma casa ("a dama apoiada pelo cavalo de
-  f5") só sai do campo `apoios` de `fatos_taticos` ou de `atacada_por` em
-  `pecas_atacadas_sem_defesa`, nunca da dedução do modelo; antes de escrever o "por que", pedir `analisar_posicao` com
-  `apos_passar` na posição inicial (e na do erro) e nomear *todas* as ameaças
-  relevantes do adversário, não só a maior; só citar lances que vieram de
+  f5") só sai do campo `apoios` dos fatos táticos ou de `atacada_por` em
+  `pecas_atacadas_sem_defesa`, nunca da dedução do modelo; nomear *todas* as
+  ameaças relevantes do adversário em `ameacas_inicial` (e `ameacas_erro`), não
+  só a maior; só citar lances que vieram do dossiê, de
   `analisar_posicao` ou do contexto; toda linha começa da posição inicial do
   exercício, da posição do erro ou de um dos lances nulos (`ameaca`, `ameaca_erro`),
   declarada;
@@ -315,7 +335,8 @@ modelo e a dimensão ficam gravados na tabela para invalidar o índice se mudar.
 explicar(puzzle_id, review_id | None):
   1. contexto  = montar_contexto(puzzle)            # dict de §4.2, também vira texto
   2. trechos   = buscar_estudos(consulta derivada: tema + caminho SAN + trecho da partida)
-  3. resultado = llm.run_agent(system, user(contexto, trechos), tools, schema, effort)
+  2b. dossie   = montar_dossie(contexto, analisar)   # as análises que o "por que" pede, prontas (§4.3)
+  3. resultado = llm.run_agent(system, user(contexto, dossie, trechos), tools, schema, effort)
   4. verif     = verificar(resultado.structured, puzzle, trechos, analisar)
   5. se not verif.ok:
        resultado2 = llm.run_agent(..., user + "Relatório de verificação: …corrija…")
@@ -327,6 +348,13 @@ explicar(puzzle_id, review_id | None):
 - Passo 2 (recuperação prévia) existe para que a variante "agente + RAG" tenha
   sempre algo citável e para o custo ficar previsível; o agente ainda pode
   chamar `buscar_estudos` com outra consulta.
+- Passo 2b (dossiê) roda antes da primeira chamada ao modelo, nas três variantes
+  (a variante "só prompt" passa a ter as análises sem ferramenta nenhuma): até
+  seis análises da engine (posição inicial e ameaças com 3 linhas; depois da
+  solução e depois da defesa natural com 2; posição do erro e ameaças dela com 3)
+  mais os fatos táticos de cada posição. Nunca aborta a explicação: uma seção que
+  falha vem como `erro` e as outras seguem. O tempo dele é `dossie_ms` em
+  `tempos`, e a linha de tempos do log o traz logo depois do total.
 - Custo: `costs.py` tem a tabela de preços por modelo (entrada, saída, leitura
   e escrita de cache, em USD por milhão de tokens) copiada da página oficial,
   com data; o custo da explicação é a soma das chamadas (inclusive a correção).
@@ -412,7 +440,7 @@ por puzzle, scores por métrica).
   `langfuse_host` estiverem nas Configurações, inicializa o SDK do LangFuse
   (v4, OpenTelemetry) e expõe `observe(nome)`; sem chaves, `observe` é um
   decorador identidade.
-- Trace `coach.explain` com spans `contexto`, `recuperacao`, `llm`
+- Trace `coach.explain` com spans `contexto`, `recuperacao`, `dossie`, `llm`
   (uma geração por chamada à API, com modelo, tokens, custo), `verificacao`,
   `correcao`; metadados `puzzle_id`, `prompt_version`, `variante`. O
   `trace_id` vai para a explicação; o cartão mostra um link para o trace quando
@@ -489,7 +517,8 @@ interativa é compartilhada; segunda chamada simultânea recebe 409
 | índice vazio | pipeline segue sem trechos; cartão avisa "sem estudos indexados" |
 
 Logs no `server.log` existente, com `trace_id` quando houver. A linha de tempos
-de cada explicação sai também quando ela morre no meio, com as chamadas à API e
+de cada explicação (total, dossiê, chamadas ao modelo, ferramentas, verificação,
+correção) sai também quando ela morre no meio, com o dossiê, as chamadas à API e
 as ferramentas feitas até ali.
 
 ## 12. Docker
