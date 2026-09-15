@@ -353,10 +353,12 @@ jogaria ali (o seu lance real, quando a partida tem um) é seguido até onde o m
 claro o que se perde nele. Do outro lado, o verificador confere também o que está
 escrito na prosa: mate anunciado no texto que não é mate em nenhuma posição da explicação vira erro,
 xeque que não dá xeque vira aviso, e nome de casa no meio da frase (o rei em h1, a torre em g3) deixou
-de ser confundido com lance.
+de ser confundido com lance. Lance numerado na prosa que nenhuma linha declarada traz naquela altura
+(mesmo número, mesmo lado) também vira aviso: a prosa pode pular lances, a linha não.
 
 Os lances do texto são links (prévia no tabuleiro) e as citações abrem o capítulo no modo livro, no
-lance certo. O rodapé mostra o modelo, o custo em dólares, o tempo, o aviso de índice vazio quando
+lance certo. Quando a prosa pula um lance ("18.Rac1? 19.Qc5"), a prévia usa as linhas que a
+explicação declarou para achar a posição de verdade, em vez de jogar o lance a partir do exercício. O rodapé mostra o modelo, o custo em dólares, o tempo, o aviso de índice vazio quando
 for o caso e o botão **Explicar de novo**.
 
 ### Configurar

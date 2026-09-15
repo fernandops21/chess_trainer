@@ -3,7 +3,8 @@
 Cada linha citada é reproduzida no tabuleiro a partir da posição declarada,
 o primeiro lance é conferido com as três melhores da engine, a avaliação do
 fim da linha é comparada com a da engine, cada citação de estudo tem de
-existir entre os trechos recuperados e cada "peça de casa" da prosa (e cada
+existir entre os trechos recuperados, cada lance numerado da prosa tem de estar
+em alguma linha declarada na mesma altura (número e lado) e cada "peça de casa" da prosa (e cada
 "apoiada/defendida/atacada por" ela) tem de bater com alguma posição
 alcançada. A checagem das demais afirmações da prosa (quem ataca o quê, mais
 atacantes do que defensores, cravada, indefesa...) mora em `afirmacoes.py`, que
@@ -26,6 +27,12 @@ Analisar = Callable[[str, int], dict]
 # a mesma expressão do `moveText.ts` do frontend, sem o número do lance
 SAN_RE = re.compile(
     r"(?<![A-Za-z0-9-])(?:O-O-O|O-O|[KQRBN][a-h]?[1-8]?x?[a-h][1-8]|[a-h]x?[a-h]?[1-8](?:=[QRBN])?)[+#]?(?![A-Za-z0-9-])"
+)
+# o mesmo lance com o número da anotação na frente: `18.Rac1?`, `32...Qh3`, `8 a5` (grupo 1 = o
+# número, grupo 2 = os pontos — duas reticências ou mais querem dizer lance das pretas)
+LANCE_NUMERADO_RE = re.compile(
+    r"(?<![A-Za-z0-9-])(\d{1,3})[ \t]*(\.{1,4})?[ \t]*"
+    r"((?:O-O-O|O-O|[KQRBN][a-h]?[1-8]?x?[a-h][1-8]|[a-h]x?[a-h]?[1-8](?:=[QRBN])?)[+#]?)(?![A-Za-z0-9-])"
 )
 CASA_RE = re.compile(r"^[a-h][1-8]$")
 CITACAO_RE = re.compile(r"\[c:([^\]\s]+)\]")
@@ -154,6 +161,15 @@ def _base_da_linha(inicio: str, fen_inicial: str, fen_erro: str | None) -> tuple
     return board, ""
 
 
+def fen_de_onde_a_linha_parte(inicio: str, fen_inicial: str, fen_erro: str | None) -> str | None:
+    """A FEN da base da linha — já com o lance nulo das linhas de ameaça —, ou `None` quando
+    não dá para partir dali (exercício sem posição do erro, lado a mover em xeque). É o que a
+    API manda no `fen_inicio` de cada linha, para o cartão resolver os lances numerados da
+    prosa pela linha certa em vez de os ancorar todos na posição do exercício."""
+    board, _ = _base_da_linha(inicio, fen_inicial, fen_erro)
+    return board.fen() if board is not None else None
+
+
 def _posicoes_alcancaveis(fen_inicial: str, fen_erro: str | None, linhas: list) -> list[chess.Board]:
     """Toda posição que a explicação alcança: as duas do exercício, as dos lances nulos (de
     onde saem as ameaças do adversário nas duas) e cada posição depois de um prefixo legal de
@@ -187,6 +203,25 @@ def _posicoes_alcancaveis(fen_inicial: str, fen_erro: str | None, linhas: list) 
                 break
             guardar(board.copy())
     return boards
+
+
+def _alturas_das_linhas(fen_inicial: str, fen_erro: str | None, linhas: list) -> set[tuple[int, bool, str]]:
+    """Cada lance de cada linha declarada pela altura em que ele é jogado: (número do lance, é das
+    pretas, SAN limpo). É contra este conjunto que os lances numerados da prosa são conferidos — o
+    lance nulo das linhas de ameaça já entra na conta do número, porque `_base_da_linha` o empurra."""
+    alturas: set[tuple[int, bool, str]] = set()
+    for linha in linhas:
+        board, _ = _base_da_linha(str(linha.get("inicio") or "inicial"), fen_inicial, fen_erro)
+        if board is None:
+            continue
+        for san in (str(l) for l in (linha.get("lances") or [])):
+            try:
+                mv = board.parse_san(limpar_san(san))
+            except ValueError:
+                break
+            alturas.add((board.fullmove_number, board.turn == chess.BLACK, limpar_san(board.san(mv))))
+            board.push(mv)
+    return alturas
 
 
 def posicoes_da_resposta(resposta: dict, *, fen_inicial: str, fen_erro: str | None) -> list[chess.Board]:
@@ -388,6 +423,16 @@ def verificar(resposta: dict, *, fen_inicial: str, fen_erro: str | None, lances_
             do_texto.setdefault((issue.tipo, issue.detalhe), issue)
         if limpo not in lances_em_linhas and not _casa_na_prosa(token, fen_inicial, fen_erro):
             issue = Issue("lance_sem_linha", "aviso", f"'{token}' aparece no texto sem estar em nenhuma linha")
+            do_texto.setdefault((issue.tipo, issue.detalhe), issue)
+    # 4b. lance numerado da prosa que nenhuma linha declara naquela altura: o cartão não tem como
+    # achar a posição dele e acaba jogando o lance a partir do exercício, num tabuleiro que não é o
+    # da explicação. A prosa pode pular lances; a linha, não
+    alturas = _alturas_das_linhas(fen_inicial, fen_erro, linhas)
+    for m in LANCE_NUMERADO_RE.finditer(texto):
+        altura = (int(m.group(1)), len(m.group(2) or "") >= 2, limpar_san(m.group(3)))
+        if altura not in alturas:
+            issue = Issue("lance_fora_de_linha", "aviso",
+                          f"'{m.group(0)}' não aparece nessa altura em nenhuma linha declarada")
             do_texto.setdefault((issue.tipo, issue.detalhe), issue)
     v.issues.extend(do_texto.values())
 
