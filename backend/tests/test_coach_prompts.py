@@ -34,7 +34,7 @@ def test_esquema_estrito_valida_uma_resposta_boa_e_recusa_uma_ruim():
 
 
 def test_prompt_de_sistema_tem_as_regras_duras():
-    assert PROMPT_VERSION == "v8"
+    assert PROMPT_VERSION == "v9"
     for trecho in ("analisar_posicao", "ponto de vista das brancas", "[c:", "inicial", "erro", FERRAMENTA_FINAL,
                    # o dossiê traz as análises prontas: as ameaças, a defesa natural e a solução saem dele,
                    # e as ferramentas ficam só para o que ele não cobre
@@ -71,7 +71,13 @@ def test_prompt_de_sistema_tem_as_regras_duras():
                    "não estiver em xeque",
                    # a prosa cita os lances numerados, como numa anotação, para o segmentador do
                    # frontend achar a posição certa quando há várias linhas na explicação
-                   "número do lance", "32...Qh3 33.Rh8+ Kxh8"):
+                   "número do lance", "32...Qh3 33.Rh8+ Kxh8",
+                   # v9: a ameaça sem a continuação inteira (ela vai só em `linhas`), a continuação
+                   # numerada só na defesa natural, e o mesmo desfecho dito uma vez
+                   "SEM a continuação numerada inteira", "vai só em\n   `linhas`", "a única parte do `por_que`",
+                   "uma vez", "Nunca repita o mesmo desfecho",
+                   # o segundo verificador extrai e confere cada afirmação sobre o tabuleiro
+                   "segundo verificador", "'cravada', 'indefesa', 'garfo'", "o que está nos fatos do dossiê"):
         assert trecho in SYSTEM_PROMPT, trecho
 
 

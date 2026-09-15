@@ -104,6 +104,11 @@ coach/
   por classe (§11).
 - `FakeLlm` (em `tests/fakes.py`): roteiro de chamadas de ferramenta e resposta
   final fixa; usado em todos os testes sem rede.
+- Segundo modelo, mais barato, para a checagem de afirmações (§5, regra 8):
+  `MODELO_CHECAGEM` em `costs.py` (Sonnet), fixo, criado com a mesma chave ao lado
+  do cliente principal na rota e na avaliação offline. Lê a prosa e devolve, pela
+  mesma ferramenta final e com esquema estrito, cada afirmação sobre o tabuleiro
+  como dado estruturado; sem ferramentas, esforço baixo, teto curto de tokens.
 
 ### 4.2 Ferramentas do agente
 
@@ -274,6 +279,26 @@ Regras:
    ("o bispo de f4 não ataca g7 em nenhuma posição da explicação"). O caso real: um
    mate certo "com a dama apoiada pelo bispo de f4" em que quem apoiava g7 era o
    cavalo de f5. Issues idênticas entram uma vez só.
+8. **Checagem de afirmações** (`afirmacoes.py`, roda no pipeline depois do
+   verificador, quando há modelo de checagem): a regra 7 só entende a voz passiva
+   ("atacada pela dama de g4"); a prosa afirma coisas em qualquer forma de frase
+   ("o cavalo de f5 e a dama de g4 atacam d4 mais vezes do que as pretas
+   defendem" — falso: só o cavalo ataca d4, e as pretas defendem duas vezes). Um
+   segundo modelo lista toda afirmação verificável do texto como dado estruturado,
+   sem julgar: `ataca` (a peça da casa X ataca/apoia/defende/cobre/controla a casa
+   Y), `mais_atacantes` (um lado ataca a casa mais vezes do que o outro defende),
+   `indefesa`, `cravada`, `unico_lance`, `unica_casa_do_rei`, `garfo` (a peça ataca
+   todas as casas listadas), `xeque`, `mate`, `peca_em_casa` (a existência) e
+   `outro` (o que não cabe: o extrator lista, a conferência ignora). Cada item traz
+   o trecho exato da prosa. O python-chess confere cada uma nas mesmas posições
+   alcançáveis das regras 4 e 7, com a mesma semântica permissiva: a afirmação vale
+   se é verdade em pelo menos uma delas. Falsa em todas → `erro` `afirmacao_falsa`,
+   com o trecho e um motivo concreto calculado na posição inicial ("«a dama de g4
+   ataca d4»: g4 não ataca d4 (quem ataca d4: f5)"; "as brancas atacam d4 1 vez e
+   as pretas defendem 2"; "Kh1 não é o único lance do rei: também Kf1"). Campo
+   malformado (casa inválida, dado faltando) é ignorado em silêncio; issues
+   idênticas entram uma vez só. A mensagem de correção diz o que fazer com ela:
+   reescrever a frase com o que os fatos dizem ou tirar a afirmação.
 
 `ok` é verdadeiro sem nenhum `erro`. Avisos não bloqueiam, mas aparecem no
 cartão. O verificador é puro (recebe uma função `analisar(fen, multipv)`), o
@@ -338,12 +363,20 @@ explicar(puzzle_id, review_id | None):
   2b. dossie   = montar_dossie(contexto, analisar)   # as análises que o "por que" pede, prontas (§4.3)
   3. resultado = llm.run_agent(system, user(contexto, dossie, trechos), tools, schema, effort)
   4. verif     = verificar(resultado.structured, puzzle, trechos, analisar)
+  4b. afirmacoes = extrair_afirmacoes(llm_checagem, texto)    # o segundo modelo lista (§5, regra 8)
+      verif.issues += conferir_afirmacoes(afirmacoes, posicoes alcançáveis da resposta)
   5. se not verif.ok:
        resultado2 = llm.run_agent(..., user + "Relatório de verificação: …corrija…")
-       verif2 = verificar(resultado2…)
+       verif2 = verificar(resultado2…) + a mesma checagem de afirmações (4b)
        usa (resultado2, verif2) se verif2 tiver menos erros; marca repaired=True
   6. grava CoachExplanation (§7.1); devolve
 ```
+
+- Passo 4b (checagem de afirmações) roda depois de cada verificação, a primeira e
+  a da correção, quando o pipeline recebe o modelo de checagem (`llm_checagem`);
+  sem ele, nada muda. As posições em que as afirmações são conferidas são as
+  mesmas que o verificador usa nas regras 4 e 7. O tempo dela é `checagem_ms` em
+  `tempos`, e `afirmacoes` conta as afirmações extraídas; o span é `checagem`.
 
 - Passo 2 (recuperação prévia) existe para que a variante "agente + RAG" tenha
   sempre algo citável e para o custo ficar previsível; o agente ainda pode
@@ -357,7 +390,10 @@ explicar(puzzle_id, review_id | None):
   `tempos`, e a linha de tempos do log o traz logo depois do total.
 - Custo: `costs.py` tem a tabela de preços por modelo (entrada, saída, leitura
   e escrita de cache, em USD por milhão de tokens) copiada da página oficial,
-  com data; o custo da explicação é a soma das chamadas (inclusive a correção).
+  com data; o custo da explicação é a soma das chamadas (inclusive a correção) mais
+  o custo do modelo de checagem, somado ao `cost_usd` gravado. Os tokens gravados
+  (`input_tokens` etc.) são só do modelo principal; os do modelo de checagem ficam
+  em `uso_checagem` no resultado.
 - Teto: se a soma de tokens de saída das chamadas passar de 20 000 na explicação,
   aborta com erro `custo_excedido` (não deveria acontecer; é rede de segurança).
   Conferido nas duas pontas: dentro de cada chamada e na soma da explicação. Fica
@@ -518,8 +554,8 @@ interativa é compartilhada; segunda chamada simultânea recebe 409
 
 Logs no `server.log` existente, com `trace_id` quando houver. A linha de tempos
 de cada explicação (total, dossiê, chamadas ao modelo, ferramentas, verificação,
-correção) sai também quando ela morre no meio, com o dossiê, as chamadas à API e
-as ferramentas feitas até ali.
+checagem — `checagem <n> afirmacoes, <ms> ms` —, correção) sai também quando ela
+morre no meio, com o dossiê, as chamadas à API e as ferramentas feitas até ali.
 
 ## 12. Docker
 
