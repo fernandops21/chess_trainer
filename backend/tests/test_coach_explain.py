@@ -53,7 +53,10 @@ def test_caminho_feliz_com_rag_e_citacao(db_session):
     assert r.citacoes == TRECHOS and r.linhas == BOA["linhas"] and r.prompt_version == PROMPT_VERSION
     assert r.uso == Uso(1000, 200, 500, 0) and r.custo_usd == 0.0 and r.trace_id == "trace-falso"
     assert "[c:ab12]" in llm.prompts[0]["user"] and "buscar_estudos" in llm.prompts[0]["ferramentas"]
-    assert [s[0] for s in tracer.spans][:2] == ["coach.explain", "contexto"] and tracer.geracoes[0]["model"] == "fake"
+    # o dossiê vai na primeira mensagem, calculado antes da primeira chamada (span próprio)
+    assert "## Fatos já calculados" in llm.prompts[0]["user"] and "ameacas_inicial" in llm.prompts[0]["user"]
+    assert "### apos_solucao — posição depois de Qxf7#" in llm.prompts[0]["user"]
+    assert [s[0] for s in tracer.spans][:4] == ["coach.explain", "contexto", "recuperacao", "dossie"] and tracer.geracoes[0]["model"] == "fake"
     assert "Qxf7#" in consulta_de_busca(r.contexto) and "mate em 1" in consulta_de_busca(r.contexto)
     # o `texto` é derivado dos dois blocos: é o que o verificador, a avaliação e o juiz leem
     assert r.texto == f"{NA_PARTIDA}\n\n{BOA['por_que']}"
@@ -101,6 +104,8 @@ def test_variantes_sem_busca_e_sem_ferramentas(db_session):
     llm2 = FakeLlm([[("final", {**BOA, "citacoes": [], "por_que": TEXTO + " Qxf7#"})]])
     rodar(db_session, llm2, opcoes=OpcoesExplicacao(variante="prompt"))
     assert llm2.prompts[0]["ferramentas"] == [] and "nenhum trecho" in llm2.prompts[0]["user"].lower()
+    # a variante só prompt também recebe o dossiê: sem ferramentas, é dele que a explicação sai
+    assert "## Fatos já calculados" in llm2.prompts[0]["user"] and "ameacas_inicial" in llm2.prompts[0]["user"]
 
 
 def test_resposta_fora_do_esquema_tenta_de_novo_e_depois_falha(db_session):
@@ -135,6 +140,8 @@ def test_agente_que_morre_no_meio_conta_as_chamadas_ja_feitas_no_log(db_session,
         rodar(db_session, LlmQueMorre())
     linha = [x for x in caplog.messages if x.startswith("explicacao ")][0]
     assert "llm 3 chamadas" in linha and "analisar_posicao 2x 2000 ms" in linha
+    # o dossiê já tinha sido calculado quando o agente morreu: o tempo dele entra na conta
+    assert "| dossie " in linha
 
 
 def test_teto_de_tokens_vale_para_a_explicacao_inteira(db_session, caplog):
@@ -176,8 +183,9 @@ def test_tempos_medidos_e_registrados_no_log(db_session, caplog):
     with caplog.at_level(logging.INFO, logger="chess_trainer.coach.explain"):
         r = rodar(db_session, llm)
     t = r.tempos
-    assert set(t) == {"total_ms", "llm_ms", "llm_chamadas", "ferramentas", "verificacao_ms", "correcao"}
+    assert set(t) == {"total_ms", "dossie_ms", "llm_ms", "llm_chamadas", "ferramentas", "verificacao_ms", "correcao"}
     assert t["llm_chamadas"] == 1 and t["correcao"] is False and t["total_ms"] >= 0 and t["verificacao_ms"] >= 0
+    assert t["dossie_ms"] >= 0
     assert t["ferramentas"]["analisar_posicao"]["n"] == 2 and t["ferramentas"]["fatos_taticos"]["n"] == 1
     assert all(f["ms"] >= 0 for f in t["ferramentas"].values())
     assert t["llm_ms"] >= 0
@@ -186,6 +194,8 @@ def test_tempos_medidos_e_registrados_no_log(db_session, caplog):
     # o relógio do LLM engloba as ferramentas (elas rodam dentro da chamada): o log avisa
     assert "total " in linha[0] and "llm 1 chamadas," in linha[0] and "(inclui as ferramentas)" in linha[0]
     assert "verificacao " in linha[0]
+    # o dossiê sai logo depois do total: é a engine antes da primeira chamada
+    assert linha[0].index("total ") < linha[0].index("| dossie ") < linha[0].index("| llm ")
     assert "analisar_posicao 2x" in linha[0] and "fatos_taticos 1x" in linha[0] and "correcao não" in linha[0]
 
 

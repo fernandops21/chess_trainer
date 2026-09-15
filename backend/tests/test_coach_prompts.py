@@ -34,8 +34,12 @@ def test_esquema_estrito_valida_uma_resposta_boa_e_recusa_uma_ruim():
 
 
 def test_prompt_de_sistema_tem_as_regras_duras():
-    assert PROMPT_VERSION == "v7"
+    assert PROMPT_VERSION == "v8"
     for trecho in ("analisar_posicao", "ponto de vista das brancas", "[c:", "inicial", "erro", FERRAMENTA_FINAL,
+                   # o dossiê traz as análises prontas: as ameaças, a defesa natural e a solução saem dele,
+                   # e as ferramentas ficam só para o que ele não cobre
+                   "dossiê", "ameacas_inicial", "defesa_natural", "apos_solucao", "fatos_inicial",
+                   "nunca repita uma análise que já está no dossiê", "que o dossiê não cobre",
                    # a resposta sai em blocos, curta, para ser lida ao lado do tabuleiro
                    "na_partida", "por_que", "120", "200", "ao lado do tabuleiro",
                    # o `por_que` tem estrutura fixa: ameaças, a defesa natural que falha, a solução
@@ -83,6 +87,41 @@ def test_mensagens():
     assert "nenhum trecho" in vazio.lower()
     c = mensagem_de_correcao({"na_partida": "antes"}, {"ok": False, "issues": [{"tipo": "lance_ilegal", "gravidade": "erro", "detalhe": "'Qxf8' não é legal", "linha_idx": 0}]})
     assert "lance_ilegal" in c and "Qxf8" in c and "antes" in c
+
+
+def test_mensagem_inicial_traz_o_dossie_entre_o_contexto_e_os_trechos():
+    dossie = {
+        "inicial": {"fen": "F1", "lado_a_mover": "pretas", "terminal": None, "linhas": [{"lance": "Qxf2+", "avaliacao_cp": -300}]},
+        "ameacas_inicial": {"fen": "F2", "apos_passar": True, "quem_ameaca": "brancas", "linhas": []},
+        "fatos_inicial": {"fen": "F1", "mates_em_1": []},
+        "apos_solucao": {"lance": "Qxf2+", "fen": "F3", "fatos": {"em_xeque": True}, "analise": {"linhas": []}},
+        "defesa_natural": {"lance": "g5", "origem": "segunda_linha_da_engine", "fen": "F4", "analise": {}, "fatos": {}},
+        "erro": {"erro": "engine morreu"},
+        "ameacas_erro": {"indisponivel": "em xeque: não dá para passar a vez"},
+    }
+    m = mensagem_inicial("## Exercício\nFEN: x", [{"chunk_id": "ab12", "estudo": "E", "texto": "T"}], dossie)
+    assert "## Fatos já calculados (engine e python-chess)" in m
+    # depois do contexto e antes dos trechos, e a instrução final continua fechando a mensagem
+    assert m.index("## Exercício") < m.index("## Fatos já calculados") < m.index("## Trechos dos estudos") < m.index("entregue a resposta pela ferramenta")
+    # cada seção tem um título que diz o que ela é, em português, com a FEN, e o JSON compacto em bloco
+    assert "### inicial — posição do exercício, 3 melhores linhas — FEN: F1" in m
+    assert "### ameacas_inicial — o que o adversário faria se você passasse a vez — FEN: F2" in m
+    assert "### fatos_inicial — fatos táticos da posição do exercício — FEN: F1" in m
+    assert "### apos_solucao — posição depois de Qxf2+ — FEN: F3" in m
+    assert "### defesa_natural — segunda linha da engine: g5 — FEN: F4" in m
+    # seção que falhou ou está indisponível: o título sai sem FEN e o JSON diz o porquê
+    assert "### erro — posição do erro, 3 melhores linhas\n" in m and '{"erro": "engine morreu"}' in m
+    assert "### ameacas_erro — o que o adversário faria se você passasse a vez na posição do erro\n" in m
+    assert '```json\n{"lance": "Qxf2+", "fen": "F3", "fatos": {"em_xeque": true}, "analise": {"linhas": []}}\n```' in m
+    assert "não dá para passar a vez" in m and "[c:ab12]" in m
+    # as outras origens da defesa natural
+    do_aluno = mensagem_inicial("ctx", [], {"defesa_natural": {"lance": "g5", "origem": "resposta_do_aluno", "fen": "F4"}})
+    assert "### defesa_natural — resposta do aluno na partida: g5 — FEN: F4" in do_aluno
+    errado = mensagem_inicial("ctx", [], {"defesa_natural": {"lance": "g5", "origem": "lance_errado", "fen": "F4"}})
+    assert "### defesa_natural — lance errado do aluno na partida: g5 — FEN: F4" in errado
+    # sem dossiê a mensagem é a de antes
+    sem = mensagem_inicial("ctx", [])
+    assert "Fatos" not in sem and sem == mensagem_inicial("ctx", [], None)
 
 
 def test_esquema_nao_usa_palavras_que_a_api_recusa_no_modo_estrito():

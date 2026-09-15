@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from chess_trainer.coach.costs import Uso, custo_usd
+from chess_trainer.coach.dossie import montar_dossie
 from chess_trainer.coach.llm import (FERRAMENTA_FINAL, TETO_TOKENS_SAIDA, ChamadaFerramenta, ErroDoTreinador,
                                      LlmClient)
 from chess_trainer.coach.observability import NoopTracer, Tracer
@@ -66,12 +67,12 @@ def _ms(inicio: float) -> int:
 
 def _registrar_tempos(puzzle_id: str, tempos: dict) -> None:
     """Uma linha por explicação: é por ela que se sabe se o minuto foi no modelo, na engine
-    (as ferramentas e o verificador) ou na correção."""
+    (o dossiê, as ferramentas e o verificador) ou na correção."""
     ferramentas = ", ".join(f"{nome} {c['n']}x {c['ms']} ms" for nome, c in sorted(tempos["ferramentas"].items()))
-    log.info("explicacao %s: total %d ms | llm %d chamadas, %d ms (inclui as ferramentas) | "
+    log.info("explicacao %s: total %d ms | dossie %d ms | llm %d chamadas, %d ms (inclui as ferramentas) | "
              "ferramentas: %s | verificacao %d ms | correcao %s",
-             puzzle_id, tempos["total_ms"], tempos["llm_chamadas"], tempos["llm_ms"], ferramentas or "nenhuma",
-             tempos["verificacao_ms"], "sim" if tempos["correcao"] else "não")
+             puzzle_id, tempos["total_ms"], tempos["dossie_ms"], tempos["llm_chamadas"], tempos["llm_ms"],
+             ferramentas or "nenhuma", tempos["verificacao_ms"], "sim" if tempos["correcao"] else "não")
 
 
 def consulta_de_busca(ctx: ContextoExercicio) -> str:
@@ -133,13 +134,14 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
     # o relógio do LLM inclui o tempo das ferramentas (elas rodam dentro da chamada),
     # por isso cada ferramenta traz o seu próprio tempo em `ChamadaFerramenta.ms`
     llm_ms = 0
+    dossie_ms = 0
     verificacao_ms = 0
     por_ferramenta: dict[str, dict[str, int]] = {}
     repaired = False
 
     def tempos_ate_agora() -> dict:
-        return {"total_ms": int((time.monotonic() - inicio) * 1000), "llm_ms": llm_ms, "llm_chamadas": n_api,
-                "ferramentas": por_ferramenta, "verificacao_ms": verificacao_ms, "correcao": repaired}
+        return {"total_ms": int((time.monotonic() - inicio) * 1000), "dossie_ms": dossie_ms, "llm_ms": llm_ms,
+                "llm_chamadas": n_api, "ferramentas": por_ferramenta, "verificacao_ms": verificacao_ms, "correcao": repaired}
 
     try:
         with tracer.span("coach.explain", puzzle_id=contexto.puzzle_id, variante=opcoes.variante, prompt_version=PROMPT_VERSION, model=llm.model):
@@ -150,12 +152,18 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
             if opcoes.variante == "agente_rag" and buscar is not None:
                 with tracer.span("recuperacao"):
                     trechos = list(buscar(consulta_de_busca(contexto), opcoes.k_trechos))
+            # as análises que a estrutura do `por_que` pede vão prontas na primeira mensagem, para o
+            # modelo redigir em vez de explorar (cada rodada de ferramenta era uma chamada a mais)
+            with tracer.span("dossie"):
+                inicio_d = time.perf_counter()
+                dossie = montar_dossie(contexto, analisar)
+                dossie_ms = _ms(inicio_d)
             if opcoes.variante == "prompt":
                 ferramentas = []
             else:
                 ferramentas = ferramentas_do_treinador(contexto, analisar, estatisticas,
                                                        buscar if opcoes.variante == "agente_rag" else None)
-            user = mensagem_inicial(texto_ctx, trechos)
+            user = mensagem_inicial(texto_ctx, trechos, dossie)
 
             def _somar_ferramentas(chamadas: list[ChamadaFerramenta]) -> None:
                 for c in chamadas:

@@ -6,7 +6,7 @@ import json
 
 from chess_trainer.coach.llm import FERRAMENTA_FINAL
 
-PROMPT_VERSION = "v7"
+PROMPT_VERSION = "v8"
 
 SYSTEM_PROMPT = f"""Você é o treinador de xadrez do aluno dentro do app dele. O aluno acabou de fazer um
 exercício criado a partir de um erro (dele ou do adversário) numa partida dele, ou de um estudo, e
@@ -22,43 +22,58 @@ repita o FEN nem descreva onde cada peça está, e não ponha lista nem tópicos
 - `treinar`: de uma a três ações curtas, no imperativo.
 `na_partida` e `por_que` somados têm de ficar entre 120 e 200 palavras, nunca abaixo de 60 palavras.
 
+A mensagem traz um dossiê de fatos já calculados pela engine e pelo python-chess, no mesmo formato
+das ferramentas `analisar_posicao` e `fatos_taticos`: `inicial` (a posição do exercício, 3 melhores
+linhas), `ameacas_inicial` (a análise com `apos_passar`: o que o adversário faria se você passasse a
+vez), `fatos_inicial` (os fatos táticos da posição), `apos_solucao` (a posição depois do lance-chave,
+com `fatos` e `analise`), `defesa_natural` (o lance que o aluno jogaria em vez da solução, com a
+`origem`, a `analise` da posição depois dele e os `fatos` dela) e, quando há posição do erro, `erro`,
+`ameacas_erro` e `fatos_erro`. O dossiê já traz tudo o que a estrutura do `por_que` pede: escreva a
+explicação a partir dele e chame a ferramenta final. Só use `analisar_posicao` / `fatos_taticos` para
+uma posição que o dossiê não cobre (mais adiante numa linha);
+nunca repita uma análise que já está no dossiê.
+Uma seção com `erro` ou `indisponivel` não pôde ser calculada: não invente o que ela diria.
+
 Regras que você não pode quebrar:
-1. Só cite lances que vieram do contexto do exercício ou da ferramenta `analisar_posicao`. Nunca
-   invente um lance nem uma continuação. Se tiver dúvida sobre uma linha, analise a posição antes.
+1. Só cite lances que vieram do contexto do exercício, do dossiê ou da ferramenta `analisar_posicao`.
+   Nunca invente um lance nem uma continuação. Se precisar de uma linha que o dossiê não traz,
+   analise a posição antes.
 2. Toda afirmação tática — "a ameaça é X", "é mate", "dá xeque", "a única defesa é Y", "o rei não tem
-   casa de fuga", "a peça está indefesa" — tem de sair da ferramenta `fatos_taticos` NAQUELA posição ou
-   de uma linha do `analisar_posicao`; nunca da sua própria dedução. Caminho recomendado: `analisar_posicao`
-   na posição do exercício, depois `fatos_taticos` na posição depois do lance-chave (e na posição depois do
-   lance errado) antes de escrever o "por que perde". Lance escrito com `+` ou `#` em `na_partida` ou
+   casa de fuga", "a peça está indefesa" — tem de sair dos fatos táticos NAQUELA posição
+   (`fatos_inicial`, `apos_solucao.fatos`, `defesa_natural.fatos`, `fatos_erro` do dossiê, ou
+   `fatos_taticos` numa posição que o dossiê não cobre) ou de uma linha de análise (`inicial`,
+   `ameacas_inicial`, `apos_solucao.analise`, `defesa_natural.analise`, `erro`, `ameacas_erro`, ou
+   `analisar_posicao`); nunca da sua própria dedução. Lance escrito com `+` ou `#` em `na_partida` ou
    `por_que` só vale dentro de
    uma linha declarada que chegue até a posição em que ele é legal: a ameaça `Qxf1#` só pode ser escrita se
    uma linha chega à posição em que `Qxf1#` é mate (ex.: lances `["Qh3", "c4", "Qxf1#"]` a partir de `inicial`).
    Quem apoia, defende ou ataca uma casa ('a dama apoiada pelo cavalo de f5', 'a torre de d8 defendida pela
-   dama') só pode ser escrito a partir do campo `apoios` de `fatos_taticos` ou de `atacada_por` em
+   dama') só pode ser escrito a partir do campo `apoios` desses fatos ou de `atacada_por` em
    `pecas_atacadas_sem_defesa`; nunca deduza a peça de apoio olhando o tabuleiro de cabeça — o verificador
    confere cada 'peça de casa' e cada 'apoiada/defendida/atacada por' contra a posição.
-3. Antes de escrever `por_que`, peça `analisar_posicao` com `apos_passar` verdadeiro na posição
-   inicial do exercício (e na posição do erro, quando houver), quando o lado a mover
-   não estiver em xeque (a ferramenta recusa nesse caso): as linhas que voltam são as ameaças do
-   adversário, o que ele faria se você jogasse um lance calmo. Nomeie TODAS as ameaças relevantes dele — o mate e o
-   ganho de material —, não só a maior, e escreva a linha da ameaça com `inicio: "ameaca"` (a partir
-   da posição inicial) ou `inicio: "ameaca_erro"` (a partir da posição do erro).
+3. As ameaças do adversário estão em `ameacas_inicial` (e em `ameacas_erro`, quando há posição do
+   erro): é a análise com `apos_passar`, o que ele faria se você jogasse um lance calmo, e só existe
+   quando o lado a mover não estiver em xeque (em xeque a seção vem `indisponivel`). Nomeie TODAS as
+   ameaças relevantes dele — o mate e o ganho de material —, não só a maior, e escreva a linha da
+   ameaça com `inicio: "ameaca"` (a partir da posição inicial) ou `inicio: "ameaca_erro"` (a partir
+   da posição do erro).
 4. O `por_que` segue sempre esta estrutura, nesta ordem, em prosa corrida, sem tópicos:
-   (1) as ameaças do adversário: o que ele faria se você jogasse um lance calmo, tiradas do
-   `analisar_posicao` com `apos_passar` na posição inicial do exercício. Nomeie o mate E qualquer
-   outra linha dele que ganhe material — o campo `ganho_material` da linha diz o que se perde ali.
+   (1) as ameaças do adversário: o que ele faria se você jogasse um lance calmo, tiradas de
+   `ameacas_inicial`. Nomeie o mate E qualquer outra linha dele que ganhe material — o campo
+   `ganho_material` da linha diz o que se perde ali.
    Se o lado a mover estiver em xeque (não dá para passar a vez), comece pela ameaça que já está
    no tabuleiro: o que o xeque cobra e o que acontece se você só se defender.
-   (2) a defesa natural e por que ela falha: o lance que o aluno jogaria. Se o contexto trouxer o
-   lance real dele (`minha_resposta`, ou `lance_errado` quando o erro é dele), use esse lance e
-   analise com `analisar_posicao` a posição depois dele: a melhor linha de lá é o que o adversário
-   faz em cima do lance. Se o contexto não trouxer, use a segunda linha do `analisar_posicao` na
-   posição inicial (peça `multipv` 3).
-   Siga a continuação dessa linha até onde o material muda (`ganho_material`) e diga, com os lances
-   numerados, o que se perde ali. Se essa segunda linha também for boa — avaliação a menos de 100
+   (2) a defesa natural e por que ela falha: o lance de `defesa_natural` — o lance real do aluno
+   (`origem` = `resposta_do_aluno` ou `lance_errado`) ou, sem lance real, a segunda linha da engine
+   (`origem` = `segunda_linha_da_engine`). A primeira linha de `defesa_natural.analise` é o que o
+   adversário faz na posição depois dele, e o `ganho_material` dela diz o que se perde ali.
+   Siga a continuação dessa linha até onde o material muda e diga, com os lances
+   numerados, o que se perde ali. Se essa defesa também for boa — avaliação a menos de 100
    centipeões da melhor, em módulo, e, se a melhor for mate, só quando ela também der mate —, diga
-   que ela também resolve, em vez de inventar uma falha.
-   (3) a solução: a primeira linha do `analisar_posicao` — a ideia em uma frase e depois a linha.
+   que ela também resolve, em vez de inventar uma falha. Sem `defesa_natural` no dossiê, vá direto
+   à solução.
+   (3) a solução: a primeira linha de `inicial` — a ideia em uma frase e depois a linha;
+   `apos_solucao` diz o que o adversário tem depois do lance-chave.
 5. Escreva os lances em notação inglesa (K, Q, R, B, N; ex.: Nf3, Bxf7+, O-O), como o app mostra.
    Na prosa (`na_partida`/`por_que`), escreva os lances com o número do lance, como numa anotação:
    `32...Qh3 33.Rh8+ Kxh8` (pretas com reticências, o primeiro lance de cada sequência sempre
@@ -124,8 +139,44 @@ ESQUEMA_EXPLICACAO: dict = {
 }
 
 
-def mensagem_inicial(contexto_texto: str, trechos: list[dict]) -> str:
-    partes = [contexto_texto, "", "## Trechos dos estudos do aluno"]
+# o que cada seção do dossiê é, em português, para o título dela na mensagem
+TITULO_DA_SECAO = {
+    "inicial": "posição do exercício, 3 melhores linhas",
+    "ameacas_inicial": "o que o adversário faria se você passasse a vez",
+    "fatos_inicial": "fatos táticos da posição do exercício",
+    "erro": "posição do erro, 3 melhores linhas",
+    "ameacas_erro": "o que o adversário faria se você passasse a vez na posição do erro",
+    "fatos_erro": "fatos táticos da posição do erro",
+}
+ORIGEM_DA_DEFESA = {"resposta_do_aluno": "resposta do aluno na partida",
+                    "lance_errado": "lance errado do aluno na partida",
+                    "segunda_linha_da_engine": "segunda linha da engine"}
+
+
+def _titulo_da_secao(nome: str, secao: dict) -> str:
+    if nome == "apos_solucao":
+        titulo = f"posição depois de {secao.get('lance', '?')}"
+    elif nome == "defesa_natural":
+        titulo = f"{ORIGEM_DA_DEFESA.get(str(secao.get('origem')), 'defesa natural')}: {secao.get('lance', '?')}"
+    else:
+        titulo = TITULO_DA_SECAO.get(nome, nome)
+    cabecalho = f"### {nome} — {titulo}"
+    # uma seção com erro ou indisponível não tem FEN: o JSON diz o porquê
+    return f"{cabecalho} — FEN: {secao['fen']}" if secao.get("fen") else cabecalho
+
+
+def _dossie_em_texto(dossie: dict) -> list[str]:
+    partes = ["## Fatos já calculados (engine e python-chess)"]
+    for nome, secao in dossie.items():
+        partes += [_titulo_da_secao(nome, secao), "```json", json.dumps(secao, ensure_ascii=False), "```"]
+    return partes
+
+
+def mensagem_inicial(contexto_texto: str, trechos: list[dict], dossie: dict | None = None) -> str:
+    partes = [contexto_texto, ""]
+    if dossie:
+        partes += _dossie_em_texto(dossie) + [""]
+    partes.append("## Trechos dos estudos do aluno")
     if not trechos:
         partes.append("Nenhum trecho recuperado: não cite estudos nesta explicação.")
     for t in trechos:
