@@ -28,6 +28,10 @@ FEN_MATERIAL = "4k3/8/2p5/3q4/8/8/3R4/4K3 w - - 0 1"
 FEN_TROCA = "4k3/8/2p5/3r4/8/8/3R4/4K3 w - - 0 1"
 # a torre branca em d3, longe do rei: se as brancas passassem a vez, Qxd3 a ganharia de graça
 FEN_AMEACA = "4k3/8/2p5/3q4/8/3R4/8/4K3 w - - 0 1"
+# caso real: pretas a jogar, a ameaça é Qxg7#, apoiado pelo CAVALO de f5 (o bispo de f4 não chega a g7)
+FEN_APOIO = "3r1rk1/1pp1bppp/p1n5/4PN2/3q1BQ1/2Nn4/PP3PPP/R3R1K1 b - - 0 1"
+# Bxf7 captura um peão indefeso, mas ao sair de c4 o bispo abre a diagonal do bispo preto de a2: f7 fica defendida
+FEN_RAIO_X = "7k/5p2/8/8/2B5/8/b7/4K3 w - - 0 1"
 PGN = '[Event "x"]\n[White "eu"]\n[Black "ele"]\n[Result "1-0"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0'
 
 
@@ -216,6 +220,32 @@ def test_fatos_taticos_ignora_atacante_cravado():
     # o cavalo de e2 entra: depois de Nxe2 (ou Qxe2) o rei não pode recapturar, porque a
     # dama de e8 cobre a casa -- é peça do aluno pendurada de verdade
     assert casas == ["e2"] and f["pecas_atacadas_sem_defesa"][0]["peca"] == "cavalo branco"
+
+
+def test_fatos_taticos_dizem_quem_apoia_e_quem_defende_cada_mate_e_captura():
+    """O caso que motivou o campo: a explicação escreveu "mate com a dama apoiada pelo
+    bispo de f4"; quem apoia g7 é o cavalo de f5, e ninguém conferia isso."""
+    f = fatos_taticos(FEN_APOIO)
+    assert f["ameacas_do_adversario"]["mates_em_1"] == ["Qxg7#"]
+    assert f["apoios"]["Qxg7#"] == {"apoiado_por": ["Nf5"], "defendido_por": []}
+    # uma entrada por lance listado, dos dois lados: o mate do adversário e a captura das pretas
+    assert set(f["apoios"]) == {"Qxg7#", "Nxb2"}
+    assert f["apoios"]["Nxb2"] == {"apoiado_por": [], "defendido_por": []}
+    # mate do pastor: a dama chega em f7 apoiada pelo bispo de c4
+    assert fatos_taticos(FEN)["apoios"]["Qxf7#"]["apoiado_por"] == ["Bc4"]
+    # a ameaça Qxf1# não tem apoio nem defesa (o rei de h1 não pode recapturar em mate)
+    assert fatos_taticos(FEN_FATOS)["apoios"]["Qxf1#"] == {"apoiado_por": [], "defendido_por": []}
+    # os defensores são contados DEPOIS do lance: o raio X pela casa que o bispo deixou conta
+    raio_x = fatos_taticos(FEN_RAIO_X)
+    assert "Bxf7" in raio_x["capturas_de_pecas_indefesas"]
+    assert raio_x["apoios"]["Bxf7"] == {"apoiado_por": [], "defendido_por": ["Ba2"]}
+    assert json.loads(json.dumps(f))["apoios"]["Qxg7#"]["apoiado_por"] == ["Nf5"]
+
+
+def test_descricao_dos_fatos_anuncia_os_apoios(db_session):
+    ctx = contexto_do_exercicio(db_session, puzzle_punir(db_session))
+    descricao = {f.nome: f for f in ferramentas_do_treinador(ctx, lambda fen, multipv: {}, None, None)}["fatos_taticos"].descricao
+    assert "apoios" in descricao and "apoiado_por" in descricao and "defendido_por" in descricao
 
 
 def test_fatos_taticos_limita_as_listas_e_recusa_fen_invalida():

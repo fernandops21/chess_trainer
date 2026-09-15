@@ -417,6 +417,41 @@ def _pecas_atacadas_sem_defesa(board: chess.Board) -> list[dict]:
     return out[:LIMITE_FATOS]
 
 
+def _peca_na_casa(board: chess.Board, casa: int) -> str:
+    """`Nf5`, `Pe5`, `Kg1`: letra da peça (maiúscula, peão e rei inclusive) e a casa."""
+    peca = board.piece_at(casa)
+    letra = peca.symbol().upper() if peca is not None else "?"
+    return f"{letra}{chess.square_name(casa)}"
+
+
+def _apoios_do_lance(board: chess.Board, san: str) -> dict[str, list[str]]:
+    """Quem apoia e quem defende a casa de chegada de `san`, medidos DEPOIS do lance: assim
+    o raio X pela casa que a peça deixou conta, e o defensor só entra se puder recapturar
+    de verdade (peça cravada não defende; em mate ninguém defende)."""
+    mv = board.parse_san(san)
+    quem_moveu = board.turn
+    board.push(mv)
+    try:
+        apoiado = [de for de in board.attackers(quem_moveu, mv.to_square) if de != mv.to_square]
+        defendido = _atacantes_de_fato(board, mv.to_square, board.turn)
+        return {"apoiado_por": [_peca_na_casa(board, de) for de in sorted(apoiado)],
+                "defendido_por": [_peca_na_casa(board, de) for de in sorted(defendido)]}
+    finally:
+        board.pop()
+
+
+def _apoios(board: chess.Board, lances: list[str], passa: chess.Board | None, lances_do_adversario: list[str]) -> dict[str, dict]:
+    """Uma entrada por mate e captura listados, dos dois lados (os do adversário no tabuleiro
+    do lance nulo). Chave pelo SAN; o lance do lado a mover fica se o SAN coincidir."""
+    out: dict[str, dict] = {}
+    for san in lances:
+        out.setdefault(san, _apoios_do_lance(board, san))
+    if passa is not None:
+        for san in lances_do_adversario:
+            out.setdefault(san, _apoios_do_lance(passa, san))
+    return out
+
+
 def fatos_taticos(fen: str) -> dict:
     """Fatos exatos de uma posição, calculados só com o python-chess (sem engine): é
     daqui que saem as afirmações táticas da explicação (ameaça, mate, casa de fuga do
@@ -427,11 +462,14 @@ def fatos_taticos(fen: str) -> dict:
         raise ValueError(f"posição impossível: {board.fen()}")
     em_xeque = board.is_check()
     ameacas: dict[str, list[str]] = {"mates_em_1": [], "capturas_de_pecas_indefesas": []}
+    passa = None
     if not em_xeque:
         # o que o adversário faria se fosse a vez dele: lance nulo (ilegal em xeque)
         passa = board.copy()
         passa.push(chess.Move.null())
         ameacas = {"mates_em_1": _mates_em_1(passa), "capturas_de_pecas_indefesas": _capturas_de_pecas_indefesas(passa)}
+    mates = _mates_em_1(board)
+    capturas = _capturas_de_pecas_indefesas(board)
     return {
         "fen": board.fen(),
         "lado_a_mover": "brancas" if board.turn == chess.WHITE else "pretas",
@@ -439,10 +477,14 @@ def fatos_taticos(fen: str) -> dict:
         "lances_do_rei": [board.san(mv) for mv in board.legal_moves
                           if board.piece_type_at(mv.from_square) == chess.KING][:LIMITE_FATOS],
         "xeques": [board.san(mv) for mv in board.legal_moves if board.gives_check(mv)][:LIMITE_FATOS],
-        "mates_em_1": _mates_em_1(board),
-        "capturas_de_pecas_indefesas": _capturas_de_pecas_indefesas(board),
+        "mates_em_1": mates,
+        "capturas_de_pecas_indefesas": capturas,
         "pecas_atacadas_sem_defesa": _pecas_atacadas_sem_defesa(board),
         "ameacas_do_adversario": ameacas,
+        # quem apoia e quem defende a casa de chegada de cada mate e captura acima: é daqui que
+        # sai o "apoiada pelo cavalo de f5" da explicação, que antes o modelo deduzia e errava
+        "apoios": _apoios(board, mates + capturas, passa,
+                          ameacas["mates_em_1"] + ameacas["capturas_de_pecas_indefesas"]),
     }
 
 
@@ -470,8 +512,10 @@ def ferramentas_do_treinador(contexto: ContextoExercicio, analisar: Analisar,
                    "Fatos exatos de uma posição, calculados sem engine: lances do rei, xeques, mates em 1, "
                    "capturas de peças indefesas, peças atacadas sem defesa (dos dois lados; a cor vem no campo "
                    "`peca`), e o que o adversário faria se fosse "
-                   "a vez dele (ameaças). Use antes de afirmar 'a ameaça é X', 'o rei não tem casa de fuga' ou "
-                   "'a única defesa é Y'.",
+                   "a vez dele (ameaças). `apoios` diz, para cada mate e captura listados, quem apoia a casa "
+                   "de chegada (`apoiado_por`) e quem a defende (`defendido_por`), como `Nf5`, `Pe5`: é daqui "
+                   "que sai qualquer 'apoiada por', 'defendida por', 'atacada por' da explicação. Use antes de "
+                   "afirmar 'a ameaça é X', 'o rei não tem casa de fuga' ou 'a única defesa é Y'.",
                    {"type": "object", "properties": {"fen": {"type": "string"}},
                     "required": ["fen"], "additionalProperties": False},
                    lambda e: json.dumps(fatos_taticos(str(e.get("fen", ""))), ensure_ascii=False)),
