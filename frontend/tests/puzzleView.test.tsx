@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, expect, test, vi } from "vitest";
 import type { AnalyseOut, AttemptOut, PuzzleOut, TacticOut } from "../src/api/types";
@@ -530,4 +530,33 @@ test("as barras de material capturado ficam em volta do tabuleiro", () => {
   expect(barras[0].getAttribute("aria-label")).toContain("+5");
   expect(barras[1].getAttribute("aria-label")).toContain("brancas capturaram:");
   expect(barras[1].getAttribute("aria-label")).not.toContain("+");
+});
+
+// --- promoção sobre o tabuleiro -----------------------------------------
+
+const promo: PuzzleOut = {
+  ...own, id: "promo", fen_start: "8/P6k/8/8/8/8/8/K7 w - - 0 1", solver_moves: 1,
+  solution: { moves: [{ uci: "a7a8q", by: "solver", alternatives: [] }], explanation_pv: [] },
+};
+
+test("a promoção abre um seletor sobre o tabuleiro e escolher a peça joga o lance", async () => {
+  const { container } = comRotas(<Host puzzle={promo} />);
+  act(() => { last().onMove?.("a7", "a8"); });
+  const dialogo = await screen.findByRole("dialog", { name: "Promover a" });
+  expect(dialogo.querySelectorAll("button").length).toBe(4);
+  // o seletor fica sobre o tabuleiro, não num cartão abaixo dos botões
+  expect(dialogo.closest(".board-com-promocao")).toBeTruthy();
+  expect(container.querySelector(".promo")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "dama" }));
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Promover a" })).toBeNull());
+  expect(container.textContent).toMatch(/Certo!/);
+});
+
+test("clicar fora do seletor de promoção cancela o lance", async () => {
+  comRotas(<Host puzzle={promo} />);
+  act(() => { last().onMove?.("a7", "a8"); });
+  const dialogo = await screen.findByRole("dialog", { name: "Promover a" });
+  fireEvent.click(dialogo);
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Promover a" })).toBeNull());
+  expect(last().movableColor).toBe("white");
 });

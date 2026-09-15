@@ -4,6 +4,7 @@ import { TextoComLances } from "../analysis/TextoComLances";
 import type { LanceDaLinha } from "../analysis/moveText";
 import type { PuzzleOut, TacticOut, Trainable } from "../api/types";
 import { Board } from "../board/Board";
+import { squarePercent } from "../board/squares";
 import { MaterialBar } from "../board/MaterialBar";
 import { CodeTag } from "../components/CodeTag";
 import { novoChess } from "../lib/chess";
@@ -80,6 +81,37 @@ function PuzzleInfo({ puzzle, orderInfo }: { puzzle: PuzzleOut; orderInfo?: stri
       <span className="tag">{themeLabel(puzzle.theme)}</span><span className="tag">{puzzle.category}</span>
       {puzzle.game.white} × {puzzle.game.black}, lance {Math.ceil(puzzle.ply / 2)} · {puzzle.solver_moves} lance(s) seu(s)
       {srs}{order}
+    </div>
+  );
+}
+
+const PECAS = {
+  white: { q: "♕", r: "♖", b: "♗", n: "♘" },
+  black: { q: "♛", r: "♜", b: "♝", n: "♞" },
+} as const;
+const NOMES = { q: "dama", r: "torre", b: "bispo", n: "cavalo" } as const;
+
+/**
+ * Seletor de promoção sobre o tabuleiro: as quatro peças em coluna a partir
+ * da casa de promoção, entrando pelo tabuleiro; clicar fora cancela.
+ */
+function PromocaoNoTabuleiro({ dest, orientation, cor, onEscolher, onCancelar }:
+  { dest: Key; orientation: "white" | "black"; cor: "white" | "black"; onEscolher: (p: "q" | "r" | "b" | "n") => void; onCancelar: () => void }) {
+  const pos = squarePercent(dest, orientation);
+  // na fileira de cima a coluna desce; na de baixo ela sobe (a casa fica por último)
+  const descendo = pos.topo;
+  const pecas = (["q", "r", "b", "n"] as const);
+  return (
+    <div className="promo-fundo" onClick={onCancelar} role="dialog" aria-label="Promover a">
+      <div
+        className="promo-coluna"
+        style={{ left: `${pos.left}%`, ...(descendo ? { top: `${pos.top}%` } : { bottom: `${100 - pos.top - 12.5}%`, flexDirection: "column-reverse" }) }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {pecas.map((p) => (
+          <button key={p} type="button" aria-label={NOMES[p]} title={NOMES[p]} onClick={() => onEscolher(p)}>{PECAS[cor][p]}</button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -173,15 +205,28 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDis
         )}
         {/* material capturado de cada lado, quem está em cima primeiro */}
         <MaterialBar fen={fenNaTela} lado={puzzle.side_to_move === "white" ? "black" : "white"} />
-        <Board
-          fen={fenNaTela} orientation={puzzle.side_to_move}
-          turnColor={previa ? (previa.fen.split(" ")[1] === "b" ? "black" : "white") : state.turn}
-          movableColor={!previa && playable ? puzzle.side_to_move : undefined} dests={previa ? undefined : dests}
-          lastMove={previa ? previa.lastMove : state.lastMove} check={emCheque}
-          highlight={!previa && state.hint ? [state.hint] : []}
-          arrows={arrows} squares={squares} drawable
-          onMove={(o: Key, d: Key) => ctl.tryMove(o, d)}
-        />
+        <div className="board-com-promocao">
+          <Board
+            fen={fenNaTela} orientation={puzzle.side_to_move}
+            turnColor={previa ? (previa.fen.split(" ")[1] === "b" ? "black" : "white") : state.turn}
+            movableColor={!previa && playable ? puzzle.side_to_move : undefined} dests={previa ? undefined : dests}
+            lastMove={previa ? previa.lastMove : state.lastMove} check={emCheque}
+            highlight={!previa && state.hint ? [state.hint] : []}
+            arrows={arrows} squares={squares} drawable
+            onMove={(o: Key, d: Key) => ctl.tryMove(o, d)}
+          />
+          {state.pendingPromotion && (
+            // o seletor fica sobre a casa da promoção, como no chess.com: uma
+            // caixa embaixo dos botões de navegação some da vista numa tela grande
+            <PromocaoNoTabuleiro
+              dest={state.pendingPromotion.dest}
+              orientation={puzzle.side_to_move}
+              cor={puzzle.side_to_move}
+              onEscolher={ctl.choosePromotion}
+              onCancelar={ctl.cancelPromotion}
+            />
+          )}
+        </div>
         <MaterialBar fen={fenNaTela} lado={puzzle.side_to_move} />
         <div className="row" style={{ marginTop: 8 }}>
           <button onClick={() => irPara(0)} disabled={atual === 0} aria-label="Início">⏮</button>
@@ -190,15 +235,6 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDis
           <button onClick={() => irPara(atual + 1)} disabled={!previa && atual >= viva} aria-label="Próximo lance">▶</button>
           <button onClick={() => setPrevia(null)} disabled={!previa && atual >= viva} aria-label="Posição atual">⏭</button>
         </div>
-        {state.pendingPromotion && (
-          <div className="card row" style={{ marginTop: 8 }}>
-            <span>Promover a:</span>
-            <div className="promo">
-              {(["q", "r", "b", "n"] as const).map((p) => <button key={p} onClick={() => ctl.choosePromotion(p)}>{{ q: "♕", r: "♖", b: "♗", n: "♘" }[p]}</button>)}
-            </div>
-            <button onClick={ctl.cancelPromotion}>Cancelar</button>
-          </div>
-        )}
       </div>
       <div className="card">
         <div className="row" style={{ fontSize: 20, fontWeight: 600 }}>
