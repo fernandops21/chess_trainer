@@ -103,5 +103,9 @@ export function puzzleTitle(p: PuzzleOut): string {
   return "exercício";
 }
 
+/** Código curto do exercício: o começo do id, do jeito que a interface o mostra.
+ *  A API aceita esse prefixo no lugar do id inteiro (em `/api/puzzles/<código>`). */
+export const shortCode = (id: string) => `#${id.slice(0, 8)}`;
+
 export const levelLabel = (level: string | null) =>
   level === "blunder" ? "blunder" : level === "mistake" ? "erro" : "";

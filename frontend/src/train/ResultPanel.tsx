@@ -4,6 +4,7 @@ import type { PuzzleOut, ReviewOut } from "../api/types";
 import { usePuzzleQuery } from "../api/queries";
 import { AnalysisBoard } from "../analysis/AnalysisBoard";
 import { treeFromSolution, withMistakeVariation, withPlayedLine } from "../analysis/solutionTree";
+import { CodeTag } from "../components/CodeTag";
 import { ErrorBox } from "../components/ErrorBox";
 import { categoryLabel, formatEval, themeLabel } from "../lib/format";
 import { buildLine } from "../board/line";
@@ -63,7 +64,7 @@ export function ResultPanel({ puzzle, review, played, error, onRetry, onNext, ne
         {isAvoid && puzzle.mistake && !comErro && (
           <p>Na partida você jogou <b>{puzzle.mistake.move_played}</b> ({formatEval(puzzle.mistake.eval_before)} → {formatEval(puzzle.mistake.eval_after)}). O melhor era <b>{bestSan}</b>.</p>
         )}
-        <div style={{ marginTop: 10 }}><span className="tag">{themeLabel(puzzle.theme)}</span><span className="tag">{categoryLabel(puzzle.category)}</span><span className="tag">{puzzle.end_reason === "mate" ? "termina em mate" : puzzle.end_reason === "material_gain" ? "ganho de material" : "explicação"}</span></div>
+        <div style={{ marginTop: 10 }}><span className="tag">{themeLabel(puzzle.theme)}</span><span className="tag">{categoryLabel(puzzle.category)}</span><span className="tag">{puzzle.end_reason === "mate" ? "termina em mate" : puzzle.end_reason === "material_gain" ? "ganho de material" : "explicação"}</span><CodeTag id={puzzle.id} /></div>
         <div className="row" style={{ marginTop: 10 }}>
           {puzzle.game && <a href={puzzle.game.source_id} target="_blank" rel="noopener">partida no chess.com</a>}
           {/* com o cartão do erro, o link da partida no app é o dele */}

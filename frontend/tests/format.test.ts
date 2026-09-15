@@ -1,4 +1,4 @@
-import { categoryLabel, colorName, formatEval, kindLabel, resultLabel, themeLabel } from "../src/lib/format";
+import { categoryLabel, colorName, formatEval, kindLabel, resultLabel, shortCode, themeLabel } from "../src/lib/format";
 
 test("formatEval", () => {
   expect(formatEval(125)).toBe("+1.25");
@@ -26,4 +26,10 @@ test("as outras fontes têm tema e categoria em português", () => {
   expect(categoryLabel("study")).toBe("estudo");
   expect(categoryLabel("lichess")).toBe("Lichess");
   expect(categoryLabel("rapid")).toBe("rapid");
+});
+
+test("shortCode", () => {
+  expect(shortCode("ff466803-9e8a-4a1e-8f2a-0b1c2d3e4f50")).toBe("#ff466803");
+  // ids curtos (os dos testes) saem inteiros
+  expect(shortCode("p1")).toBe("#p1");
 });

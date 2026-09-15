@@ -5,6 +5,7 @@ import type { LanceDaLinha } from "../analysis/moveText";
 import type { PuzzleOut, TacticOut, Trainable } from "../api/types";
 import { Board } from "../board/Board";
 import { MaterialBar } from "../board/MaterialBar";
+import { CodeTag } from "../components/CodeTag";
 import { novoChess } from "../lib/chess";
 import { colorName, kindLabel, themeLabel } from "../lib/format";
 import { MistakeCard } from "./MistakeCard";
@@ -200,8 +201,10 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDis
         )}
       </div>
       <div className="card">
-        <div style={{ fontSize: 20, fontWeight: 600 }}>
-          {colorName(puzzle.side_to_move)} jogam · {what}
+        <div className="row" style={{ fontSize: 20, fontWeight: 600 }}>
+          <span>{colorName(puzzle.side_to_move)} jogam · {what}</span>
+          {/* as táticas do Lichess têm o id de lá, que não abre nada por aqui */}
+          {!tactic && <CodeTag id={puzzle.id} />}
         </div>
         {tactic ? <TacticInfo tactic={puzzle} orderInfo={orderInfo} /> : <PuzzleInfo puzzle={puzzle} orderInfo={orderInfo} />}
         {intro && <p style={{ fontWeight: 600, marginBottom: 0 }}>{intro}</p>}

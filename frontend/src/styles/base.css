@@ -21,6 +21,8 @@ textarea { padding: 8px 10px; }
 .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--chip); font-size: 12px; margin-right: 6px; }
 button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line); margin-right: 0; }
 .tag.selected { background: var(--accent); color: var(--ink); border-color: var(--accent); font-weight: 600; }
+/* o código do exercício: etiqueta que se clica para copiar */
+.tag.copiavel { cursor: pointer; font-family: ui-monospace, "Cascadia Mono", Menlo, monospace; }
 .eval-big { font-size: 32px; font-weight: 700; }
 .pvline { display: block; text-align: left; min-height: var(--tap); }
 

@@ -1,4 +1,5 @@
 import json
+import re
 from collections.abc import Sequence
 from typing import Literal
 
@@ -18,6 +19,9 @@ from chess_trainer.core.srs.reviews import record_review, unleech
 from chess_trainer.core.stats import SOURCES, streak_days
 
 router = APIRouter(prefix="/api")
+
+#: Código curto do exercício: o prefixo hexadecimal do id (uuid4), de 8 caracteres para cima.
+_CODIGO = re.compile(r"[0-9a-fA-F]{8,}")
 
 
 def _last_move(db: Session, p: Puzzle) -> tuple[str | None, str | None]:
@@ -111,10 +115,23 @@ def _puzzles_out(db: Session, puzzles: Sequence[Puzzle]) -> list[PuzzleOut]:
 
 
 def _get_puzzle(db: Session, puzzle_id: str) -> Puzzle:
+    """O exercício pelo id inteiro ou pelo código curto que a interface mostra.
+
+    O código é o começo do id (`#ff466803`), que é o que dá para ditar, anotar ou
+    digitar no endereço. Oito caracteres hexadecimais já separam qualquer coleção
+    de tamanho humano; se mesmo assim dois exercícios começarem igual, a resposta
+    é 409 e não um dos dois ao acaso."""
     puzzle = db.get(Puzzle, puzzle_id)
-    if puzzle is None:
-        raise HTTPException(404, "puzzle não encontrado")
-    return puzzle
+    if puzzle is not None:
+        return puzzle
+    if _CODIGO.fullmatch(puzzle_id):
+        # `limit(2)` é o bastante: interessa saber se há um só ou mais de um
+        achados = db.scalars(select(Puzzle).where(Puzzle.id.like(f"{puzzle_id.lower()}%")).limit(2)).all()
+        if len(achados) == 1:
+            return achados[0]
+        if len(achados) > 1:
+            raise HTTPException(409, "código ambíguo")
+    raise HTTPException(404, "puzzle não encontrado")
 
 
 @router.get("/puzzles/{puzzle_id}", response_model=PuzzleOut)

@@ -323,6 +323,34 @@ def test_puzzle_out_last_move_for_own_punish_and_avoid(ready):
     assert first["fen_before"] is None and first["last_move"] is None
 
 
+def test_puzzle_pelo_codigo_curto(ready):
+    """O código curto que a interface mostra (o começo do id) abre o exercício."""
+    from chess_trainer.core.models import Puzzle
+
+    app, client = ready
+    puzzle_id = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]["id"]
+    codigo = puzzle_id[:8]
+    assert client.get(f"/api/puzzles/{codigo}").json()["id"] == puzzle_id
+    # ditado ou anotado, o código pode voltar em maiúsculas
+    assert client.get(f"/api/puzzles/{codigo.upper()}").json()["id"] == puzzle_id
+    # curto demais para ser código, e código sem dono: não encontrado
+    assert client.get(f"/api/puzzles/{codigo[:7]}").status_code == 404
+    assert client.get("/api/puzzles/deadbeef").status_code == 404
+
+    # dois exercícios começando igual: a API não escolhe um deles por conta própria
+    pos = _positions(app)[5]
+    with app.state.session_factory() as db:
+        db.add(Puzzle(id=f"{codigo}-0000-4000-8000-000000000000", position_id=pos["id"], game_id=pos["game_id"],
+                      kind="avoid", fen_start=pos["fen"], side_to_move="white",
+                      solution='{"moves": [], "explanation_pv": []}', end_reason="material_gain",
+                      theme="tactic", category="rapid", solver_moves=1))
+        db.commit()
+    ambiguo = client.get(f"/api/puzzles/{codigo}")
+    assert ambiguo.status_code == 409 and "ambíguo" in ambiguo.json()["detail"]
+    # com o id inteiro cada um dos dois continua abrindo
+    assert client.get(f"/api/puzzles/{puzzle_id}").json()["id"] == puzzle_id
+
+
 def test_queue_toggle_removes_from_queue_and_dashboard(ready):
     _, client = ready
     puzzle = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]

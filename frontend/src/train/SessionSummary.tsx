@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { PuzzleOut, ReviewOut } from "../api/types";
+import { CodeTag } from "../components/CodeTag";
 import { puzzleTitle } from "../lib/format";
 
 export interface Done { puzzle: PuzzleOut; review: ReviewOut; }
@@ -24,6 +25,7 @@ export function SessionSummary({ done, elapsedLabel, reason, onNew }: { done: Do
               {d.puzzle.game
                 ? <Link to={`/erros?position=${encodeURIComponent(d.puzzle.fen_start)}`}>{puzzleTitle(d.puzzle)}</Link>
                 : <Link to={`/treinar?puzzle=${d.puzzle.id}&seen=1`}>{puzzleTitle(d.puzzle)}</Link>}
+              {" "}<CodeTag id={d.puzzle.id} />
             </li>
           ))}</ul>
         </>

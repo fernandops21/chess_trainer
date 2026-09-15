@@ -123,6 +123,16 @@ test("cabeçalho dos puzzles próprios não muda", () => {
   expect(screen.getByText(/eu × ela, lance 11 · 1 lance\(s\) seu\(s\) · novo/)).toBeTruthy();
 });
 
+test("o cabeçalho traz o código do exercício", () => {
+  render(<OwnHost />);
+  expect(screen.getByTitle("clique para copiar").textContent).toBe("#p1");
+});
+
+test("o cabeçalho da tática do Lichess não mostra código", () => {
+  render(<TacticHost />);
+  expect(screen.queryByTitle("clique para copiar")).toBeNull();
+});
+
 function Host({ puzzle }: { puzzle: PuzzleOut }) {
   const ctl = usePuzzle(puzzle, { sessionId: null, submit: async () => ({}) as never });
   return <PuzzleView puzzle={puzzle} ctl={ctl} />;

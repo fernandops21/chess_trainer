@@ -153,6 +153,11 @@ test("resultado traz o botão de tirar da repetição", () => {
   expect(screen.getByText("Tirar da repetição")).toBeTruthy();
 });
 
+test("o cartão do resultado traz o código do exercício", () => {
+  renderPanel(study());
+  expect(screen.getByTitle("clique para copiar").textContent).toBe("#p1");
+});
+
 test("no 'evitar' o lance da partida entra como variação com a refutação", async () => {
   vi.spyOn(api, "puzzle").mockResolvedValue({
     ...base,

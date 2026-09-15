@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useDashboard, useQueue, useStudies, useTacticsStatus } from "../api/queries";
 import type { PuzzleSource, QueueFilters, QueueMode } from "../api/types";
 import { storage } from "../lib/storage";
@@ -83,6 +83,15 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
   // escolher um estudo vira o modo "study"
   const pick = (c: Choice) => { setChoice(c); setStudyId(""); setIgnorarLimite(false); };
   const pickStudy = (id: string) => { setStudyId(id); setChoice(id ? "study" : "review"); };
+
+  // "abrir por código": o código é o começo do id do exercício, e é isso que a
+  // API aceita em `/api/puzzles/<código>` — o `#` que a etiqueta mostra sai fora
+  const nav = useNavigate();
+  const [codigo, setCodigo] = useState("");
+  const abrirPorCodigo = () => {
+    const limpo = codigo.trim().replace(/^#/, "");
+    if (limpo) nav(`/treinar?puzzle=${encodeURIComponent(limpo)}`);
+  };
 
   const start = () => {
     const clamped = clampMinutes(minutes);
@@ -177,6 +186,11 @@ export function SessionStart({ onStart }: { onStart: (c: SessionConfig) => void 
       )}
       <div className="row" style={{ marginTop: 14 }}>
         <button className="primary" onClick={start} disabled={missingTactics}>Começar</button>
+        <span className="muted" style={{ marginLeft: "auto" }}>abrir por código:</span>
+        <input value={codigo} onChange={(e) => setCodigo(e.target.value)} aria-label="Código do exercício"
+          placeholder="#ff466803" style={{ width: 110 }}
+          onKeyDown={(e) => { if (e.key === "Enter") abrirPorCodigo(); }} />
+        <button onClick={abrirPorCodigo} disabled={!codigo.trim()}>Abrir</button>
       </div>
     </div>
   );

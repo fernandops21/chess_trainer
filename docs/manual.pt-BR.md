@@ -270,6 +270,13 @@ No Painel, **Revisar (N)** abre a tela Revisar com os N vencidos e **Fazer novos
 seus erros. `?mode=review|new|study` e `?study=<id>` no endereço já chegam com a escolha feita, e a
 última escolha de modo fica guardada para a próxima sessão.
 
+Cada exercício tem um **código curto** — o começo do identificador dele, mostrado como `#ff466803`
+no cabeçalho do treino, no cartão do resultado, na revisão de erros e no resumo da sessão. Clicar na
+etiqueta copia o identificador inteiro. Para voltar a um exercício anotado, use **abrir por código**
+na tela Treinar (o `#` pode ficar ou sair) ou ponha o código direto no endereço,
+`/treinar?puzzle=ff466803`. No caso improvável de dois exercícios começarem igual, o app avisa em vez
+de abrir um deles ao acaso — aí vale o identificador inteiro.
+
 Sair da tela no meio de uma sessão (trocar de menu, voltar no navegador) ou fechar a aba encerra a
 sessão no servidor: ela não fica aberta contando tempo que ninguém treinou.
 

@@ -6,6 +6,7 @@ import type { MistakeOut, MistakesQuery, PuzzleOut, PuzzleRef } from "../api/typ
 import { Board } from "../board/Board";
 import { MiniBoard } from "../board/MiniBoard";
 import { buildLine, mesmaPosicao, uciToMove } from "../board/line";
+import { CodeTag } from "../components/CodeTag";
 import { ErrorBox } from "../components/ErrorBox";
 import { Modal } from "../components/Modal";
 import { formatDate, formatEval, levelLabel, puzzleTitle, themeLabel } from "../lib/format";
@@ -122,7 +123,7 @@ export function MistakesPage() {
           <button key={m.position_id} className="mistakerow" onClick={() => setOpen(m)}>
             <MiniBoard fen={m.fen} orientation={m.my_color} />
             <div style={{ flex: 1, textAlign: "left" }}>
-              <div><b>{m.move_played}</b> <span className={`tag ${m.mistake_level}`}>{levelLabel(m.mistake_level)}</span>{m.mistake_by === "opponent" && <span className="tag">adversário</span>}{m.puzzles.length === 0 && m.mistake_by === "me" && <span className="tag">posicional</span>}<OutOfQueueTags puzzles={m.puzzles} /></div>
+              <div><b>{m.move_played}</b> <span className={`tag ${m.mistake_level}`}>{levelLabel(m.mistake_level)}</span>{m.mistake_by === "opponent" && <span className="tag">adversário</span>}{m.puzzles.length === 0 && m.mistake_by === "me" && <span className="tag">posicional</span>}<OutOfQueueTags puzzles={m.puzzles} />{m.puzzles[0] && <CodeTag id={m.puzzles[0].id} />}</div>
               <div className="muted">{formatEval(m.eval_before)} → {formatEval(m.eval_after)} · melhor {melhorSan(m)} {m.puzzles[0] && `· ${themeLabel(m.puzzles[0].theme)}`}</div>
               <div className="muted">{m.white} × {m.black} · {formatDate(m.played_at)} · {m.category}</div>
             </div>

@@ -62,6 +62,24 @@ test("com um exercício só, a etiqueta não precisa nomear o tipo", async () =>
   expect(await screen.findByText("fora da repetição")).toBeTruthy();
 });
 
+test("a linha do erro traz o código do exercício, e o clique nele não abre o erro", async () => {
+  vi.spyOn(api, "mistakes").mockResolvedValue([erro([puzzle()])]);
+  renderPage();
+  const tag = await screen.findByTitle("clique para copiar");
+  expect(tag.textContent).toBe("#z1");
+  fireEvent.click(tag);
+  expect(screen.getByText("copiado")).toBeTruthy();
+  // o modal do erro é do clique na linha, não no código
+  expect(screen.queryByText("ver na partida")).toBeNull();
+});
+
+test("erro sem exercício não tem código", async () => {
+  vi.spyOn(api, "mistakes").mockResolvedValue([erro([])]);
+  renderPage();
+  await screen.findByText("Ra2");
+  expect(screen.queryByTitle("clique para copiar")).toBeNull();
+});
+
 test("com tudo na repetição não há etiqueta", async () => {
   vi.spyOn(api, "mistakes").mockResolvedValue([erro([puzzle()])]);
   renderPage();

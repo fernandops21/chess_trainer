@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "../src/api/client";
@@ -21,12 +21,17 @@ const status = (over: Partial<TacticsStatus> = {}): TacticsStatus => ({
   attempts_total: 0, attempts_today: 0, attempts_30d: 0, correct_30d: 0, ...over,
 });
 
+function Where() {
+  const loc = useLocation();
+  return <div data-testid="where">{loc.pathname + loc.search}</div>;
+}
+
 function renderStart(entry = "/treinar") {
   const onStart = vi.fn();
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter initialEntries={[entry]}>
-        <SessionStart onStart={onStart} />
+        <SessionStart onStart={onStart} /><Where />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -145,4 +150,21 @@ test("banco não importado avisa e bloqueia o começar", async () => {
   expect(await screen.findByText(/não importado/)).toBeTruthy();
   expect(screen.getByText("baixar em Configurações").getAttribute("href")).toBe("/config");
   expect((screen.getByText("Começar") as HTMLButtonElement).disabled).toBe(true);
+});
+
+test("abrir por código leva ao exercício, com ou sem o # na frente", () => {
+  renderStart();
+  const campo = screen.getByLabelText("Código do exercício");
+  // sem nada digitado não há o que abrir
+  expect((screen.getByText("Abrir") as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.change(campo, { target: { value: " #ff466803 " } });
+  fireEvent.click(screen.getByText("Abrir"));
+  expect(screen.getByTestId("where").textContent).toBe("/treinar?puzzle=ff466803");
+});
+
+test("Enter no campo do código abre do mesmo jeito", () => {
+  renderStart();
+  fireEvent.change(screen.getByLabelText("Código do exercício"), { target: { value: "ff466803" } });
+  fireEvent.keyDown(screen.getByLabelText("Código do exercício"), { key: "Enter" });
+  expect(screen.getByTestId("where").textContent).toBe("/treinar?puzzle=ff466803");
 });
