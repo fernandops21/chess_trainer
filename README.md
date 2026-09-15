@@ -14,7 +14,8 @@ read and build annotated studies, and trains tactics with a local rating.
 
 - **Your mistakes become puzzles.** Imports your games from chess.com, analyses them with Stockfish and
   creates puzzles from your blunders and your opponents' (punish the mistake, or avoid the one you made),
-  scheduled with spaced repetition.
+  scheduled with spaced repetition. A puzzle keeps going while your move is the only one that works, and
+  existing puzzles can be lengthened in place without losing their review history.
 - **Refutation on the board.** Play a wrong move and the engine answers it, shows the evaluation drop
   and the line that follows; then you try again. The result screen is a full analysis board, with a
   card showing what you actually played in the game and what you missed.

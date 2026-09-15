@@ -1,9 +1,15 @@
-import chess
+import json
+from datetime import datetime
 
+import chess
+from sqlalchemy import func, select
+
+from chess_trainer.config import AppSettings
+from chess_trainer.core.analysis.engine import LineEval
 from chess_trainer.core.evals import MATE_SCORE
-from chess_trainer.core.models import Position
+from chess_trainer.core.models import Position, Puzzle, Review
 from chess_trainer.core.puzzles.generator import PuzzleConfig
-from chess_trainer.core.puzzles.service import _is_trivial_punish, build_drafts
+from chess_trainer.core.puzzles.service import _is_trivial_punish, build_drafts, extend_all
 from tests.fakes import FakeEngine, first_legal_default
 
 CFG = PuzzleConfig(depth=10)
@@ -99,3 +105,122 @@ def test_trivial_bound_uses_net_gain_not_face_value():
     assert not _is_trivial_punish(board_after, "d7d5", 500)
     # 300 <= 400 -> trivial.
     assert _is_trivial_punish(board_after, "d7d5", 300)
+
+
+# --- extensão dos exercícios já gravados (job "Estender exercícios") -------
+
+HANGING_QUEEN = "4k3/8/8/3q4/8/2N5/7P/4K3 w - - 0 1"  # Nxd5 ganha a dama; depois h4 e h5 são únicos
+
+
+def _epd(*ucis: str) -> str:
+    b = chess.Board(HANGING_QUEEN)
+    for u in ucis:
+        b.push_uci(u)
+    return b.epd()
+
+
+def _extend_script() -> dict[str, list[LineEval]]:
+    """Depois de Nxd5 (já na solução gravada), o branco tem dois lances únicos e para no terceiro."""
+    return {
+        _epd("c3d5"): [LineEval("e8d7", -900, ("e8d7",))],
+        _epd("c3d5", "e8d7"): [LineEval("h2h4", 900, ("h2h4",)), LineEval("e1e2", 100, ("e1e2",))],
+        _epd("c3d5", "e8d7", "h2h4"): [LineEval("d7e6", -900, ("d7e6",))],
+        _epd("c3d5", "e8d7", "h2h4", "d7e6"): [LineEval("h4h5", 900, ("h4h5",)), LineEval("e1e2", 100, ("e1e2",))],
+        _epd("c3d5", "e8d7", "h2h4", "d7e6", "h4h5"): [LineEval("e6d6", -900, ("e6d6",))],
+        # gap de 100 cp: acabou o lance único
+        _epd("c3d5", "e8d7", "h2h4", "d7e6", "h4h5", "e6d6"): [
+            LineEval("h5h6", 900, ("h5h6",)), LineEval("e1e2", 800, ("e1e2",)),
+        ],
+    }
+
+
+def _puzzle(**overrides) -> Puzzle:
+    defaults = dict(
+        kind="punish", source="own", fen_start=HANGING_QUEEN, side_to_move="white",
+        solution=json.dumps({"moves": [{"uci": "c3d5", "by": "solver", "alternatives": []}]}),
+        end_reason="material_gain", theme="hanging_piece", category="rapid", solver_moves=1,
+        created_at=datetime(2026, 9, 1), srs_ease=2.3, srs_interval_days=21, srs_lapses=2,
+        srs_due_at=datetime(2026, 12, 1), srs_last_reviewed_at=datetime(2026, 9, 10),
+    )
+    defaults.update(overrides)
+    return Puzzle(**defaults)
+
+
+SETTINGS = AppSettings(puzzle_depth=10)
+
+
+def test_extend_all_lengthens_the_line_and_keeps_the_review_history(db_session):
+    puzzle = _puzzle(is_leech=True)
+    db_session.add(puzzle)
+    db_session.flush()
+    db_session.add(Review(puzzle_id=puzzle.id, result="correct", ease=2.3, interval_days=21,
+                          due_at=datetime(2026, 12, 1), lapses=2))
+    db_session.commit()
+    puzzle_id = puzzle.id
+
+    n = extend_all(db_session, FakeEngine(_extend_script()), SETTINGS)
+
+    assert n == {"examinados": 1, "estendidos": 1}
+    novo = db_session.get(Puzzle, puzzle_id)
+    assert novo is not None and novo.id == puzzle_id  # o mesmo exercício, não um recriado
+    assert [(m["uci"], m["by"]) for m in novo.solution_data["moves"]] == [
+        ("c3d5", "solver"), ("e8d7", "engine"), ("h2h4", "solver"), ("d7e6", "engine"), ("h4h5", "solver"),
+    ]
+    assert novo.solver_moves == 3
+    # o histórico de revisão sobrevive à extensão
+    assert novo.srs_due_at == datetime(2026, 12, 1) and novo.srs_interval_days == 21
+    assert novo.srs_ease == 2.3 and novo.srs_lapses == 2
+    assert novo.srs_last_reviewed_at == datetime(2026, 9, 10)
+    assert novo.in_queue is True and novo.is_leech is True
+    assert db_session.scalar(select(func.count(Review.id))) == 1
+
+
+def test_extend_all_keeps_the_other_keys_of_the_solution(db_session):
+    db_session.add(_puzzle(solution=json.dumps({
+        "moves": [{"uci": "c3d5", "by": "solver", "alternatives": []}],
+        "comments": {"0": "ganha a dama"}, "wrong_moves": {"e1e2": "muito lento"},
+        "shapes": {"start": ["Gd5"]}, "intro": "branco joga e ganha",
+    })))
+    db_session.commit()
+
+    extend_all(db_session, FakeEngine(_extend_script()), SETTINGS)
+
+    data = db_session.scalars(select(Puzzle)).one().solution_data
+    assert len(data["moves"]) == 5
+    assert data["comments"] == {"0": "ganha a dama"} and data["wrong_moves"] == {"e1e2": "muito lento"}
+    assert data["shapes"] == {"start": ["Gd5"]} and data["intro"] == "branco joga e ganha"
+
+
+def test_extend_all_skips_mate_and_puzzles_from_other_sources(db_session):
+    db_session.add_all([
+        _puzzle(kind="avoid", end_reason="mate", theme="mate_in_1"),
+        _puzzle(source="lichess", external_id="abc123"),
+    ])
+    db_session.commit()
+    fake = FakeEngine(_extend_script())
+
+    assert extend_all(db_session, fake, SETTINGS) == {"examinados": 0, "estendidos": 0}
+    assert fake.calls == []  # nem chega a perguntar à engine
+    for p in db_session.scalars(select(Puzzle)):
+        assert len(p.solution_data["moves"]) == 1
+
+
+def test_extend_all_stops_in_the_middle_when_asked(db_session):
+    db_session.add_all([
+        _puzzle(kind="punish", created_at=datetime(2026, 9, 1)),
+        _puzzle(kind="avoid", created_at=datetime(2026, 9, 2)),
+    ])
+    db_session.commit()
+    chamadas: list[int] = []
+
+    def should_stop() -> bool:
+        chamadas.append(1)
+        return len(chamadas) > 1  # deixa o primeiro exercício passar e para no segundo
+
+    n = extend_all(db_session, FakeEngine(_extend_script()), SETTINGS, should_stop=should_stop)
+
+    assert n == {"examinados": 1, "estendidos": 1}
+    primeiro = db_session.scalars(select(Puzzle).where(Puzzle.kind == "punish")).one()
+    segundo = db_session.scalars(select(Puzzle).where(Puzzle.kind == "avoid")).one()
+    assert len(primeiro.solution_data["moves"]) == 5  # o que já foi estendido fica
+    assert len(segundo.solution_data["moves"]) == 1

@@ -256,6 +256,10 @@ export function SettingsPage() {
         <h3 style={{ marginTop: 0, color: "var(--bad)" }}>Perigo</h3>
         <button className="danger" onClick={() => setConfirm(true)} disabled={status?.job.state === "running"}>Recriar puzzles</button>
         <button className="danger" onClick={() => setConfirmAvoid(true)} disabled={status?.job.state === "running"}>Recriar só os evitar</button>
+        <button onClick={() => start.mutate({ kind: "extend_puzzles" })} disabled={status?.job.state === "running"}>Estender exercícios</button>
+        <div className="muted" style={{ marginTop: 6 }}>
+          Alonga os exercícios existentes enquanto o lance for único, mantendo o histórico de revisão.
+        </div>
         <ErrorBox error={start.error} />
       </div>
       <Modal open={confirm} title="Recriar todos os puzzles?" onClose={() => setConfirm(false)}>

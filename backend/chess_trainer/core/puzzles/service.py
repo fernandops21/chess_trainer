@@ -1,3 +1,4 @@
+import json
 from typing import Callable, Iterable
 
 import chess
@@ -10,7 +11,13 @@ from chess_trainer.core.analysis.engine import EngineLike
 from chess_trainer.core.analysis.mistakes import classify_positions
 from chess_trainer.core.evals import is_mate_for
 from chess_trainer.core.models import Game, Position, Puzzle, Review
-from chess_trainer.core.puzzles.generator import PuzzleConfig, PuzzleDraft, generate_avoid, generate_punish
+from chess_trainer.core.puzzles.generator import (
+    PuzzleConfig,
+    PuzzleDraft,
+    extend_unique_line,
+    generate_avoid,
+    generate_punish,
+)
 from chess_trainer.core.puzzles.material import PIECE_VALUES
 from chess_trainer.core.puzzles.themes import infer_theme
 
@@ -231,3 +238,75 @@ def regenerate_avoid(
     db.execute(delete(Puzzle).where(Puzzle.kind == "avoid", Puzzle.source == "own"))
     db.commit()
     return _regenerate(db, engine, settings, draft_avoids, progress, should_stop)
+
+
+def _extended_solution(puzzle: Puzzle, engine: EngineLike, cfg: PuzzleConfig) -> tuple[str, int] | None:
+    """`(solution, solver_moves)` do exercício alongado, ou None se não houve o que alongar.
+
+    Reconstrói a posição no fim da solução atual e continua dali. O JSON volta com as mesmas
+    chaves de antes (`comments`, `wrong_moves`, `shapes`, `intro`, `explanation_pv`…): só a
+    lista `moves` cresce. O tema também não muda — fora do mate ele sai do primeiro lance, e
+    a extensão só acrescenta no fim."""
+    data = puzzle.solution_data
+    moves = list(data.get("moves") or [])
+    board = chess.Board(puzzle.fen_start)
+    try:
+        for move in moves:
+            board.push_uci(move["uci"])
+    except (KeyError, TypeError, ValueError):
+        return None  # solução gravada fora do formato: deixa como está
+    solver = chess.WHITE if puzzle.side_to_move == "white" else chess.BLACK
+    extra = extend_unique_line(board, engine, cfg, solver)
+    if not extra:
+        return None
+    data["moves"] = moves + [m.to_dict() for m in extra]
+    return json.dumps(data), sum(1 for m in data["moves"] if m["by"] == "solver")
+
+
+def extend_all(
+    db: Session,
+    engine: EngineLike,
+    settings: AppSettings,
+    progress: ProgressFn | None = None,
+    should_stop: StopFn | None = None,
+) -> dict[str, int]:
+    """Alonga os exercícios que já existem enquanto o lance do aluno for único.
+
+    Só mexe nos exercícios das suas partidas (`source == "own"`) que terminam em ganho de
+    material: a linha de mate já acaba onde deve, e táticas do Lichess e capítulos de estudo
+    são texto de terceiros. Nada é apagado nem recriado — cada exercício mantém seu `id` e,
+    com ele, o histórico de revisão: só `solution` e `solver_moves` são reescritos, nunca
+    `srs_*`, `reviews`, `in_queue` ou `is_leech`.
+
+    Devolve `{"examinados": ..., "estendidos": ...}`; com `should_stop` para no exercício
+    seguinte, mantendo o que já foi commitado."""
+    cfg = puzzle_config_from(settings)
+    puzzles = db.scalars(
+        select(Puzzle)
+        .where(Puzzle.source == "own", Puzzle.end_reason == "material_gain")
+        .order_by(Puzzle.created_at)
+    ).all()
+    total = len(puzzles)
+    examinados = estendidos = 0
+    for i, puzzle in enumerate(puzzles):
+        if should_stop is not None and should_stop():
+            if progress:
+                progress("extend", i, total, "cancelado")
+            break
+        if progress:
+            progress("extend", i, total, puzzle.theme)
+        try:
+            alongada = _extended_solution(puzzle, engine, cfg)
+        except chess.engine.EngineError:
+            db.rollback()
+            engine.restart()
+            continue
+        examinados += 1
+        if alongada is None:
+            continue
+        puzzle.solution, puzzle.solver_moves = alongada
+        estendidos += 1
+        db.commit()
+    if progress and (should_stop is None or not should_stop()):
+        progress("extend", total, total, "concluído")
+    return {"examinados": examinados, "estendidos": estendidos}

@@ -8,6 +8,7 @@ const JOB_LABEL: Record<string, string> = {
   analyze: "Análise",
   regenerate: "Recriação de todos os puzzles",
   regenerate_avoid: "Recriação dos puzzles evitar",
+  extend_puzzles: "Extensão dos exercícios",
   import_lichess: "Importação das táticas do Lichess",
   import_study: "Importação de estudo do Lichess",
   coach_reindex: "Recriação do índice dos estudos",
@@ -16,6 +17,7 @@ const JOB_LABEL: Record<string, string> = {
 const JOB_RUNNING_HINT: Record<string, string> = {
   regenerate: "apaga os exercícios das suas partidas e gera de novo com as regras atuais; táticas e estudos ficam",
   regenerate_avoid: "apaga só os puzzles evitar das suas partidas e gera de novo; os punir e o histórico ficam",
+  extend_puzzles: "alonga os exercícios existentes enquanto o lance for único; nada é apagado e o histórico fica",
   import_lichess: "baixa o banco (~300 MB) e importa as táticas filtradas; leva uns 5 minutos",
   import_study: "baixa o PGN do estudo e cria um exercício por capítulo",
   coach_reindex: "baixa o modelo de embeddings na primeira vez (~250 MB) e indexa os comentários dos capítulos",
@@ -30,6 +32,7 @@ const CANCEL_LABEL: Record<string, [string, string]> = {
   analyze: ["Cancelar (após a partida atual)", "Cancelando… termina a partida atual e para"],
   regenerate: ["Cancelar (após a partida atual)", "Cancelando… termina a partida atual e para"],
   regenerate_avoid: ["Cancelar (após a partida atual)", "Cancelando… termina a partida atual e para"],
+  extend_puzzles: ["Cancelar (após o exercício atual)", "Cancelando… termina o exercício atual e para"],
   // o que já foi indexado fica; os capítulos restantes seguem desatualizados até o próximo "Recriar índice"
   coach_reindex: ["Cancelar (após o capítulo atual)", "Cancelando… termina o capítulo atual e para"],
 };

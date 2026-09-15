@@ -104,6 +104,33 @@ def test_regenerate_kind_avoid_route(client, app):
     assert client.post("/api/puzzles/regenerate", params={"kind": "xyz"}).status_code == 422
 
 
+def test_extend_puzzles_route(client, app):
+    client.put("/api/settings", json={"chesscom_username": "therealzibs", "analysis_depth": 4})
+    client.post("/api/import"); app.state.jobs.wait()
+    r = client.post("/api/puzzles/extend")
+    assert r.status_code == 202 and r.json()["job"] == "extend_puzzles"
+    app.state.jobs.wait()
+    snap = app.state.jobs.snapshot()
+    assert snap["state"] == "idle"
+    assert snap["message"] == "0 exercícios examinados, 0 estendidos"  # nada analisado ainda
+
+
+def test_extend_puzzles_while_busy_is_409(client, app):
+    import threading
+    release = threading.Event()
+    started = threading.Event()
+
+    def blocking(progress):
+        started.set()
+        release.wait(timeout=10)
+
+    assert app.state.jobs.submit("analyze", blocking) is True
+    started.wait(timeout=5)
+    assert client.post("/api/puzzles/extend").status_code == 409
+    release.set()
+    app.state.jobs.wait()
+
+
 def test_analyze_without_engine_is_503():
     app = create_app(db_path=":memory:", engine_factory=lambda s: None, chesscom_factory=chesscom_factory)
     client = TestClient(app)

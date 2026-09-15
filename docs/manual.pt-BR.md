@@ -397,6 +397,23 @@ Nos exercícios dos seus erros, a resposta do adversário dentro da solução é
 resistente** na mesma profundidade (e no mesmo tempo de busca) do lance do solver — as duas buscas
 são a mesma, então a solução não mostra uma defesa mais fraca que a apontada pela Análise.
 
+### Continuação enquanto o lance for único
+
+Um exercício de ganho de material não para na captura: a solução segue enquanto **só houver um
+lance** para você. A cada vez sua, a engine é consultada com três linhas; o lance continua no
+exercício se estiver à frente do segundo por pelo menos a distância configurada em
+"lance único: distância mínima para a 2ª linha (cp)" (Configurações → "Erros e treino", 150 cp por
+padrão) e se ainda ganhar. Quando o segundo lance chega perto, a linha acaba ali — daquele ponto em
+diante seria técnica, não tática. Se a linha terminar em mate, o mate é o último lance; a solução
+nunca termina com um lance do adversário. Os exercícios que já acabam em mate não mudam.
+
+Isso vale para os exercícios criados dali em diante. Para alongar os que já existem, use
+**Estender exercícios**, em Configurações (no cartão do fim da página, ao lado de "Recriar
+puzzles"). O botão não pede confirmação porque não apaga nada: cada exercício continua sendo o
+mesmo, com as revisões, o intervalo e a data do próximo encontro intactos — só a solução fica mais
+longa. O andamento aparece no cartão "Tarefas" do Painel, dá para cancelar (para depois do exercício
+atual) e, no fim, a mensagem diz quantos exercícios foram examinados e quantos foram estendidos.
+
 ## Progresso
 
 A tela `/progresso` (link no Painel, ao lado dos botões de treino) junta o que mudou no período —

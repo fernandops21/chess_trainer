@@ -52,6 +52,7 @@ beforeEach(() => {
     index_chunks: 0, index_model: "", index_stale: 2, vector_backend: "sqlite-vec", langfuse_configured: false,
   });
   vi.spyOn(api, "coachReindex").mockResolvedValue({ queued: true, job: "coach_reindex" });
+  vi.spyOn(api, "extendPuzzles").mockResolvedValue({ queued: true, job: "extend_puzzles" });
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -208,4 +209,14 @@ test("Recriar índice dispara o job", async () => {
   renderPage();
   fireEvent.click(await screen.findByRole("button", { name: "Recriar índice" }));
   await waitFor(() => expect(api.coachReindex).toHaveBeenCalled());
+});
+
+test("Estender exercícios dispara o job sem pedir confirmação", async () => {
+  renderPage();
+  const botao = await screen.findByRole("button", { name: "Estender exercícios" });
+  expect(screen.getByText(/Alonga os exercícios existentes enquanto o lance for único/)).toBeTruthy();
+  fireEvent.click(botao);
+  await waitFor(() => expect(api.extendPuzzles).toHaveBeenCalled());
+  // não apaga nada: nenhum modal de confirmação no caminho
+  expect(screen.queryByRole("button", { name: "Recriar" })).toBeNull();
 });

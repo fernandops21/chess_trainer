@@ -15,7 +15,7 @@ from chess_trainer.core.analysis.engine import find_stockfish
 from chess_trainer.core.importers.service import import_games
 from chess_trainer.core.models import Game, utcnow
 from chess_trainer.core.pipeline import analyze_pending
-from chess_trainer.core.puzzles.service import regenerate_all, regenerate_avoid
+from chess_trainer.core.puzzles.service import extend_all, regenerate_all, regenerate_avoid
 
 router = APIRouter(prefix="/api")
 
@@ -169,6 +169,20 @@ def post_regenerate(request: Request, kind: Literal["avoid"] | None = None):
     job_name = "regenerate_avoid" if kind == "avoid" else "regenerate"
     return _engine_job(request, job_name,
                        lambda db, engine, s, progress: regenerate(db, engine, s, progress, should_stop=stop))
+
+
+@router.post("/puzzles/extend", status_code=202)
+def post_extend(request: Request):
+    """Alonga os exercícios das suas partidas enquanto o lance do aluno for único.
+    Nada é apagado: o histórico de revisão de cada exercício continua onde estava."""
+    stop = request.app.state.jobs.should_stop
+
+    def work(db, engine, s, progress):
+        r = extend_all(db, engine, s, progress, should_stop=stop)
+        progress("extend", r["examinados"], r["examinados"],
+                 f"{r['examinados']} exercícios examinados, {r['estendidos']} estendidos")
+
+    return _engine_job(request, "extend_puzzles", work)
 
 
 @router.post("/jobs/cancel", status_code=202)

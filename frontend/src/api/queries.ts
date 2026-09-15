@@ -143,12 +143,13 @@ function useInvalidate(extra: readonly (readonly unknown[])[] = []) {
 export function useStartJob() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (p: { kind: "import" | "analyze" | "regenerate" | "import_lichess" | "import_study" | "coach_reindex"; limit?: number; game_id?: string; avoidOnly?: boolean; study?: StudyImportIn }) =>
+    mutationFn: (p: { kind: "import" | "analyze" | "regenerate" | "extend_puzzles" | "import_lichess" | "import_study" | "coach_reindex"; limit?: number; game_id?: string; avoidOnly?: boolean; study?: StudyImportIn }) =>
       p.kind === "import" ? api.importGames()
         : p.kind === "analyze" ? api.analyze({ limit: p.limit, game_id: p.game_id })
         : p.kind === "import_lichess" ? api.importTactics()
         : p.kind === "import_study" ? api.importStudy(p.study ?? {})
         : p.kind === "coach_reindex" ? api.coachReindex()
+        : p.kind === "extend_puzzles" ? api.extendPuzzles()
         : api.regenerate(p.avoidOnly ? "avoid" : undefined),
     onSettled: invalidate,
   });
