@@ -606,6 +606,20 @@ export interface Citacao {
   url: string;
 }
 
+/**
+ * Uma linha declarada pela explicação, com a FEN de onde ela parte. É por
+ * `fen_inicio` que o cartão acha a posição de um lance numerado que a prosa cita
+ * pulando lances; vem `null` quando não dá para partir dali (exercício sem
+ * posição do erro, lado a mover em xeque numa linha de ameaça).
+ */
+export interface CoachLine {
+  inicio: string;
+  fen_inicio: string | null;
+  lances: string[];
+  avaliacao_cp: number | null;
+  mate_em: number | null;
+}
+
 /** Um problema que o verificador (engine) achou na explicação. */
 export interface IssueOut {
   tipo: string;
@@ -628,7 +642,7 @@ export interface CoachExplanation {
   por_que?: string | null;
   padrao?: string | null;
   treinar?: string[];
-  lines: unknown[];
+  lines: CoachLine[];
   citations: Citacao[];
   verification: { ok: boolean; issues: IssueOut[] };
   status: "ok" | "warnings" | "errors";

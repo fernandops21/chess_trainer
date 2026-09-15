@@ -126,3 +126,45 @@ test("um número que não bate com nada na linha não impede o lance de encadear
   expect(lances.map((l) => l.san)).toEqual(["e4", "e5", "Nf3"]);
   expect(lances[2].linha.length).toBe(3);
 });
+
+// --- lances resolvidos pelas linhas declaradas ---------------------------
+
+/** A posição do exercício do vídeo: brancas a jogar, 18º lance. */
+const VIDEO = "r4rk1/5ppp/pqn5/1p1QPpN1/3P4/P7/1P3PPP/R4RK1 w - - 1 18";
+/** A linha que a explicação declarou a partir dela, com o 18...Ne7 que a prosa pula. */
+const LINHA_VIDEO = [{ fen: VIDEO, lances: ["Rac1", "Ne7", "Qc5", "Qxc5", "dxc5"] }];
+
+const soLances = (segs: Segmento[]) => segs.filter((s) => s.kind === "lance") as Extract<Segmento, { kind: "lance" }>[];
+
+test("lance numerado que a prosa pulou é resolvido pela linha declarada", () => {
+  const segs = segmentar("18.Rac1? 19.Qc5 Qxc5 20.dxc5 troca as damas", VIDEO, LINHA_VIDEO);
+  const ls = soLances(segs);
+  expect(ls.map((l) => l.text)).toEqual(["18.Rac1?", "19.Qc5", "Qxc5", "20.dxc5"]);
+  // o 18...Ne7 vem da linha conhecida: sem ele "19.Qc5" caía na dama preta e o tabuleiro
+  // da prévia não tinha nada a ver com a explicação
+  expect(ls[1].linha.map((l) => l.san)).toEqual(["Rac1", "Ne7", "Qc5"]);
+  expect(ls[1].fen).toBe(ls[1].linha[2].fen);
+  // e a cadeia continua a partir dali, com os lances seguintes da prosa
+  expect(ls[2].linha.map((l) => l.san)).toEqual(["Rac1", "Ne7", "Qc5", "Qxc5"]);
+  expect(ls[3].linha.map((l) => l.san)).toEqual(["Rac1", "Ne7", "Qc5", "Qxc5", "dxc5"]);
+});
+
+test("sem linhas conhecidas o comportamento antigo se mantém", () => {
+  const ls = soLances(segmentar("18.Rac1? 19.Qc5 Qxc5", VIDEO));
+  expect(ls.map((l) => l.text)).toEqual(["18.Rac1?", "19.Qc5", "Qxc5"]);
+  // encadeando às cegas: "Qc5" vira lance das pretas logo depois de Rac1
+  expect(ls[1].linha.map((l) => l.san)).toEqual(["Rac1", "Qc5"]);
+});
+
+test("a prosa pode ramificar da linha declarada com outro lance na mesma altura", () => {
+  // 19.Qd6 não é o Qc5 da linha, mas é legal na posição em que a linha chega ao 19º
+  const ls = soLances(segmentar("18.Rac1? 19.Qd6 seria outra ideia", VIDEO, LINHA_VIDEO));
+  expect(ls.map((l) => l.text)).toEqual(["18.Rac1?", "19.Qd6"]);
+  expect(ls[1].linha.map((l) => l.san)).toEqual(["Rac1", "Ne7", "Qd6"]);
+});
+
+test("linha declarada que não chega àquela altura não muda nada", () => {
+  const curta = [{ fen: VIDEO, lances: ["Rac1"] }];
+  const ls = soLances(segmentar("18.Rac1? 19.Qc5", VIDEO, curta));
+  expect(ls[1].linha.map((l) => l.san)).toEqual(["Rac1", "Qc5"]);
+});
