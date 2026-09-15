@@ -461,7 +461,7 @@ interativa é compartilhada; segunda chamada simultânea recebe 409
 | `AuthenticationError` | 502 "chave da API recusada; confira em Configurações" |
 | `RateLimitError` | 502 "limite de uso da API atingido; tente em alguns minutos" |
 | `APIConnectionError` | 502 "sem conexão com a API" |
-| `BadRequestError` | 502 com o `message` da API; registrado no log com o corpo |
+| `BadRequestError` | um 400 genérico ("Invalid request data", que a API às vezes devolve depois de dezenas de segundos de geração num pedido igual aos anteriores) é repetido uma vez, com o mesmo pedido; se falhar de novo, ou se o 400 vier com mensagem específica, 502 com o `message` da API e registro no log com o corpo e o pedido inteiro |
 | `stop_reason == "refusal"` | 502 "o modelo recusou responder" (não deve ocorrer; registrado) |
 | `stop_reason == "max_tokens"` sem a entrega | 502 "a resposta passou do limite de tokens e foi cortada" (`resposta_truncada`) |
 | engine (Stockfish) indisponível | 503 antes de chamar o modelo: o verificador não roda sem ela |
@@ -469,7 +469,9 @@ interativa é compartilhada; segunda chamada simultânea recebe 409
 | resposta fora do esquema | uma nova tentativa; depois 502 |
 | índice vazio | pipeline segue sem trechos; cartão avisa "sem estudos indexados" |
 
-Logs no `server.log` existente, com `trace_id` quando houver.
+Logs no `server.log` existente, com `trace_id` quando houver. A linha de tempos
+de cada explicação sai também quando ela morre no meio, com as chamadas à API e
+as ferramentas feitas até ali.
 
 ## 12. Docker
 

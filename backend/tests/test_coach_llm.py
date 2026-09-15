@@ -161,16 +161,54 @@ def test_fake_llm_segue_o_roteiro_e_executa_as_ferramentas():
         fake.run_agent(system="S", user="U", ferramentas=[], esquema_final=ESQUEMA, effort="low")
 
 
-def test_pedido_recusado_vai_para_o_log_com_o_corpo(caplog):
+def _erro_400_generico():
     import anthropic
-    import logging
     req = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
-    erro = anthropic.BadRequestError("x", response=httpx.Response(400, request=req), body={"error": {"message": "Invalid request data"}})
-    cliente = ClienteFalso([erro])
-    with caplog.at_level(logging.ERROR, logger="chess_trainer.coach.llm"):
-        with pytest.raises(ErroDoTreinador):
+    return anthropic.BadRequestError("x", response=httpx.Response(400, request=req), body={"error": {"message": "Invalid request data"}})
+
+
+def test_pedido_recusado_duas_vezes_vai_para_o_log_com_o_corpo(caplog):
+    import logging
+    cliente = ClienteFalso([_erro_400_generico(), _erro_400_generico()])
+    with caplog.at_level(logging.WARNING, logger="chess_trainer.coach.llm"):
+        with pytest.raises(ErroDoTreinador) as exc:
             AnthropicClient("sk", "claude-opus-5", client=cliente).run_agent(system="S", user="U", ferramentas=[FERR], esquema_final=ESQUEMA, effort="high")
-    assert "Invalid request data" in caplog.text and "PEDIDO" in caplog.text and '"somar"' in caplog.text
+    assert exc.value.codigo == "requisicao_invalida" and len(cliente.pedidos) == 2
+    assert "repetindo" in caplog.text and "Invalid request data" in caplog.text and "PEDIDO" in caplog.text and '"somar"' in caplog.text
+
+
+def test_400_generico_e_repetido_uma_vez_e_passa():
+    """O caso visto ao vivo: três chamadas iguais passam, a quarta volta 400 'Invalid request
+    data' depois de 44 s de geração, e o mesmo pedido repetido passa."""
+    cliente = ClienteFalso([
+        resposta([bloco_tool("t1", "somar", {"a": 1, "b": 2})]),
+        _erro_400_generico(),
+        resposta([bloco_tool("t2", FERRAMENTA_FINAL, {"texto": "três"})]),
+    ])
+    r = AnthropicClient("sk", "claude-opus-5", client=cliente).run_agent(system="S", user="U", ferramentas=[FERR], esquema_final=ESQUEMA, effort="high")
+    assert r.estruturado == {"texto": "três"} and len(cliente.pedidos) == 3
+    # a repetição manda exatamente o mesmo pedido
+    assert cliente.pedidos[1]["messages"] == cliente.pedidos[2]["messages"]
+
+
+def test_400_com_mensagem_especifica_nao_e_repetido():
+    import anthropic
+    req = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    erro = anthropic.BadRequestError("x", response=httpx.Response(400, request=req), body={"error": {"message": "tools.5.custom: maxItems not supported"}})
+    cliente = ClienteFalso([erro])
+    with pytest.raises(ErroDoTreinador) as exc:
+        AnthropicClient("sk", "claude-opus-5", client=cliente).run_agent(system="S", user="U", ferramentas=[FERR], esquema_final=ESQUEMA, effort="high")
+    assert exc.value.codigo == "requisicao_invalida" and len(cliente.pedidos) == 1
+
+
+def test_erro_no_meio_do_loop_carrega_o_que_ja_foi_gasto():
+    cliente = ClienteFalso([
+        resposta([bloco_tool("t1", "somar", {"a": 1, "b": 2})]),
+        _erro_400_generico(), _erro_400_generico(),
+    ])
+    with pytest.raises(ErroDoTreinador) as exc:
+        AnthropicClient("sk", "claude-opus-5", client=cliente).run_agent(system="S", user="U", ferramentas=[FERR], esquema_final=ESQUEMA, effort="high")
+    assert exc.value.n_chamadas_api == 1 and [c.nome for c in exc.value.chamadas] == ["somar"]
 
 
 def test_executar_ferramenta_mede_o_tempo_de_cada_chamada():

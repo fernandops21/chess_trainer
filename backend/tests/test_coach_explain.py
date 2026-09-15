@@ -115,6 +115,28 @@ def test_resposta_fora_do_esquema_tenta_de_novo_e_depois_falha(db_session):
     assert exc.value.codigo == "resposta_fora_do_esquema" and tracer.flushed is True
 
 
+def test_agente_que_morre_no_meio_conta_as_chamadas_ja_feitas_no_log(db_session, caplog):
+    """A API recusou a quarta chamada: o log tem de dizer que houve três, e o que as ferramentas custaram."""
+    import logging
+
+    import pytest
+    from chess_trainer.coach.llm import ChamadaFerramenta
+
+    class LlmQueMorre:
+        model = "fake"
+
+        def run_agent(self, **kw):
+            exc = ErroDoTreinador("requisicao_invalida", "a API recusou o pedido")
+            exc.n_chamadas_api = 3
+            exc.chamadas = [ChamadaFerramenta("analisar_posicao", {}, "{}", ms=1200), ChamadaFerramenta("analisar_posicao", {}, "{}", ms=800)]
+            raise exc
+
+    with caplog.at_level(logging.INFO, logger="chess_trainer.coach.explain"), pytest.raises(ErroDoTreinador):
+        rodar(db_session, LlmQueMorre())
+    linha = [x for x in caplog.messages if x.startswith("explicacao ")][0]
+    assert "llm 3 chamadas" in linha and "analisar_posicao 2x 2000 ms" in linha
+
+
 def test_teto_de_tokens_vale_para_a_explicacao_inteira(db_session, caplog):
     """Cada chamada cabe no teto, a soma não: a explicação para em vez de seguir gastando."""
     import logging

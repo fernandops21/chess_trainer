@@ -157,12 +157,25 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
                                                        buscar if opcoes.variante == "agente_rag" else None)
             user = mensagem_inicial(texto_ctx, trechos)
 
+            def _somar_ferramentas(chamadas: list[ChamadaFerramenta]) -> None:
+                for c in chamadas:
+                    conta = por_ferramenta.setdefault(c.nome, {"n": 0, "ms": 0})
+                    conta["n"] += 1
+                    conta["ms"] += c.ms
+
             def chamar(nome: str, mensagem: str):
                 nonlocal uso, n_api, llm_ms
                 with tracer.span(nome):
                     inicio_llm = time.perf_counter()
-                    r = llm.run_agent(system=SYSTEM_PROMPT, user=mensagem, ferramentas=ferramentas,
-                                      esquema_final=ESQUEMA_EXPLICACAO, effort=opcoes.effort)
+                    try:
+                        r = llm.run_agent(system=SYSTEM_PROMPT, user=mensagem, ferramentas=ferramentas,
+                                          esquema_final=ESQUEMA_EXPLICACAO, effort=opcoes.effort)
+                    except ErroDoTreinador as exc:
+                        # o agente morreu no meio: o tempo e as chamadas até ali entram na conta
+                        llm_ms += _ms(inicio_llm)
+                        n_api += exc.n_chamadas_api
+                        _somar_ferramentas(exc.chamadas)
+                        raise
                     llm_ms += _ms(inicio_llm)
                     uso = uso + r.uso
                     n_api += r.n_chamadas_api
@@ -171,10 +184,7 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
                 # retentativa + correção podem somar bem mais do que cada uma por si
                 if uso.output_tokens > TETO_TOKENS_SAIDA:
                     raise ErroDoTreinador("custo_excedido", "a explicação passou do teto de tokens e foi interrompida")
-                for c in r.chamadas:
-                    conta = por_ferramenta.setdefault(c.nome, {"n": 0, "ms": 0})
-                    conta["n"] += 1
-                    conta["ms"] += c.ms
+                _somar_ferramentas(r.chamadas)
                 # o que o agente buscou sozinho vale tanto quanto o que veio da recuperação
                 ids = {t["chunk_id"] for t in trechos}
                 for t in _trechos_das_ferramentas(r.chamadas):

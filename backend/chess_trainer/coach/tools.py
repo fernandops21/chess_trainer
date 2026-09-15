@@ -241,14 +241,18 @@ def _lista(partes: list[str]) -> str:
 
 
 def _em_troca_de(partes: list[str]) -> str:
-    """O que se devolve na linha: `pela torre`, `pelo cavalo`, `por duas torres`."""
+    """O que se devolve na linha: `pela torre`, `pelo cavalo`, `por duas torres`,
+    `pela torre e o bispo` (a contração vai só na primeira peça)."""
     if not partes:
         return ""
-    if len(partes) == 1 and partes[0].startswith("a "):
-        return f" pela {partes[0][2:]}"
-    if len(partes) == 1 and partes[0].startswith("o "):
-        return f" pelo {partes[0][2:]}"
-    return f" por {_lista(partes)}"
+    primeira = partes[0]
+    if primeira.startswith("a "):
+        primeira = f"pela {primeira[2:]}"
+    elif primeira.startswith("o "):
+        primeira = f"pelo {primeira[2:]}"
+    else:
+        primeira = f"por {primeira}"
+    return " " + _lista([primeira, *partes[1:]])
 
 
 def _material_da_linha(board: chess.Board, continuacao: list[str]) -> tuple[int, str]:

@@ -34,10 +34,16 @@ TETO_TOKENS_SAIDA = 20_000
 
 
 class ErroDoTreinador(Exception):
-    def __init__(self, codigo: str, mensagem: str):
+    def __init__(self, codigo: str, mensagem: str, *, repetivel: bool = False):
         super().__init__(mensagem)
         self.codigo = codigo
         self.mensagem = mensagem
+        # a API às vezes devolve um 400 genérico depois de gerar por dezenas de segundos:
+        # o mesmo pedido, repetido, passa — o loop tenta uma vez antes de desistir
+        self.repetivel = repetivel
+        # o que o agente já tinha gasto quando morreu, para o log de tempos não dizer "0 chamadas"
+        self.n_chamadas_api = 0
+        self.chamadas: list = []
 
 
 @dataclass(frozen=True)
@@ -115,6 +121,15 @@ class AnthropicClient:
         self._client = client
 
     def _create(self, **kwargs):
+        try:
+            return self._criar(ultima=False, **kwargs)
+        except ErroDoTreinador as exc:
+            if not exc.repetivel:
+                raise
+            log.warning("a API recusou o pedido com um 400 genérico; repetindo o mesmo pedido uma vez")
+            return self._criar(ultima=True, **kwargs)
+
+    def _criar(self, *, ultima: bool, **kwargs):
         import anthropic
 
         try:
@@ -124,13 +139,19 @@ class AnthropicClient:
         except anthropic.RateLimitError as exc:
             raise ErroDoTreinador("limite_de_uso", "limite de uso da API atingido; tente de novo em alguns minutos") from exc
         except anthropic.BadRequestError as exc:
+            corpo = getattr(exc, "body", None)
+            # "Invalid request data" sem mais nada, vindo depois de chamadas iguais terem passado,
+            # é falha transitória de lá, não erro do pedido: vale repetir antes de desistir
+            generico = "Invalid request data" in f"{exc.message} {corpo}"
+            if generico and not ultima:
+                raise ErroDoTreinador("requisicao_invalida", f"a API recusou o pedido: {exc.message}", repetivel=True) from exc
             # o corpo do erro e o pedido inteiro (sem a chave) vão para o log: sem isso um
             # "Invalid request data" genérico não tem como ser diagnosticado
             try:
                 pedido = json.dumps(kwargs, ensure_ascii=False, default=_serializavel)
             except Exception:  # noqa: BLE001
                 pedido = "(pedido não serializável)"
-            log.error("a API recusou o pedido (400): %s | PEDIDO: %s", getattr(exc, "body", exc.message), pedido)
+            log.error("a API recusou o pedido (400): %s | PEDIDO: %s", corpo or exc.message, pedido)
             raise ErroDoTreinador("requisicao_invalida", f"a API recusou o pedido: {exc.message}") from exc
         except anthropic.APIStatusError as exc:
             raise ErroDoTreinador("erro_da_api", f"erro da API ({exc.status_code}): {exc.message}") from exc
@@ -148,11 +169,15 @@ class AnthropicClient:
         stop_reason = "end_turn"
         n = 0
         for _ in range(MAX_ITERACOES):
-            resp = self._create(
-                model=self.model, max_tokens=max_tokens,
-                system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
-                tools=tools, thinking={"type": "adaptive"}, output_config={"effort": effort}, messages=messages,
-            )
+            try:
+                resp = self._create(
+                    model=self.model, max_tokens=max_tokens,
+                    system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
+                    tools=tools, thinking={"type": "adaptive"}, output_config={"effort": effort}, messages=messages,
+                )
+            except ErroDoTreinador as exc:
+                exc.n_chamadas_api, exc.chamadas = n, chamadas
+                raise
             n += 1
             u = resp.usage
             uso = uso + Uso(u.input_tokens, u.output_tokens, u.cache_read_input_tokens or 0, u.cache_creation_input_tokens or 0)

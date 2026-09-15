@@ -245,6 +245,15 @@ def _analisar_posicao(db, analisar):
     return {f.nome: f for f in ferramentas_do_treinador(ctx, analisar, None, None)}["analisar_posicao"]
 
 
+def test_em_troca_de_contrai_so_a_primeira_peca():
+    from chess_trainer.coach.tools import _em_troca_de
+    assert _em_troca_de(["a torre"]) == " pela torre"
+    assert _em_troca_de(["o cavalo"]) == " pelo cavalo"
+    assert _em_troca_de(["a torre", "o bispo", "o cavalo"]) == " pela torre, o bispo e o cavalo"
+    assert _em_troca_de(["duas torres"]) == " por duas torres"
+    assert _em_troca_de([]) == ""
+
+
 def test_saldo_material_conta_as_pecas_dos_dois_lados():
     assert saldo_material(chess.Board()) == 0
     # torre branca (5) contra dama e peão pretos (10)
