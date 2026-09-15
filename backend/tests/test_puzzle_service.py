@@ -160,7 +160,7 @@ def test_extend_all_lengthens_the_line_and_keeps_the_review_history(db_session):
 
     n = extend_all(db_session, FakeEngine(_extend_script()), SETTINGS)
 
-    assert n == {"examinados": 1, "estendidos": 1}
+    assert n == {"examinados": 1, "estendidos": 1, "falhas": 0}
     novo = db_session.get(Puzzle, puzzle_id)
     assert novo is not None and novo.id == puzzle_id  # o mesmo exercício, não um recriado
     assert [(m["uci"], m["by"]) for m in novo.solution_data["moves"]] == [
@@ -199,7 +199,7 @@ def test_extend_all_skips_mate_and_puzzles_from_other_sources(db_session):
     db_session.commit()
     fake = FakeEngine(_extend_script())
 
-    assert extend_all(db_session, fake, SETTINGS) == {"examinados": 0, "estendidos": 0}
+    assert extend_all(db_session, fake, SETTINGS) == {"examinados": 0, "estendidos": 0, "falhas": 0}
     assert fake.calls == []  # nem chega a perguntar à engine
     for p in db_session.scalars(select(Puzzle)):
         assert len(p.solution_data["moves"]) == 1
@@ -219,8 +219,127 @@ def test_extend_all_stops_in_the_middle_when_asked(db_session):
 
     n = extend_all(db_session, FakeEngine(_extend_script()), SETTINGS, should_stop=should_stop)
 
-    assert n == {"examinados": 1, "estendidos": 1}
+    assert n == {"examinados": 1, "estendidos": 1, "falhas": 0}
     primeiro = db_session.scalars(select(Puzzle).where(Puzzle.kind == "punish")).one()
     segundo = db_session.scalars(select(Puzzle).where(Puzzle.kind == "avoid")).one()
     assert len(primeiro.solution_data["moves"]) == 5  # o que já foi estendido fica
     assert len(segundo.solution_data["moves"]) == 1
+
+
+TWO_WAYS = "4k3/8/8/3q4/8/2N1N3/7P/4K3 w - - 0 1"  # os dois cavalos tomam a dama
+MATE_AFTER_GAIN = "6k1/5ppp/8/3q4/8/2N5/8/R3K3 w - - 0 1"  # Cxd5 ganha a dama e Ta8 é mate
+
+
+def _epd_de(fen: str, *ucis: str) -> str:
+    b = chess.Board(fen)
+    for u in ucis:
+        b.push_uci(u)
+    return b.epd()
+
+
+def test_extend_all_clears_the_alternatives_of_the_move_that_was_last(db_session):
+    """Invariante: só o último lance da solução tem alternativas. A captura que deixou de
+    ser o fim da linha perde as dela — a alternativa levaria o aluno para longe da
+    continuação gravada."""
+    db_session.add(_puzzle(fen_start=TWO_WAYS, solution=json.dumps(
+        {"moves": [{"uci": "c3d5", "by": "solver", "alternatives": ["e3d5"]}]})))
+    db_session.commit()
+    script = {
+        _epd_de(TWO_WAYS, "c3d5"): [LineEval("e8d7", -900, ("e8d7",))],
+        _epd_de(TWO_WAYS, "c3d5", "e8d7"): [
+            LineEval("h2h4", 900, ("h2h4",)), LineEval("e1e2", 100, ("e1e2",)),
+        ],
+        _epd_de(TWO_WAYS, "c3d5", "e8d7", "h2h4"): [LineEval("d7e6", -900, ("d7e6",))],
+        # o gap cai: acabou o lance único
+        _epd_de(TWO_WAYS, "c3d5", "e8d7", "h2h4", "d7e6"): [
+            LineEval("h4h5", 900, ("h4h5",)), LineEval("e1e2", 800, ("e1e2",)),
+        ],
+    }
+
+    extend_all(db_session, FakeEngine(script), SETTINGS)
+
+    moves = db_session.scalars(select(Puzzle)).one().solution_data["moves"]
+    assert [m["uci"] for m in moves] == ["c3d5", "e8d7", "h2h4"]
+    assert [m.get("alternatives") for m in moves] == [[], [], []]
+
+
+def test_extend_all_marks_mate_and_recalculates_the_theme(db_session):
+    db_session.add(_puzzle(fen_start=MATE_AFTER_GAIN, solution=json.dumps(
+        {"moves": [{"uci": "c3d5", "by": "solver", "alternatives": []}]})))
+    db_session.commit()
+    script = {
+        _epd_de(MATE_AFTER_GAIN, "c3d5"): [LineEval("g8h8", -900, ("g8h8",))],
+        _epd_de(MATE_AFTER_GAIN, "c3d5", "g8h8"): [
+            LineEval("a1a8", MATE_SCORE - 1, ("a1a8",)), LineEval("e1e2", 900, ("e1e2",)),
+        ],
+    }
+
+    assert extend_all(db_session, FakeEngine(script), SETTINGS) == {
+        "examinados": 1, "estendidos": 1, "falhas": 0}
+
+    novo = db_session.scalars(select(Puzzle)).one()
+    assert [m["uci"] for m in novo.solution_data["moves"]] == ["c3d5", "g8h8", "a1a8"]
+    # a linha agora acaba em mate: o exercício deixa de ser o de ganho de material
+    assert novo.end_reason == "mate" and novo.theme == "mate_in_2"
+    assert novo.solver_moves == 2
+
+
+def test_extend_all_skips_the_puzzle_when_the_engine_fails(db_session):
+    db_session.add_all([
+        _puzzle(kind="punish", created_at=datetime(2026, 9, 1)),
+        _puzzle(kind="avoid", created_at=datetime(2026, 9, 2)),
+    ])
+    db_session.commit()
+    fake = FakeEngine(_extend_script())
+    fake.fail_next = True  # a engine morre no primeiro exercício e volta para o segundo
+
+    n = extend_all(db_session, fake, SETTINGS)
+
+    assert n == {"examinados": 1, "estendidos": 1, "falhas": 1}
+    primeiro = db_session.scalars(select(Puzzle).where(Puzzle.kind == "punish")).one()
+    segundo = db_session.scalars(select(Puzzle).where(Puzzle.kind == "avoid")).one()
+    assert len(primeiro.solution_data["moves"]) == 1  # pulado, intacto
+    assert len(segundo.solution_data["moves"]) == 5
+
+
+def test_extending_twice_changes_nothing(db_session):
+    db_session.add(_puzzle())
+    db_session.commit()
+    extend_all(db_session, FakeEngine(_extend_script()), SETTINGS)
+    antes = db_session.scalars(select(Puzzle)).one().solution_data["moves"]
+
+    n = extend_all(db_session, FakeEngine(_extend_script()), SETTINGS)
+
+    assert n == {"examinados": 1, "estendidos": 0, "falhas": 0}
+    assert db_session.scalars(select(Puzzle)).one().solution_data["moves"] == antes
+
+
+def test_extend_all_accepts_a_solution_ending_in_an_opponent_move(db_session):
+    """Solução legada que termina com a resposta do adversário: a extensão continua dali."""
+    db_session.add(_puzzle(solver_moves=1, solution=json.dumps({"moves": [
+        {"uci": "c3d5", "by": "solver", "alternatives": []},
+        {"uci": "e8d7", "by": "engine", "alternatives": []},
+    ]})))
+    db_session.commit()
+
+    assert extend_all(db_session, FakeEngine(_extend_script()), SETTINGS) == {
+        "examinados": 1, "estendidos": 1, "falhas": 0}
+
+    novo = db_session.scalars(select(Puzzle)).one()
+    assert [m["uci"] for m in novo.solution_data["moves"]] == [
+        "c3d5", "e8d7", "h2h4", "d7e6", "h4h5"]
+    assert novo.solver_moves == 3
+
+
+def test_extend_all_survives_a_move_without_the_by_key(db_session):
+    """Registro fora do formato não derruba o job inteiro."""
+    db_session.add(_puzzle(solution=json.dumps({"moves": [{"uci": "c3d5"}]})))
+    db_session.commit()
+
+    n = extend_all(db_session, FakeEngine(_extend_script()), SETTINGS)
+
+    assert n == {"examinados": 1, "estendidos": 1, "falhas": 0}
+    novo = db_session.scalars(select(Puzzle)).one()
+    assert [m["uci"] for m in novo.solution_data["moves"]] == [
+        "c3d5", "e8d7", "h2h4", "d7e6", "h4h5"]
+    assert novo.solver_moves == 2  # só os lances da extensão se dizem do aluno

@@ -217,8 +217,10 @@ test("Estender exercícios dispara o job sem pedir confirmação", async () => {
   expect(screen.getByText(/Alonga os exercícios existentes enquanto o lance for único/)).toBeTruthy();
   // em cartão próprio: alongar não apaga nada, não é o "Perigo"
   expect(botao.closest(".card")?.querySelector("h3")?.textContent).toBe("Exercícios");
+  // não apaga nada: nem a cor de perigo dos botões que apagam
+  expect(botao.classList.contains("danger")).toBe(false);
   fireEvent.click(botao);
-  await waitFor(() => expect(api.extendPuzzles).toHaveBeenCalled());
-  // não apaga nada: nenhum modal de confirmação no caminho
-  expect(screen.queryByRole("button", { name: "Recriar" })).toBeNull();
+  // o clique dispara o job direto, sem modal de confirmação no caminho
+  await waitFor(() => expect(api.extendPuzzles).toHaveBeenCalledTimes(1));
+  expect(screen.queryByRole("dialog")).toBeNull();
 });

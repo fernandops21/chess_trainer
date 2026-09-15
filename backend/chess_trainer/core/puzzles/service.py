@@ -14,6 +14,7 @@ from chess_trainer.core.models import Game, Position, Puzzle, Review
 from chess_trainer.core.puzzles.generator import (
     PuzzleConfig,
     PuzzleDraft,
+    SolutionMove,
     extend_unique_line,
     generate_avoid,
     generate_punish,
@@ -240,13 +241,17 @@ def regenerate_avoid(
     return _regenerate(db, engine, settings, draft_avoids, progress, should_stop)
 
 
-def _extended_solution(puzzle: Puzzle, engine: EngineLike, cfg: PuzzleConfig) -> tuple[str, int] | None:
-    """`(solution, solver_moves)` do exercício alongado, ou None se não houve o que alongar.
+def _extended_solution(
+    puzzle: Puzzle, engine: EngineLike, cfg: PuzzleConfig,
+) -> tuple[str, int, str, str] | None:
+    """`(solution, solver_moves, end_reason, theme)` do exercício alongado, ou None se não
+    houve o que alongar.
 
     Reconstrói a posição no fim da solução atual e continua dali. O JSON volta com as mesmas
     chaves de antes (`comments`, `wrong_moves`, `shapes`, `intro`, `explanation_pv`…): só a
-    lista `moves` cresce. O tema também não muda — fora do mate ele sai do primeiro lance, e
-    a extensão só acrescenta no fim."""
+    lista `moves` cresce. Fora do mate o tema não muda — ele sai do primeiro lance, e a
+    extensão só acrescenta no fim; quando a extensão termina em mate, o exercício vira um
+    exercício de mate e o tema é recalculado."""
     data = puzzle.solution_data
     moves = list(data.get("moves") or [])
     board = chess.Board(puzzle.fen_start)
@@ -259,8 +264,22 @@ def _extended_solution(puzzle: Puzzle, engine: EngineLike, cfg: PuzzleConfig) ->
     extra = extend_unique_line(board, engine, cfg, solver)
     if not extra:
         return None
+    if moves and moves[-1].get("by") == "solver":
+        # só o último lance da solução pode ter alternativas: o lance que era o fim da linha
+        # deixa de ser, e a alternativa aceita levaria o aluno para longe da continuação
+        moves[-1] = {**moves[-1], "alternatives": []}
     data["moves"] = moves + [m.to_dict() for m in extra]
-    return json.dumps(data), sum(1 for m in data["moves"] if m["by"] == "solver")
+    for m in extra:
+        board.push_uci(m.uci)
+    end_reason, theme = puzzle.end_reason, puzzle.theme
+    if board.is_checkmate():
+        end_reason = "mate"
+        theme = infer_theme(
+            puzzle.fen_start,
+            [SolutionMove(m["uci"], m.get("by") or "", m.get("alternatives") or []) for m in data["moves"]],
+            end_reason,
+        )
+    return json.dumps(data), sum(1 for m in data["moves"] if m.get("by") == "solver"), end_reason, theme
 
 
 def extend_all(
@@ -278,8 +297,9 @@ def extend_all(
     com ele, o histórico de revisão: só `solution` e `solver_moves` são reescritos, nunca
     `srs_*`, `reviews`, `in_queue` ou `is_leech`.
 
-    Devolve `{"examinados": ..., "estendidos": ...}`; com `should_stop` para no exercício
-    seguinte, mantendo o que já foi commitado."""
+    Devolve `{"examinados": ..., "estendidos": ..., "falhas": ...}` — "falhas" são os
+    exercícios pulados por erro da engine, que não entram em "examinados"; com `should_stop`
+    para no exercício seguinte, mantendo o que já foi commitado."""
     cfg = puzzle_config_from(settings)
     puzzles = db.scalars(
         select(Puzzle)
@@ -287,26 +307,27 @@ def extend_all(
         .order_by(Puzzle.created_at)
     ).all()
     total = len(puzzles)
-    examinados = estendidos = 0
+    examinados = estendidos = falhas = 0
     for i, puzzle in enumerate(puzzles):
         if should_stop is not None and should_stop():
             if progress:
                 progress("extend", i, total, "cancelado")
             break
         if progress:
-            progress("extend", i, total, puzzle.theme)
+            progress("extend", i, total, f"exercício {i + 1} de {total}")
         try:
             alongada = _extended_solution(puzzle, engine, cfg)
         except chess.engine.EngineError:
             db.rollback()
             engine.restart()
+            falhas += 1
             continue
         examinados += 1
         if alongada is None:
             continue
-        puzzle.solution, puzzle.solver_moves = alongada
+        puzzle.solution, puzzle.solver_moves, puzzle.end_reason, puzzle.theme = alongada
         estendidos += 1
         db.commit()
     if progress and (should_stop is None or not should_stop()):
         progress("extend", total, total, "concluído")
-    return {"examinados": examinados, "estendidos": estendidos}
+    return {"examinados": examinados, "estendidos": estendidos, "falhas": falhas}

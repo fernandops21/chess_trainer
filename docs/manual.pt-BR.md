@@ -408,11 +408,16 @@ diante seria técnica, não tática. Se a linha terminar em mate, o mate é o ú
 nunca termina com um lance do adversário. Os exercícios que já acabam em mate não mudam.
 
 Isso vale para os exercícios criados dali em diante. Para alongar os que já existem, use
-**Estender exercícios**, em Configurações (no cartão do fim da página, ao lado de "Recriar
-puzzles"). O botão não pede confirmação porque não apaga nada: cada exercício continua sendo o
-mesmo, com as revisões, o intervalo e a data do próximo encontro intactos — só a solução fica mais
-longa. O andamento aparece no cartão "Tarefas" do Painel, dá para cancelar (para depois do exercício
-atual) e, no fim, a mensagem diz quantos exercícios foram examinados e quantos foram estendidos.
+**Estender exercícios**, em Configurações (cartão "Exercícios", perto do fim da página). O botão não
+pede confirmação porque não apaga nada: cada exercício continua sendo o mesmo, com as revisões, o
+intervalo e a data do próximo encontro intactos — só a solução fica mais longa. Se a continuação
+terminar em mate, o exercício passa a ser de mate (o tema vira "mate em N").
+
+O andamento aparece no cartão "Tarefas" do Painel, como "exercício 3 de 120", e dá para cancelar. As
+contagens só aparecem quando a tarefa termina: a mensagem final diz quantos exercícios foram
+examinados e quantos foram estendidos (e, se a engine tiver falhado em algum, quantos ficaram "com
+erro"). Cancelando, a mensagem é "cancelado" — sem contagens —, a tarefa para depois do exercício
+atual e tudo o que já tinha sido estendido fica como está.
 
 ## Progresso
 

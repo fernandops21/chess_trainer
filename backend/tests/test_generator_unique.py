@@ -11,6 +11,7 @@ from chess_trainer.core.puzzles.generator import (
     generate_avoid,
     generate_punish,
 )
+from chess_trainer.core.puzzles.themes import infer_theme
 from tests.fakes import FakeEngine
 
 CFG = PuzzleConfig(depth=10)
@@ -130,7 +131,9 @@ def test_line_ends_on_the_mating_move():
     # o mate encerra a linha: nenhuma análise depois dele (e a extensão parte da resposta
     # já validada pelo laço, sem buscar de novo a posição depois da solução)
     assert len(fake.calls) == 3
-    assert draft.end_reason == "material_gain"  # o exercício continua sendo o de ganho de material
+    # a linha acabou em mate: o exercício deixa de ser o de ganho de material e o tema vem daí
+    assert draft.end_reason == "mate"
+    assert infer_theme(draft.fen_start, draft.moves, draft.end_reason) == "mate_in_2"
 
 
 def test_extension_stops_when_the_best_move_no_longer_wins():

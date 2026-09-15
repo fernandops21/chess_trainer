@@ -269,7 +269,12 @@ def _materializing_line(
             # ser o fim da linha e a continuação gravada vale só para o lance principal
             moves.append(SolutionMove(best.move, "solver", [] if extra else alts))
             moves.extend(extra)
-            return _draft(board, moves, "material_gain")
+            final = after.copy()
+            for m in extra:
+                final.push_uci(m.uci)
+            # a extensão pode acabar em mate: aí o exercício é de mate, e o tema sai disso
+            # (`infer_theme` no `service`), não mais do ganho de material
+            return _draft(board, moves, "mate" if final.is_checkmate() else "material_gain")
 
         if close_alts:
             return None  # ambiguidade em lance intermediário
