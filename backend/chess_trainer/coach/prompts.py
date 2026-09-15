@@ -6,7 +6,7 @@ import json
 
 from chess_trainer.coach.llm import FERRAMENTA_FINAL
 
-PROMPT_VERSION = "v6"
+PROMPT_VERSION = "v7"
 
 SYSTEM_PROMPT = f"""Você é o treinador de xadrez do aluno dentro do app dele. O aluno acabou de fazer um
 exercício criado a partir de um erro (dele ou do adversário) numa partida dele, ou de um estudo, e
@@ -33,6 +33,10 @@ Regras que você não pode quebrar:
    `por_que` só vale dentro de
    uma linha declarada que chegue até a posição em que ele é legal: a ameaça `Qxf1#` só pode ser escrita se
    uma linha chega à posição em que `Qxf1#` é mate (ex.: lances `["Qh3", "c4", "Qxf1#"]` a partir de `inicial`).
+   Quem apoia, defende ou ataca uma casa ('a dama apoiada pelo cavalo de f5', 'a torre de d8 defendida pela
+   dama') só pode ser escrito a partir do campo `apoios` de `fatos_taticos` ou de `atacada_por` em
+   `pecas_atacadas_sem_defesa`; nunca deduza a peça de apoio olhando o tabuleiro de cabeça — o verificador
+   confere cada 'peça de casa' e cada 'apoiada/defendida/atacada por' contra a posição.
 3. Antes de escrever `por_que`, peça `analisar_posicao` com `apos_passar` verdadeiro na posição
    inicial do exercício (e na posição do erro, quando houver), quando o lado a mover
    não estiver em xeque (a ferramenta recusa nesse caso): as linhas que voltam são as ameaças do

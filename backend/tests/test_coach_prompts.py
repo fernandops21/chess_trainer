@@ -34,7 +34,7 @@ def test_esquema_estrito_valida_uma_resposta_boa_e_recusa_uma_ruim():
 
 
 def test_prompt_de_sistema_tem_as_regras_duras():
-    assert PROMPT_VERSION == "v6"
+    assert PROMPT_VERSION == "v7"
     for trecho in ("analisar_posicao", "ponto de vista das brancas", "[c:", "inicial", "erro", FERRAMENTA_FINAL,
                    # a resposta sai em blocos, curta, para ser lida ao lado do tabuleiro
                    "na_partida", "por_que", "120", "200", "ao lado do tabuleiro",
@@ -57,6 +57,8 @@ def test_prompt_de_sistema_tem_as_regras_duras():
                    "positivo = as brancas dão mate, negativo = as pretas",
                    # afirmação tática (ameaça, mate, casa de fuga) só vem dos fatos, não da dedução
                    "fatos_taticos", "a ameaça é", "casa de fuga",
+                   # quem apoia, defende ou ataca uma casa vem do campo `apoios`, nunca da cabeça do modelo
+                   "apoios", "apoiada pelo cavalo de f5",
                    # lance com xeque ou mate no texto só vale dentro de uma linha declarada
                    "linha declarada",
                    # as ameaças do adversário saem da análise com a vez passada, e todas têm de ser nomeadas

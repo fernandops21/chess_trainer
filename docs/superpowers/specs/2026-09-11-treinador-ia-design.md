@@ -112,7 +112,7 @@ Todas finas, em cima do que existe; recebem `db` e `app.state` por fechamento.
 | Ferramenta | Entrada | Saída | Implementação |
 | --- | --- | --- | --- |
 | `analisar_posicao` | `fen`, `multipv` (1–3), `apos_passar` (padrão falso) | linhas com `lance`, `avaliacao_cp` **ou** `mate_em` (assinado: positivo = as brancas dão mate), `avaliacao` formatada, `continuacao` em SAN, `material_fim` (saldo de material no fim da linha, brancas menos pretas) e `ganho_material` (em português, o que muda de material na linha, do ponto de vista de quem move primeiro nela: `brancas ganham a dama pela torre (+4)`, `troca igual`, `nada`; `material em disputa` quando a linha para logo depois de uma captura que o outro lado ainda pode responder, e o texto neutro `ganham material (+N)` quando há promoção) — na mesma convenção de §4.4, nunca o código interno do mate. Com `apos_passar`, analisa a posição do lance nulo (o lado a mover passa a vez): as linhas são as **ameaças** do adversário e a saída traz `apos_passar` e `quem_ameaca`; em xeque ou em posição impossível, erro de ferramenta | `InteractiveAnalyzer.analyse` (cache e engine já existentes) |
-| `fatos_taticos` | `fen` | fatos exatos da posição, sem engine: `lances_do_rei`, `xeques`, `mates_em_1`, `capturas_de_pecas_indefesas`, `pecas_atacadas_sem_defesa` (dos dois lados) e `ameacas_do_adversario` (o que ele faria se fosse a vez dele, pelo lance nulo); atacante e defensor conferidos por lance legal (peça cravada não ataca nem defende) e FEN impossível recusada; cada lista com no máximo 12 itens | python-chess puro |
+| `fatos_taticos` | `fen` | fatos exatos da posição, sem engine: `lances_do_rei`, `xeques`, `mates_em_1`, `capturas_de_pecas_indefesas`, `pecas_atacadas_sem_defesa` (dos dois lados), `ameacas_do_adversario` (o que ele faria se fosse a vez dele, pelo lance nulo) e `apoios` (para cada mate e captura listados, dos dois lados, quem apoia a casa de chegada — `apoiado_por`, peças do lado que move, medidas depois do lance, raio X inclusive — e quem a defende — `defendido_por`, só quem pode recapturar de verdade —, como `Nf5`, `Pe5`: é daí que sai qualquer "apoiada por", "defendida por", "atacada por" da explicação); atacante e defensor conferidos por lance legal (peça cravada não ataca nem defende) e FEN impossível recusada; cada lista com no máximo 12 itens | python-chess puro |
 | `contexto_do_exercicio` | nenhuma (fixo por chamada) | puzzle, erro (`mistake`), lances da partida ±6 plies em SAN, `abertura` (os 6 primeiros plies, que a busca usa para "mesma abertura"), lance real do usuário, solução, avaliações antes/depois | `PuzzleOut` + `Position` + `Game.pgn` |
 | `estatisticas_por_tema` | `dias` (padrão 90) | linhas de `theme_stats` | `core/stats.theme_stats` |
 | `buscar_estudos` | `consulta`, `k` (padrão 5) | trechos `{chunk_id, estudo, capitulo, caminho_san, texto, url}` | §6 |
@@ -142,7 +142,9 @@ System prompt em português, fixo e versionado em `prompts.py`
   fuga do rei, a peça indefesa) vem de `fatos_taticos` naquela posição ou de
   uma linha de `analisar_posicao`, nunca da dedução do modelo, e lance escrito com
   `+` ou `#` só vale dentro de uma linha declarada que chegue à posição em que ele
-  é legal; antes de escrever o "por que", pedir `analisar_posicao` com
+  é legal; quem apoia, defende ou ataca uma casa ("a dama apoiada pelo cavalo de
+  f5") só sai do campo `apoios` de `fatos_taticos` ou de `atacada_por` em
+  `pecas_atacadas_sem_defesa`, nunca da dedução do modelo; antes de escrever o "por que", pedir `analisar_posicao` com
   `apos_passar` na posição inicial (e na do erro) e nomear *todas* as ameaças
   relevantes do adversário, não só a maior; só citar lances que vieram de
   `analisar_posicao` ou do contexto; toda linha começa da posição inicial do
@@ -235,6 +237,23 @@ Regras:
    `chunk_id` entre os trechos recuperados *nesta* execução → senão `erro`
    `citacao_inexistente`. Texto que menciona "no estudo" sem citação → `aviso`.
 6. **Tamanho**: `texto` fora de 60 a 400 palavras → `aviso`.
+7. **Peças e relações**: sobre as mesmas posições alcançáveis da regra 4, com duas
+   conferências no `texto`. (a) Existência: cada "peça de casa" escrita ("o bispo
+   de f4", "a torre em d8"; dama, torre, bispo, cavalo, peão, rei; `de/do/da/em/no/na`)
+   tem de ter uma peça daquele tipo, de qualquer cor, naquela casa em pelo menos
+   uma das posições → senão `erro` `peca_falsa` ("não há bispo em f6 em nenhuma
+   posição da explicação"). (b) Relação: em cada "apoiada / defendida / protegida /
+   coberta / atacada / controlada pela peça de casa", o alvo é resolvido dentro da
+   mesma frase (frases separadas por `.!?:;` seguido de espaço, para o ponto de
+   `2.Qxg7#` não cortar) pela última referência antes da expressão: a casa de chegada
+   do último lance escrito (roque não conta) ou a casa da última "peça de casa" (o
+   sujeito: "a dama de d4 está atacada pelo cavalo de f5" → d4), o que vier por
+   último; sem alvo, nada é conferido. Tem de existir uma posição alcançável em que
+   a peça nomeada está na casa dita E o alvo está no alcance dela (`board.attacks`:
+   geometria pura, com as casas de captura do peão) → senão `erro` `peca_falsa`
+   ("o bispo de f4 não ataca g7 em nenhuma posição da explicação"). O caso real: um
+   mate certo "com a dama apoiada pelo bispo de f4" em que quem apoiava g7 era o
+   cavalo de f5. Issues idênticas entram uma vez só.
 
 `ok` é verdadeiro sem nenhum `erro`. Avisos não bloqueiam, mas aparecem no
 cartão. O verificador é puro (recebe uma função `analisar(fen, multipv)`), o

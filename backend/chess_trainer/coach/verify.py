@@ -2,8 +2,10 @@
 
 Cada linha citada é reproduzida no tabuleiro a partir da posição declarada,
 o primeiro lance é conferido com as três melhores da engine, a avaliação do
-fim da linha é comparada com a da engine e cada citação de estudo tem de
-existir entre os trechos recuperados. Puro: recebe a função de análise e não
+fim da linha é comparada com a da engine, cada citação de estudo tem de
+existir entre os trechos recuperados e cada "peça de casa" da prosa (e cada
+"apoiada/defendida/atacada por" ela) tem de bater com alguma posição
+alcançada. Puro: recebe a função de análise e não
 toca em banco nem rede, o que permite reusá-lo na avaliação offline."""
 from __future__ import annotations
 
@@ -26,6 +28,16 @@ SAN_RE = re.compile(
 CASA_RE = re.compile(r"^[a-h][1-8]$")
 CITACAO_RE = re.compile(r"\[c:([^\]\s]+)\]")
 MENCAO_ESTUDO_RE = re.compile(r"\b(?:no|na|nos|nas|do|da|dos|das)\s+(?:estudo|cap[ií]tulo|livro)s?\b", re.IGNORECASE)
+# "o bispo de f4", "a torre em d8": peça nomeada numa casa
+PECA_NA_CASA_RE = re.compile(r"\b(dama|torre|bispo|cavalo|pe[ãa]o|rei)\s+(?:de|do|da|em|no|na)\s+([a-h][1-8])\b", re.IGNORECASE)
+# "apoiada pelo cavalo de f5", "defendida pela dama de d4": uma peça sustentando uma casa
+RELACAO_RE = re.compile(
+    r"\b(apoiad[oa]s?|defendid[oa]s?|protegid[oa]s?|cobert[oa]s?|atacad[oa]s?|controlad[oa]s?)\s+pel[oa]s?\s+"
+    r"(dama|torre|bispo|cavalo|pe[ãa]o|rei)\s+(?:de|do|da|em|no|na)\s+([a-h][1-8])\b", re.IGNORECASE)
+# fim de frase: pontuação seguida de espaço ou do fim do texto (o ponto de `2.Qxg7#` não conta)
+FRASE_RE = re.compile(r"[.!?:;](?:\s+|$)")
+TIPO_DA_PECA = {"dama": chess.QUEEN, "torre": chess.ROOK, "bispo": chess.BISHOP, "cavalo": chess.KNIGHT,
+                "peão": chess.PAWN, "peao": chess.PAWN, "rei": chess.KING}
 # os dois `inicio` que partem do lance nulo: a ameaça do adversário na posição do
 # exercício e na posição do erro
 INICIOS_DE_AMEACA = ("ameaca", "ameaca_erro")
@@ -211,6 +223,65 @@ def _casa_na_prosa(token: str, fen_inicial: str, fen_erro: str | None) -> bool:
     return True
 
 
+def _peca_existe(boards: list[chess.Board], tipo: int, casa: int) -> bool:
+    """Uma peça desse tipo (de qualquer cor) está na casa em pelo menos uma das posições."""
+    return any(board.piece_type_at(casa) == tipo for board in boards)
+
+
+def _peca_ataca(boards: list[chess.Board], tipo: int, casa: int, alvo: int) -> bool:
+    """Em pelo menos uma das posições a peça está na casa E a casa alvo está no alcance dela
+    (`attacks` é geometria: ignora de quem é a peça no alvo e dá as casas de captura do peão,
+    que é exatamente o que "apoia", "defende" e "ataca" querem dizer)."""
+    return any(board.piece_type_at(casa) == tipo and alvo in board.attacks(casa) for board in boards)
+
+
+def _destino_do_san(token: str) -> str | None:
+    """`Qxg7#` -> `g7`, `e8=Q+` -> `e8`; roque não tem casa de chegada única."""
+    limpo = limpar_san(token)
+    if limpo.startswith("O-O"):
+        return None
+    limpo = limpo.split("=")[0]
+    return limpo[-2:] if CASA_RE.match(limpo[-2:]) else None
+
+
+def _alvo_da_relacao(prefixo: str) -> str | None:
+    """A casa de que a frase fala antes de "apoiada pelo …": a de chegada do último lance
+    escrito, ou a da última "peça de casa" (o sujeito: "a dama de d4 está atacada pelo …"),
+    o que vier por último. Sem nenhum dos dois, não há o que conferir."""
+    candidatos: list[tuple[int, str]] = []
+    for m in SAN_RE.finditer(prefixo):
+        destino = _destino_do_san(m.group(0))
+        if destino is not None:
+            candidatos.append((m.end(), destino))
+    for m in PECA_NA_CASA_RE.finditer(prefixo):
+        candidatos.append((m.end(), m.group(2).lower()))
+    return max(candidatos)[1] if candidatos else None
+
+
+def _pecas_e_relacoes(texto: str, alcancaveis: list[chess.Board]) -> list[Issue]:
+    """Regra 7: toda "peça de casa" escrita existe em alguma posição alcançável, e toda
+    "apoiada/defendida/atacada pela peça de casa" é geometria de verdade nessa posição — o
+    caso real era um mate certo "apoiado pelo bispo de f4" em que quem apoiava era o cavalo."""
+    achados: dict[str, Issue] = {}
+
+    def registrar(detalhe: str) -> None:
+        achados.setdefault(detalhe, Issue("peca_falsa", "erro", detalhe))
+
+    for m in PECA_NA_CASA_RE.finditer(texto):
+        nome, casa = m.group(1).lower(), m.group(2).lower()
+        if not _peca_existe(alcancaveis, TIPO_DA_PECA[nome], chess.parse_square(casa)):
+            registrar(f"não há {nome} em {casa} em nenhuma posição da explicação")
+    for frase in FRASE_RE.split(texto):
+        for m in RELACAO_RE.finditer(frase):
+            nome, casa = m.group(2).lower(), m.group(3).lower()
+            alvo = _alvo_da_relacao(frase[:m.start()])
+            if alvo is None:
+                continue
+            if not _peca_ataca(alcancaveis, TIPO_DA_PECA[nome], chess.parse_square(casa), chess.parse_square(alvo)):
+                registrar(f"o {nome} de {casa} não ataca {alvo} em nenhuma posição da explicação")
+    return list(achados.values())
+
+
 def verificar(resposta: dict, *, fen_inicial: str, fen_erro: str | None, lances_permitidos: set[str],
               trechos_ids: set[str], analisar: Analisar) -> Verificacao:
     v = Verificacao()
@@ -324,4 +395,7 @@ def verificar(resposta: dict, *, fen_inicial: str, fen_erro: str | None, lances_
     n = len(texto.split())
     if n < MIN_PALAVRAS or n > MAX_PALAVRAS:
         v.issues.append(Issue("tamanho", "aviso", f"{n} palavras (esperado entre {MIN_PALAVRAS} e {MAX_PALAVRAS})"))
+
+    # 7. peças e relações: "o bispo de f4" existe, e "apoiada pelo bispo de f4" é geometria
+    v.issues.extend(_pecas_e_relacoes(texto, alcancaveis))
     return v

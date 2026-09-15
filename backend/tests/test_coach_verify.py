@@ -15,6 +15,8 @@ FEN_AMEACA = "5R2/2p3pk/2pp3p/4p3/1P5q/2PPbPr1/7P/5Q1K b - - 3 32"
 FEN_AMEACA_MATE = "6k1/5ppp/8/8/8/8/5PPP/3R2K1 b - - 0 1"
 # a mesma com a torre já em h8: as pretas estão em xeque, não existe passar a vez
 FEN_AMEACA_XEQUE = "6kR/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1"
+# caso real: pretas a jogar, a ameaça é Qxg7#, apoiado pelo CAVALO de f5 (o bispo de f4 não chega a g7)
+FEN_PECAS = "3r1rk1/1pp1bppp/p1n5/4PN2/3q1BQ1/2Nn4/PP3PPP/R3R1K1 b - - 0 1"
 TEXTO_OK = " ".join(["palavra"] * 80)
 
 
@@ -287,6 +289,72 @@ def test_avisos_repetidos_do_mesmo_lance_colapsam_em_um():
     v = checar({"texto": TEXTO_OK + " Nc6 defende, e de novo Nc6 defende.",
                 "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]})
     assert len([i for i in v.issues if i.tipo == "lance_sem_linha"]) == 1
+
+
+def analisar_ameaca_qxg7(fen: str, multipv: int) -> dict:
+    """Na posição do lance nulo de `FEN_PECAS` a melhor das brancas é Qxg7#; nas outras, o script comum."""
+    passa = chess.Board(FEN_PECAS)
+    passa.push(chess.Move.null())
+    if chess.Board(fen).fen() == passa.fen():
+        return {"fen": fen, "turn": "white", "terminal": None,
+                "lines": [{"move": "g4g7", "san": "Qxg7#", "score": MATE_SCORE - 1, "pv": ["g4g7"], "pv_san": ["Qxg7#"]}][:multipv]}
+    return analisar_script(fen, multipv)
+
+
+LINHA_QXG7 = {"inicio": "ameaca", "lances": ["Qxg7#"], "avaliacao_cp": None, "mate_em": 0}
+
+
+def checar_pecas(frase: str) -> Verificacao:
+    return checar({"texto": TEXTO_OK + " " + frase, "linhas": [LINHA_QXG7]},
+                  fen_inicial=FEN_PECAS, fen_erro=None, analisar=analisar_ameaca_qxg7)
+
+
+def pecas_falsas(v: Verificacao) -> list[str]:
+    return [i.detalhe for i in v.issues if i.tipo == "peca_falsa"]
+
+
+def test_peca_de_apoio_tem_de_atacar_a_casa_do_lance():
+    """O caso real: "mate com a dama apoiada pelo bispo de f4" — o mate é verdade, mas quem
+    apoia g7 é o cavalo de f5; o bispo de f4 não chega lá."""
+    falso = checar_pecas("As brancas dão 2.Qxg7# — mate com a dama apoiada pelo bispo de f4.")
+    assert not falso.ok and "mate_falso" not in tipos(falso)
+    assert len(pecas_falsas(falso)) == 1 and "f4" in pecas_falsas(falso)[0] and "g7" in pecas_falsas(falso)[0]
+    assert all(i.gravidade == "erro" for i in falso.issues if i.tipo == "peca_falsa")
+    certo = checar_pecas("As brancas dão 2.Qxg7# — mate com a dama apoiada pelo cavalo de f5.")
+    assert certo.ok and "peca_falsa" not in tipos(certo), certo.issues
+
+
+def test_relacao_com_alvo_no_sujeito_da_frase():
+    # o cavalo de f5 ataca d4; o de c3 não (b1, b5, a2, a4, d1, d5, e2, e4)
+    assert "peca_falsa" not in tipos(checar_pecas("A dama de d4 está atacada pelo cavalo de f5."))
+    falso = checar_pecas("A dama de d4 está atacada pelo cavalo de c3.")
+    assert not falso.ok and len(pecas_falsas(falso)) == 1
+    assert "c3" in pecas_falsas(falso)[0] and "d4" in pecas_falsas(falso)[0]
+
+
+def test_relacao_resolve_o_alvo_pela_ultima_referencia_da_frase():
+    # a última referência antes de "defendida" é o sujeito (torre de d8), não o lance Nxb2: a dama
+    # de d4 defende d8 (coluna aberta), mas não chega a b2 (o cavalo de c3 fecha a diagonal)
+    assert "peca_falsa" not in tipos(checar_pecas("Depois de 1...Nxb2 a torre de d8 fica defendida pela dama de d4."))
+    # quando o lance vem por último, o alvo é a casa de chegada dele: b2 não é apoiada pela dama
+    falso = checar_pecas("A torre de d8 fica solta, mas 1...Nxb2 é apoiado pela dama de d4.")
+    assert not falso.ok and len(pecas_falsas(falso)) == 1
+    assert "b2" in pecas_falsas(falso)[0] and "d4" in pecas_falsas(falso)[0]
+
+
+def test_relacao_sem_alvo_na_frase_e_ignorada():
+    v = checar_pecas("A posição inteira fica defendida pela dama de d4.")
+    assert "peca_falsa" not in tipos(v), v.issues
+
+
+def test_peca_citada_tem_de_existir_em_alguma_posicao():
+    assert "peca_falsa" not in tipos(checar_pecas("O bispo de e7 está fora de jogo."))
+    falso = checar_pecas("O bispo de f6 está fora de jogo, e o bispo de f6 não ajuda.")
+    assert not falso.ok and pecas_falsas(falso) == ["não há bispo em f6 em nenhuma posição da explicação"]
+    # maiúscula e "em"/"no"/"na" valem tanto quanto "de"
+    assert "peca_falsa" not in tipos(checar_pecas("O Cavalo em f5 e o peão na e5 seguram tudo."))
+    # a peça que só existe depois de um lance da linha também conta: a dama chega a g7 em Qxg7#
+    assert "peca_falsa" not in tipos(checar_pecas("A dama de g7 dá o mate."))
 
 
 def test_nome_de_casa_na_prosa_nao_e_lance_solto():
