@@ -341,6 +341,24 @@ def test_material_nao_finge_precisao_em_promocao_e_em_troca_pela_metade(db_sessi
     assert "em disputa" in _analisar_posicao(db_session, analisador_de_pvs(["Rxd5"])).descricao
 
 
+def test_analise_da_posicao_e_a_funcao_pura_por_tras_da_ferramenta(db_session):
+    """O dossiê reusa a mesma função da ferramenta: o modelo vê um formato só."""
+    from chess_trainer.coach.tools import analise_da_posicao
+    analisar = analisador_de_pvs(["Rxd5", "cxd5"], ["Rd1", "Kd8"])
+    pura = analise_da_posicao(analisar, FEN_MATERIAL, 2, False)
+    assert pura == json.loads(_analisar_posicao(db_session, analisar).fn({"fen": FEN_MATERIAL, "multipv": 2}))
+    assert [l["lance"] for l in pura["linhas"]] == ["Rxd5", "Rd1"] and "apos_passar" not in pura
+    passa = analise_da_posicao(analisar, FEN_AMEACA, 1, True)
+    assert passa["apos_passar"] is True and passa["quem_ameaca"] == "pretas"
+    # o multipv fica entre 1 e 3, como na ferramenta
+    assert len(analise_da_posicao(analisar, FEN_MATERIAL, 9, False)["linhas"]) == 2
+    import pytest
+    with pytest.raises(ValueError, match="passar"):
+        analise_da_posicao(analisar, FEN_FATOS_XEQUE, 1, True)
+    with pytest.raises(ValueError):
+        analise_da_posicao(analisar, "lixo", 1, False)
+
+
 def test_material_quando_quem_move_primeiro_e_quem_perde(db_session):
     # Rd3?? Qxd3: quem move primeiro é quem entrega a torre, então quem ganha é o outro lado
     linha = json.loads(_analisar_posicao(db_session, analisador_de_pvs(["Rd3", "Qxd3"]))

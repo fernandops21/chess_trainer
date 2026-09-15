@@ -88,7 +88,7 @@ class ContextoExercicio:
             e = self.lance_errado
             linhas.append(f"Lance errado ({e['de_quem']}, {e.get('nivel') or 'erro'}): {e['san']}; avaliação "
                           f"(ponto de vista das brancas, como o app mostra): {_aval(e['aval_antes'])} → {_aval(e['aval_depois'])} "
-                          "(use `analisar_posicao` para números confiáveis).")
+                          "(os números confiáveis estão no dossiê).")
         if self.minha_resposta:
             r = self.minha_resposta
             linhas.append(("Na partida o aluno achou a solução: " if r["achou"] else "Na partida o aluno respondeu ") + r["san"]
@@ -310,29 +310,36 @@ def _linha_analisada(board: chess.Board, score_brancas: int, san: str, pv_san: l
     }
 
 
+def analise_da_posicao(analisar: Analisar, fen: str, multipv: int = 3, apos_passar: bool = False) -> dict:
+    """A análise de uma posição no formato que o modelo conhece: é o que a ferramenta
+    `analisar_posicao` devolve e o que o dossiê (`dossie.py`) traz pronto. Pura: levanta
+    ValueError em FEN inválida ou quando não dá para passar a vez."""
+    board = chess.Board(fen)  # ValueError em FEN inválida: vira erro de ferramenta
+    multipv = max(1, min(3, int(multipv)))
+    if apos_passar:
+        # passar a vez é o lance nulo: as melhores linhas do adversário são as ameaças dele
+        if not board.is_valid():
+            # xeque do lado errado, rei faltando: o lance nulo só esconderia o problema
+            raise ValueError(f"posição impossível: {board.fen()}")
+        if board.is_check():
+            raise ValueError("em xeque: não dá para passar a vez")
+        board.push(chess.Move.null())
+    a = analisar(board.fen(), multipv)
+    sinal = 1 if board.turn == chess.WHITE else -1
+    linhas = [_linha_analisada(board, sinal * int(l["score"]), l["san"], list(l.get("pv_san", [])))
+              for l in a.get("lines", [])]
+    saida = {"fen": board.fen(), "lado_a_mover": "brancas" if board.turn else "pretas",
+             "terminal": a.get("terminal"), "linhas": linhas}
+    if apos_passar:
+        saida["apos_passar"] = True
+        saida["quem_ameaca"] = "brancas" if board.turn else "pretas"
+    return saida
+
+
 def _analisar_posicao(analisar: Analisar) -> Callable[[dict], str]:
     def fn(entrada: dict) -> str:
-        fen = str(entrada.get("fen", ""))
-        board = chess.Board(fen)  # ValueError em FEN inválida: vira erro de ferramenta
-        multipv = max(1, min(3, int(entrada.get("multipv", 3))))
-        apos_passar = bool(entrada.get("apos_passar", False))
-        if apos_passar:
-            # passar a vez é o lance nulo: as melhores linhas do adversário são as ameaças dele
-            if not board.is_valid():
-                # xeque do lado errado, rei faltando: o lance nulo só esconderia o problema
-                raise ValueError(f"posição impossível: {board.fen()}")
-            if board.is_check():
-                raise ValueError("em xeque: não dá para passar a vez")
-            board.push(chess.Move.null())
-        a = analisar(board.fen(), multipv)
-        sinal = 1 if board.turn == chess.WHITE else -1
-        linhas = [_linha_analisada(board, sinal * int(l["score"]), l["san"], list(l.get("pv_san", [])))
-                  for l in a.get("lines", [])]
-        saida = {"fen": board.fen(), "lado_a_mover": "brancas" if board.turn else "pretas",
-                 "terminal": a.get("terminal"), "linhas": linhas}
-        if apos_passar:
-            saida["apos_passar"] = True
-            saida["quem_ameaca"] = "brancas" if board.turn else "pretas"
+        saida = analise_da_posicao(analisar, str(entrada.get("fen", "")), int(entrada.get("multipv", 3)),
+                                   bool(entrada.get("apos_passar", False)))
         return json.dumps(saida, ensure_ascii=False)
     return fn
 
