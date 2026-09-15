@@ -140,6 +140,7 @@ def _pv_never_materializes(
 
 def extend_unique_line(
     board_after_solution: chess.Board, engine: EngineLike, cfg: PuzzleConfig, solver: chess.Color,
+    known_reply: SolutionMove | None = None,
 ) -> list[SolutionMove]:
     """Continua a linha depois da solução enquanto o lance do aluno for único.
 
@@ -147,9 +148,20 @@ def extend_unique_line(
     o lance só entra no exercício se estiver à frente do segundo por `cfg.unique_gap_cp` (dois
     lances bons seriam técnica, não tática) e se ainda ganhar (`cfg.min_solver_eval_cp`). Em
     mate, posição terminal ou engine sem linha a extensão acaba ali, e a linha devolvida nunca
-    termina com lance do adversário."""
+    termina com lance do adversário.
+
+    `known_reply` é a resposta do adversário que o chamador já buscou e validou para a posição
+    inicial: evita a segunda busca e garante que a linha siga a mesma resposta com que o ganho
+    foi conferido (outra busca poderia escolher uma defesa diferente). Sem ele — o job que
+    alonga exercícios já gravados — a resposta é buscada normalmente."""
     extra: list[SolutionMove] = []
     current = board_after_solution.copy()
+    if known_reply is not None and not current.is_game_over() and current.turn != solver:
+        try:
+            current.push_uci(known_reply.uci)
+        except ValueError:
+            return []
+        extra.append(SolutionMove(known_reply.uci, known_reply.by))
     for _ in range(MAX_EXTENSION_PLIES):
         if current.is_game_over():
             break
@@ -157,7 +169,10 @@ def extend_unique_line(
             lines = engine.analyse(current, cfg.depth, multipv=1, max_seconds=cfg.search_seconds)
             if not lines:
                 break
-            current.push_uci(lines[0].move)
+            try:
+                current.push_uci(lines[0].move)
+            except ValueError:
+                break
             extra.append(SolutionMove(lines[0].move, "engine"))
             continue
         lines = engine.analyse(current, cfg.depth, multipv=3, max_seconds=cfg.search_seconds)
@@ -167,10 +182,17 @@ def extend_unique_line(
         # uma linha só: não há segundo lance para comparar, o gap é infinito
         gap = 10**6 if len(lines) < 2 else best.score - lines[1].score
         if gap < cfg.unique_gap_cp:
-            break  # dois lances bons: daqui para a frente é técnica
+            # dois lances bons: daqui para a frente é técnica. Duas linhas de mate entram aqui
+            # (mesmo score, gap 0) e param a extensão de propósito: as duas ganham, então não há
+            # lance único a cobrar, e a solução fica na conquista já validada. Diferente do
+            # `avoid`, que trata mate categoricamente.
+            break
         if best.score < cfg.min_solver_eval_cp:
             break  # o lance único já não ganha; a solução fica como estava até aqui
-        current.push_uci(best.move)
+        try:
+            current.push_uci(best.move)
+        except ValueError:
+            break
         extra.append(SolutionMove(best.move, "solver", []))
         if current.is_checkmate():
             break  # em mate a linha termina com o lance que dá mate
@@ -240,9 +262,13 @@ def _materializing_line(
             alts = _final_alternatives(current, close_alts, mate_mode, target, start_balance, solver)
             if alts is None:
                 return None
-            moves.append(SolutionMove(best.move, "solver", alts))
             # o ganho já está de pé; se o aluno ainda tem lance único a seguir, o exercício continua
-            moves.extend(extend_unique_line(after, engine, cfg, solver))
+            extra = extend_unique_line(after, engine, cfg, solver,
+                                       known_reply=SolutionMove(reply.move, "engine"))
+            # só o último lance da solução pode ter alternativas: com extensão, a captura deixa de
+            # ser o fim da linha e a continuação gravada vale só para o lance principal
+            moves.append(SolutionMove(best.move, "solver", [] if extra else alts))
+            moves.extend(extra)
             return _draft(board, moves, "material_gain")
 
         if close_alts:

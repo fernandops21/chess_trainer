@@ -258,6 +258,13 @@ def test_ordem_dos_novos_so_aceita_os_valores_conhecidos(client):
     assert client.get("/api/settings").json()["new_order"] == "recent"
 
 
+def test_distancia_do_lance_unico_respeita_os_limites_do_formulario(client):
+    assert client.put("/api/settings", json={"unique_gap_cp": 0}).status_code == 422
+    assert client.put("/api/settings", json={"unique_gap_cp": 1001}).status_code == 422
+    assert client.get("/api/settings").json()["unique_gap_cp"] == 150
+    assert client.put("/api/settings", json={"unique_gap_cp": 50}).json()["unique_gap_cp"] == 50
+
+
 def test_token_do_lichess_nunca_volta_nas_respostas(client):
     inicial = client.get("/api/settings").json()
     assert inicial["lichess_token_set"] is False and "lichess_token" not in inicial

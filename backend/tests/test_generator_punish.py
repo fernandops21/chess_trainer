@@ -41,8 +41,9 @@ def test_hanging_queen_ends_at_capture():
     assert draft.end_reason == "material_gain" and draft.solver_moves == 1
     assert [(m.uci, m.by) for m in draft.moves] == [("c3d5", "solver")]
     assert draft.side_to_move == "white" and draft.fen_start == HANGING_QUEEN
-    # 2 chamadas do laço + 2 da extensão por lances únicos, que aqui não acrescenta nada
-    assert len(fake.calls) == 4
+    # 2 chamadas do laço + 1 da extensão por lances únicos, que aqui não acrescenta nada
+    # (a extensão reaproveita a resposta já validada e não busca de novo)
+    assert len(fake.calls) == 3
 
 
 def test_mate_in_two_runs_to_checkmate():
@@ -156,9 +157,9 @@ def test_reply_analysis_uses_full_depth_in_material_mode():
     assert draft is not None
     # fora do modo mate também: a resposta é a defesa mais resistente na mesma
     # profundidade do lance do solver, e basta a primeira linha da busca (multipv=1).
-    # As duas últimas chamadas são da extensão por lances únicos, na mesma profundidade.
-    assert fake.depths == [22, 22, 22, 22]
-    assert fake.multipvs == [3, 1, 1, 3]
+    # A última chamada é da extensão por lances únicos, na mesma profundidade.
+    assert fake.depths == [22, 22, 22]
+    assert fake.multipvs == [3, 1, 3]
 
 
 def test_search_seconds_are_passed_to_engine():
@@ -170,7 +171,7 @@ def test_search_seconds_are_passed_to_engine():
     draft = generate_punish(chess.Board(HANGING_QUEEN), drop_cp=900, engine=fake, cfg=cfg)
     assert draft is not None
     # a busca principal (multipv), a resposta do defensor e a extensão usam o mesmo search_seconds.
-    assert fake.max_seconds == [20.0, 20.0, 20.0, 20.0]
+    assert fake.max_seconds == [20.0, 20.0, 20.0]
 
 
 def test_draft_json_shape():

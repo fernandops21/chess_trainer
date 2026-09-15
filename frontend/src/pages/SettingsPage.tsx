@@ -253,13 +253,16 @@ export function SettingsPage() {
         <div>Na mesma rede Wi-Fi, abra <b>{status?.local_url ?? "…"}</b>. Qualquer aparelho na rede consegue acessar; não há login.</div>
       </div>
       <div className="card">
-        <h3 style={{ marginTop: 0, color: "var(--bad)" }}>Perigo</h3>
-        <button className="danger" onClick={() => setConfirm(true)} disabled={status?.job.state === "running"}>Recriar puzzles</button>
-        <button className="danger" onClick={() => setConfirmAvoid(true)} disabled={status?.job.state === "running"}>Recriar só os evitar</button>
+        <h3 style={{ marginTop: 0 }}>Exercícios</h3>
         <button onClick={() => start.mutate({ kind: "extend_puzzles" })} disabled={status?.job.state === "running"}>Estender exercícios</button>
         <div className="muted" style={{ marginTop: 6 }}>
           Alonga os exercícios existentes enquanto o lance for único, mantendo o histórico de revisão.
         </div>
+      </div>
+      <div className="card">
+        <h3 style={{ marginTop: 0, color: "var(--bad)" }}>Perigo</h3>
+        <button className="danger" onClick={() => setConfirm(true)} disabled={status?.job.state === "running"}>Recriar puzzles</button>
+        <button className="danger" onClick={() => setConfirmAvoid(true)} disabled={status?.job.state === "running"}>Recriar só os evitar</button>
         <ErrorBox error={start.error} />
       </div>
       <Modal open={confirm} title="Recriar todos os puzzles?" onClose={() => setConfirm(false)}>

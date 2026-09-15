@@ -3,7 +3,14 @@ import chess
 
 from chess_trainer.core.analysis.engine import LineEval
 from chess_trainer.core.evals import MATE_SCORE
-from chess_trainer.core.puzzles.generator import PuzzleConfig, generate_avoid, generate_punish
+from chess_trainer.core.puzzles.generator import (
+    MAX_EXTENSION_PLIES,
+    PuzzleConfig,
+    SolutionMove,
+    extend_unique_line,
+    generate_avoid,
+    generate_punish,
+)
 from tests.fakes import FakeEngine
 
 CFG = PuzzleConfig(depth=10)
@@ -14,6 +21,12 @@ HANGING_QUEEN = "4k3/8/8/3q4/8/2N5/7P/4K3 w - - 0 1"
 # Nxd5 ganha a dama e, duas jogadas depois, Ta8 é mate
 MATE_AFTER_GAIN = "6k1/5ppp/8/3q4/8/2N5/8/R3K3 w - - 0 1"
 MATE_IN_2 = "2r3k1/5ppp/8/8/Q7/8/8/4R1K1 w - - 0 1"
+# dois cavalos tomam a dama: a captura tem alternativa próxima e a linha ainda estende (h4, h5)
+TWO_WAYS = "4k3/8/8/3q4/8/2N1N3/7P/4K3 w - - 0 1"
+# Dg6 afoga o rei preto: fim de jogo no topo do laço da extensão
+STALEMATE_IN_1 = "7k/5K2/8/6Q1/8/8/8/8 w - - 0 1"
+# Cxd5 ganha a dama e as torres ficam se revezando para sempre: só o teto para a extensão
+ENDLESS = "6k1/1r6/8/3q4/8/2N5/8/R5K1 w - - 0 1"
 
 
 def _after(fen: str, *ucis: str) -> chess.Board:
@@ -45,6 +58,39 @@ def _unique_script() -> dict[str, list[LineEval]]:
             LineEval("h5h6", 900, ("h5h6",)), LineEval("e1e2", 800, ("e1e2",)),
         ],
     }
+
+
+def _two_ways_script(extensivel: bool = True) -> dict[str, list[LineEval]]:
+    """Nc3xd5 com Ne3xd5 pertinho; depois h4, o lance único do branco, e o gap caindo."""
+    script = {
+        chess.Board(TWO_WAYS).epd(): [
+            LineEval("c3d5", 900, ("c3d5", "e8d7")), LineEval("e3d5", 880, ("e3d5", "e8d7")),
+        ],
+        _epd(TWO_WAYS, "c3d5"): [LineEval("e8d7", -900, ("e8d7",))],
+    }
+    if extensivel:
+        script[_epd(TWO_WAYS, "c3d5", "e8d7")] = [
+            LineEval("h2h4", 900, ("h2h4",)), LineEval("e1e2", 100, ("e1e2",)),
+        ]
+        script[_epd(TWO_WAYS, "c3d5", "e8d7", "h2h4")] = [LineEval("d7e6", -900, ("d7e6",))]
+        # aqui o segundo lance chega perto: acabou o lance único e a extensão para
+        script[_epd(TWO_WAYS, "c3d5", "e8d7", "h2h4", "d7e6")] = [
+            LineEval("h4h5", 900, ("h4h5",)), LineEval("e1e2", 800, ("e1e2",)),
+        ]
+    else:
+        script[_epd(TWO_WAYS, "c3d5", "e8d7")] = []
+    return script
+
+
+def _torres_se_revezando(board: chess.Board) -> list[LineEval]:
+    """Cada lado sobe sua torre pela coluna e volta ao começo, em ciclos de tamanhos diferentes
+    (6 e 7): a linha nunca repete posição nem termina, então só o teto pode pará-la."""
+    coluna, topo, base = ("a", 6, 1) if board.turn == chess.WHITE else ("b", 8, 2)
+    origem = next(chess.square_name(sq) for sq in board.pieces(chess.ROOK, board.turn)
+                  if chess.square_name(sq)[0] == coluna)
+    linha = int(origem[1])
+    move = origem + f"{coluna}{linha + 1 if linha < topo else base}"
+    return [LineEval(move, 900, (move,))]
 
 
 def test_line_continues_while_the_move_is_unique_and_stops_when_the_gap_falls():
@@ -81,9 +127,9 @@ def test_line_ends_on_the_mating_move():
     draft = generate_punish(chess.Board(MATE_AFTER_GAIN), drop_cp=900, engine=fake, cfg=CFG)
     assert draft is not None
     assert [m.uci for m in draft.moves] == ["c3d5", "g8h8", "a1a8"]
-    # o mate encerra a linha: nenhuma análise depois dele
-    # (a posição depois da solução é analisada duas vezes: a resposta do laço e a da extensão)
-    assert len(fake.calls) == 4
+    # o mate encerra a linha: nenhuma análise depois dele (e a extensão parte da resposta
+    # já validada pelo laço, sem buscar de novo a posição depois da solução)
+    assert len(fake.calls) == 3
     assert draft.end_reason == "material_gain"  # o exercício continua sendo o de ganho de material
 
 
@@ -126,3 +172,71 @@ def test_avoid_is_extended_too():
     assert draft is not None and draft.end_reason == "material_gain"
     assert [m.uci for m in draft.moves] == ["c3d5", "e8d7", "h2h4", "d7e6", "h4h5"]
     assert draft.solver_moves == 3
+
+
+def test_only_the_last_move_of_the_solution_has_alternatives():
+    fake = FakeEngine(_two_ways_script())
+    draft = generate_punish(chess.Board(TWO_WAYS), drop_cp=900, engine=fake, cfg=CFG)
+    assert draft is not None
+    assert [m.uci for m in draft.moves] == ["c3d5", "e8d7", "h2h4"]
+    # a captura deixou de ser o fim da linha: a alternativa Cexd5 sairia da continuação gravada
+    assert [m.alternatives for m in draft.moves] == [[], [], []]
+
+
+def test_the_capture_keeps_its_alternatives_when_there_is_nothing_to_extend():
+    fake = FakeEngine(_two_ways_script(extensivel=False))
+    draft = generate_punish(chess.Board(TWO_WAYS), drop_cp=900, engine=fake, cfg=CFG)
+    assert draft is not None
+    assert [m.uci for m in draft.moves] == ["c3d5"]
+    assert draft.moves[-1].alternatives == ["e3d5"]  # último lance: aqui a alternativa vale
+
+
+def test_the_validated_reply_is_reused_instead_of_a_second_search():
+    fake = FakeEngine(_unique_script())
+    draft = generate_punish(chess.Board(HANGING_QUEEN), drop_cp=900, engine=fake, cfg=CFG)
+    assert draft is not None
+    # a posição depois da solução é analisada uma vez só (a resposta do laço); a extensão
+    # recebe essa resposta já validada e não busca de novo — outra busca poderia escolher
+    # uma defesa diferente da que confirmou o ganho
+    assert fake.calls.count(_epd(HANGING_QUEEN, "c3d5")) == 1
+    assert [m.uci for m in draft.moves][:2] == ["c3d5", "e8d7"]
+
+
+def test_without_known_reply_the_extension_searches_the_reply():
+    """É assim que o job que alonga os exercícios já gravados chama a extensão."""
+    fake = FakeEngine(_unique_script())
+    board = _after(HANGING_QUEEN, "c3d5")
+    extra = extend_unique_line(board, fake, CFG, chess.WHITE)
+    assert [(m.uci, m.by) for m in extra] == [
+        ("e8d7", "engine"), ("h2h4", "solver"), ("d7e6", "engine"), ("h4h5", "solver"),
+    ]
+    assert fake.calls[0] == board.epd() and fake.multipvs[0] == 1
+
+
+def test_known_reply_out_of_the_board_stops_the_extension():
+    fake = FakeEngine(_unique_script())
+    extra = extend_unique_line(_after(HANGING_QUEEN, "c3d5"), fake, CFG, chess.WHITE,
+                               known_reply=SolutionMove("a1a8", "engine"))
+    assert extra == [] and fake.calls == []
+
+
+def test_extension_stops_on_stalemate():
+    board = chess.Board(STALEMATE_IN_1)
+    fake = FakeEngine({board.epd(): [LineEval("g5g6", 900, ("g5g6",))]})
+    extra = extend_unique_line(board, fake, CFG, chess.WHITE)
+    assert [(m.uci, m.by) for m in extra] == [("g5g6", "solver")]
+    # fim de jogo no topo do laço: nada é analisado depois do afogamento
+    assert len(fake.calls) == 1
+
+
+def test_endless_unique_line_stops_at_the_ceiling():
+    fake = FakeEngine({
+        chess.Board(ENDLESS).epd(): [LineEval("c3d5", 900, ("c3d5", "b7b6"))],
+        _epd(ENDLESS, "c3d5"): [LineEval("b7b6", -900, ("b7b6",))],
+    }, default=_torres_se_revezando)
+    draft = generate_punish(chess.Board(ENDLESS), drop_cp=900, engine=fake, cfg=CFG)
+    assert draft is not None and draft.end_reason == "material_gain"
+    # a captura, a resposta e no máximo MAX_EXTENSION_PLIES lances de extensão
+    assert len(draft.moves) <= MAX_EXTENSION_PLIES + 2
+    assert len(draft.moves) > 10  # a linha realmente continuou até o teto, não parou antes
+    assert draft.moves[-1].by == "solver"

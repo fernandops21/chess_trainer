@@ -46,7 +46,8 @@ class SettingsIn(BaseModel):
     mistake_threshold_cp: int | None = None
     blunder_threshold_cp: int | None = None
     avoid_gap_cp: int | None = None
-    unique_gap_cp: int | None = None
+    # mesmo limite do formulário de Configurações
+    unique_gap_cp: int | None = Field(None, ge=50, le=1000)
     new_per_day: int | None = None
     new_order: Literal["random", "recent"] | None = None
     leech_lapses: int | None = None
