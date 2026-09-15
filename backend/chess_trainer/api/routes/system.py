@@ -182,7 +182,9 @@ def post_extend(request: Request):
         mensagem = f"{r['examinados']} exercícios examinados, {r['estendidos']} estendidos"
         if r["falhas"]:
             mensagem += f", {r['falhas']} com erro"
-        progress("extend", r["examinados"], r["examinados"], mensagem)
+        # cancelado no meio, a barra fica onde parou e a mensagem final é a do runner ("cancelado")
+        if not stop():
+            progress("extend", r["examinados"], r["examinados"], mensagem)
 
     return _engine_job(request, "extend_puzzles", work)
 

@@ -294,8 +294,9 @@ def extend_all(
     Só mexe nos exercícios das suas partidas (`source == "own"`) que terminam em ganho de
     material: a linha de mate já acaba onde deve, e táticas do Lichess e capítulos de estudo
     são texto de terceiros. Nada é apagado nem recriado — cada exercício mantém seu `id` e,
-    com ele, o histórico de revisão: só `solution` e `solver_moves` são reescritos, nunca
-    `srs_*`, `reviews`, `in_queue` ou `is_leech`.
+    com ele, o histórico de revisão: só `solution`, `solver_moves` e — quando a extensão termina
+    em mate — `end_reason` e `theme` são reescritos, nunca `srs_*`, `reviews`, `in_queue` ou
+    `is_leech`.
 
     Devolve `{"examinados": ..., "estendidos": ..., "falhas": ...}` — "falhas" são os
     exercícios pulados por erro da engine, que não entram em "examinados"; com `should_stop`

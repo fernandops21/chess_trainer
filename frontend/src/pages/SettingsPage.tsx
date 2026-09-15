@@ -263,8 +263,9 @@ export function SettingsPage() {
         <h3 style={{ marginTop: 0, color: "var(--bad)" }}>Perigo</h3>
         <button className="danger" onClick={() => setConfirm(true)} disabled={status?.job.state === "running"}>Recriar puzzles</button>
         <button className="danger" onClick={() => setConfirmAvoid(true)} disabled={status?.job.state === "running"}>Recriar só os evitar</button>
-        <ErrorBox error={start.error} />
       </div>
+      {/* a mutação é a mesma dos dois cartões: o erro fica fora do "Perigo" para não parecer coisa dos botões destrutivos */}
+      <ErrorBox error={start.error} />
       <Modal open={confirm} title="Recriar todos os puzzles?" onClose={() => setConfirm(false)}>
         <p>Isso apaga <b>só os exercícios das suas partidas</b> e o histórico de treino deles (revisões, intervalos, sequência), e gera tudo de novo com os limiares atuais. As táticas guardadas do Lichess e os exercícios dos estudos ficam como estão. Não pode ser desfeito.</p>
         <div className="row"><button className="danger" onClick={() => { start.mutate({ kind: "regenerate" }); setConfirm(false); }}>Recriar</button><button onClick={() => setConfirm(false)}>Cancelar</button></div>
