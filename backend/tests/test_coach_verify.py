@@ -289,11 +289,12 @@ def test_lance_numerado_da_prosa_tem_de_estar_numa_linha_declarada():
     presente = checar({"texto": TEXTO_OK + " A sequência é 4.Qxf7#.",
                        "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]})
     assert presente.ok and "lance_fora_de_linha" not in tipos(presente), presente.issues
+    # o lance que nenhuma linha traz sai uma vez só, como `lance_sem_linha`: a falta já está dita
     ausente = checar({"texto": TEXTO_OK + " Antes viera 3.Bc4.",
                       "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]})
-    assert ausente.ok and "lance_fora_de_linha" in tipos(ausente)
-    detalhe = [i.detalhe for i in ausente.issues if i.tipo == "lance_fora_de_linha"][0]
-    assert "3.Bc4" in detalhe
+    assert ausente.ok and "lance_fora_de_linha" not in tipos(ausente), ausente.issues
+    detalhe = [i.detalhe for i in ausente.issues if i.tipo == "lance_sem_linha"][0]
+    assert "Bc4" in detalhe
 
 
 def test_lance_numerado_na_altura_errada_e_aviso_mesmo_estando_em_uma_linha():

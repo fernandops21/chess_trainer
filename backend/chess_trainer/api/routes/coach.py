@@ -15,7 +15,7 @@ from chess_trainer.coach.costs import MODELO_CHECAGEM
 from chess_trainer.coach.explain import OpcoesExplicacao, explicar, gravar
 from chess_trainer.coach.llm import ErroDoTreinador
 from chess_trainer.coach.observability import tracer_de
-from chess_trainer.coach.tools import ContextoExercicio, contexto_do_exercicio
+from chess_trainer.coach.tools import contexto_do_exercicio, fens_do_exercicio
 from chess_trainer.coach.verify import fen_de_onde_a_linha_parte
 from chess_trainer.config import load_settings
 from chess_trainer.core.models import CoachExplanation, Puzzle, Review, utcnow
@@ -44,25 +44,25 @@ def _blocos(row: CoachExplanation) -> dict:
     }
 
 
-def _linhas(row: CoachExplanation, contexto: ContextoExercicio | None) -> list[dict]:
+def _linhas(row: CoachExplanation, fens: tuple[str, str | None]) -> list[dict]:
     """As linhas gravadas, cada uma com o `fen_inicio` de onde ela parte (o lance nulo das
-    linhas de ameaça já incluído). Sem contexto — exercício apagado depois da explicação — ou
-    quando não dá para partir dali, o campo vem `None` e o cartão ancora na posição do exercício,
-    como antes."""
+    linhas de ameaça já incluído). Quando não dá para partir dali — linha de ameaça num
+    exercício sem posição do erro, ou com o lado a mover em xeque —, o campo vem `None` e o
+    cartão ancora na posição do exercício, como antes."""
+    fen_inicial, fen_erro = fens
     linhas = json.loads(row.lines_json)
     for linha in linhas:
         if not isinstance(linha, dict):
             continue
         inicio = str(linha.get("inicio") or "inicial")
-        linha["fen_inicio"] = (None if contexto is None else
-                               fen_de_onde_a_linha_parte(inicio, contexto.fen_inicial, contexto.fen_erro))
+        linha["fen_inicio"] = fen_de_onde_a_linha_parte(inicio, fen_inicial, fen_erro)
     return linhas
 
 
-def _out(row: CoachExplanation, trace_url: str | None, contexto: ContextoExercicio | None = None) -> CoachExplanationOut:
+def _out(row: CoachExplanation, trace_url: str | None, fens: tuple[str, str | None]) -> CoachExplanationOut:
     return CoachExplanationOut(
         id=row.id, puzzle_id=row.puzzle_id, created_at=row.created_at, model=row.model, prompt_version=row.prompt_version,
-        text=row.text, **_blocos(row), lines=_linhas(row, contexto), citations=json.loads(row.citations_json),
+        text=row.text, **_blocos(row), lines=_linhas(row, fens), citations=json.loads(row.citations_json),
         verification=json.loads(row.verification_json), status=row.status, repaired=row.repaired, cost_usd=row.cost_usd,
         tokens={"input": row.input_tokens, "output": row.output_tokens, "cache_read": row.cache_read_tokens, "cache_write": row.cache_write_tokens},
         duration_ms=row.duration_ms, trace_url=trace_url,
@@ -119,7 +119,7 @@ def coach_explain(body: CoachExplainIn, request: Request, db: Session = Depends(
     finally:
         app.state.coach_lock.release()
     row = gravar(db, resultado, body.review_id)
-    return _out(row, tracer.url(row.trace_id), contexto)
+    return _out(row, tracer.url(row.trace_id), (contexto.fen_inicial, contexto.fen_erro))
 
 
 @router.get("/explanations/{puzzle_id}", response_model=CoachExplanationOut)
@@ -129,11 +129,11 @@ def coach_explanation(puzzle_id: str, request: Request, db: Session = Depends(ge
     if row is None:
         raise HTTPException(404, "sem explicação para este exercício")
     tracer = tracer_de(load_settings(db), request.app.state.coach_tracers)
-    # o exercício dá as duas FENs de onde as linhas partem; explicação de um exercício já
-    # apagado ainda abre, só sem o `fen_inicio`
+    # só as duas FENs de onde as linhas partem: montar o contexto inteiro aqui custaria uma
+    # consulta a mais e a partida lida do PGN duas vezes. O exercício existe (a explicação cai
+    # junto com ele, pela chave estrangeira em CASCADE)
     puzzle = db.get(Puzzle, row.puzzle_id)
-    contexto = contexto_do_exercicio(db, puzzle) if puzzle is not None else None
-    return _out(row, tracer.url(row.trace_id), contexto)
+    return _out(row, tracer.url(row.trace_id), fens_do_exercicio(db, puzzle))
 
 
 @router.post("/reindex", status_code=202)

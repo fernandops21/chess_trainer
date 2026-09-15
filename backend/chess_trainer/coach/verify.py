@@ -429,7 +429,13 @@ def verificar(resposta: dict, *, fen_inicial: str, fen_erro: str | None, lances_
     # da explicação. A prosa pode pular lances; a linha, não
     alturas = _alturas_das_linhas(fen_inicial, fen_erro, linhas)
     for m in LANCE_NUMERADO_RE.finditer(texto):
-        altura = (int(m.group(1)), len(m.group(2) or "") >= 2, limpar_san(m.group(3)))
+        san = limpar_san(m.group(3))
+        # o lance que nenhuma linha traz já virou `lance_sem_linha` na regra 4: repetir a falta
+        # aqui só renderia dois avisos para o mesmo lance. O que 4b pega é o lance declarado que
+        # a prosa numera noutra altura
+        if san not in lances_em_linhas:
+            continue
+        altura = (int(m.group(1)), len(m.group(2) or "") >= 2, san)
         if altura not in alturas:
             issue = Issue("lance_fora_de_linha", "aviso",
                           f"'{m.group(0)}' não aparece nessa altura em nenhuma linha declarada")

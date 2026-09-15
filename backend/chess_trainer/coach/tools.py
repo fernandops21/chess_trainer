@@ -155,6 +155,22 @@ def _tema(theme: str) -> str:
     return THEME_LABELS.get(normalize_own_theme(theme), theme)
 
 
+def fens_do_exercicio(db: Session, puzzle: Puzzle) -> tuple[str, str | None]:
+    """As duas FENs de onde as linhas de uma explicação partem: a do exercício e a da posição
+    do erro (a do lance errado, quando a partida tem uma). É a mesma regra do
+    `contexto_do_exercicio`, separada porque quem só reabre uma explicação precisa das duas
+    FENs e não do contexto inteiro (consulta a mais e a partida inteira lida do PGN).
+    Protegida: FEN do erro que não presta vem `None` em vez de estourar."""
+    pos = puzzle.position
+    fen_erro = pos.fen if pos is not None else puzzle.fen_before
+    if fen_erro:
+        try:
+            chess.Board(fen_erro)
+        except ValueError:  # banco migrado, tática de terceiro: melhor sem posição do erro
+            fen_erro = None
+    return puzzle.fen_start, fen_erro or None
+
+
 def contexto_do_exercicio(db: Session, puzzle: Puzzle) -> ContextoExercicio:
     sol = puzzle.solution_data.get("moves", [])
     lado = "brancas" if puzzle.side_to_move == "white" else "pretas"
@@ -170,9 +186,8 @@ def contexto_do_exercicio(db: Session, puzzle: Puzzle) -> ContextoExercicio:
         permitidos.update(sol[0].get("alternatives", []))
     pos = puzzle.position
     lance_errado = minha_resposta = partida = None
-    fen_erro = puzzle.fen_before
+    _, fen_erro = fens_do_exercicio(db, puzzle)
     if pos is not None:
-        fen_erro = pos.fen
         de_quem = "você" if (pos.mistake_by == "me" or (pos.mistake_by is None and tipo == "evitar")) else "adversário"
         lance_errado = {"san": pos.move_played, "uci": pos.move_uci, "de_quem": de_quem, "nivel": pos.mistake_level,
                         "aval_antes": _pdv_brancas(pos.eval_before, pos.ply),
@@ -193,9 +208,9 @@ def contexto_do_exercicio(db: Session, puzzle: Puzzle) -> ContextoExercicio:
         partida = {"brancas": game.white, "pretas": game.black, "resultado": game.result,
                    "data": game.played_at.date().isoformat(), "meu_lado": "brancas" if game.my_color == "white" else "pretas",
                    "lances_em_volta": _lances_em_volta(game.pgn, pos.ply)}
-    elif puzzle.last_move and puzzle.fen_before:
+    elif puzzle.last_move and fen_erro:
         # táticas e estudos: o "erro" é o último lance do adversário
-        b = chess.Board(puzzle.fen_before)
+        b = chess.Board(fen_erro)  # `fens_do_exercicio` já conferiu a FEN
         try:
             mv = chess.Move.from_uci(puzzle.last_move)
             lance_errado = {"san": b.san(mv), "uci": puzzle.last_move, "de_quem": "adversário", "nivel": None, "aval_antes": None, "aval_depois": None}

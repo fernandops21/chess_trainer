@@ -358,8 +358,9 @@ de ser confundido com lance. Lance numerado na prosa que nenhuma linha declarada
 
 Os lances do texto são links (prévia no tabuleiro) e as citações abrem o capítulo no modo livro, no
 lance certo. Quando a prosa pula um lance ("18.Rac1? 19.Qc5"), a prévia usa as linhas que a
-explicação declarou para achar a posição de verdade, em vez de jogar o lance a partir do exercício. O rodapé mostra o modelo, o custo em dólares, o tempo, o aviso de índice vazio quando
-for o caso e o botão **Explicar de novo**.
+explicação declarou para achar a posição de verdade, em vez de jogar o lance a partir do exercício.
+O rodapé mostra o modelo, o custo em dólares, o tempo, o aviso de índice vazio quando for o caso e o
+botão **Explicar de novo**.
 
 ### Configurar
 

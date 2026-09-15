@@ -257,7 +257,11 @@ Regras:
    depois de um prefixo legal de cada linha, inclusive as de ameaça): lance escrito
    com `#` que não é mate em nenhuma delas → `erro` `mate_falso`; lance escrito com
    `+` que não dá xeque em nenhuma delas → `aviso` `xeque_falso`. Issues idênticas
-   (mesmo tipo e mesmo detalhe) entram uma vez só.
+   (mesmo tipo e mesmo detalhe) entram uma vez só. Lance numerado na prosa
+   (`19.Qc5`, `32...Qh3`) que está numa linha declarada mas não naquela altura
+   (mesmo número, mesmo lado) → `aviso` `lance_fora_de_linha`: a prosa pode pular
+   lances, a linha não, e é pela linha que o cartão acha a posição do lance. Lance
+   que nenhuma linha traz já saiu como `lance_sem_linha` e não vira os dois avisos.
 5. **Citações**: cada `[c:ID]` do texto e cada item de `citacoes` deve ser um
    `chunk_id` entre os trechos recuperados *nesta* execução → senão `erro`
    `citacao_inexistente`. Texto que menciona "no estudo" sem citação → `aviso`.
@@ -498,7 +502,11 @@ por puzzle, scores por métrica).
 citations [{chunk_id, study_id, study_title, chapter_id, chapter_name,
 node_id, path_san, url}], verification {ok, issues}, status, repaired,
 cost_usd, tokens {input, output, cache_read, cache_write}, duration_ms,
-trace_url | null`.
+trace_url | null`. Cada item de `lines` vai com `fen_inicio: str | null` — a FEN
+de onde a linha parte, com o lance nulo das linhas de ameaça já incluído —, para
+o cartão resolver os lances numerados da prosa pela linha certa em vez de os
+ancorar todos na posição do exercício; vem `null` quando não dá para partir dali
+(linha de ameaça sem posição do erro, ou com o lado a mover em xeque).
 
 Concorrência: uma explicação por vez por processo (lock), porque a engine
 interativa é compartilhada; segunda chamada simultânea recebe 409

@@ -1,4 +1,4 @@
-import { Fragment, useContext, type ReactNode } from "react";
+import { Fragment, useContext, useMemo, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { Citacao, CoachExplanation, IssueOut, PuzzleOut } from "../api/types";
 import { useCoachExplanation, useCoachStatus, useExplain } from "../api/queries";
@@ -117,15 +117,17 @@ export function CoachCard({ puzzle, reviewId }: { puzzle: PuzzleOut; reviewId?: 
   const configurado = !!status?.configured;
   const { data: existente, isLoading: carregando } = useCoachExplanation(puzzle.id, configurado);
   const explicar = useExplain();
-  if (!configurado) return null;
   const exp = explicar.data ?? existente ?? null;
+  // as linhas declaradas vão junto com a prosa: é por elas que um lance numerado que o
+  // texto cita pulando lances ("18.Rac1? 19.Qc5") acha a posição de verdade. O `useMemo`
+  // fica acima do `return null` (hook não pode ser condicional) e guarda a identidade do
+  // array, senão o `useMemo` do `TextoComLances` recalcularia tudo a cada render
+  const linhas = useMemo(() => (exp ? linhasConhecidas(exp) : []), [exp]);
+  if (!configurado) return null;
   const pedir = () => explicar.mutate({ puzzle_id: puzzle.id, review_id: reviewId });
   const pronto = exp && !explicar.isPending;
   const emBlocos = !!(pronto && (exp!.na_partida || exp!.por_que));
   const treinar = exp?.treinar ?? [];
-  // as linhas declaradas vão junto com a prosa: é por elas que um lance numerado que o
-  // texto cita pulando lances ("18.Rac1? 19.Qc5") acha a posição de verdade
-  const linhas = exp ? linhasConhecidas(exp) : [];
   return (
     <div className="card">
       {/* `baseline` em vez do `center` do `.row`: abrir as ressalvas cresce o selo, e

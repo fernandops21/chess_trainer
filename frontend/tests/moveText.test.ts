@@ -143,7 +143,9 @@ test("lance numerado que a prosa pulou é resolvido pela linha declarada", () =>
   // o 18...Ne7 vem da linha conhecida: sem ele "19.Qc5" caía na dama preta e o tabuleiro
   // da prévia não tinha nada a ver com a explicação
   expect(ls[1].linha.map((l) => l.san)).toEqual(["Rac1", "Ne7", "Qc5"]);
-  expect(ls[1].fen).toBe(ls[1].linha[2].fen);
+  // a posição de 19.Qc5 é a de depois de 18.Rac1 Ne7 19.Qc5, com as pretas a jogar
+  expect(ls[1].fen).toBe("r4rk1/4nppp/pq6/1pQ1PpN1/3P4/P7/1P3PPP/2R2RK1 b - - 4 19");
+  expect(ls[1].lastMove).toEqual(["d5", "c5"]);
   // e a cadeia continua a partir dali, com os lances seguintes da prosa
   expect(ls[2].linha.map((l) => l.san)).toEqual(["Rac1", "Ne7", "Qc5", "Qxc5"]);
   expect(ls[3].linha.map((l) => l.san)).toEqual(["Rac1", "Ne7", "Qc5", "Qxc5", "dxc5"]);
