@@ -87,6 +87,8 @@ def test_mensagens():
     assert "nenhum trecho" in vazio.lower()
     c = mensagem_de_correcao({"na_partida": "antes"}, {"ok": False, "issues": [{"tipo": "lance_ilegal", "gravidade": "erro", "detalhe": "'Qxf8' não é legal", "linha_idx": 0}]})
     assert "lance_ilegal" in c and "Qxf8" in c and "antes" in c
+    # a afirmação falsa tem instrução própria: reescrever com os fatos ou tirar
+    assert "`afirmacao_falsa`" in c and "reescreva a frase" in c
 
 
 def test_mensagem_inicial_traz_o_dossie_entre_o_contexto_e_os_trechos():

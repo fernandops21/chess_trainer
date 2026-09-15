@@ -21,6 +21,8 @@ PRECOS: dict[str, Preco] = {
 }
 MODELOS: tuple[str, ...] = tuple(PRECOS)
 MODELO_PADRAO = "claude-opus-5"
+# o segundo modelo, mais barato, que extrai as afirmações da prosa para a checagem
+MODELO_CHECAGEM = "claude-sonnet-5"
 EFFORTS: tuple[str, ...] = ("low", "medium", "high")
 
 

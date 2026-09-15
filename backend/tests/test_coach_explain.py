@@ -159,6 +159,59 @@ def test_teto_de_tokens_vale_para_a_explicacao_inteira(db_session, caplog):
     assert [x for x in caplog.messages if x.startswith("explicacao ")]
 
 
+AFIRMACAO_FALSA = {"tipo": "ataca", "trecho": "a dama de h5 ataca e8", "peca": "h5", "alvo": "e8",
+                   "lance": None, "lado": None, "tipo_peca": None, "casas": []}
+
+
+def checador(*listas):
+    """O segundo modelo, com o preço do Sonnet para o custo da checagem ser conferível."""
+    llm = FakeLlm([[("final", {"afirmacoes": list(lista)})] for lista in listas])
+    llm.model = "claude-sonnet-5"
+    return llm
+
+
+def test_afirmacao_falsa_dispara_a_correcao_e_entra_na_conta(db_session, caplog):
+    """O caso real: a prosa diz que a dama ataca uma casa que ela não alcança (o peão de f7
+    tapa e8). O segundo modelo extrai a afirmação, o python-chess a derruba, e a correção roda."""
+    import logging
+
+    llm = FakeLlm([[("final", BOA)], [("final", BOA)]])
+    check = checador([AFIRMACAO_FALSA], [])
+    tracer = FakeTracer()
+    with caplog.at_level(logging.INFO, logger="chess_trainer.coach.explain"):
+        ctx = contexto_do_exercicio(db_session, _exercicio(db_session))
+        r = explicar(contexto=ctx, llm=llm, analisar=analisar, estatisticas=lambda dias: [], buscar=lambda c, k: TRECHOS,
+                     opcoes=OpcoesExplicacao(), tracer=tracer, llm_checagem=check)
+    assert r.repaired and r.status == "ok" and len(llm.prompts) == 2 and len(check.prompts) == 2
+    # a correção viu a afirmação falsa com o trecho e o motivo, e a instrução do que fazer com ela
+    assert "afirmacao_falsa" in llm.prompts[1]["user"] and "«a dama de h5 ataca e8»" in llm.prompts[1]["user"]
+    assert "h5 não ataca e8" in llm.prompts[1]["user"] and "reescreva a frase" in llm.prompts[1]["user"]
+    # o texto da explicação foi ao checador, com o prompt dele
+    assert BOA["por_que"] in check.prompts[0]["user"] and check.prompts[0]["effort"] == "low"
+    # tokens: `uso` é só do modelo principal; a checagem vai à parte e o custo soma os dois
+    assert r.uso == Uso(2000, 400, 1000, 0) and r.uso_checagem == Uso(2000, 400, 1000, 0)
+    assert r.custo_usd == 0.0082  # 2000*2,0 + 1000*0,20 + 400*10 por milhão, do Sonnet; o principal ("fake") custa zero
+    assert r.n_chamadas_api == 4 and r.tempos["llm_chamadas"] == 2 and r.tempos["afirmacoes"] == 1 and r.tempos["checagem_ms"] >= 0
+    linha = [x for x in caplog.messages if x.startswith("explicacao ")][0]
+    assert "checagem 1 afirmacoes" in linha and "correcao sim" in linha
+    assert [s[0] for s in tracer.spans].count("checagem") == 2
+    assert [g for g in tracer.geracoes if g["nome"] == "checagem"][0]["model"] == "claude-sonnet-5"
+
+
+def test_checagem_sem_afirmacao_falsa_nao_muda_nada(db_session):
+    llm = FakeLlm([[("final", BOA)]])
+    verdadeira = {**AFIRMACAO_FALSA, "trecho": "a dama de h5 ataca f7", "alvo": "f7"}
+    check = checador([verdadeira, {**AFIRMACAO_FALSA, "tipo": "outro"}])
+    ctx = contexto_do_exercicio(db_session, _exercicio(db_session))
+    r = explicar(contexto=ctx, llm=llm, analisar=analisar, estatisticas=lambda dias: [], buscar=lambda c, k: TRECHOS,
+                 opcoes=OpcoesExplicacao(), llm_checagem=check)
+    assert r.status == "ok" and not r.repaired and r.tempos["afirmacoes"] == 2 and r.n_chamadas_api == 2
+    assert r.custo_usd == 0.0041 and r.uso == Uso(1000, 200, 500, 0)
+    # a explicação gravada leva o custo somado
+    row = gravar(db_session, r, review_id=None)
+    assert row.cost_usd == 0.0041 and row.input_tokens == 1000
+
+
 def test_gravar_guarda_so_a_ultima(db_session):
     r = rodar(db_session, FakeLlm([[("final", BOA)]]))
     a = gravar(db_session, r, review_id=None)
@@ -183,8 +236,11 @@ def test_tempos_medidos_e_registrados_no_log(db_session, caplog):
     with caplog.at_level(logging.INFO, logger="chess_trainer.coach.explain"):
         r = rodar(db_session, llm)
     t = r.tempos
-    assert set(t) == {"total_ms", "dossie_ms", "llm_ms", "llm_chamadas", "ferramentas", "verificacao_ms", "correcao"}
+    assert set(t) == {"total_ms", "dossie_ms", "llm_ms", "llm_chamadas", "ferramentas", "verificacao_ms", "checagem_ms",
+                      "afirmacoes", "correcao"}
     assert t["llm_chamadas"] == 1 and t["correcao"] is False and t["total_ms"] >= 0 and t["verificacao_ms"] >= 0
+    # sem modelo de checagem não há afirmação nem tempo de checagem, mas a linha do log ainda os traz
+    assert t["checagem_ms"] == 0 and t["afirmacoes"] == 0 and r.uso_checagem == Uso()
     assert t["dossie_ms"] >= 0
     assert t["ferramentas"]["analisar_posicao"]["n"] == 2 and t["ferramentas"]["fatos_taticos"]["n"] == 1
     assert all(f["ms"] >= 0 for f in t["ferramentas"].values())
@@ -193,7 +249,7 @@ def test_tempos_medidos_e_registrados_no_log(db_session, caplog):
     assert len(linha) == 1 and r.contexto.puzzle_id in linha[0]
     # o relógio do LLM engloba as ferramentas (elas rodam dentro da chamada): o log avisa
     assert "total " in linha[0] and "llm 1 chamadas," in linha[0] and "(inclui as ferramentas)" in linha[0]
-    assert "verificacao " in linha[0]
+    assert "verificacao " in linha[0] and "| checagem 0 afirmacoes, 0 ms" in linha[0]
     # o dossiê sai logo depois do total: é a engine antes da primeira chamada
     assert linha[0].index("total ") < linha[0].index("| dossie ") < linha[0].index("| llm ")
     assert "analisar_posicao 2x" in linha[0] and "fatos_taticos 1x" in linha[0] and "correcao não" in linha[0]

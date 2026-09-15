@@ -73,8 +73,11 @@ def test_rodar_resumir_e_relatorio(db_session, tmp_path):
     ruim = {**BOA, "linhas": [{"inicio": "inicial", "lances": ["Qxf8"], "avaliacao_cp": None, "mate_em": None}], "citacoes": [], "por_que": TEXTO}
     llm = FakeLlm([[("final", ruim)], [("final", ruim)]])
     juiz = FakeLlm([[("final", {"nota": 4, "justificativa": "clara"})]])
-    linhas = run.rodar(items, llm, analisar, buscar=None, opcoes=OpcoesExplicacao(variante="agente"), juiz=juiz)
+    check = FakeLlm([[("final", {"afirmacoes": []})], [("final", {"afirmacoes": []})]])
+    linhas = run.rodar(items, llm, analisar, buscar=None, opcoes=OpcoesExplicacao(variante="agente"), juiz=juiz, llm_checagem=check)
     assert len(linhas) == 1 and linhas[0]["status"] == "errors" and linhas[0]["nota"] == 4 and linhas[0]["erros"] == 1
+    # a checagem rodou nas duas respostas (a primeira e a corrigida)
+    assert len(check.prompts) == 2 and linhas[0]["tempos"]["afirmacoes"] == 0
     # a rodada guarda onde o tempo foi, para comparar variantes sem reler o log
     assert linhas[0]["tempos"]["llm_chamadas"] == 2 and linhas[0]["tempos"]["correcao"] is False
     assert json.loads(json.dumps(linhas[0]))["tempos"]["total_ms"] >= 0

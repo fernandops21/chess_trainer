@@ -202,5 +202,7 @@ def mensagem_de_correcao(resposta_anterior: dict, verificacao: dict) -> str:
         "## Relatório de verificação\nO verificador reproduziu suas linhas no tabuleiro e conferiu com a engine. Problemas:\n"
         + problemas
         + "\n\nCorrija a resposta: reanalise as posições com `analisar_posicao` se preciso, remova ou conserte cada "
-        "linha apontada, mantenha só citações que existem, e entregue a versão corrigida pela ferramenta."
+        "linha apontada, mantenha só citações que existem, e entregue a versão corrigida pela ferramenta. "
+        "Uma afirmação marcada como `afirmacao_falsa` é falsa no tabuleiro: reescreva a frase com o que os fatos "
+        "dizem ou tire a afirmação."
     )

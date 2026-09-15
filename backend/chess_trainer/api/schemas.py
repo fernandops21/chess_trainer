@@ -511,6 +511,7 @@ class ProgressOut(BaseModel):
 class CoachStatusOut(BaseModel):
     configured: bool
     model: str
+    modelo_checagem: str
     effort: str
     embeddings_ready: bool
     index_chunks: int

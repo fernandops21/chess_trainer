@@ -10,6 +10,7 @@ from starlette.staticfiles import StaticFiles
 
 from chess_trainer.api.jobs import JobRunner
 from chess_trainer.api.routes import analysis, coach, games, openings, stats, studies, system, tactics, training
+from chess_trainer.coach.costs import MODELO_CHECAGEM
 from chess_trainer.coach.llm import AnthropicClient
 from chess_trainer.coach.retrieval.embeddings import FastembedEmbeddings
 from chess_trainer.coach.retrieval.index import Indexador
@@ -81,6 +82,7 @@ def create_app(
     openings_http_factory=None,
     embeddings_factory=None,
     coach_llm_factory=None,
+    coach_checagem_factory=None,
 ) -> FastAPI:
     # tudo o que é dado local (banco, banco de táticas, modelo de embeddings) mora aqui
     data_dir = Path(os.environ.get("CHESS_TRAINER_DATA", str(BACKEND_DIR / "data")))
@@ -132,7 +134,14 @@ def create_app(
             return None
         return AnthropicClient(settings.anthropic_api_key, settings.coach_model)
 
+    def _default_checagem_factory(settings: AppSettings):
+        # o modelo da checagem de afirmações é fixo (o mais barato), com a mesma chave
+        if not settings.anthropic_api_key:
+            return None
+        return AnthropicClient(settings.anthropic_api_key, MODELO_CHECAGEM)
+
     app.state.coach_llm_factory = coach_llm_factory or _default_llm_factory
+    app.state.coach_checagem_factory = coach_checagem_factory or _default_checagem_factory
     app.state.coach_lock = threading.Lock()   # uma explicação por vez: a engine interativa é compartilhada
     app.state.coach_tracers = {}              # instâncias do LangFuse por (chaves, host)
 

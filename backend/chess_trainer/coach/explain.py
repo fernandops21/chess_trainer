@@ -1,6 +1,7 @@
 """Pipeline da explicação (spec §7): contexto -> recuperação -> agente ->
-verificação -> uma correção -> resultado. Não toca em banco: quem persiste é
-`gravar`, o que permite rodar o mesmo pipeline na avaliação offline."""
+verificação (e checagem de afirmações) -> uma correção -> resultado. Não toca em
+banco: quem persiste é `gravar`, o que permite rodar o mesmo pipeline na
+avaliação offline."""
 from __future__ import annotations
 
 import json
@@ -9,6 +10,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable
 
+from chess_trainer.coach.afirmacoes import conferir_afirmacoes, extrair_afirmacoes
 from chess_trainer.coach.costs import Uso, custo_usd
 from chess_trainer.coach.dossie import montar_dossie
 from chess_trainer.coach.llm import (FERRAMENTA_FINAL, TETO_TOKENS_SAIDA, ChamadaFerramenta, ErroDoTreinador,
@@ -16,7 +18,7 @@ from chess_trainer.coach.llm import (FERRAMENTA_FINAL, TETO_TOKENS_SAIDA, Chamad
 from chess_trainer.coach.observability import NoopTracer, Tracer
 from chess_trainer.coach.prompts import ESQUEMA_EXPLICACAO, PROMPT_VERSION, SYSTEM_PROMPT, mensagem_de_correcao, mensagem_inicial
 from chess_trainer.coach.tools import ContextoExercicio, ferramentas_do_treinador
-from chess_trainer.coach.verify import CITACAO_RE, Analisar, Verificacao, verificar
+from chess_trainer.coach.verify import CITACAO_RE, Analisar, Verificacao, posicoes_da_resposta, verificar
 from chess_trainer.core.models import CoachExplanation
 
 log = logging.getLogger(__name__)
@@ -51,14 +53,17 @@ class ResultadoExplicacao:
     verificacao: Verificacao
     status: str
     repaired: bool
+    # tokens do modelo principal; o custo soma os do modelo de checagem (`uso_checagem`)
     uso: Uso
     custo_usd: float
     duration_ms: int
     trace_id: str | None
+    # chamadas à API somadas: as do modelo principal e as da checagem de afirmações
     n_chamadas_api: int
-    # onde o tempo foi: total, LLM, cada ferramenta, verificação (e se houve correção)
+    # onde o tempo foi: total, LLM, cada ferramenta, verificação, checagem (e se houve correção)
     tempos: dict = field(default_factory=dict)
     trechos: list[dict] = field(default_factory=list)
+    uso_checagem: Uso = field(default_factory=Uso)
 
 
 def _ms(inicio: float) -> int:
@@ -70,9 +75,10 @@ def _registrar_tempos(puzzle_id: str, tempos: dict) -> None:
     (o dossiê, as ferramentas e o verificador) ou na correção."""
     ferramentas = ", ".join(f"{nome} {c['n']}x {c['ms']} ms" for nome, c in sorted(tempos["ferramentas"].items()))
     log.info("explicacao %s: total %d ms | dossie %d ms | llm %d chamadas, %d ms (inclui as ferramentas) | "
-             "ferramentas: %s | verificacao %d ms | correcao %s",
+             "ferramentas: %s | verificacao %d ms | checagem %d afirmacoes, %d ms | correcao %s",
              puzzle_id, tempos["total_ms"], tempos["dossie_ms"], tempos["llm_chamadas"], tempos["llm_ms"],
-             ferramentas or "nenhuma", tempos["verificacao_ms"], "sim" if tempos["correcao"] else "não")
+             ferramentas or "nenhuma", tempos["verificacao_ms"], tempos["afirmacoes"], tempos["checagem_ms"],
+             "sim" if tempos["correcao"] else "não")
 
 
 def consulta_de_busca(ctx: ContextoExercicio) -> str:
@@ -124,24 +130,51 @@ def _verificar(estruturado: dict, ctx: ContextoExercicio, trechos: list[dict], a
 
 def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
              estatisticas: Callable[[int], list[dict]] | None, buscar: Callable[[str, int], list[dict]] | None,
-             opcoes: OpcoesExplicacao, tracer: Tracer | None = None) -> ResultadoExplicacao:
+             opcoes: OpcoesExplicacao, tracer: Tracer | None = None,
+             llm_checagem: LlmClient | None = None) -> ResultadoExplicacao:
+    """`llm_checagem` é o segundo modelo, mais barato, que extrai as afirmações da prosa para
+    o python-chess conferir (spec §5, regra 8); sem ele a checagem não roda."""
     tracer = tracer or NoopTracer()
     if opcoes.variante not in VARIANTES:
         raise ValueError(f"variante desconhecida: {opcoes.variante}")
     inicio = time.monotonic()
     uso = Uso()
+    uso_checagem = Uso()
     n_api = 0
+    n_api_checagem = 0
     # o relógio do LLM inclui o tempo das ferramentas (elas rodam dentro da chamada),
     # por isso cada ferramenta traz o seu próprio tempo em `ChamadaFerramenta.ms`
     llm_ms = 0
     dossie_ms = 0
     verificacao_ms = 0
+    checagem_ms = 0
+    n_afirmacoes = 0
     por_ferramenta: dict[str, dict[str, int]] = {}
     repaired = False
 
     def tempos_ate_agora() -> dict:
         return {"total_ms": int((time.monotonic() - inicio) * 1000), "dossie_ms": dossie_ms, "llm_ms": llm_ms,
-                "llm_chamadas": n_api, "ferramentas": por_ferramenta, "verificacao_ms": verificacao_ms, "correcao": repaired}
+                "llm_chamadas": n_api, "ferramentas": por_ferramenta, "verificacao_ms": verificacao_ms,
+                "checagem_ms": checagem_ms, "afirmacoes": n_afirmacoes, "correcao": repaired}
+
+    def checar_afirmacoes(estruturado: dict, v: Verificacao) -> None:
+        """O segundo modelo lista o que a prosa afirma; cada afirmação falsa nas posições
+        alcançáveis (as mesmas do verificador) entra como erro na mesma verificação."""
+        nonlocal uso_checagem, n_api_checagem, checagem_ms, n_afirmacoes
+        if llm_checagem is None:
+            return
+        with tracer.span("checagem"):
+            inicio_c = time.perf_counter()
+            try:
+                afirmacoes, uso_c, n_c = extrair_afirmacoes(llm_checagem, texto_da_resposta(estruturado))
+            finally:
+                checagem_ms += _ms(inicio_c)
+            uso_checagem = uso_checagem + uso_c
+            n_api_checagem += n_c
+            n_afirmacoes += len(afirmacoes)
+            tracer.geracao("checagem", llm_checagem.model, uso_c, custo_usd(llm_checagem.model, uso_c), afirmacoes=len(afirmacoes))
+            alcancaveis = posicoes_da_resposta(estruturado, fen_inicial=contexto.fen_inicial, fen_erro=contexto.fen_erro)
+            v.issues.extend(conferir_afirmacoes(afirmacoes, alcancaveis))
 
     try:
         with tracer.span("coach.explain", puzzle_id=contexto.puzzle_id, variante=opcoes.variante, prompt_version=PROMPT_VERSION, model=llm.model):
@@ -210,6 +243,7 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
                 inicio_v = time.perf_counter()
                 v1 = _verificar(r1.estruturado, contexto, trechos, analisar)
                 verificacao_ms += _ms(inicio_v)
+            checar_afirmacoes(r1.estruturado, v1)
             escolhido, v, repaired = r1, v1, False
             if not v1.ok:
                 r2 = chamar("correcao", user + mensagem_de_correcao(r1.estruturado, v1.to_dict()))
@@ -218,6 +252,7 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
                         inicio_v = time.perf_counter()
                         v2 = _verificar(r2.estruturado, contexto, trechos, analisar)
                         verificacao_ms += _ms(inicio_v)
+                    checar_afirmacoes(r2.estruturado, v2)
                     if v2.erros < v1.erros:
                         escolhido, v, repaired = r2, v2, True
             est = escolhido.estruturado or {}
@@ -227,11 +262,14 @@ def explicar(*, contexto: ContextoExercicio, llm: LlmClient, analisar: Analisar,
             citacoes = [t for t in trechos if t["chunk_id"] in citadas]
             tempos = tempos_ate_agora()
             _registrar_tempos(contexto.puzzle_id, tempos)
+            # o custo é o da explicação inteira: modelo principal mais o modelo de checagem
+            custo = custo_usd(llm.model, uso) + (custo_usd(llm_checagem.model, uso_checagem) if llm_checagem is not None else 0.0)
             resultado = ResultadoExplicacao(
                 contexto=contexto, model=llm.model, prompt_version=PROMPT_VERSION, effort=opcoes.effort, variante=opcoes.variante,
                 texto=texto, estruturado=est, linhas=list(est.get("linhas") or []), citacoes=citacoes,
-                verificacao=v, status=_status(v), repaired=repaired, uso=uso, custo_usd=custo_usd(llm.model, uso),
-                duration_ms=tempos["total_ms"], trace_id=trace_id, n_chamadas_api=n_api, tempos=tempos, trechos=trechos,
+                verificacao=v, status=_status(v), repaired=repaired, uso=uso, custo_usd=round(custo, 6),
+                duration_ms=tempos["total_ms"], trace_id=trace_id, n_chamadas_api=n_api + n_api_checagem, tempos=tempos,
+                trechos=trechos, uso_checagem=uso_checagem,
             )
     except ErroDoTreinador:
         # a explicação que morreu no meio já custou tempo: o log conta onde ele foi

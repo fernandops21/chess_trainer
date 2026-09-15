@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+from chess_trainer.coach.costs import MODELO_CHECAGEM
 from chess_trainer.coach.explain import OpcoesExplicacao, explicar
 from chess_trainer.coach.llm import AnthropicClient, ErroDoTreinador, LlmClient
 from chess_trainer.coach.prompts import PROMPT_VERSION
@@ -38,17 +39,20 @@ def _linha_de_falha(item: ItemAvaliacao, tipo: str, detalhe: str, inicio: float)
 
 
 def rodar(items: list[ItemAvaliacao], llm: LlmClient, analisar: Analisar, buscar, opcoes: OpcoesExplicacao,
-          juiz: LlmClient | None = None, ao_terminar_item: Callable[[dict], None] | None = None) -> list[dict]:
+          juiz: LlmClient | None = None, ao_terminar_item: Callable[[dict], None] | None = None,
+          llm_checagem: LlmClient | None = None) -> list[dict]:
     """Uma linha por item. Nada aborta a rodada: um item que estoura vira linha de erro.
 
     `ao_terminar_item` é chamado assim que cada linha fica pronta, para quem quiser
-    gravar incrementalmente (uma rodada longa não pode perder o que já custou)."""
+    gravar incrementalmente (uma rodada longa não pode perder o que já custou).
+    `llm_checagem` é o modelo da checagem de afirmações, como na rota."""
     linhas = []
     for item in items:
         ctx = contexto_de_item(item)
         inicio = time.monotonic()
         try:
-            r = explicar(contexto=ctx, llm=llm, analisar=analisar, estatisticas=None, buscar=buscar, opcoes=opcoes)
+            r = explicar(contexto=ctx, llm=llm, analisar=analisar, estatisticas=None, buscar=buscar, opcoes=opcoes,
+                         llm_checagem=llm_checagem)
             nota = julgar(juiz, ctx.texto(), r.texto) if juiz is not None else {"nota": None, "justificativa": None}
             linha = {
                 "id": item.id, "origem": item.origem, "status": r.status, "ok": r.verificacao.ok,
@@ -123,6 +127,7 @@ def main(argv: list[str] | None = None) -> None:
         items = items[: args.n]
     modelo = MODELOS[args.modelo]
     llm = _llm(modelo)
+    llm_checagem = _llm(MODELO_CHECAGEM)
     juiz = None if args.sem_juiz else _llm(MODELOS[args.juiz])
     buscar = _buscar() if args.variante == "agente_rag" else None
     opcoes = OpcoesExplicacao(variante=args.variante, effort=args.effort)
@@ -137,7 +142,7 @@ def main(argv: list[str] | None = None) -> None:
             arquivo.write(json.dumps(linha, ensure_ascii=False) + "\n")
             arquivo.flush()
 
-        linhas = rodar(items, llm, _analisar(), buscar, opcoes, juiz, gravar_linha)
+        linhas = rodar(items, llm, _analisar(), buscar, opcoes, juiz, gravar_linha, llm_checagem=llm_checagem)
 
     resumo = {"variante": args.variante, "modelo": modelo, "effort": args.effort, "prompt_version": PROMPT_VERSION,
               "dataset": str(args.dataset), "data": datetime.now().date().isoformat(), **metrics.resumir(linhas)}

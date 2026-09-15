@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from chess_trainer.api.deps import get_db
 from chess_trainer.api.routes.system import _engine_available
 from chess_trainer.api.schemas import CoachExplainIn, CoachExplanationOut, CoachStatusOut
+from chess_trainer.coach.costs import MODELO_CHECAGEM
 from chess_trainer.coach.explain import OpcoesExplicacao, explicar, gravar
 from chess_trainer.coach.llm import ErroDoTreinador
 from chess_trainer.coach.observability import tracer_de
@@ -56,7 +57,8 @@ def _out(row: CoachExplanation, trace_url: str | None) -> CoachExplanationOut:
 def coach_status(request: Request, db: Session = Depends(get_db)):
     s = load_settings(db)
     idx = request.app.state.coach_index.status(db)
-    return CoachStatusOut(configured=bool(s.anthropic_api_key), model=s.coach_model, effort=s.coach_effort,
+    return CoachStatusOut(configured=bool(s.anthropic_api_key), model=s.coach_model, modelo_checagem=MODELO_CHECAGEM,
+                          effort=s.coach_effort,
                           langfuse_configured=bool(s.langfuse_host and s.langfuse_public_key and s.langfuse_secret_key), **idx)
 
 
@@ -67,6 +69,8 @@ def coach_explain(body: CoachExplainIn, request: Request, db: Session = Depends(
     llm = app.state.coach_llm_factory(settings)
     if llm is None:
         raise HTTPException(409, "o treinador não está configurado: informe a chave da API em Configurações")
+    # o segundo modelo, da checagem de afirmações, sai da mesma chave (nos testes, um FakeLlm)
+    llm_checagem = app.state.coach_checagem_factory(settings)
     puzzle = db.get(Puzzle, body.puzzle_id)
     if puzzle is None:
         raise HTTPException(404, "puzzle não encontrado")
@@ -92,7 +96,7 @@ def coach_explain(body: CoachExplainIn, request: Request, db: Session = Depends(
             contexto=contexto, llm=llm, analisar=app.state.analyzer.analyse,
             estatisticas=lambda dias: theme_stats(db, utcnow() - timedelta(days=dias)),
             buscar=lambda consulta, k: index.buscar(db, consulta, k, caminho_san=caminho),
-            opcoes=OpcoesExplicacao(effort=settings.coach_effort), tracer=tracer,
+            opcoes=OpcoesExplicacao(effort=settings.coach_effort), tracer=tracer, llm_checagem=llm_checagem,
         )
     except ErroDoTreinador as exc:
         raise HTTPException(STATUS_POR_CODIGO.get(exc.codigo, 502), exc.mensagem) from exc

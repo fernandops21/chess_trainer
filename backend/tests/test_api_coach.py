@@ -14,10 +14,18 @@ FINAL = {"na_partida": NA_PARTIDA, "por_que": TEXTO, "linhas": [], "citacoes": [
          "padrao": "peça pendurada", "treinar": ["revisar mates simples", "conferir capturas antes de mover"]}
 
 
-def montar(llm):
+def montar(llm, checador=None):
+    """`checador`: o modelo da checagem de afirmações; por padrão um FakeLlm novo por pedido,
+    que não lista afirmação nenhuma (a rota tem de passar por ele sem rede)."""
+    def checagem(s):
+        if not s.anthropic_api_key:
+            return None
+        return checador if checador is not None else FakeLlm([[("final", {"afirmacoes": []})]])
+
     app = create_app(db_path=":memory:", engine_factory=engine_factory, chesscom_factory=chesscom_factory,
                      analysis_engine_factory=lambda: FakeEngine(default=first_legal_default(0)),
-                     embeddings_factory=EmbeddingsFalso, coach_llm_factory=lambda s: llm if s.anthropic_api_key else None)
+                     embeddings_factory=EmbeddingsFalso, coach_llm_factory=lambda s: llm if s.anthropic_api_key else None,
+                     coach_checagem_factory=checagem)
     client = TestClient(app)
     client.put("/api/settings", json={"chesscom_username": "therealzibs", "analysis_depth": 4})
     client.post("/api/import"); app.state.jobs.wait()
@@ -30,6 +38,7 @@ def test_status_e_409_sem_chave():
     app, client, pid = montar(FakeLlm([]))
     st = client.get("/api/coach/status").json()
     assert st["configured"] is False and st["model"] == "claude-opus-5" and st["index_chunks"] == 0 and st["embeddings_ready"] is False
+    assert st["modelo_checagem"] == "claude-sonnet-5"
     assert st["vector_backend"] in ("sqlite-vec", "numpy") and st["langfuse_configured"] is False
     r = client.post("/api/coach/explain", json={"puzzle_id": pid})
     assert r.status_code == 409 and "Configurações" in r.json()["detail"]
@@ -51,6 +60,22 @@ def test_explain_feliz_reabrir_e_404():
     assert client.get(f"/api/coach/explanations/{pid}").json()["id"] == body["id"]
     assert client.get("/api/coach/explanations/nao-existe").status_code == 404
     assert client.post("/api/coach/explain", json={"puzzle_id": "nao-existe"}).status_code == 404
+
+
+def test_explain_passa_pela_checagem_de_afirmacoes():
+    """A rota entrega o segundo modelo ao pipeline: uma afirmação falsa dele vira erro da explicação."""
+    llm = FakeLlm([[("final", FINAL)], [("final", FINAL)]])
+    falsa = {"tipo": "ataca", "trecho": "a dama de a1 ataca h8", "peca": "a1", "alvo": "h8", "lance": None, "lado": None, "tipo_peca": None, "casas": []}
+    checador = FakeLlm([[("final", {"afirmacoes": [falsa]})], [("final", {"afirmacoes": [falsa]})]])
+    app, client, pid = montar(llm, checador)
+    client.put("/api/settings", json={"anthropic_api_key": "sk-ant-x"})
+    r = client.post("/api/coach/explain", json={"puzzle_id": pid})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "errors" and [i["tipo"] for i in body["verification"]["issues"]] == ["afirmacao_falsa"]
+    assert "a dama de a1 ataca h8" in body["verification"]["issues"][0]["detalhe"]
+    # a correção foi tentada (o checador foi chamado duas vezes) e o texto da explicação foi ao checador
+    assert len(checador.prompts) == 2 and TEXTO in checador.prompts[0]["user"] and "afirmacao_falsa" in llm.prompts[1]["user"]
 
 
 def test_review_inexistente_da_404_antes_de_chamar_o_modelo():
