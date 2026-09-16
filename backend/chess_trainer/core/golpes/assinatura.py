@@ -85,8 +85,8 @@ class Assinatura:
 
 
 def hash64(texto: str) -> int:
-    """8 bytes do BLAKE2b como inteiro com sinal: cabe num INTEGER do SQLite e indexa bem."""
-    return int.from_bytes(hashlib.blake2b(texto.encode("utf-8"), digest_size=8).digest(), "big", signed=True)
+    """Os 8 primeiros bytes do BLAKE2b (spec §3.4) como inteiro com sinal: cabe num INTEGER do SQLite e indexa bem."""
+    return int.from_bytes(hashlib.blake2b(texto.encode("utf-8")).digest()[:8], "big", signed=True)
 
 
 def zona(casa: int) -> str:

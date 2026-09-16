@@ -1,3 +1,5 @@
+import hashlib
+
 import chess
 import pytest
 
@@ -73,6 +75,8 @@ def test_espelho_troca_as_colunas_e_a_zona():
 def test_hash64_estavel_e_com_sinal():
     assert hash64("x") == hash64("x") and isinstance(hash64("x"), int) and -2**63 <= hash64("x") < 2**63
     assert hash64("x") != hash64("y")
+    # pino contra deriva do algoritmo: os 8 primeiros bytes do BLAKE2b (spec §3.4)
+    assert hash64("x") == int.from_bytes(hashlib.blake2b(b"x").digest()[:8], "big", signed=True)
 
 
 def test_limita_a_tres_lances_e_ignora_respostas():
