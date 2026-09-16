@@ -10,6 +10,7 @@ from chess_trainer.config import AppSettings, puzzle_config_from, thresholds_fro
 from chess_trainer.core.analysis.engine import EngineLike
 from chess_trainer.core.analysis.mistakes import classify_positions
 from chess_trainer.core.evals import is_mate_for
+from chess_trainer.core.golpes.service import garantir_assinatura
 from chess_trainer.core.models import Game, Position, Puzzle, Review
 from chess_trainer.core.puzzles.generator import (
     PuzzleConfig,
@@ -131,6 +132,7 @@ def persist_draft(db: Session, pos: Position, game: Game, kind: str, draft: Puzz
     )
     db.add(puzzle)
     db.flush()
+    garantir_assinatura(db, puzzle)
     return puzzle
 
 

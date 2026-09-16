@@ -27,7 +27,8 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from chess_trainer.core.models import Puzzle, Review, Study, StudyChapter, new_id, utcnow
+from chess_trainer.core.golpes.service import garantir_assinatura
+from chess_trainer.core.models import Puzzle, PuzzleSignature, Review, Study, StudyChapter, new_id, utcnow
 from chess_trainer.core.studies.parser import ParsedChapter, ParsedStudy
 from chess_trainer.core.studies.tree import (
     ORIENTATIONS,
@@ -303,6 +304,9 @@ def _upsert_puzzle(db: Session, chapter: StudyChapter, fen: str, solution: dict,
                 db.flush()
         except IntegrityError as exc:
             raise TreeInvalid(["posição inicial já usada por outro capítulo"]) from exc
+        # a solução pode ter mudado: a assinatura antiga não serve mais
+        db.query(PuzzleSignature).filter_by(puzzle_id=puzzle.id).delete()
+        garantir_assinatura(db, puzzle)
         report.updated += 1
         return
 
@@ -346,6 +350,7 @@ def _upsert_puzzle(db: Session, chapter: StudyChapter, fen: str, solution: dict,
         return
     chapter.puzzle_id = puzzle.id
     db.flush()
+    garantir_assinatura(db, puzzle)
     report.created += 1
 
 
