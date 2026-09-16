@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import type { PuzzleOut, ReviewOut } from "../api/types";
-import { usePuzzleQuery } from "../api/queries";
+import { useCoachStatus, usePuzzleQuery } from "../api/queries";
 import { AnalysisBoard } from "../analysis/AnalysisBoard";
 import { treeFromSolution, withMistakeVariation, withPlayedLine } from "../analysis/solutionTree";
 import { CodeTag } from "../components/CodeTag";
@@ -18,6 +18,8 @@ export function ResultPanel({ puzzle, review, played, error, onRetry, onNext, ne
   const bestSan = buildLine(puzzle.fen_start, puzzle.solution.moves.slice(0, 1).map((m) => m.uci)).sans[0] ?? puzzle.solution.moves[0]?.uci;
   const punishSibling = isAvoid ? puzzle.siblings.find((s) => s.kind === "punish") : undefined;
   const { data: refutation } = usePuzzleQuery(punishSibling?.id ?? null);
+  // o treinador com IA está em desenvolvimento: só entra com o servidor ligado com CHESS_TRAINER_COACH=1
+  const { data: coach } = useCoachStatus();
   const clean = review && review.result === "correct" && !review.used_hint;
   const exploreHref = `/analise?fen=${encodeURIComponent(puzzle.fen_start)}&orientation=${puzzle.side_to_move}&back=${encodeURIComponent("/treinar")}`;
   // erro da partida: o cartão já traz a posição, a avaliação e o link da partida
@@ -76,7 +78,7 @@ export function ResultPanel({ puzzle, review, played, error, onRetry, onNext, ne
         </div>
       </div>
       {comErro && <MistakeCard puzzle={comErro} />}
-      <CoachCard puzzle={puzzle} reviewId={review?.id} />
+      {coach?.enabled && <CoachCard puzzle={puzzle} reviewId={review?.id} />}
     </>
   );
   return <AnalysisBoard tree={tree} initialNodeId={alternativa ?? "last"} engine={false} allowSetup={false} sidePanel={lateral} />;

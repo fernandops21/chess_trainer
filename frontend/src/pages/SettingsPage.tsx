@@ -188,7 +188,9 @@ export function SettingsPage() {
           </div>
         )}
       </div>
-      <div className="card">
+      {/* o treinador com IA está em desenvolvimento: a seção (chave, modelo, índice e LangFuse)
+          só aparece com o servidor iniciado com CHESS_TRAINER_COACH=1 */}
+      {coach?.enabled && <div className="card">
         <h3 style={{ marginTop: 0 }}>Treinador (IA)</h3>
         <label className="row" style={{ justifyContent: "space-between" }}>
           Chave da API da Anthropic
@@ -234,7 +236,7 @@ export function SettingsPage() {
             placeholder={form.langfuse_secret_key_set ? "guardada; digite para trocar" : "cole a chave aqui"} style={{ flex: 1 }} />
         </label>
         <div className="muted">Opcional. Com o Docker Compose do projeto, o LangFuse roda em http://localhost:3000; crie um projeto lá e cole as chaves.</div>
-      </div>
+      </div>}
       {errs.length > 0 && <div className="msg bad">{errs.join(" · ")}</div>}
       <div className="row">
         <button className="primary" disabled={errs.length > 0 || save.isPending} onClick={() => {

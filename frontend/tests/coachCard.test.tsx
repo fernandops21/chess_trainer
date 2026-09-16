@@ -17,7 +17,7 @@ const puzzle: PuzzleOut = {
   source: "own", in_queue: true, fen_before: null, last_move: null, game: null, ply: null, move_played: null, mistake: null, study: null, siblings: [],
 };
 const status = (over: Partial<CoachStatus> = {}): CoachStatus => ({
-  configured: true, model: "claude-opus-5", effort: "high", embeddings_ready: true, index_chunks: 3, index_model: "m",
+  enabled: true, configured: true, model: "claude-opus-5", effort: "high", embeddings_ready: true, index_chunks: 3, index_model: "m",
   index_stale: 0, vector_backend: "sqlite-vec", langfuse_configured: false, ...over,
 });
 const NA_PARTIDA = "Na partida a dama e o bispo já miravam a casa mais fraca.";

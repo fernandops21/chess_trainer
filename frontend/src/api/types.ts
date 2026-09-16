@@ -580,8 +580,13 @@ export interface OpeningsOut {
   moves: OpeningMove[];
 }
 
-/** Estado do treinador com IA: sem a chave da API configurada, nada dele aparece. */
+/**
+ * Estado do treinador com IA. Em desenvolvimento: `enabled` só vem verdadeiro com o
+ * servidor iniciado com CHESS_TRAINER_COACH=1; desligado, nada dele aparece (nem em
+ * Configurações). Ligado, o cartão ainda depende de `configured` (chave da API).
+ */
 export interface CoachStatus {
+  enabled: boolean;
   configured: boolean;
   model: string;
   effort: string;

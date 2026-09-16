@@ -513,8 +513,17 @@ interativa é compartilhada; segunda chamada simultânea recebe 409
 
 ## 10. Interface
 
+**Estado.** A feature fica atrás da variável de ambiente `CHESS_TRAINER_COACH=1`
+(lida na criação do app, `app.state.coach_enabled`) enquanto a qualidade das
+explicações não chega ao nível do resto do app: desligada, `GET /api/coach/status`
+responde `enabled: false` (e `configured: false`), as outras rotas do treinador
+respondem 404, e a interface não mostra o cartão nem a seção das Configurações.
+O código, os testes e os evals ficam. O que decide o próximo passo é o que a
+avaliação offline (§8) mede.
+
 - **Resultado do exercício** (`train/ResultPanel.tsx`): na coluna da direita,
-  abaixo do cartão "Meu erro"/"Na partida", o botão "Explicar" aparece quando
+  abaixo do cartão "Meu erro"/"Na partida", o cartão "Treinador" só entra com
+  `coach.enabled`, e o botão "Explicar" aparece quando
   `coach.configured`. Estados do cartão "Treinador": carregando (com aviso de
   que costuma levar cerca de um minuto), erro (mensagem da API, em português),
   pronto — e pronto tem duas caras: a explicação verificada pela engine (`status`

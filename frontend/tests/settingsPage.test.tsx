@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "../src/api/client";
-import type { Settings, StatusOut, TacticsStatus } from "../src/api/types";
+import type { CoachStatus, Settings, StatusOut, TacticsStatus } from "../src/api/types";
 import { SettingsPage } from "../src/pages/SettingsPage";
 
 const SETTINGS: Settings = {
@@ -26,6 +26,11 @@ const tactics = (over: Partial<TacticsStatus> = {}): TacticsStatus => ({
   attempts_total: 0, attempts_today: 0, attempts_30d: 0, correct_30d: 0, ...over,
 });
 
+const coachStatus = (over: Partial<CoachStatus> = {}): CoachStatus => ({
+  enabled: true, configured: false, model: "claude-opus-5", effort: "high", embeddings_ready: false,
+  index_chunks: 0, index_model: "", index_stale: 2, vector_backend: "sqlite-vec", langfuse_configured: false, ...over,
+});
+
 function renderPage() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -47,10 +52,8 @@ beforeEach(() => {
     if ("langfuse_secret_key" in body) s.langfuse_secret_key_set = body.langfuse_secret_key !== "";
     return s;
   });
-  vi.spyOn(api, "coachStatus").mockResolvedValue({
-    configured: false, model: "claude-opus-5", effort: "high", embeddings_ready: false,
-    index_chunks: 0, index_model: "", index_stale: 2, vector_backend: "sqlite-vec", langfuse_configured: false,
-  });
+  // o treinador vem desligado no app; aqui ele fica ligado para a seção dele aparecer
+  vi.spyOn(api, "coachStatus").mockResolvedValue(coachStatus());
   vi.spyOn(api, "coachReindex").mockResolvedValue({ queued: true, job: "coach_reindex" });
   vi.spyOn(api, "extendPuzzles").mockResolvedValue({ queued: true, job: "extend_puzzles" });
 });
@@ -166,6 +169,22 @@ test("a ordem dos novos aparece e vai no salvamento", async () => {
 });
 
 // --- Treinador (IA) ------------------------------------------------------
+
+test("treinador desligado (o padrão): a seção inteira some, LangFuse e chave incluídos", async () => {
+  vi.spyOn(api, "coachStatus").mockResolvedValue(coachStatus({ enabled: false }));
+  renderPage();
+  // o resto da página está lá
+  expect(await screen.findByLabelText("Token do Lichess")).toBeTruthy();
+  await waitFor(() => expect(api.coachStatus).toHaveBeenCalled());
+  expect(screen.queryByText("Treinador (IA)")).toBeNull();
+  expect(screen.queryByLabelText("Chave da API da Anthropic")).toBeNull();
+  expect(screen.queryByLabelText("Modelo")).toBeNull();
+  expect(screen.queryByLabelText("Chave secreta do LangFuse")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Recriar índice" })).toBeNull();
+  // salvar continua funcionando sem a seção
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+  await waitFor(() => expect(api.saveSettings).toHaveBeenCalled());
+});
 
 test("a seção do treinador tem chave em campo de senha, modelo, esforço e LangFuse", async () => {
   renderPage();

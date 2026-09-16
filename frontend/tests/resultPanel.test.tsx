@@ -1,8 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import type { AnalyseOut, PuzzleOut } from "../src/api/types";
+import type { AnalyseOut, CoachStatus, PuzzleOut } from "../src/api/types";
 import type { BoardProps } from "../src/board/Board";
 import { api } from "../src/api/client";
 import { ResultPanel } from "../src/train/ResultPanel";
@@ -61,6 +61,11 @@ const study = (over: Partial<PuzzleOut> = {}): PuzzleOut => ({
   ...over,
 });
 
+const coachStatus = (over: Partial<CoachStatus> = {}): CoachStatus => ({
+  enabled: true, configured: true, model: "claude-opus-5", effort: "high", embeddings_ready: false,
+  index_chunks: 0, index_model: "", index_stale: 0, vector_backend: "numpy", langfuse_configured: false, ...over,
+});
+
 const analyse: AnalyseOut = {
   fen: FEN,
   turn: "white",
@@ -74,8 +79,8 @@ beforeEach(() => {
   vi.spyOn(api, "analyse").mockResolvedValue(analyse);
   vi.spyOn(api, "openings").mockRejectedValue(new Error("sem livro"));
   vi.spyOn(api, "settings").mockRejectedValue(new Error("sem configurações"));
-  // sem treinador configurado o cartão dele não entra: estes testes são sobre o resultado
-  vi.spyOn(api, "coachStatus").mockResolvedValue({ configured: false, model: "", effort: "high", embeddings_ready: false, index_chunks: 0, index_model: "", index_stale: 0, vector_backend: "numpy", langfuse_configured: false });
+  // treinador desligado (o padrão): o cartão dele não entra; estes testes são sobre o resultado
+  vi.spyOn(api, "coachStatus").mockResolvedValue(coachStatus({ enabled: false, configured: false }));
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -191,6 +196,26 @@ test("resolvido por uma alternativa: o tabuleiro abre no lance jogado e a princi
   // a principal continua na árvore
   expect(screen.getByRole("button", { name: /^12\. Re8\+$/ })).toBeTruthy();
   expect(screen.getByText(/uma alternativa aceita/).textContent).toContain("Qa8");
+});
+
+// --- treinador (IA) ------------------------------------------------------
+
+test("treinador desligado (o padrão): nada dele no resultado, nem com chave configurada", async () => {
+  vi.spyOn(api, "coachStatus").mockResolvedValue(coachStatus({ enabled: false, configured: true }));
+  vi.spyOn(api, "coachExplanation").mockResolvedValue(null);
+  renderPanel(study());
+  await waitFor(() => expect(api.coachStatus).toHaveBeenCalled());
+  expect(screen.queryByRole("heading", { name: "Treinador" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Explicar" })).toBeNull();
+  expect(api.coachExplanation).not.toHaveBeenCalled();
+});
+
+test("treinador ligado e configurado: o cartão entra com o botão Explicar", async () => {
+  vi.spyOn(api, "coachStatus").mockResolvedValue(coachStatus());
+  vi.spyOn(api, "coachExplanation").mockResolvedValue(null);
+  renderPanel(study());
+  expect(await screen.findByRole("heading", { name: "Treinador" })).toBeTruthy();
+  expect(await screen.findByRole("button", { name: "Explicar" })).toBeTruthy();
 });
 
 test("resolvido pela linha principal: nada muda no resultado", () => {

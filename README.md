@@ -29,10 +29,11 @@ read and build annotated studies, and trains tactics with a local rating.
   inaccuracy, blunder…), masters opening book, position setup, save as study chapter.
 - **Progress.** Rating over time, reviews per day, accuracy by theme and by source, streaks. Light and
   dark themes, sounds, keyboard navigation, mobile layout.
-- **AI coach.** After an exercise, "Explain" asks an LLM agent (engine, game context, your stats and a
+- **AI coach** (in development, off by default; start the server with `CHESS_TRAINER_COACH=1` to enable
+  it locally). After an exercise, "Explain" asks an LLM agent (engine, game context, your stats and a
   search over your own studies) to explain the mistake in Portuguese. Every line it cites is replayed on
-  the board and checked against Stockfish before you see it; what does not check out is shown, never
-  hidden. Measured offline against a baseline (see `docs/coach-eval.md` once a run exists).
+  the board and checked against Stockfish before you see it; an explanation that fails the check is not
+  shown at all. Measured offline against a baseline (see `docs/coach-eval.md` once a run exists).
 
 ## Screenshots
 
@@ -398,6 +399,10 @@ simply refused, as before.
 
 ### AI coach
 
+The coach is **in development and off by default**: it is not yet at the level of the rest of the app,
+so the "Explicar" button and the "Treinador (IA)" settings section only appear when the server is started
+with `CHESS_TRAINER_COACH=1` (the `/api/coach/*` routes answer 404 otherwise; the code, tests and evals stay).
+
 On an exercise's result screen, the **"Explicar"** (Explain) button asks an AI coach to write, in
 Portuguese, what happened in the game, why the move loses, what the pattern is, where it shows up in
 your studies and what to train. The coach is an agent: it consults Stockfish, the game context, your
@@ -409,9 +414,10 @@ wide screen the board stays put while the text scrolls beside it.
 
 Before showing the text, a **verifier** replays every cited line on the board, checks whether the first
 move is among the engine's top three, compares the evaluations and confirms that every citation exists.
-The **"verificado pela engine"** (verified by the engine) badge means nothing was flagged; **"com
-ressalvas (N)"** (with caveats) and **"não verificado (N)"** (not verified) keep the N findings one
-click away, behind the badge. No move is ever hidden: whatever did not check out is there.
+The explanation is shown only when it passes that check, under the **"verificado pela engine"** (verified
+by the engine) badge; when it does not pass, the card says so instead of the text and offers **"Explicar
+de novo"** (explain again). The verifier's findings stay in the database and the log for the offline
+evaluation; none of them reach the card.
 
 ### Exercise sources
 

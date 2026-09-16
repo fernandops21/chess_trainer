@@ -325,6 +325,10 @@ Desligada — ou sem Stockfish disponível — a tentativa é só recusada, como
 
 ## Treinador (IA)
 
+Em desenvolvimento: vem desligado; para experimentar, inicie o servidor com `CHESS_TRAINER_COACH=1`.
+O treinador ainda não está no nível do resto do app: desligado, nem o botão **Explicar** nem a seção
+**Treinador (IA)** das Configurações aparecem.
+
 Na tela de resultado de um exercício, o botão **Explicar** pede a um treinador com IA que escreva,
 em português, o que aconteceu na partida, por que o lance perde, qual é o padrão, onde ele aparece
 nos seus estudos e o que treinar. O treinador é um agente: consulta o Stockfish, o contexto da
