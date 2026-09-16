@@ -484,3 +484,15 @@ def test_migracao_acrescenta_a_coluna_da_resposta_em_blocos(db_sem_a_resposta_em
             assert not antiga.structured_json or antiga.structured_json == "{}"
     finally:
         engine.dispose()
+
+
+def test_migracao_cria_golpes(tmp_path):
+    caminho = tmp_path / "old.db"
+    con = sqlite3.connect(caminho); con.executescript(OLD_SCHEMA); con.close()
+    init_db(make_engine(str(caminho)))
+    con = sqlite3.connect(caminho)
+    colunas = {r[1] for r in con.execute("PRAGMA table_info(puzzles)")}
+    tabelas = {r[0] for r in con.execute("select name from sqlite_master where type='table'")}
+    con.close()
+    assert "sibling_of" in colunas
+    assert {"lichess_puzzle_signatures", "puzzle_signatures", "golpe_labels"} <= tabelas

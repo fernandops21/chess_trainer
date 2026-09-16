@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     Float,
@@ -117,6 +118,8 @@ class Puzzle(Base):
     srs_lapses: Mapped[int] = mapped_column(Integer, default=0)
     srs_due_at: Mapped[datetime | None] = mapped_column(DateTime, default=None, index=True)
     srs_last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    # exercício de origem quando este puzzle entrou pelo bloco "Repetir o golpe" (spec golpes §6)
+    sibling_of: Mapped[str | None] = mapped_column(String(36), ForeignKey("puzzles.id"), default=None, index=True)
 
     position: Mapped[Position | None] = relationship(back_populates="puzzles")
     game: Mapped[Game | None] = relationship(back_populates="puzzles")
@@ -246,6 +249,45 @@ class LichessPuzzleTheme(Base):
 
     theme: Mapped[str] = mapped_column(String(32), primary_key=True)
     puzzle_id: Mapped[str] = mapped_column(ForeignKey("lichess_puzzles.id", ondelete="CASCADE"), primary_key=True)
+
+
+class _ColunasDeAssinatura:
+    versao: Mapped[int] = mapped_column(Integer)
+    esqueleto: Mapped[int] = mapped_column(BigInteger)
+    destinos: Mapped[int] = mapped_column(BigInteger)
+    destinos_esp: Mapped[int] = mapped_column(BigInteger)
+    completo: Mapped[int] = mapped_column(BigInteger)
+    texto_completo: Mapped[str] = mapped_column(Text)
+    zona_rei: Mapped[str] = mapped_column(String(16))
+    n_lances: Mapped[int] = mapped_column(Integer)
+
+
+class LichessPuzzleSignature(_ColunasDeAssinatura, Base):
+    """Assinatura do golpe de cada puzzle do Lichess (spec golpes §4.1)."""
+    __tablename__ = "lichess_puzzle_signatures"
+    __table_args__ = (Index("ix_lps_destinos", "destinos"), Index("ix_lps_destinos_esp", "destinos_esp"),
+                      Index("ix_lps_esqueleto_zona", "esqueleto", "zona_rei"))
+    puzzle_id: Mapped[str] = mapped_column(ForeignKey("lichess_puzzles.id", ondelete="CASCADE"), primary_key=True)
+
+
+class PuzzleSignature(_ColunasDeAssinatura, Base):
+    """Assinatura do golpe dos exercícios do usuário."""
+    __tablename__ = "puzzle_signatures"
+    __table_args__ = (Index("ix_ps_destinos", "destinos"),)
+    puzzle_id: Mapped[str] = mapped_column(ForeignKey("puzzles.id", ondelete="CASCADE"), primary_key=True)
+
+
+class GolpeLabel(Base):
+    """Julgamento humano na tela de rotulagem: o conjunto de ouro (spec golpes §8)."""
+    __tablename__ = "golpe_labels"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    anchor_origem: Mapped[str] = mapped_column(String(8))  # own | lichess
+    anchor_id: Mapped[str] = mapped_column(String(36), index=True)
+    candidate_id: Mapped[str] = mapped_column(String(8))
+    tier_na_hora: Mapped[str] = mapped_column(String(16))
+    versao_assinatura: Mapped[int] = mapped_column(Integer)
+    label: Mapped[str] = mapped_column(String(8))  # mesmo | parecido | nada
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
 class TacticsAttempt(Base):

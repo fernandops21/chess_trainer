@@ -100,6 +100,13 @@ _NEW_COACH_EXPLANATION_COLUMNS: tuple[tuple[str, str], ...] = (
     ("structured_json", "TEXT NOT NULL DEFAULT '{}'"),
 )
 
+# Coluna acrescentada a `puzzles` no ciclo dos golpes: o vínculo do exercício de
+# origem quando este entrou pelo bloco "Repetir o golpe" (spec golpes §6). O
+# SQLite não aceita FK num ADD COLUMN; a referência a `puzzles.id` vive só no modelo.
+_NEW_GOLPES_PUZZLE_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("sibling_of", "VARCHAR(36)"),
+)
+
 # Índices de `puzzles` que não saem de um `CREATE INDEX` do metadata: o
 # `uq_puzzle_fen_kind_source` acompanha a `UniqueConstraint` declarada dentro do
 # `CREATE TABLE`, e num banco antigo a tabela já existe quando o `create_all` roda.
@@ -216,6 +223,8 @@ def migrate(engine: Engine) -> None:
         _acrescenta_colunas(conn, "studies", _NEW_STUDY_COLUMNS)
         _acrescenta_colunas(conn, "study_chapters", _NEW_CHAPTER_COLUMNS)
         _acrescenta_colunas(conn, "coach_explanations", _NEW_COACH_EXPLANATION_COLUMNS)
+        _acrescenta_colunas(conn, "puzzles", _NEW_GOLPES_PUZZLE_COLUMNS)
+        conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_puzzles_sibling_of ON puzzles (sibling_of)")
 
 
 def init_db(engine: Engine) -> None:
