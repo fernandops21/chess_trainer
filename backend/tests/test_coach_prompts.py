@@ -34,7 +34,7 @@ def test_esquema_estrito_valida_uma_resposta_boa_e_recusa_uma_ruim():
 
 
 def test_prompt_de_sistema_tem_as_regras_duras():
-    assert PROMPT_VERSION == "v10"
+    assert PROMPT_VERSION == "v9"
     for trecho in ("analisar_posicao", "ponto de vista das brancas", "[c:", "inicial", "erro", FERRAMENTA_FINAL,
                    # o dossiê traz as análises prontas: as ameaças, a defesa natural e a solução saem dele,
                    # e as ferramentas ficam só para o que ele não cobre
@@ -77,20 +77,7 @@ def test_prompt_de_sistema_tem_as_regras_duras():
                    "SEM a continuação numerada inteira", "vai só em\n   `linhas`", "a única parte do `por_que`",
                    "uma vez", "Nunca repita o mesmo desfecho",
                    # o segundo verificador extrai e confere cada afirmação sobre o tabuleiro
-                   "segundo verificador", "'cravada', 'indefesa', 'garfo'", "o que está nos fatos do dossiê",
-                   # v10: avaliação não vira "peões de vantagem" (o "+3,8 = quase quatro peões" do vídeo);
-                   # vantagem material só com o que o dossiê conta de material, e nomeada
-                   "Nunca converta avaliação em vantagem de peões", 'não "quase quatro peões"',
-                   "vantagem decisiva", "vantagem clara", "ganho_material` ou o `material_fim",
-                   "nomeie o que é (um peão, a qualidade,",
-                   # `avaliacao_cp` e `mate_em` voltaram para o fim da regra, com o sujeito nomeado
-                   "`avaliacao_cp` e `mate_em` descrevem a posição no FIM da linha",
-                   # v10: o lance numerado da prosa tem de estar numa linha declarada na mesma altura,
-                   # para o cartão achar a posição dele em vez de ancorar tudo no exercício
-                   "Todo lance numerado na prosa", "na mesma altura", "mesmo número, mesmo lado",
-                   "a prosa pode pular lances, a linha declarada não", '["Rac1", "Ne7", "Qc5"]',
-                   # a linha de ameaça sai do lance nulo: o lance do adversário leva o número seguinte
-                   "com as pretas a jogar no lance 32, a ameaça das brancas"):
+                   "segundo verificador", "'cravada', 'indefesa', 'garfo'", "o que está nos fatos do dossiê"):
         assert trecho in SYSTEM_PROMPT, trecho
 
 

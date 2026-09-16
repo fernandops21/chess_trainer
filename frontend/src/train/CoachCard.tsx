@@ -1,10 +1,9 @@
-import { Fragment, useContext, useMemo, type ReactNode } from "react";
+import { Fragment, useContext, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { Citacao, CoachExplanation, IssueOut, PuzzleOut } from "../api/types";
 import { useCoachExplanation, useCoachStatus, useExplain } from "../api/queries";
 import { PreviaContext } from "../analysis/previaContext";
 import { TextoComLances } from "../analysis/TextoComLances";
-import type { LinhaConhecida } from "../analysis/moveText";
 import { ErrorBox } from "../components/ErrorBox";
 
 const CITACAO = /\[c:([^\]\s]+)\]/g;
@@ -74,24 +73,15 @@ function Rotulo({ children }: { children: ReactNode }) {
 
 const ESTILO_PROSA = { whiteSpace: "pre-wrap" as const, lineHeight: 1.5, margin: "2px 0 10px" };
 
-/**
- * As linhas da explicação no formato que o segmentador entende. Linha sem
- * `fen_inicio` (explicação antiga, ou base que não existe) fica de fora: sem a
- * posição de partida não há como reproduzi-la.
- */
-export function linhasConhecidas(exp: CoachExplanation): LinhaConhecida[] {
-  return (exp.lines ?? []).flatMap((l) => (l.fen_inicio ? [{ fen: l.fen_inicio, lances: l.lances ?? [] }] : []));
-}
-
 /** Prosa do treinador: lances clicáveis (prévia no tabuleiro) e citações como links. */
-function Prosa({ texto, fen, citacoes, linhas }: { texto: string; fen: string; citacoes: Citacao[]; linhas: LinhaConhecida[] }) {
+function Prosa({ texto, fen, citacoes }: { texto: string; fen: string; citacoes: Citacao[] }) {
   const previa = useContext(PreviaContext);
   const porId = new Map(citacoes.map((c) => [c.chunk_id, c]));
   return (
     <p style={ESTILO_PROSA}>
       {segmentarCitacoes(texto).map((s, i) =>
         s.kind === "texto" ? (
-          <TextoComLances key={i} texto={s.text} fen={fen} linhas={linhas} onPrevia={previa ?? (() => undefined)} />
+          <TextoComLances key={i} texto={s.text} fen={fen} onPrevia={previa ?? (() => undefined)} />
         ) : (
           <Fragment key={i}>
             {porId.has(s.id)
@@ -117,13 +107,8 @@ export function CoachCard({ puzzle, reviewId }: { puzzle: PuzzleOut; reviewId?: 
   const configurado = !!status?.configured;
   const { data: existente, isLoading: carregando } = useCoachExplanation(puzzle.id, configurado);
   const explicar = useExplain();
-  const exp = explicar.data ?? existente ?? null;
-  // as linhas declaradas vão junto com a prosa: é por elas que um lance numerado que o
-  // texto cita pulando lances ("18.Rac1? 19.Qc5") acha a posição de verdade. O `useMemo`
-  // fica acima do `return null` (hook não pode ser condicional) e guarda a identidade do
-  // array, senão o `useMemo` do `TextoComLances` recalcularia tudo a cada render
-  const linhas = useMemo(() => (exp ? linhasConhecidas(exp) : []), [exp]);
   if (!configurado) return null;
+  const exp = explicar.data ?? existente ?? null;
   const pedir = () => explicar.mutate({ puzzle_id: puzzle.id, review_id: reviewId });
   const pronto = exp && !explicar.isPending;
   const emBlocos = !!(pronto && (exp!.na_partida || exp!.por_que));
@@ -154,13 +139,13 @@ export function CoachCard({ puzzle, reviewId }: { puzzle: PuzzleOut; reviewId?: 
                 <>
                   <Rotulo>Na partida</Rotulo>
                   {/* o lance que o aluno jogou aparece aqui: também clicável */}
-                  <Prosa texto={exp!.na_partida} fen={puzzle.fen_start} citacoes={exp!.citations} linhas={linhas} />
+                  <Prosa texto={exp!.na_partida} fen={puzzle.fen_start} citacoes={exp!.citations} />
                 </>
               )}
               {exp!.por_que && (
                 <>
                   <Rotulo>Por que</Rotulo>
-                  <Prosa texto={exp!.por_que} fen={puzzle.fen_start} citacoes={exp!.citations} linhas={linhas} />
+                  <Prosa texto={exp!.por_que} fen={puzzle.fen_start} citacoes={exp!.citations} />
                 </>
               )}
               {exp!.padrao && (
@@ -180,7 +165,7 @@ export function CoachCard({ puzzle, reviewId }: { puzzle: PuzzleOut; reviewId?: 
             </>
           ) : (
             // explicação gravada antes dos blocos: o texto corrido, como era
-            <Prosa texto={exp!.text} fen={puzzle.fen_start} citacoes={exp!.citations} linhas={linhas} />
+            <Prosa texto={exp!.text} fen={puzzle.fen_start} citacoes={exp!.citations} />
           )}
           <small className="muted" style={{ display: "block" }}>
             {exp!.model} · US$ {usd.format(exp!.cost_usd)} · {Math.round(exp!.duration_ms / 1000)} s

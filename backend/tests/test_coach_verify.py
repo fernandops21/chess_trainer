@@ -285,40 +285,6 @@ def test_san_re_extrai_lances_numerados_da_prosa():
     assert "mate_falso" not in tipos(pastor) and "xeque_falso" not in tipos(pastor)
 
 
-def test_lance_numerado_da_prosa_tem_de_estar_numa_linha_declarada():
-    presente = checar({"texto": TEXTO_OK + " A sequência é 4.Qxf7#.",
-                       "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]})
-    assert presente.ok and "lance_fora_de_linha" not in tipos(presente), presente.issues
-    # o lance que nenhuma linha traz sai uma vez só, como `lance_sem_linha`: a falta já está dita
-    ausente = checar({"texto": TEXTO_OK + " Antes viera 3.Bc4.",
-                      "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]})
-    assert ausente.ok and "lance_fora_de_linha" not in tipos(ausente), ausente.issues
-    detalhe = [i.detalhe for i in ausente.issues if i.tipo == "lance_sem_linha"][0]
-    assert "Bc4" in detalhe
-
-
-def test_lance_numerado_na_altura_errada_e_aviso_mesmo_estando_em_uma_linha():
-    """O caso do vídeo: a prosa pula o lance das pretas e cita o seguinte com o número errado.
-    O `lance_sem_linha` não pega (o SAN está declarado); o que não bate é a altura."""
-    linha = {"inicio": "inicial", "lances": ["Qh3", "Rh8+", "Kxh8"]}
-    ok = checar({"texto": TEXTO_OK + " A chave é 32...Qh3 33.Rh8+ Kxh8.", "linhas": [linha]},
-                fen_inicial=FEN_AMEACA, fen_erro=None)
-    assert "lance_fora_de_linha" not in tipos(ok), ok.issues
-    fora = checar({"texto": TEXTO_OK + " A chave é 32...Qh3 34.Rh8+.", "linhas": [linha]},
-                  fen_inicial=FEN_AMEACA, fen_erro=None)
-    assert fora.ok and "lance_fora_de_linha" in tipos(fora)
-    assert "lance_sem_linha" not in tipos(fora)
-    assert "34.Rh8+" in [i.detalhe for i in fora.issues if i.tipo == "lance_fora_de_linha"][0]
-
-
-def test_lance_numerado_de_linha_de_ameaca_conta_do_lance_nulo():
-    """Na linha de ameaça o adversário move primeiro: o número do lance sai do lance nulo."""
-    v = checar_pecas("As brancas dão 2.Qxg7# e acabou.")
-    assert "lance_fora_de_linha" not in tipos(v), v.issues
-    errado = checar_pecas("As brancas dão 1.Qxg7# e acabou.")
-    assert "lance_fora_de_linha" in tipos(errado)
-
-
 def test_avisos_repetidos_do_mesmo_lance_colapsam_em_um():
     v = checar({"texto": TEXTO_OK + " Nc6 defende, e de novo Nc6 defende.",
                 "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]})

@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import type { CoachExplanation, CoachLine, CoachStatus, IssueOut, PuzzleOut } from "../src/api/types";
+import type { CoachExplanation, CoachStatus, IssueOut, PuzzleOut } from "../src/api/types";
 import { api } from "../src/api/client";
 import { ApiError } from "../src/api/client";
 import { CoachCard } from "../src/train/CoachCard";
@@ -32,11 +32,11 @@ const explicacao = (over: Partial<CoachExplanation> = {}): CoachExplanation => (
   tokens: { input: 5000, output: 400, cache_read: 3000, cache_write: 0 }, duration_ms: 12000, trace_url: "http://localhost:3000/trace/x", ...over,
 });
 
-function renderCard(previa = vi.fn(), oExercicio: PuzzleOut = puzzle) {
+function renderCard(previa = vi.fn()) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <MemoryRouter>
-        <PreviaContext.Provider value={previa}><CoachCard puzzle={oExercicio} reviewId="r1" /></PreviaContext.Provider>
+        <PreviaContext.Provider value={previa}><CoachCard puzzle={puzzle} reviewId="r1" /></PreviaContext.Provider>
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -206,35 +206,4 @@ test("com índice cheio o rodapé não fala de estudos indexados", async () => {
   renderCard();
   expect(await screen.findByText("Na partida")).toBeTruthy();
   expect(screen.queryByText(/sem estudos indexados/)).toBeNull();
-});
-
-// --- lances numerados resolvidos pelas linhas da explicação ---------------
-
-/** A posição do exercício do vídeo, e a linha que a explicação declarou a partir dela. */
-const FEN_VIDEO = "r4rk1/5ppp/pqn5/1p1QPpN1/3P4/P7/1P3PPP/R4RK1 w - - 1 18";
-const LINHA_VIDEO: CoachLine = {
-  inicio: "inicial", fen_inicio: FEN_VIDEO, lances: ["Rac1", "Ne7", "Qc5", "Qxc5", "dxc5"],
-  avaliacao_cp: 120, mate_em: null,
-};
-
-test("o lance numerado que a prosa pulou vai à prévia com a linha declarada inteira", async () => {
-  // a prosa diz "18.Rac1? 19.Qc5" sem o 18...Ne7; ancorado só na posição do exercício, o
-  // "Qc5" virava lance das pretas e a prévia mostrava um tabuleiro que não era o da explicação
-  vi.spyOn(api, "coachExplanation").mockResolvedValue(explicacao({
-    na_partida: "Você jogou 18.Rac1? 19.Qc5 e trocou as damas.", lines: [LINHA_VIDEO],
-  }));
-  const previa = renderCard(vi.fn(), { ...puzzle, fen_start: FEN_VIDEO });
-  fireEvent.click(await screen.findByRole("button", { name: "19.Qc5" }));
-  expect(previa).toHaveBeenCalledTimes(1);
-  expect(previa.mock.calls[0][0].map((l: { san: string }) => l.san)).toEqual(["Rac1", "Ne7", "Qc5"]);
-});
-
-test("linha sem fen_inicio não entra na resolução", async () => {
-  vi.spyOn(api, "coachExplanation").mockResolvedValue(explicacao({
-    na_partida: "Você jogou 18.Rac1? 19.Qc5 e trocou as damas.",
-    lines: [{ ...LINHA_VIDEO, fen_inicio: null }],
-  }));
-  const previa = renderCard(vi.fn(), { ...puzzle, fen_start: FEN_VIDEO });
-  fireEvent.click(await screen.findByRole("button", { name: "19.Qc5" }));
-  expect(previa.mock.calls[0][0].map((l: { san: string }) => l.san)).toEqual(["Rac1", "Qc5"]);
 });

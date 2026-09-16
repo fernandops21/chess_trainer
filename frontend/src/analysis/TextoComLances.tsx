@@ -1,6 +1,6 @@
 import { Fragment, useMemo } from "react";
 import { segmentar } from "./moveText";
-import type { LanceDaLinha, LinhaConhecida, Segmento } from "./moveText";
+import type { LanceDaLinha, Segmento } from "./moveText";
 
 export interface TextoComLancesProps {
   texto: string;
@@ -12,16 +12,14 @@ export interface TextoComLancesProps {
   apenasLances?: boolean;
   /** Segmentos já prontos: evita quebrar o mesmo texto duas vezes por tecla. */
   segmentos?: Segmento[];
-  /** Sequências que o autor do texto declarou: resolvem os lances numerados que a prosa pula. */
-  linhas?: LinhaConhecida[];
 }
 
 /**
  * Texto do autor com os lances virando links: clicar num deles pede a prévia da
  * linha até ali. A prosa sai como está (o `pre-wrap` preserva as quebras).
  */
-export function TextoComLances({ texto, fen, onPrevia, apenasLances = false, segmentos, linhas }: TextoComLancesProps) {
-  const segs = useMemo(() => segmentos ?? segmentar(texto, fen, linhas), [segmentos, texto, fen, linhas]);
+export function TextoComLances({ texto, fen, onPrevia, apenasLances = false, segmentos }: TextoComLancesProps) {
+  const segs = useMemo(() => segmentos ?? segmentar(texto, fen), [segmentos, texto, fen]);
   const lista = apenasLances ? segs.filter((s) => s.kind === "lance") : segs;
   return (
     <span className="texto-com-lances">

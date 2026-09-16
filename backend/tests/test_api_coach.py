@@ -1,6 +1,3 @@
-import json
-
-import chess
 from fastapi.testclient import TestClient
 
 from chess_trainer.api.app import create_app
@@ -173,66 +170,6 @@ def test_reindex_via_job():
     app.state.jobs.wait()
     assert app.state.jobs.snapshot()["state"] == "idle"
     assert client.get("/api/coach/status").json()["embeddings_ready"] is True
-
-
-def test_cada_linha_volta_com_a_fen_de_onde_parte():
-    """`fen_inicio`: é por ele que o cartão resolve os lances numerados da prosa pela linha
-    certa, em vez de jogar todos a partir da posição do exercício."""
-    app, client, pid = montar(FakeLlm([[("final", FINAL)]]))
-    client.put("/api/settings", json={"anthropic_api_key": "sk-ant-x"})
-    assert client.post("/api/coach/explain", json={"puzzle_id": pid}).status_code == 200
-    gravadas = [{"inicio": onde, "lances": [], "avaliacao_cp": 0, "mate_em": None}
-                for onde in ("inicial", "erro", "ameaca")]
-    with app.state.session_factory() as db:
-        row = db.query(CoachExplanation).filter_by(puzzle_id=pid).one()
-        row.lines_json = json.dumps(gravadas)
-        db.commit()
-        ctx = contexto_do_exercicio(db, db.get(Puzzle, pid))
-    assert ctx.fen_erro and ctx.fen_erro != ctx.fen_inicial, "o exercício do fixture tem posição do erro"
-    linhas = client.get(f"/api/coach/explanations/{pid}").json()["lines"]
-    assert linhas[0]["fen_inicio"] == chess.Board(ctx.fen_inicial).fen()
-    assert linhas[1]["fen_inicio"] == chess.Board(ctx.fen_erro).fen()
-    # a linha de ameaça parte do lance nulo: as mesmas peças, o outro lado a mover
-    ameaca, inicial = linhas[2]["fen_inicio"].split(), linhas[0]["fen_inicio"].split()
-    assert ameaca[0] == inicial[0] and ameaca[1] != inicial[1]
-
-
-def test_explain_ja_devolve_a_fen_de_onde_a_linha_parte():
-    """O `fen_inicio` não é só de quem reabre: quem acabou de pedir a explicação recebe as
-    linhas já ancoradas, sem depender de um segundo carregamento do cartão."""
-    linhas_do_modelo = [{"inicio": onde, "lances": [], "avaliacao_cp": None, "mate_em": None}
-                        for onde in ("inicial", "erro")]
-    app, client, pid = montar(FakeLlm([[("final", {**FINAL, "linhas": linhas_do_modelo})]]))
-    client.put("/api/settings", json={"anthropic_api_key": "sk-ant-x"})
-    r = client.post("/api/coach/explain", json={"puzzle_id": pid})
-    assert r.status_code == 200, r.text
-    with app.state.session_factory() as db:
-        ctx = contexto_do_exercicio(db, db.get(Puzzle, pid))
-    linhas = r.json()["lines"]
-    assert linhas[0]["fen_inicio"] == chess.Board(ctx.fen_inicial).fen()
-    assert linhas[1]["fen_inicio"] == chess.Board(ctx.fen_erro).fen()
-
-
-def test_reabrir_com_a_fen_do_erro_estragada_nao_da_500():
-    """FEN do erro que não presta (banco migrado, tática de terceiro): a rota que reabre só
-    precisa das duas FENs do exercício e segue de pé, com `fen_inicio` nulo na linha que
-    dependia daquela posição."""
-    app, client, pid = montar(FakeLlm([[("final", FINAL)]]))
-    client.put("/api/settings", json={"anthropic_api_key": "sk-ant-x"})
-    assert client.post("/api/coach/explain", json={"puzzle_id": pid}).status_code == 200
-    gravadas = [{"inicio": onde, "lances": [], "avaliacao_cp": 0, "mate_em": None}
-                for onde in ("inicial", "ameaca_erro")]
-    with app.state.session_factory() as db:
-        db.query(CoachExplanation).filter_by(puzzle_id=pid).one().lines_json = json.dumps(gravadas)
-        puzzle = db.get(Puzzle, pid)
-        puzzle.position_id, puzzle.game_id = None, None
-        puzzle.fen_before, puzzle.last_move = "isto não é uma FEN", "e2e4"
-        db.commit()
-    r = client.get(f"/api/coach/explanations/{pid}")
-    assert r.status_code == 200, r.text
-    linhas = r.json()["lines"]
-    assert linhas[0]["fen_inicio"] is not None
-    assert linhas[1]["fen_inicio"] is None, "sem posição do erro não dá para partir da ameaça dela"
 
 
 def test_explicacao_antiga_sem_blocos_volta_so_com_o_texto():

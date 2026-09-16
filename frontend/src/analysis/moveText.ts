@@ -10,18 +10,6 @@ export interface LanceDaLinha {
   lastMove: [Key, Key];
 }
 
-/**
- * Uma linha que a explicação declarou: os SAN, na ordem, a partir de `fen`.
- *
- * É o que o segmentador usa para achar a posição de um lance numerado que a
- * prosa cita pulando lances ("18.Rac1? 19.Qc5" omite o 18...Ne7): a linha traz
- * a sequência inteira, a prosa só os lances que importam.
- */
-export interface LinhaConhecida {
-  fen: string;
-  lances: string[];
-}
-
 /** Pedaço do texto: prosa comum ou um lance clicável. */
 export type Segmento =
   | { kind: "texto"; text: string }
@@ -63,11 +51,6 @@ function ondeEsta(fen: string): { numero: number; pretas: boolean } {
  */
 const VIZINHO = /[A-Za-z0-9-]/;
 
-/** `Qxf7#!` -> `Qxf7`: sem xeque/mate nem apreciação, para comparar dois SAN. */
-function limparSan(san: string): string {
-  return san.replace(/[!?]/g, "").replace(/[+#]+$/, "");
-}
-
 /** Tenta o SAN na posição; devolve o lance com a posição nova, ou `null` se for ilegal. */
 function tentar(fen: string, san: string): LanceDaLinha | null {
   try {
@@ -86,55 +69,6 @@ function tentar(fen: string, san: string): LanceDaLinha | null {
 }
 
 /**
- * Procura nas linhas declaradas a posição com esse número e lado, e devolve a
- * sequência que chega até o lance do texto: o prefixo da linha até ali mais o
- * lance. É assim que "19.Qc5", citado depois de "18.Rac1?", reencontra o
- * 18...Ne7 que a prosa pulou, em vez de jogar Qc5 a partir da âncora.
- *
- * Quando o SAN do texto é o próprio lance seguinte da linha, a resposta é
- * imediata; quando difere mas é legal ali, a prosa está ramificando da linha e
- * a sequência vale do mesmo jeito — só que uma linha que case exato vem antes.
- */
-function pelasLinhas(
-  linhas: LinhaConhecida[],
-  numero: number,
-  pretas: boolean,
-  san: string,
-): LanceDaLinha[] | null {
-  let ramo: LanceDaLinha[] | null = null;
-  for (const declarada of linhas) {
-    try {
-      novoChess(declarada.fen);
-    } catch {
-      continue;
-    }
-    const prefixo: LanceDaLinha[] = [];
-    let fen = declarada.fen;
-    // uma volta a mais que os lances: a posição do fim da linha também conta
-    for (let i = 0; i <= declarada.lances.length; i++) {
-      const onde = ondeEsta(fen);
-      if (onde.numero === numero && onde.pretas === pretas) {
-        // a linha passa por esta altura uma vez só: achou ou não achou
-        const lance = tentar(fen, san);
-        if (lance) {
-          const proximo = declarada.lances[i];
-          if (proximo !== undefined && limparSan(proximo) === limparSan(lance.san)) return [...prefixo, lance];
-          ramo = ramo ?? [...prefixo, lance];
-        }
-        break;
-      }
-      const proximo = declarada.lances[i];
-      if (proximo === undefined) break;
-      const jogado = tentar(fen, limparSan(proximo));
-      if (!jogado) break;
-      prefixo.push(jogado);
-      fen = jogado.fen;
-    }
-  }
-  return ramo;
-}
-
-/**
  * Quebra o texto do autor em prosa e lances jogáveis a partir de `fenAncora`.
  *
  * Os lances encadeiam: cada um parte da posição do anterior, de modo que
@@ -143,14 +77,9 @@ function pelasLinhas(
  * segue Nc3 Qb6", em que "Nc3" é resposta a "d5" e não continuação de "Nb4");
  * ilegal também ali, ele volta a ser texto comum e não mexe na sequência.
  *
- * `linhas` são as sequências que o autor do texto declarou (as `linhas` da
- * explicação do treinador, cada uma com a FEN de onde parte). Um lance numerado
- * que a cadeia corrente não alcança é procurado nelas: a prosa pula lances, a
- * linha declarada não.
- *
  * FEN inválida devolve o texto inteiro como um segmento só.
  */
-export function segmentar(texto: string, fenAncora: string, linhas: LinhaConhecida[] = []): Segmento[] {
+export function segmentar(texto: string, fenAncora: string): Segmento[] {
   if (texto === "") return [];
   try {
     novoChess(fenAncora);
@@ -193,15 +122,6 @@ export function segmentar(texto: string, fenAncora: string, linhas: LinhaConheci
           lance = tentar(posicoes[i], san);
           if (lance) nova = [...linha.slice(0, i), lance];
           break;
-        }
-      }
-      // A cadeia lida do texto não chega a esse número — a prosa pulou lances.
-      // As linhas declaradas chegam: a sequência passa a ser a delas até ali.
-      if (!lance && linhas.length > 0) {
-        const daLinha = pelasLinhas(linhas, numero, pretas, san);
-        if (daLinha) {
-          lance = daLinha[daLinha.length - 1];
-          nova = daLinha;
         }
       }
     }
