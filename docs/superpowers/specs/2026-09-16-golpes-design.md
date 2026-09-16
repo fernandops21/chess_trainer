@@ -68,11 +68,14 @@ de linguagem e sem custo por uso.
 | captura | tipo da peça capturada, ou nada; en passant conta como P |
 | xeque | `+` simples, `++` duplo, `d+` descoberto (quem dá xeque não é a peça que moveu), `#` mate |
 | promoção | peça promovida, quando houver |
-| descoberta | peças adversárias (exceto o rei) que passam a ser atacadas por **outras** peças do solucionador por causa do lance: tipo e casa, as duas mais valiosas |
-| ataques | peças adversárias (exceto o rei) que passam a ser atacadas pela **própria** peça que moveu: tipo e casa, as duas mais valiosas |
+| descoberta | peças adversárias (nem rei nem peões) que passam a ser atacadas por **outras** peças do solucionador por causa do lance: tipo e casa, as duas mais valiosas |
+| ataques | peças adversárias (nem rei nem peões) que passam a ser atacadas pela **própria** peça que moveu: tipo e casa, as duas mais valiosas |
 
 Mais a casa do rei adversário na posição do puzzle. As respostas do adversário
-não entram: são o que varia entre puzzles do mesmo golpe.
+não entram: são o que varia entre puzzles do mesmo golpe. Peões não contam como
+alvo de descoberta ou ataque (quase todo lance "ataca um peão"; seria ruído que
+separaria golpes iguais). Num lance de mate, descobertas e ataques ficam vazios:
+a partida acabou, o que a peça ataca não descreve o golpe.
 
 Exemplos (solucionador embaixo, notação da assinatura):
 
