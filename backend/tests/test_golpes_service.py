@@ -2,7 +2,7 @@ import json
 
 from chess_trainer.core.golpes.assinatura import VERSAO_ASSINATURA
 from chess_trainer.core.golpes.service import assinar_lichess, assinar_proprio, assinatura_de, garantir_assinatura
-from chess_trainer.core.models import LichessPuzzle, Position, PuzzleSignature
+from chess_trainer.core.models import LichessPuzzle, Position, Puzzle, PuzzleSignature
 from tests.factories import make_puzzle
 from tests.test_models import _game
 
@@ -53,6 +53,39 @@ def test_assinatura_de_own_e_lichess(db_session):
     a2, fen2, lances2 = assinatura_de(db_session, "lichess", "frnc1")
     assert a2.destinos().startswith("Ke8 | B b5 +") and lances2 == ["d3b5", "e8e7", "d1d4"] and fen2.split()[1] == "w"
     assert assinatura_de(db_session, "lichess", "nao-existe") is None
+
+
+def test_gemeo_adotado_por_capitulo_recalcula_a_assinatura(db_session):
+    """Um puzzle de estudo órfão (sem capítulo) com a mesma posição inicial de um capítulo
+    novo é adotado por ele (`_upsert_puzzle`, ramo "gêmeo sem dono"); a solução pode ter
+    mudado, então a assinatura antiga não pode sobreviver à adoção (achado do fix round 1)."""
+    from chess_trainer.core.models import Study, StudyChapter, new_id
+    from chess_trainer.core.studies.service import ImportReport, _upsert_puzzle
+
+    fen = "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4"
+    sol_antiga = {"moves": [{"uci": "h5f7", "by": "solver", "alternatives": []}], "explanation_pv": []}
+    orfao = make_puzzle(db_session, fen=fen, kind="punish", solution=sol_antiga)
+    orfao.source = "study"
+    orfao.chapter_id = None
+    db_session.commit()
+    antiga = garantir_assinatura(db_session, orfao)
+    assert antiga.texto_completo == "Ke8 | Q h5-f7 xP #"
+
+    study = Study(id=new_id(), title="E", author="", source_url="s", origin="local")
+    db_session.add(study)
+    db_session.flush()
+    chapter = StudyChapter(id=new_id(), study_id=study.id, order=1, name="C", fen=fen)
+    db_session.add(chapter)
+    db_session.flush()
+
+    sol_nova = {"moves": [{"uci": "h5e5", "by": "solver", "alternatives": []}], "explanation_pv": []}
+    _upsert_puzzle(db_session, chapter, fen, sol_nova, ImportReport())
+
+    assert chapter.puzzle_id == orfao.id
+    atualizado = db_session.get(Puzzle, orfao.id)
+    esperado = assinar_proprio(atualizado).completo()
+    sig = db_session.get(PuzzleSignature, orfao.id)
+    assert sig is not None and sig.texto_completo == esperado and sig.texto_completo != antiga.texto_completo
 
 
 def test_persist_draft_grava_assinatura(db_session):

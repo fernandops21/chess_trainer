@@ -346,6 +346,9 @@ def _upsert_puzzle(db: Session, chapter: StudyChapter, fen: str, solution: dict,
         gemeo.chapter_id = chapter.id
         chapter.puzzle_id = gemeo.id
         db.flush()
+        # a solução pode ter mudado: a assinatura antiga não serve mais
+        db.query(PuzzleSignature).filter_by(puzzle_id=gemeo.id).delete()
+        garantir_assinatura(db, gemeo)
         report.updated += 1
         return
     chapter.puzzle_id = puzzle.id
