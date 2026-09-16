@@ -83,6 +83,7 @@ def create_app(
     embeddings_factory=None,
     coach_llm_factory=None,
     coach_checagem_factory=None,
+    coach_enabled: bool | None = None,
 ) -> FastAPI:
     # tudo o que é dado local (banco, banco de táticas, modelo de embeddings) mora aqui
     data_dir = Path(os.environ.get("CHESS_TRAINER_DATA", str(BACKEND_DIR / "data")))
@@ -144,6 +145,12 @@ def create_app(
     app.state.coach_checagem_factory = coach_checagem_factory or _default_checagem_factory
     app.state.coach_lock = threading.Lock()   # uma explicação por vez: a engine interativa é compartilhada
     app.state.coach_tracers = {}              # instâncias do LangFuse por (chaves, host)
+    # o treinador com IA ainda está em desenvolvimento: vem desligado e só liga com
+    # `CHESS_TRAINER_COACH=1` (os testes passam o valor direto). Desligado, as rotas
+    # dele respondem 404 e a interface não mostra a feature; o código todo fica.
+    if coach_enabled is None:
+        coach_enabled = os.environ.get("CHESS_TRAINER_COACH") == "1"
+    app.state.coach_enabled = bool(coach_enabled)
 
     app.include_router(system.router)
     app.include_router(games.router)

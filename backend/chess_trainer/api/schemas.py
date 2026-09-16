@@ -509,6 +509,7 @@ class ProgressOut(BaseModel):
 
 
 class CoachStatusOut(BaseModel):
+    enabled: bool       # a feature está ligada (CHESS_TRAINER_COACH=1); desligada, `configured` é sempre falso
     configured: bool
     model: str
     modelo_checagem: str

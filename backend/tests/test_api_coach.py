@@ -14,9 +14,11 @@ FINAL = {"na_partida": NA_PARTIDA, "por_que": TEXTO, "linhas": [], "citacoes": [
          "padrao": "peça pendurada", "treinar": ["revisar mates simples", "conferir capturas antes de mover"]}
 
 
-def montar(llm, checador=None):
+def montar(llm, checador=None, ligado=True):
     """`checador`: o modelo da checagem de afirmações; por padrão um FakeLlm novo por pedido,
-    que não lista afirmação nenhuma (a rota tem de passar por ele sem rede)."""
+    que não lista afirmação nenhuma (a rota tem de passar por ele sem rede).
+    `ligado`: o treinador vem desligado por padrão no app (variável `CHESS_TRAINER_COACH`);
+    estes testes o ligam explicitamente."""
     def checagem(s):
         if not s.anthropic_api_key:
             return None
@@ -25,7 +27,7 @@ def montar(llm, checador=None):
     app = create_app(db_path=":memory:", engine_factory=engine_factory, chesscom_factory=chesscom_factory,
                      analysis_engine_factory=lambda: FakeEngine(default=first_legal_default(0)),
                      embeddings_factory=EmbeddingsFalso, coach_llm_factory=lambda s: llm if s.anthropic_api_key else None,
-                     coach_checagem_factory=checagem)
+                     coach_checagem_factory=checagem, coach_enabled=ligado)
     client = TestClient(app)
     client.put("/api/settings", json={"chesscom_username": "therealzibs", "analysis_depth": 4})
     client.post("/api/import"); app.state.jobs.wait()
@@ -34,9 +36,41 @@ def montar(llm, checador=None):
     return app, client, puzzle_id
 
 
+DESLIGADO = "o treinador com IA está desligado (CHESS_TRAINER_COACH=1 para ligar)"
+
+
+def test_desligado_por_padrao_status_diz_e_as_rotas_dao_404(monkeypatch):
+    """Sem `CHESS_TRAINER_COACH=1` o treinador fica em desenvolvimento: o status avisa
+    (`enabled` falso e `configured` falso mesmo com a chave) e o resto responde 404."""
+    monkeypatch.delenv("CHESS_TRAINER_COACH", raising=False)
+    app, client, pid = montar(FakeLlm([[("final", FINAL)]]), ligado=None)
+    assert app.state.coach_enabled is False
+    # a chave continua sendo aceita pelas configurações: só a feature fica escondida
+    assert client.put("/api/settings", json={"anthropic_api_key": "sk-ant-x"}).json()["anthropic_api_key_set"] is True
+    st = client.get("/api/coach/status").json()
+    assert st["enabled"] is False and st["configured"] is False and st["model"] == "claude-opus-5"
+    for r in (client.post("/api/coach/explain", json={"puzzle_id": pid}),
+              client.get(f"/api/coach/explanations/{pid}"),
+              client.post("/api/coach/reindex")):
+        assert r.status_code == 404 and r.json()["detail"] == DESLIGADO
+    assert app.state.jobs.snapshot()["state"] == "idle"
+
+
+def test_variavel_de_ambiente_liga_o_treinador(monkeypatch):
+    monkeypatch.setenv("CHESS_TRAINER_COACH", "1")
+    app, client, pid = montar(FakeLlm([]), ligado=None)
+    assert app.state.coach_enabled is True
+    st = client.get("/api/coach/status").json()
+    assert st["enabled"] is True and st["configured"] is False
+    # qualquer outro valor não liga
+    monkeypatch.setenv("CHESS_TRAINER_COACH", "0")
+    assert montar(FakeLlm([]), ligado=None)[0].state.coach_enabled is False
+
+
 def test_status_e_409_sem_chave():
     app, client, pid = montar(FakeLlm([]))
     st = client.get("/api/coach/status").json()
+    assert st["enabled"] is True
     assert st["configured"] is False and st["model"] == "claude-opus-5" and st["index_chunks"] == 0 and st["embeddings_ready"] is False
     assert st["modelo_checagem"] == "claude-sonnet-5"
     assert st["vector_backend"] in ("sqlite-vec", "numpy") and st["langfuse_configured"] is False

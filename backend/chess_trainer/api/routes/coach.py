@@ -23,6 +23,14 @@ from chess_trainer.core.stats import theme_stats
 router = APIRouter(prefix="/api/coach")
 
 STATUS_POR_CODIGO = {"engine_indisponivel": 503}
+DESLIGADO = "o treinador com IA está desligado (CHESS_TRAINER_COACH=1 para ligar)"
+
+
+def coach_ligado(request: Request) -> None:
+    """O treinador está em desenvolvimento e vem desligado (`app.state.coach_enabled`):
+    fora o status, as rotas dele não existem enquanto a variável não liga a feature."""
+    if not request.app.state.coach_enabled:
+        raise HTTPException(404, DESLIGADO)
 
 
 def _blocos(row: CoachExplanation) -> dict:
@@ -57,12 +65,13 @@ def _out(row: CoachExplanation, trace_url: str | None) -> CoachExplanationOut:
 def coach_status(request: Request, db: Session = Depends(get_db)):
     s = load_settings(db)
     idx = request.app.state.coach_index.status(db)
-    return CoachStatusOut(configured=bool(s.anthropic_api_key), model=s.coach_model, modelo_checagem=MODELO_CHECAGEM,
+    enabled = bool(request.app.state.coach_enabled)
+    return CoachStatusOut(enabled=enabled, configured=enabled and bool(s.anthropic_api_key), model=s.coach_model, modelo_checagem=MODELO_CHECAGEM,
                           effort=s.coach_effort,
                           langfuse_configured=bool(s.langfuse_host and s.langfuse_public_key and s.langfuse_secret_key), **idx)
 
 
-@router.post("/explain", response_model=CoachExplanationOut)
+@router.post("/explain", response_model=CoachExplanationOut, dependencies=[Depends(coach_ligado)])
 def coach_explain(body: CoachExplainIn, request: Request, db: Session = Depends(get_db)):
     app = request.app
     settings = load_settings(db)
@@ -106,7 +115,7 @@ def coach_explain(body: CoachExplainIn, request: Request, db: Session = Depends(
     return _out(row, tracer.url(row.trace_id))
 
 
-@router.get("/explanations/{puzzle_id}", response_model=CoachExplanationOut)
+@router.get("/explanations/{puzzle_id}", response_model=CoachExplanationOut, dependencies=[Depends(coach_ligado)])
 def coach_explanation(puzzle_id: str, request: Request, db: Session = Depends(get_db)):
     row = db.scalar(select(CoachExplanation).where(CoachExplanation.puzzle_id == puzzle_id)
                     .order_by(CoachExplanation.created_at.desc()))
@@ -116,7 +125,7 @@ def coach_explanation(puzzle_id: str, request: Request, db: Session = Depends(ge
     return _out(row, tracer.url(row.trace_id))
 
 
-@router.post("/reindex", status_code=202)
+@router.post("/reindex", status_code=202, dependencies=[Depends(coach_ligado)])
 def coach_reindex(request: Request):
     app = request.app
 
