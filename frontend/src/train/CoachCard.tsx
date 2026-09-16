@@ -1,14 +1,14 @@
 import { Fragment, useContext, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import type { Citacao, CoachExplanation, IssueOut, PuzzleOut } from "../api/types";
+import type { Citacao, CoachExplanation, PuzzleOut } from "../api/types";
 import { useCoachExplanation, useCoachStatus, useExplain } from "../api/queries";
 import { PreviaContext } from "../analysis/previaContext";
 import { TextoComLances } from "../analysis/TextoComLances";
 import { ErrorBox } from "../components/ErrorBox";
 
 const CITACAO = /\[c:([^\]\s]+)\]/g;
-/** O lance que o verificador cita entre apóstrofos: `'Rf8' aparece no texto…`. */
-const ENTRE_APOSTROFOS = /'([^']+)'/;
+/** O que o cartão diz quando sobrou erro depois da correção: não há explicação para mostrar. */
+const SEM_EXPLICACAO = "Não consegui uma explicação que passe na verificação da engine para este exercício.";
 
 /** Quebra o texto em prosa e marcadores de citação, na ordem. */
 export function segmentarCitacoes(texto: string): ({ kind: "texto"; text: string } | { kind: "citacao"; id: string })[] {
@@ -25,46 +25,12 @@ export function segmentarCitacoes(texto: string): ({ kind: "texto"; text: string
 }
 
 /**
- * As ressalvas do verificador prontas para ler: sem repetição (o mesmo `detalhe` vale
- * uma vez) e com os lances soltos numa linha só — o verificador aponta um por um, e dez
- * avisos iguais na frente do texto eram o que escondia a explicação.
+ * A explicação passou: sem `erro` depois da rodada de correção. Os avisos ficam no banco
+ * e no log para a avaliação offline; para o aluno, ou a explicação foi verificada pela
+ * engine ou não existe.
  */
-export function agruparIssues(issues: IssueOut[]): string[] {
-  const vistos = new Set<string>();
-  const linhas: string[] = [];
-  const soltos: string[] = [];
-  let lugarDosSoltos = -1;
-  for (const i of issues) {
-    if (vistos.has(i.detalhe)) continue;
-    vistos.add(i.detalhe);
-    if (i.tipo === "lance_sem_linha") {
-      soltos.push(ENTRE_APOSTROFOS.exec(i.detalhe)?.[1] ?? i.detalhe);
-      // a linha agrupada fica onde o primeiro aviso desse tipo apareceu
-      if (lugarDosSoltos < 0) lugarDosSoltos = linhas.push("") - 1;
-      continue;
-    }
-    linhas.push(i.detalhe);
-  }
-  if (lugarDosSoltos >= 0) linhas[lugarDosSoltos] = `Lances citados fora das linhas: ${soltos.join(", ")}`;
-  return linhas;
-}
-
-/** Selo do verificador ao lado do título. Com ressalvas ou erros, elas ficam fechadas. */
-function Selo({ exp }: { exp: CoachExplanation }) {
-  const { issues } = exp.verification;
-  const n = issues.length;
-  const ok = exp.status === "ok";
-  const rotulo = ok ? "verificado pela engine" : exp.status === "warnings" ? `com ressalvas (${n})` : `não verificado (${n})`;
-  const classe = ok ? "ok" : exp.status === "warnings" ? "warn" : "bad";
-  if (ok || n === 0) return <span className={`msg ${classe}`}>{rotulo}</span>;
-  return (
-    <details className="selo-ressalvas">
-      <summary className={`msg ${classe}`}>{rotulo}</summary>
-      <ul>
-        {agruparIssues(issues).map((linha, i) => <li key={i}>{linha}</li>)}
-      </ul>
-    </details>
-  );
+function verificada(exp: CoachExplanation): boolean {
+  return exp.status !== "errors";
 }
 
 function Rotulo({ children }: { children: ReactNode }) {
@@ -99,8 +65,9 @@ const usd = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFr
 /**
  * Cartão "Treinador": pede a explicação do erro ao backend e a mostra em blocos curtos
  * ("Na partida", "Por que", o padrão e o que treinar), lidos ao lado do tabuleiro, com os
- * lances clicáveis, as citações dos estudos como links e o selo do verificador no título.
- * Sem chave da API configurada, não aparece.
+ * lances clicáveis, as citações dos estudos como links e o selo "verificado pela engine"
+ * no título. Explicação que não passou na verificação não aparece: o cartão diz isso e
+ * oferece tentar de novo. Sem chave da API configurada, não aparece.
  */
 export function CoachCard({ puzzle, reviewId }: { puzzle: PuzzleOut; reviewId?: string }) {
   const { data: status } = useCoachStatus();
@@ -111,16 +78,15 @@ export function CoachCard({ puzzle, reviewId }: { puzzle: PuzzleOut; reviewId?: 
   const exp = explicar.data ?? existente ?? null;
   const pedir = () => explicar.mutate({ puzzle_id: puzzle.id, review_id: reviewId });
   const pronto = exp && !explicar.isPending;
-  const emBlocos = !!(pronto && (exp!.na_partida || exp!.por_que));
+  const mostrar = !!(pronto && verificada(exp!));
+  const emBlocos = !!(mostrar && (exp!.na_partida || exp!.por_que));
   const treinar = exp?.treinar ?? [];
   return (
     <div className="card">
-      {/* `baseline` em vez do `center` do `.row`: abrir as ressalvas cresce o selo, e
-          com o alinhamento no centro o título pulava junto */}
       <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
         <div className="row" style={{ alignItems: "baseline" }}>
           <h3 style={{ margin: 0 }}>Treinador</h3>
-          {pronto && <Selo exp={exp!} />}
+          {mostrar && <span className="msg ok">verificado pela engine</span>}
         </div>
         {/* fora do ar enquanto a explicação já guardada não chegou: clicar aqui pediria
             uma explicação nova (e paga) para um exercício que talvez já tenha uma.
@@ -133,7 +99,10 @@ export function CoachCard({ puzzle, reviewId }: { puzzle: PuzzleOut; reviewId?: 
       {!!explicar.error && <ErrorBox error={explicar.error} />}
       {pronto && (
         <>
-          {emBlocos ? (
+          {!mostrar ? (
+            // sobrou erro depois da correção: nada da explicação chega ao aluno
+            <p style={ESTILO_PROSA}>{SEM_EXPLICACAO}</p>
+          ) : emBlocos ? (
             <>
               {exp!.na_partida && (
                 <>

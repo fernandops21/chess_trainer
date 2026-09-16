@@ -16,8 +16,6 @@ textarea { padding: 8px 10px; }
 .msg { min-height: 24px; font-weight: 600; }
 .msg.ok { color: var(--ok); }
 .msg.bad { color: var(--bad); }
-/* o amarelo do `--warn` é para fundos; como texto quem lê bem nos dois temas é o `--warn-ink` */
-.msg.warn { color: var(--warn-ink); }
 .tag { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--chip); font-size: 12px; margin-right: 6px; }
 button.tag { min-height: 28px; padding: 2px 12px; border: 1px solid var(--line); margin-right: 0; }
 .tag.selected { background: var(--accent); color: var(--ink); border-color: var(--accent); font-weight: 600; }
@@ -213,10 +211,6 @@ a.citacao:hover { color: var(--brand); text-decoration: underline; }
 /* rótulo dos blocos do treinador ("Na partida", "Por que", "Padrão", "Treinar"):
    marca a divisão sem competir com a prosa */
 .bloco-rotulo { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
-/* as ressalvas do verificador ficam atrás do selo: aberto por padrão, o aviso
-   tapava a explicação. O triângulo do `summary` é o convite para abrir */
-details.selo-ressalvas > summary { cursor: pointer; list-style-position: outside; }
-details.selo-ressalvas > ul { margin: 6px 0 0 18px; padding: 0; color: var(--muted); font-size: .95em; line-height: 1.4; }
 /* faixa acima do tabuleiro enquanto uma prévia está na tela */
 .previa { margin-bottom: 8px; color: var(--muted); }
 

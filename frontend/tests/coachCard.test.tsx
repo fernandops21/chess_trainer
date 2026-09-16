@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import type { CoachExplanation, CoachStatus, IssueOut, PuzzleOut } from "../src/api/types";
+import type { CoachExplanation, CoachStatus, PuzzleOut } from "../src/api/types";
 import { api } from "../src/api/client";
 import { ApiError } from "../src/api/client";
 import { CoachCard } from "../src/train/CoachCard";
@@ -92,12 +92,15 @@ test("Explicar chama a API com o exercício e mostra o texto com lance clicável
   expect(screen.getByRole("button", { name: "Explicar de novo" })).toBeTruthy();
 });
 
-test("explicação já existente abre direto", async () => {
+test("explicação já existente abre direto; os avisos ficam no banco, o selo é um só", async () => {
   vi.spyOn(api, "coachExplanation").mockResolvedValue(explicacao({ status: "warnings", verification: { ok: true, issues: [{ tipo: "lance_fora_das_principais", gravidade: "aviso", detalhe: "'a3' não está entre as três melhores", linha_idx: 0 }] } }));
   renderCard();
   expect(await screen.findByText(/A dama e o bispo/)).toBeTruthy();
-  expect(screen.getByText("com ressalvas (1)")).toBeTruthy();
-  expect(screen.getByText(/'a3' não está entre as três melhores/)).toBeTruthy();
+  // sem contagem, sem lista: o vocabulário do verificador não entra no produto
+  expect(screen.getByText("verificado pela engine").textContent).toBe("verificado pela engine");
+  expect(screen.queryByText(/ressalvas/)).toBeNull();
+  expect(screen.queryByText(/'a3' não está entre as três melhores/)).toBeNull();
+  expect(document.querySelector("details")).toBeNull();
   expect(screen.getByRole("button", { name: "Explicar de novo" })).toBeTruthy();
 });
 
@@ -109,11 +112,23 @@ test("erro da API aparece e o botão volta", async () => {
   expect(screen.getByRole("button", { name: "Explicar" })).toBeTruthy();
 });
 
-test("status errors mostra 'não verificado' com os erros", async () => {
+test("status errors: nenhuma explicação, só a frase e o 'Explicar de novo'", async () => {
   vi.spyOn(api, "coachExplanation").mockResolvedValue(explicacao({ status: "errors", verification: { ok: false, issues: [{ tipo: "lance_ilegal", gravidade: "erro", detalhe: "'Qxf8' não é legal", linha_idx: 0 }] } }));
   renderCard();
-  expect(await screen.findByText("não verificado (1)")).toBeTruthy();
-  expect(screen.getByText(/'Qxf8' não é legal/)).toBeTruthy();
+  expect(await screen.findByText("Não consegui uma explicação que passe na verificação da engine para este exercício.")).toBeTruthy();
+  // nada da prosa, dos blocos nem do verificador chega ao aluno
+  expect(screen.queryByText(/A dama e o bispo/)).toBeNull();
+  expect(screen.queryByText(NA_PARTIDA)).toBeNull();
+  expect(screen.queryByText("Na partida")).toBeNull();
+  expect(screen.queryByText("Por que")).toBeNull();
+  expect(screen.queryByText("Padrão")).toBeNull();
+  expect(screen.queryByText("mate do pastor")).toBeNull();
+  expect(screen.queryByText("Treinar")).toBeNull();
+  expect(screen.queryByText(/'Qxf8' não é legal/)).toBeNull();
+  expect(screen.queryByText(/verificado/)).toBeNull();
+  expect(screen.getByRole("button", { name: "Explicar de novo" })).toBeTruthy();
+  // o rodapé com modelo, custo e tempo fica
+  expect(screen.getByText(/claude-opus-5 · US\$ 0,04 · 12 s/)).toBeTruthy();
 });
 
 // --- leitura em blocos --------------------------------------------------
@@ -154,35 +169,6 @@ test("explicação antiga, sem blocos, cai no texto corrido", async () => {
   // o texto antigo mantém os lances clicáveis e as citações
   expect(screen.getByRole("button", { name: "Qxf7#" })).toBeTruthy();
   expect(screen.getByRole("link", { name: /Táticas › Mates/ })).toBeTruthy();
-});
-
-// --- ressalvas escondidas e agrupadas -----------------------------------
-
-const ressalvas: IssueOut[] = [
-  { tipo: "lance_sem_linha", gravidade: "aviso", detalhe: "'Rf8' aparece no texto sem estar em nenhuma linha", linha_idx: null },
-  { tipo: "lance_sem_linha", gravidade: "aviso", detalhe: "'Ra1' aparece no texto sem estar em nenhuma linha", linha_idx: null },
-  { tipo: "tamanho", gravidade: "aviso", detalhe: "38 palavras (esperado entre 60 e 400)", linha_idx: null },
-];
-
-test("as ressalvas ficam fechadas e os lances soltos entram numa linha só", async () => {
-  vi.spyOn(api, "coachExplanation").mockResolvedValue(explicacao({ status: "warnings", verification: { ok: true, issues: ressalvas } }));
-  renderCard();
-  const selo = await screen.findByText("com ressalvas (3)");
-  const detalhes = selo.closest("details") as HTMLDetailsElement;
-  // nada de ressalva aberta na frente do texto: o aluno abre se quiser
-  expect(detalhes.hasAttribute("open")).toBe(false);
-  fireEvent.click(selo);
-  expect(detalhes.open).toBe(true);
-  expect(screen.getAllByText("Lances citados fora das linhas: Rf8, Ra1").length).toBe(1);
-  expect(screen.getByText("38 palavras (esperado entre 60 e 400)")).toBeTruthy();
-});
-
-test("ressalva repetida aparece uma vez só", async () => {
-  const repetida: IssueOut = { tipo: "citacao_ausente", gravidade: "aviso", detalhe: "o texto menciona um estudo sem citar o trecho", linha_idx: null };
-  vi.spyOn(api, "coachExplanation").mockResolvedValue(explicacao({ status: "warnings", verification: { ok: true, issues: [repetida, { ...repetida }] } }));
-  renderCard();
-  expect(await screen.findByText("com ressalvas (2)")).toBeTruthy();
-  expect(screen.getAllByText(repetida.detalhe).length).toBe(1);
 });
 
 // --- rodapé -------------------------------------------------------------

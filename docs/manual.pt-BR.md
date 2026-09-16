@@ -336,12 +336,11 @@ padrão por trás, em duas a cinco palavras) e **Treinar** (de uma a três açõ
 tabuleiro fica parado enquanto o texto rola ao lado: a posição não sai da vista na hora em que a
 explicação cita um lance.
 
-Antes de mostrar o texto, um **verificador** reproduz cada linha citada no tabuleiro, confere se o
-primeiro lance está entre os três melhores da engine, compara as avaliações e confirma que cada
-citação existe. O selo ao lado do título diz o resultado: **verificado pela engine** quer dizer que
-nada foi apontado; **com ressalvas (N)** e **não verificado (N)** trazem as N ressalvas fechadas — um
-clique no selo abre a lista, com os lances soltos agrupados numa linha só. Nunca há lance escondido:
-o que não bateu está ali, a um clique.
+Antes de mostrar o texto, a engine confere a explicação: reproduz cada linha citada no tabuleiro,
+vê se o primeiro lance está entre os três melhores, compara as avaliações e confirma que cada
+citação existe. A explicação só aparece quando passa nessa verificação — daí o selo **verificado
+pela engine** ao lado do título; quando não passa, o app diz isso no lugar do texto e oferece
+**Explicar de novo**.
 
 Afirmação tática não sai da cabeça do modelo: ele consulta os **fatos da posição**, calculados lance
 por lance sem engine — as casas do rei, os xeques, os mates em um, as capturas de peças sem defesa e o
@@ -350,10 +349,10 @@ se você passasse a vez: as melhores linhas do adversário ali são exatamente o
 jogasse um lance calmo, e é assim que a explicação nomeia todas as ameaças (o mate e o ganho de
 material), não só a maior. O treinador explica também por que a defesa natural falha: o lance que você
 jogaria ali (o seu lance real, quando a partida tem um) é seguido até onde o material muda, para ficar
-claro o que se perde nele. Do outro lado, o verificador confere também o que está
-escrito na prosa: mate anunciado no texto que não é mate em nenhuma posição da explicação vira erro,
-xeque que não dá xeque vira aviso, e nome de casa no meio da frase (o rei em h1, a torre em g3) deixou
-de ser confundido com lance.
+claro o que se perde nele. Do outro lado, a verificação da engine cobre também o que está
+escrito na prosa: mate anunciado que não é mate, xeque que não dá xeque ou lance que não existe em
+nenhuma posição da explicação a reprovam, e nome de casa no meio da frase (o rei em h1, a torre em
+g3) deixou de ser confundido com lance.
 
 Os lances do texto são links (prévia no tabuleiro) e as citações abrem o capítulo no modo livro, no
 lance certo. O rodapé mostra o modelo, o custo em dólares, o tempo, o aviso de índice vazio quando
