@@ -216,6 +216,17 @@ def _da_xeque(boards: list[chess.Board], san: str, *, mate: bool) -> bool:
     return False
 
 
+def _legal_em_alguma(boards: list[chess.Board], san: str) -> bool:
+    """O lance é legal em pelo menos uma das posições."""
+    for board in boards:
+        try:
+            board.parse_san(san)
+        except ValueError:
+            continue
+        return True
+    return False
+
+
 def _casa_na_prosa(token: str, fen_inicial: str, fen_erro: str | None) -> bool:
     """`h1`, `g3`: nome de casa no meio da frase. Só conta como lance solto quando é um
     lance de peão legal numa das posições do exercício."""
@@ -386,10 +397,16 @@ def verificar(resposta: dict, *, fen_inicial: str, fen_erro: str | None, lances_
             issue = Issue("mate_falso", "erro", f"'{token}' não é mate em nenhuma posição da explicação")
             do_texto.setdefault((issue.tipo, issue.detalhe), issue)
         elif token.endswith("+") and not _da_xeque(alcancaveis, limpo, mate=False):
-            issue = Issue("xeque_falso", "aviso", f"'{token}' não dá xeque em nenhuma posição da explicação")
+            # xeque que não é xeque é fato falso, como o mate falso: erro
+            issue = Issue("xeque_falso", "erro", f"'{token}' não dá xeque em nenhuma posição da explicação")
             do_texto.setdefault((issue.tipo, issue.detalhe), issue)
         if limpo not in lances_em_linhas and not _casa_na_prosa(token, fen_inicial, fen_erro):
-            issue = Issue("lance_sem_linha", "aviso", f"'{token}' aparece no texto sem estar em nenhuma linha")
+            # legal em alguma posição alcançável: avaliação por conferir (aviso);
+            # legal em nenhuma: lance que não existe, fato falso (erro)
+            if _legal_em_alguma(alcancaveis, limpo):
+                issue = Issue("lance_sem_linha", "aviso", f"'{token}' aparece no texto sem estar em nenhuma linha")
+            else:
+                issue = Issue("lance_ilegal", "erro", f"'{token}' não é legal em nenhuma posição da explicação")
             do_texto.setdefault((issue.tipo, issue.detalhe), issue)
     v.issues.extend(do_texto.values())
 

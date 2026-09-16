@@ -250,14 +250,18 @@ Regras:
    `avaliacao_errada`. Se a engine dá mate e o texto diz avaliação numérica, `aviso`.
 4. **Lances soltos, mates e xeques do texto**: SAN encontrado no `texto` (mesma
    expressão regular do `moveText` do frontend, portada) que não aparece em nenhuma
-   linha → `aviso` `lance_sem_linha`; token que é só nome de casa (`h1`, `g3`) conta
-   como lance apenas quando é um lance de peão legal numa das posições do exercício.
-   Os lances do texto também são conferidos contra as posições alcançáveis (as duas do
-   exercício, as dos lances nulos das duas — de onde saem as ameaças — e cada posição
-   depois de um prefixo legal de cada linha, inclusive as de ameaça): lance escrito
-   com `#` que não é mate em nenhuma delas → `erro` `mate_falso`; lance escrito com
-   `+` que não dá xeque em nenhuma delas → `aviso` `xeque_falso`. Issues idênticas
-   (mesmo tipo e mesmo detalhe) entram uma vez só.
+   linha é conferido contra as posições alcançáveis (as duas do exercício, as dos
+   lances nulos das duas — de onde saem as ameaças — e cada posição depois de um
+   prefixo legal de cada linha, inclusive as de ameaça): legal em pelo menos uma
+   delas → `aviso` `lance_sem_linha` (avaliação por conferir, não fato falso); legal
+   em nenhuma → `erro` `lance_ilegal` ("'Nc6' não é legal em nenhuma posição da
+   explicação"). Token que é só nome de casa (`h1`, `g3`) conta como lance apenas
+   quando é um lance de peão legal numa das posições do exercício. Os lances do
+   texto também são conferidos nas mesmas posições: lance escrito com `#` que não é
+   mate em nenhuma delas → `erro` `mate_falso`; lance escrito com `+` que não dá
+   xeque em nenhuma delas → `erro` `xeque_falso` (um xeque que não é xeque é fato
+   falso, como o mate). Issues idênticas (mesmo tipo e mesmo detalhe) entram uma
+   vez só.
 5. **Citações**: cada `[c:ID]` do texto e cada item de `citacoes` deve ser um
    `chunk_id` entre os trechos recuperados *nesta* execução → senão `erro`
    `citacao_inexistente`. Texto que menciona "no estudo" sem citação → `aviso`.
@@ -300,9 +304,12 @@ Regras:
    idênticas entram uma vez só. A mensagem de correção diz o que fazer com ela:
    reescrever a frase com o que os fatos dizem ou tirar a afirmação.
 
-`ok` é verdadeiro sem nenhum `erro`. Avisos não bloqueiam, mas aparecem no
-cartão. O verificador é puro (recebe uma função `analisar(fen, multipv)`), o
-que permite testá-lo com engine falsa e reusá-lo na avaliação offline.
+`ok` é verdadeiro sem nenhum `erro`. Avisos não bloqueiam: ficam gravados no
+banco (`verification_json`, `status = "warnings"`) e no log, para a avaliação
+offline, e nunca chegam ao cartão — para o aluno, a explicação foi verificada
+pela engine ou não existe (§10). O verificador é puro (recebe uma função
+`analisar(fen, multipv)`), o que permite testá-lo com engine falsa e reusá-lo
+na avaliação offline.
 
 ## 6. RAG sobre os estudos
 
@@ -509,8 +516,14 @@ interativa é compartilhada; segunda chamada simultânea recebe 409
 - **Resultado do exercício** (`train/ResultPanel.tsx`): na coluna da direita,
   abaixo do cartão "Meu erro"/"Na partida", o botão "Explicar" aparece quando
   `coach.configured`. Estados do cartão "Treinador": carregando (com aviso de
-  que costuma levar cerca de um minuto), erro (mensagem da API, em português), pronto. Se já
-  existe explicação para o puzzle, o cartão abre direto com ela e o botão vira
+  que costuma levar cerca de um minuto), erro (mensagem da API, em português),
+  pronto — e pronto tem duas caras: a explicação verificada pela engine (`status`
+  `ok` ou `warnings`; os avisos ficam no banco, nunca no cartão) ou, quando sobrou
+  `erro` depois da rodada de correção (`status` `errors`), nenhuma explicação: o
+  cartão diz "Não consegui uma explicação que passe na verificação da engine para
+  este exercício." e oferece "Explicar de novo" (a prosa, o padrão, o treinar e as
+  linhas não aparecem; o rodapé com modelo, custo e tempo fica). Se já existe
+  explicação para o puzzle, o cartão abre direto com ela e o botão vira
   "Explicar de novo".
 - Leitura em blocos, na ordem: "Na partida" (`na_partida`), "Por que"
   (`por_que`), o `padrao` como etiqueta e "Treinar" com a lista de `treinar`,
@@ -520,10 +533,10 @@ interativa é compartilhada; segunda chamada simultânea recebe 409
   prévia); marcadores `[c:ID]` viram links "Estudo › Capítulo › 12.Cf3" que
   abrem o capítulo em modo livro no lance (`?lance=`), reusando o formato de
   link dos estudos.
-- Selo ao lado do título: "verificado pela engine" quando `verification.ok` sem
-  avisos; "com ressalvas (N)" e "não verificado (N)" num `<details>` fechado,
-  com as ressalvas sem repetição e os `lance_sem_linha` agrupados numa linha só.
-  Nada escondido: tudo a um clique.
+- Selo ao lado do título, numa forma só: "verificado pela engine", sempre que a
+  explicação aparece (`status` `ok` ou `warnings`). Sem contagem, sem lista de
+  avisos: o vocabulário do verificador não entra no produto. Com `status`
+  `errors` não há selo, só a frase acima.
 - Rodapé discreto numa linha: modelo, custo em dólares (US$ 0,04), tempo, link do
   trace, aviso de índice vazio e o botão secundário "Explicar de novo".
 - Em tela larga (≥ 900 px) a coluna do tabuleiro fica `sticky` enquanto a coluna

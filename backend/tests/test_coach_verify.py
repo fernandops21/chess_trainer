@@ -157,10 +157,23 @@ def test_avaliacao_nao_numerica_vira_erro_e_nao_excecao():
 
 
 def test_lance_solto_no_texto_e_aviso():
-    v = checar({"texto": TEXTO_OK + " O lance Nc6 defende.", "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]})
+    # Nc3 é legal na posição do exercício, só não está em linha nenhuma: avaliação não conferida
+    v = checar({"texto": TEXTO_OK + " O lance Nc3 defende.", "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]})
     assert v.ok and "lance_sem_linha" in tipos(v)
     v2 = checar({"texto": TEXTO_OK + " O lance Qxf7# decide.", "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]})
     assert "lance_sem_linha" not in tipos(v2)
+
+
+def test_lance_solto_ilegal_em_toda_posicao_e_erro():
+    """Lance solto que não é legal em nenhuma posição alcançável é fato falso, não avaliação
+    por conferir: Nc6 não existe para nenhum dos lados nas posições do mate do pastor."""
+    v = checar({"texto": TEXTO_OK + " O lance Nc6 defende.", "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]})
+    assert not v.ok and "lance_ilegal" in tipos(v) and "lance_sem_linha" not in tipos(v)
+    ilegal = [i for i in v.issues if i.tipo == "lance_ilegal"]
+    assert len(ilegal) == 1 and ilegal[0].detalhe == "'Nc6' não é legal em nenhuma posição da explicação" and ilegal[0].linha_idx is None
+    # legal só numa posição que uma linha alcança: continua aviso (Ng5 só existe depois de Nf3 d6)
+    depois = checar({"texto": TEXTO_OK + " O lance Ng5 defende.", "linhas": [{"inicio": "inicial", "lances": ["Nf3", "d6"]}]})
+    assert "lance_ilegal" not in tipos(depois) and "lance_sem_linha" in tipos(depois)
 
 
 def test_citacoes():
@@ -276,9 +289,11 @@ def test_xeque_escrito_no_texto_tem_de_dar_xeque_em_alguma_posicao():
     real = checar({**base, "texto": TEXTO_OK + " As brancas tentam Rh8+ e não resolvem."},
                   fen_inicial=FEN_AMEACA, fen_erro=None)
     assert "xeque_falso" not in tipos(real)
+    # xeque que não é xeque é fato falso, como o mate falso: erro, não aviso
     falso = checar({**base, "texto": TEXTO_OK + " As brancas tentam Qg2+ e não resolvem."},
                    fen_inicial=FEN_AMEACA, fen_erro=None)
-    assert falso.ok and "xeque_falso" in tipos(falso)
+    assert not falso.ok and "xeque_falso" in tipos(falso)
+    assert all(i.gravidade == "erro" for i in falso.issues if i.tipo == "xeque_falso")
 
 
 def test_san_re_extrai_lances_numerados_da_prosa():
@@ -298,7 +313,7 @@ def test_san_re_extrai_lances_numerados_da_prosa():
 
 
 def test_avisos_repetidos_do_mesmo_lance_colapsam_em_um():
-    v = checar({"texto": TEXTO_OK + " Nc6 defende, e de novo Nc6 defende.",
+    v = checar({"texto": TEXTO_OK + " Nc3 defende, e de novo Nc3 defende.",
                 "linhas": [{"inicio": "inicial", "lances": ["Qxf7#"], "mate_em": 0}]})
     assert len([i for i in v.issues if i.tipo == "lance_sem_linha"]) == 1
 
