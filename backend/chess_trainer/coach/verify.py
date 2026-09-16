@@ -45,6 +45,8 @@ TIPO_DA_PECA = {"dama": chess.QUEEN, "torre": chess.ROOK, "bispo": chess.BISHOP,
 INICIOS_DE_AMEACA = ("ameaca", "ameaca_erro")
 TOLERANCIA_CP = 100
 MIN_PALAVRAS, MAX_PALAVRAS = 60, 400
+# o bloco "na partida" sozinho: menos que isso é placeholder, não relato
+MIN_PALAVRAS_NA_PARTIDA = 8
 
 
 @dataclass(frozen=True)
@@ -406,4 +408,11 @@ def verificar(resposta: dict, *, fen_inicial: str, fen_erro: str | None, lances_
 
     # 7. peças e relações: "o bispo de f4" existe, e "apoiada pelo bispo de f4" é geometria
     v.issues.extend(_pecas_e_relacoes(texto, alcancaveis))
+
+    # 8. bloco "na partida" preenchido: o modelo já entregou "x" ali e contou a partida no "por que"
+    if "na_partida" in resposta:
+        n_np = len(str(resposta.get("na_partida") or "").split())
+        if n_np < MIN_PALAVRAS_NA_PARTIDA:
+            v.issues.append(Issue("bloco_vazio", "erro", f"`na_partida` tem {n_np} palavra(s); conte o que aconteceu "
+                                                          f"na partida em ao menos {MIN_PALAVRAS_NA_PARTIDA}"))
     return v

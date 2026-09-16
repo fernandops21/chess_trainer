@@ -172,6 +172,18 @@ def test_citacoes():
     assert sem.ok and "citacao_ausente" in tipos(sem)
 
 
+def test_na_partida_vazio_ou_placeholder_e_erro():
+    """Ao vivo o modelo entregou `na_partida: "x"` e contou a partida dentro do `por_que`."""
+    base = {"texto": " ".join(["palavra"] * 80), "linhas": [], "citacoes": []}
+    kw = dict(fen_inicial=FEN, fen_erro=None, lances_permitidos=set(), trechos_ids=set(), analisar=analisar_script)
+    v = verificar({**base, "na_partida": "x"}, **kw)
+    assert [i.tipo for i in v.issues if i.gravidade == "erro"] == ["bloco_vazio"] and "1 palavra" in v.issues[-1].detalhe
+    v = verificar({**base, "na_partida": "Na partida o lance natural devolveu a vantagem."}, **kw)
+    assert not [i for i in v.issues if i.tipo == "bloco_vazio"]
+    # resposta sem o campo (formato antigo/avaliação): a regra não se aplica
+    assert not [i for i in verificar(base, **kw).issues if i.tipo == "bloco_vazio"]
+
+
 def test_tamanho_do_texto():
     assert "tamanho" in tipos(checar({"texto": "curto demais", "linhas": []}))
     assert "tamanho" in tipos(checar({"texto": " ".join(["x"] * 401), "linhas": []}))

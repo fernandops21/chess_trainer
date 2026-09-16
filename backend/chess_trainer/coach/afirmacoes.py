@@ -9,17 +9,23 @@ explicação alcança (`conferir_afirmacoes`). Afirmação falsa vira `erro`
 A conferência é pura: não toca em rede nem em banco."""
 from __future__ import annotations
 
+import logging
+
 import chess
 
 from chess_trainer.coach.costs import Uso
 from chess_trainer.coach.llm import FERRAMENTA_FINAL, LlmClient
 from chess_trainer.coach.verify import CASA_RE, TIPO_DA_PECA, Issue, _da_xeque, limpar_san
 
+log = logging.getLogger(__name__)
+
 TIPOS = ("ataca", "mais_atacantes", "indefesa", "cravada", "unico_lance", "unica_casa_do_rei",
          "garfo", "xeque", "mate", "peca_em_casa", "outro")
 LADO = {"brancas": chess.WHITE, "pretas": chess.BLACK}
 NOME_DO_LADO = {chess.WHITE: "as brancas", chess.BLACK: "as pretas"}
 EFFORT_CHECAGEM = "low"
+AVISO_SEM_FERRAMENTA = ("\n\nSua resposta anterior veio em texto, sem chamar a ferramenta. Chame a ferramenta com a lista "
+                        "(vazia, se a explicação não fizer nenhuma afirmação sobre o tabuleiro).")
 MAX_TOKENS_CHECAGEM = 4000
 
 _CASA_OU_NULO = {"type": ["string", "null"], "description": "Casa do tabuleiro (a1–h8) ou nulo."}
@@ -76,11 +82,20 @@ def extrair_afirmacoes(llm: LlmClient, texto: str) -> tuple[list[dict], Uso, int
     """Pede ao segundo modelo a lista de afirmações do texto. Devolve (lista, uso, chamadas à
     API); sem resposta estruturada a lista vem vazia — nunca levanta por isso. `ErroDoTreinador`
     do cliente sobe como nas outras chamadas (a rota já o traduz)."""
-    r = llm.run_agent(system=SYSTEM_AFIRMACOES, user=f"## Explicação\n{texto}\n\nListe as afirmações desta explicação.",
-                      ferramentas=[], esquema_final=ESQUEMA_AFIRMACOES, effort=EFFORT_CHECAGEM, max_tokens=MAX_TOKENS_CHECAGEM)
+    user = f"## Explicação\n{texto}\n\nListe as afirmações desta explicação."
+    r = llm.run_agent(system=SYSTEM_AFIRMACOES, user=user, ferramentas=[], esquema_final=ESQUEMA_AFIRMACOES,
+                      effort=EFFORT_CHECAGEM, max_tokens=MAX_TOKENS_CHECAGEM)
+    uso, n = r.uso, r.n_chamadas_api
+    if r.estruturado is None:
+        # respondeu em texto em vez de chamar a ferramenta: uma segunda chance, com o aviso
+        log.warning("checagem: o modelo respondeu sem a ferramenta (%r); pedindo de novo", r.texto[:200])
+        r = llm.run_agent(system=SYSTEM_AFIRMACOES, user=user + AVISO_SEM_FERRAMENTA, ferramentas=[],
+                          esquema_final=ESQUEMA_AFIRMACOES, effort=EFFORT_CHECAGEM, max_tokens=MAX_TOKENS_CHECAGEM)
+        uso, n = uso + r.uso, n + r.n_chamadas_api
     itens = (r.estruturado or {}).get("afirmacoes")
     lista = [a for a in itens if isinstance(a, dict)] if isinstance(itens, list) else []
-    return lista, r.uso, r.n_chamadas_api
+    log.info("checagem: %d afirmações extraídas%s", len(lista), "" if r.estruturado is not None else " (sem resposta estruturada)")
+    return lista, uso, n
 
 
 # --- conferência -------------------------------------------------------------

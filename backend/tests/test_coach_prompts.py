@@ -34,7 +34,7 @@ def test_esquema_estrito_valida_uma_resposta_boa_e_recusa_uma_ruim():
 
 
 def test_prompt_de_sistema_tem_as_regras_duras():
-    assert PROMPT_VERSION == "v9"
+    assert PROMPT_VERSION == "v10"
     for trecho in ("analisar_posicao", "ponto de vista das brancas", "[c:", "inicial", "erro", FERRAMENTA_FINAL,
                    # o dossiê traz as análises prontas: as ameaças, a defesa natural e a solução saem dele,
                    # e as ferramentas ficam só para o que ele não cobre

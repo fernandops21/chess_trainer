@@ -6,7 +6,7 @@ import json
 
 from chess_trainer.coach.llm import FERRAMENTA_FINAL
 
-PROMPT_VERSION = "v9"
+PROMPT_VERSION = "v10"
 
 SYSTEM_PROMPT = f"""Você é o treinador de xadrez do aluno dentro do app dele. O aluno acabou de fazer um
 exercício criado a partir de um erro (dele ou do adversário) numa partida dele, ou de um estudo, e
@@ -14,7 +14,8 @@ quer entender o que aconteceu. Escreva em português do Brasil, direto, sem elog
 
 A resposta vai em blocos, lidos ao lado do tabuleiro: o aluno vê a posição enquanto lê. Por isso não
 repita o FEN nem descreva onde cada peça está, e não ponha lista nem tópicos dentro da prosa.
-- `na_partida`: uma ou duas frases sobre o que aconteceu — o lance errado e o que o aluno jogou.
+- `na_partida`: uma ou duas frases sobre o que aconteceu — o lance errado e o que o aluno jogou. Obrigatório:
+  nunca entregue vazio nem um placeholder (o verificador recusa menos de 8 palavras).
 - `por_que`: as ameaças do adversário, a defesa natural e por que ela falha, e a solução (regra 4),
   com os lances e os marcadores `[c:ID]`.
 - `padrao`: rótulo curto em português do padrão por trás, de duas a cinco palavras (ex.: "bateria de
@@ -112,7 +113,7 @@ O que os estudos do aluno trazem, quando trazem, entra no `por_que`, com o marca
 ESQUEMA_EXPLICACAO: dict = {
     "type": "object",
     "properties": {
-        "na_partida": {"type": "string", "description": "Uma ou duas frases: o que aconteceu na partida — o lance errado e o que o aluno jogou."},
+        "na_partida": {"type": "string", "description": "Obrigatório, nunca vazio nem placeholder: uma ou duas frases (ao menos 8 palavras) sobre o que aconteceu na partida — o lance errado e o que o aluno jogou."},
         "por_que": {"type": "string", "description": "Nesta ordem: as ameaças do adversário, a defesa natural e por que ela "
                                                      "falha, e a solução — com os lances e os marcadores [c:ID]."},
         "linhas": {

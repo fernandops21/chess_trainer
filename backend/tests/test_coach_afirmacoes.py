@@ -59,9 +59,19 @@ def test_extrair_devolve_a_lista_o_uso_e_as_chamadas():
     assert p["system"] == SYSTEM_AFIRMACOES and "A dama de g4 ataca d4." in p["user"]
 
 
+def test_extrair_tenta_de_novo_quando_o_modelo_responde_em_texto():
+    """Ao vivo o checador voltou "0 afirmações" num texto cheio delas: o modelo respondeu sem
+    a ferramenta. A segunda chance vai com o aviso, e o uso soma as duas chamadas."""
+    lista = [afirmacao("ataca", "a dama de g4 ataca d4", peca="g4", alvo="d4")]
+    llm = FakeLlm([[("texto", "aqui vai a lista...")], [("final", {"afirmacoes": lista})]], uso=Uso(300, 50, 0, 0))
+    afirmacoes, uso, n = extrair_afirmacoes(llm, "A dama de g4 ataca d4.")
+    assert afirmacoes == lista and uso == Uso(600, 100, 0, 0) and n == 2
+    assert "sem chamar a ferramenta" in llm.prompts[1]["user"] and llm.prompts[1]["user"].startswith(llm.prompts[0]["user"])
+
+
 def test_extrair_sem_resposta_estruturada_devolve_lista_vazia():
-    afirmacoes, uso, n = extrair_afirmacoes(FakeLlm([[("texto", "não sei")]]), "texto")
-    assert afirmacoes == [] and uso == Uso(1000, 200, 500, 0) and n == 1
+    afirmacoes, uso, n = extrair_afirmacoes(FakeLlm([[("texto", "não sei")], [("texto", "ainda não")]]), "texto")
+    assert afirmacoes == [] and uso == Uso(2000, 400, 1000, 0) and n == 2
     # lista malformada também não derruba: só os dicionários contam
     llm = FakeLlm([[("final", {"afirmacoes": ["x", afirmacao("outro")]})]])
     assert extrair_afirmacoes(llm, "texto")[0] == [afirmacao("outro")]
