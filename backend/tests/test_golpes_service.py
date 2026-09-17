@@ -195,3 +195,20 @@ def test_irmaos_respeita_popularidade(db_session):
     db_session.commit()
     preparar(db_session, lambda *a: None)
     assert irmaos(db_session, assinar(FEN_PASTOR_START, ["h5f7"]), rating_lo=0, rating_hi=3000, excluir=set()) == []
+
+
+def test_irmaos_respeita_o_limite_de_candidatos(db_session, monkeypatch):
+    """Com o limite baixo, só os mais fáceis dentro dele entram — mesmo pedindo mais e havendo mais
+    no banco: o corte é feito na consulta (fácil ao difícil), antes de carregar as linhas escolhidas."""
+    from chess_trainer.core.golpes.service import linha_de_assinatura
+    monkeypatch.setattr("chess_trainer.core.golpes.service.LIMITE_CANDIDATOS", 3)
+    for i in range(6):
+        db_session.add(pastor(f"lim{i}", rating=700 + 100 * i))
+    db_session.commit()
+    a = assinar(FEN_PASTOR_START, ["h5f7"])
+    for i in range(6):
+        db_session.add(linha_de_assinatura(a, LichessPuzzleSignature, f"lim{i}"))
+    db_session.commit()
+
+    r = irmaos(db_session, a, rating_lo=650, rating_hi=1250, excluir=set(), k=6)
+    assert [x.row.rating for x in r] == [700, 800, 900]

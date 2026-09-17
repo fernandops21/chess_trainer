@@ -61,7 +61,7 @@ def golpes_irmaos(origem: str, id: str, k: int | None = None, db: Session = Depe
         raise HTTPException(404, "exercício sem assinatura de golpe")
     a, _fen, _lances = achado
     s = load_settings(db)
-    n = max(1, min(10, k or s.golpes_bloco))
+    n = max(1, min(10, s.golpes_bloco if k is None else k))
     excluir = _seen_ids(db, utcnow(), [id] if origem == "lichess" else [])
     excluir |= set(db.scalars(select(Puzzle.external_id).where(Puzzle.external_id.is_not(None))))
     lo, hi = s.tactics_rating - s.tactics_window, s.tactics_rating + s.tactics_window

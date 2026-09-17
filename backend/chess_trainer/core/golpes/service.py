@@ -161,6 +161,10 @@ class Irmao:
     tier: str  # mesmo | espelho | esqueleto
 
 
+# ordenado do fácil ao difícil, 5000 é mais do que qualquer bloco espalha e cabe na memória
+LIMITE_CANDIDATOS = 5000
+
+
 def espalhar(itens: list, k: int) -> list:
     """k itens espalhados ao longo de uma lista ordenada: do fácil ao difícil, sem se amontoar."""
     n = len(itens)
@@ -172,31 +176,38 @@ def espalhar(itens: list, k: int) -> list:
     return [itens[p] for p in posicoes]
 
 
-def _candidatos(db: Session, cond, rating_lo: int, rating_hi: int, excluir: set[str], min_popularity: int, min_plays: int):
-    q = (select(LichessPuzzle).join(LichessPuzzleSignature, LichessPuzzleSignature.puzzle_id == LichessPuzzle.id)
+def _candidatos(db: Session, cond, rating_lo: int, rating_hi: int, excluir: set[str], min_popularity: int,
+                min_plays: int) -> list[str]:
+    """Ids candidatos, do fácil ao difícil, sem materializar a linha inteira nem a tabela toda:
+    só (id, rating), até `LIMITE_CANDIDATOS`; a exclusão é aplicada depois, em Python."""
+    q = (select(LichessPuzzle.id, LichessPuzzle.rating)
+         .join(LichessPuzzleSignature, LichessPuzzleSignature.puzzle_id == LichessPuzzle.id)
          .where(cond, LichessPuzzle.rating.between(rating_lo, rating_hi),
                 LichessPuzzle.popularity >= min_popularity, LichessPuzzle.nb_plays >= min_plays)
-         .order_by(LichessPuzzle.rating, LichessPuzzle.id))
-    return [r for r in db.scalars(q) if r.id not in excluir]
+         .order_by(LichessPuzzle.rating, LichessPuzzle.id).limit(LIMITE_CANDIDATOS))
+    return [pid for pid, _rating in db.execute(q) if pid not in excluir]
 
 
 def irmaos(db: Session, a: Assinatura, *, rating_lo: int, rating_hi: int, excluir: set[str], k: int = 5,
            min_popularity: int = 50, min_plays: int = 50) -> list[Irmao]:
     """Cascata (spec §5): mesmo golpe → espelho → esqueleto na mesma zona. Cada camada enche o que
-    falta, espalhada do fácil ao difícil; o que já saiu numa camada não volta na seguinte."""
+    falta, espalhada do fácil ao difícil; o que já saiu numa camada não volta na seguinte. Ids
+    primeiro, linhas completas só dos escolhidos no final: a tabela do Lichess tem milhões de linhas."""
     h = a.hashes()
     camadas = [
         ("mesmo", LichessPuzzleSignature.destinos == h["destinos"]),
         ("espelho", LichessPuzzleSignature.destinos == h["destinos_esp"]),
         ("esqueleto", (LichessPuzzleSignature.esqueleto == h["esqueleto"]) & (LichessPuzzleSignature.zona_rei == a.zona_rei)),
     ]
-    out: list[Irmao] = []
+    escolhidos: list[tuple[str, str]] = []  # (id, tier), já na ordem final
     usados = set(excluir)
     for tier, cond in camadas:
-        if len(out) >= k:
+        if len(escolhidos) >= k:
             break
-        cands = _candidatos(db, cond, rating_lo, rating_hi, usados, min_popularity, min_plays)
-        for row in espalhar(cands, k - len(out)):
-            out.append(Irmao(row, tier))
-            usados.add(row.id)
-    return out
+        ids = _candidatos(db, cond, rating_lo, rating_hi, usados, min_popularity, min_plays)
+        for pid in espalhar(ids, k - len(escolhidos)):
+            escolhidos.append((pid, tier))
+            usados.add(pid)
+    linhas = {r.id: r for r in db.scalars(
+        select(LichessPuzzle).where(LichessPuzzle.id.in_([pid for pid, _tier in escolhidos])))}
+    return [Irmao(linhas[pid], tier) for pid, tier in escolhidos]

@@ -55,3 +55,5 @@ def test_irmaos_de_um_puzzle_do_lichess(client):
     assert r["itens"][0]["tactic"]["fen_start"] and r["itens"][0]["tactic"]["rating"] <= r["itens"][-1]["tactic"]["rating"]
     assert client.get("/api/golpes/lichess/nao/irmaos").status_code == 404
     assert client.get("/api/golpes/own/nao/irmaos").status_code == 404
+    # k=0 não é "não informado": é o pedido de um único item, não o padrão de golpes_bloco
+    assert len(client.get("/api/golpes/lichess/p0/irmaos?k=0").json()["itens"]) == 1
