@@ -5,6 +5,8 @@ import { useSettings, useTacticsStatus } from "../api/queries";
 import type { AttemptOut, ReviewIn, SessionOut, TacticOut } from "../api/types";
 import { ErrorBox } from "../components/ErrorBox";
 import { Modal } from "../components/Modal";
+import { corpoDoSalvamento, itemDoBloco } from "./bloco";
+import type { Bloco } from "./BlocoContext";
 import { PuzzleView } from "./PuzzleView";
 import type { SessionConfig } from "./SessionStart";
 import { TacticResultPanel } from "./TacticResultPanel";
@@ -24,8 +26,8 @@ export interface TacticSummaryData {
 const DEFAULT_RATING = 1200;
 
 /** Uma tática da sessão: monta usePuzzle com key = tactic.id para reiniciar o estado a cada tática. */
-function TacticPuzzle({ tactic, sessionId, clockLabel, orderInfo, onDone, nextDisabled }:
-  { tactic: TacticOut; sessionId: string | null; clockLabel?: string; orderInfo?: string; onDone: (d: TacticDone) => void; nextDisabled?: boolean }) {
+function TacticPuzzle({ tactic, sessionId, clockLabel, orderInfo, onDone, nextDisabled, bloco }:
+  { tactic: TacticOut; sessionId: string | null; clockLabel?: string; orderInfo?: string; onDone: (d: TacticDone) => void; nextDisabled?: boolean; bloco?: Bloco }) {
   const qc = useQueryClient();
   // o tempo de resolução não volta na tentativa: guardamos o que foi enviado
   // para que "Guardar para repetir" mande o resultado completo
@@ -36,8 +38,10 @@ function TacticPuzzle({ tactic, sessionId, clockLabel, orderInfo, onDone, nextDi
     // a tentativa mexe no rating e nas estatísticas por tema
     void qc.invalidateQueries({ queryKey: ["tactics"] });
     void qc.invalidateQueries({ queryKey: ["stats"] });
+    // no bloco de irmãos a tentativa já entra na fila com o vínculo para a âncora
+    if (bloco) await api.saveTactic(tactic.id, corpoDoSalvamento(bloco, { ...out, duration_ms: body.duration_ms ?? 0, session_id: body.session_id }));
     return out;
-  }, [qc]);
+  }, [qc, bloco, tactic.id]);
   // enquanto as configurações não chegam, a refutação fica ligada (é o padrão)
   const { data: settings } = useSettings();
   const ctl = usePuzzle<AttemptOut>(tactic, { sessionId, submit, refute: settings?.refute_wrong_moves ?? true });
@@ -62,6 +66,8 @@ export function TacticSession({ config, onFinish }: { config: SessionConfig; onF
   const startRating = status?.rating ?? DEFAULT_RATING;
   // a fila é infinita: não repetir o que já apareceu nesta sessão
   const seen = useRef<string[]>([]);
+  // cursor da lista fixa do bloco de irmãos (modo "bloco"): próximo índice a entrar
+  const cursor = useRef(0);
   const sessionRef = useRef<SessionOut | null>(null);
   const finished = useRef(false);
   // trava do encerramento no servidor, compartilhada com a saída da tela
@@ -76,7 +82,7 @@ export function TacticSession({ config, onFinish }: { config: SessionConfig; onF
   const excludeIds = () => seen.current.slice(-MAX_EXCLUDE);
   // Mesma proteção do treino próprio: sob StrictMode o efeito roda duas vezes
   // e a segunda execução precisa se reinscrever no mesmo request.
-  const startP = useRef<Promise<[SessionOut, TacticOut]> | null>(null);
+  const startP = useRef<Promise<[SessionOut, TacticOut | null]> | null>(null);
   // sair antes da resposta do `POST /api/sessions` não pode deixar a sessão aberta:
   // o encerramento espera a criação terminar para saber o id
   useEndOnExit(sessionRef, endedRef, () => startP.current?.then(([s]) => s) ?? null);
@@ -107,11 +113,18 @@ export function TacticSession({ config, onFinish }: { config: SessionConfig; onF
     startP.current ??= (async () => {
       const s = await api.createSession({ planned_minutes: config.plannedMinutes, filters: { source: "tactics", themes: config.themes } });
       sessionRef.current = s;
-      return [s, await api.nextTactic({ themes: config.themes, exclude: excludeIds() })] as [SessionOut, TacticOut];
+      // no bloco de irmãos a próxima tática vem da lista fixa, não da fila do Lichess
+      const t = config.bloco ? itemDoBloco(config.bloco, cursor.current++) : await api.nextTactic({ themes: config.themes, exclude: excludeIds() });
+      return [s, t] as [SessionOut, TacticOut | null];
     })();
     let alive = true;
     startP.current.then(
-      ([s, t]) => { if (alive) { setSession(s); arrive(t); } },
+      ([s, t]) => {
+        if (!alive) return;
+        setSession(s);
+        if (t === null) { void finish("Bloco concluído.", []); return; }
+        arrive(t);
+      },
       (e) => {
         if (!alive) return;
         if (e instanceof ApiError && e.status === 404) void finish(e.message, []);
@@ -123,6 +136,12 @@ export function TacticSession({ config, onFinish }: { config: SessionConfig; onF
   }, [config]);
 
   const goNext = async (all: TacticDone[]) => {
+    if (config.bloco) {
+      const t = itemDoBloco(config.bloco, cursor.current++);
+      if (t === null) { await finish("Bloco concluído.", all); return; }
+      arrive(t);
+      return;
+    }
     try {
       arrive(await api.nextTactic({ themes: config.themes, exclude: excludeIds() }));
     } catch (e) {
@@ -146,10 +165,13 @@ export function TacticSession({ config, onFinish }: { config: SessionConfig; onF
   if (error) return <ErrorBox error={error} />;
   if (!tactic || !session) return <p className="muted">Preparando a sessão…</p>;
   const rating = done.length ? done[done.length - 1].attempt.rating_after : startRating;
+  // no bloco de irmãos o resumo é a posição na lista fixa, não o rating (a tática já saiu da fila)
+  const orderInfo = config.bloco ? `${done.length + 1} de ${config.bloco.itens.length}` : `${done.length + 1}ª tática · rating ${rating}`;
   return (
     <>
+      {config.bloco && <h2 style={{ marginTop: 0 }}>Repetir o golpe</h2>}
       <TacticPuzzle key={tactic.id} tactic={tactic} sessionId={session.id} clockLabel={clock.label}
-        orderInfo={`${done.length + 1}ª tática · rating ${rating}`} onDone={advance} nextDisabled={advancing} />
+        orderInfo={orderInfo} onDone={advance} nextDisabled={advancing} bloco={config.bloco} />
       <div className="row"><button onClick={() => void finish("Sessão encerrada.", done)}>Encerrar sessão</button></div>
       <Modal open={askContinue} title="Tempo esgotado">
         <p>O tempo planejado acabou. Continuar ou encerrar?</p>

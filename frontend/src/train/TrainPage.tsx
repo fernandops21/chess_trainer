@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { usePuzzleQuery } from "../api/queries";
 import { ErrorBox } from "../components/ErrorBox";
+import { configDoBloco } from "./bloco";
+import { type Bloco, BlocoProvider } from "./BlocoContext";
 import { Session, SessionPuzzle } from "./Session";
 import { SessionStart, type SessionConfig } from "./SessionStart";
 import { SessionSummary, type Done } from "./SessionSummary";
@@ -27,15 +29,20 @@ export function TrainPage() {
   const [summary, setSummary] = useState<OwnSummary | null>(null);
   const [tacticSummary, setTacticSummary] = useState<TacticSummaryData | null>(null);
   const restart = () => { setSummary(null); setTacticSummary(null); setConfig(null); };
+  // o cartão "Repetir o golpe" troca a configuração da sessão em andamento pela do
+  // bloco de irmãos; a `key` força o remonte da `TacticSession` (sem ela, a troca de
+  // config reaproveitaria a instância — e os refs de uma sessão já em curso — em vez
+  // de começar a sessão do bloco do zero)
+  const iniciar = (bloco: Bloco) => setConfig(configDoBloco(bloco));
 
   if (single) return <><h1>Treinar</h1><SingleTrain id={single} seen={params.get("seen") === "1"} /></>;
 
   let body;
   if (tacticSummary) body = <TacticSummary {...tacticSummary} onNew={restart} />;
   else if (summary) body = <SessionSummary {...summary} onNew={restart} />;
-  else if (config?.source === "tactics") body = <TacticSession config={config} onFinish={setTacticSummary} />;
+  else if (config?.source === "tactics") body = <TacticSession key={config.bloco ? `bloco-${config.bloco.anchorId}` : "tactics"} config={config} onFinish={setTacticSummary} />;
   else if (config) body = <Session config={config} onFinish={(done, elapsedLabel, reason) => setSummary({ done, elapsedLabel, reason })} />;
   else body = <SessionStart onStart={setConfig} />;
 
-  return <><h1>Treinar</h1>{body}</>;
+  return <BlocoProvider value={{ iniciar }}><h1>Treinar</h1>{body}</BlocoProvider>;
 }

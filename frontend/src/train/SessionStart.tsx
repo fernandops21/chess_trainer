@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useDashboard, useQueue, useStudies, useTacticsStatus } from "../api/queries";
 import type { PuzzleSource, QueueFilters, QueueMode } from "../api/types";
 import { storage } from "../lib/storage";
+import type { Bloco } from "./BlocoContext";
 import { ThemePicker } from "./ThemePicker";
 
 export type SessionSource = "own" | "tactics";
@@ -12,11 +13,14 @@ type Choice = QueueMode | "tactics";
 
 export interface SessionConfig {
   source: SessionSource;
-  /** Modo da fila; nas táticas do Lichess não vale (elas vêm do banco do Lichess). */
-  mode: QueueMode;
+  /** Modo da fila; nas táticas do Lichess não vale (elas vêm do banco do Lichess). "bloco" é o
+   *  repetir-o-golpe: a sessão percorre uma lista fixa de irmãos em vez de pedir à fila. */
+  mode: QueueMode | "bloco";
   filters: QueueFilters;
   plannedMinutes: number | null;
   themes: string[];
+  /** Presente só no modo "bloco": a âncora e os irmãos a treinar, na ordem. */
+  bloco?: Bloco;
 }
 
 const SOURCES: { value: PuzzleSource; label: string }[] = [

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { ApiError, api } from "../src/api/client";
 import type { AttemptOut, SessionOut, TacticOut, TacticsStatus } from "../src/api/types";
 import type { PuzzleCtl } from "../src/train/usePuzzle";
+import { configDoBloco } from "../src/train/bloco";
 import { TacticSession, type TacticSummaryData } from "../src/train/TacticSession";
 import { TacticSummary } from "../src/train/TacticSummary";
 import type { SessionConfig } from "../src/train/SessionStart";
@@ -93,6 +94,15 @@ function renderSession() {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter><Host /></MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+/** Sessão em modo bloco: passa a `config` direto, sem o `Host` (que fixa o modo "review"). */
+function renderBloco(config: SessionConfig) {
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter><TacticSession config={config} onFinish={vi.fn()} /></MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -268,4 +278,37 @@ test("guardar a tática resolvida manda o resultado da tentativa", async () => {
   expect(await screen.findByText("Guardado ✓")).toBeTruthy();
   expect(save).toHaveBeenCalledWith("t1", expect.objectContaining({ correct: true, used_hint: false }));
   expect(typeof (save.mock.calls[0][1] as { duration_ms?: number }).duration_ms).toBe("number");
+});
+
+// --- bloco de irmãos (repetir o golpe) -----------------------------------
+
+test("bloco: não chama nextTactic e mostra o primeiro irmão", async () => {
+  const next = vi.spyOn(api, "nextTactic");
+  const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")] });
+  renderBloco(blocoConfig);
+  expect(await screen.findByText(/Repetir o golpe/)).toBeInTheDocument();
+  expect(screen.getByText("fen:" + FEN_BEFORE)).toBeTruthy();
+  expect(next).not.toHaveBeenCalled();
+});
+
+test("bloco: percorre a lista fixa e acaba no fim, salvando o irmão com o vínculo da âncora", async () => {
+  const next = vi.spyOn(api, "nextTactic");
+  const save = vi.spyOn(api, "saveTactic").mockResolvedValue({} as never);
+  const onFinish = vi.fn();
+  const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")] });
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter><TacticSession config={blocoConfig} onFinish={onFinish} /></MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByText("1 de 2")).toBeTruthy();
+  await solve();
+  expect(save).toHaveBeenCalledWith("a", expect.objectContaining({ correct: true, used_hint: false, sibling_of: "p1" }));
+  fireEvent.click(await screen.findByText("Próximo"));
+  expect(await screen.findByText("2 de 2")).toBeTruthy();
+  await solve();
+  expect(save).toHaveBeenLastCalledWith("b", expect.objectContaining({ correct: true, used_hint: false, sibling_of: "p1" }));
+  fireEvent.click(await screen.findByText("Próximo"));
+  await waitFor(() => expect(onFinish).toHaveBeenCalled());
+  expect(next).not.toHaveBeenCalled();
 });
