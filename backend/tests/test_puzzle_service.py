@@ -7,7 +7,8 @@ from sqlalchemy import func, select
 from chess_trainer.config import AppSettings
 from chess_trainer.core.analysis.engine import LineEval
 from chess_trainer.core.evals import MATE_SCORE
-from chess_trainer.core.models import Position, Puzzle, Review
+from chess_trainer.core.golpes.service import assinar_proprio, garantir_assinatura
+from chess_trainer.core.models import Position, Puzzle, PuzzleSignature, Review
 from chess_trainer.core.puzzles.generator import PuzzleConfig
 from chess_trainer.core.puzzles.service import _is_trivial_punish, build_drafts, extend_all
 from tests.fakes import FakeEngine, first_legal_default
@@ -173,6 +174,25 @@ def test_extend_all_lengthens_the_line_and_keeps_the_review_history(db_session):
     assert novo.srs_last_reviewed_at == datetime(2026, 9, 10)
     assert novo.in_queue is True and novo.is_leech is True
     assert db_session.scalar(select(func.count(Review.id))) == 1
+
+
+def test_extend_all_refaz_a_assinatura_quando_a_solucao_muda(db_session):
+    """Achado 1 da revisão: `extend_all` reescreve `solution`/`solver_moves` mas a assinatura
+    gravada ficava com os hashes da solução curta para sempre (`garantir_assinatura` só refaz
+    por versão, não por conteúdo)."""
+    puzzle = _puzzle()
+    db_session.add(puzzle)
+    db_session.commit()
+    antiga = garantir_assinatura(db_session, puzzle)
+    assert antiga is not None
+    texto_antigo = antiga.texto_completo
+
+    extend_all(db_session, FakeEngine(_extend_script()), SETTINGS)
+
+    novo = db_session.get(Puzzle, puzzle.id)
+    nova = db_session.get(PuzzleSignature, puzzle.id)
+    esperado = assinar_proprio(novo).completo()
+    assert nova is not None and nova.texto_completo == esperado and nova.texto_completo != texto_antigo
 
 
 def test_extend_all_keeps_the_other_keys_of_the_solution(db_session):

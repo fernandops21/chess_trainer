@@ -76,6 +76,18 @@ def garantir_assinatura(db: Session, puzzle: Puzzle) -> PuzzleSignature | None:
     return linha
 
 
+def refazer_assinatura(db: Session, puzzle: Puzzle) -> PuzzleSignature | None:
+    """Descarta a assinatura gravada e recalcula, mesmo com a versão em dia: para quando a
+    solução do exercício mudou (extensão da linha, edição do capítulo, gêmeo adotado) e
+    `garantir_assinatura` sozinho voltaria cedo demais, por já ver a versão certa na linha
+    antiga."""
+    atual = db.get(PuzzleSignature, puzzle.id)
+    if atual is not None:
+        db.delete(atual)
+        db.flush()
+    return garantir_assinatura(db, puzzle)
+
+
 def assinatura_de(db: Session, origem: str, id: str) -> tuple[Assinatura, str, list[str]] | None:
     """Assinatura, posição e lances de um exercício próprio (`own`) ou de um puzzle do Lichess."""
     if origem == "own":

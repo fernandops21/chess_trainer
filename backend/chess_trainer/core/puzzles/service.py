@@ -10,7 +10,7 @@ from chess_trainer.config import AppSettings, puzzle_config_from, thresholds_fro
 from chess_trainer.core.analysis.engine import EngineLike
 from chess_trainer.core.analysis.mistakes import classify_positions
 from chess_trainer.core.evals import is_mate_for
-from chess_trainer.core.golpes.service import garantir_assinatura
+from chess_trainer.core.golpes.service import garantir_assinatura, refazer_assinatura
 from chess_trainer.core.models import Game, Position, Puzzle, Review
 from chess_trainer.core.puzzles.generator import (
     PuzzleConfig,
@@ -329,6 +329,9 @@ def extend_all(
         if alongada is None:
             continue
         puzzle.solution, puzzle.solver_moves, puzzle.end_reason, puzzle.theme = alongada
+        db.flush()
+        # a solução mudou: a assinatura antiga (dos lances curtos) não serve mais
+        refazer_assinatura(db, puzzle)
         estendidos += 1
         db.commit()
     if progress and (should_stop is None or not should_stop()):

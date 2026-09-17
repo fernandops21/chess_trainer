@@ -158,6 +158,23 @@ def test_save_tactic_creates_puzzle_and_is_idempotent(client):
     assert client.post("/api/tactics/nada/save").status_code == 404
 
 
+def test_save_tactic_gets_a_puzzle_signature(client):
+    """Achado 2 da revisão: `post_save_tactic` criava o exercício sem assinar o golpe (spec
+    §4.1, calculada quando o exercício é criado) — sem ela a rotulagem nunca via a tática
+    guardada como âncora própria nem como irmão de bloco."""
+    from sqlalchemy import select
+
+    from chess_trainer.core.models import PuzzleSignature
+
+    run_import(client)
+    p = client.post("/api/tactics/00sHx/save").json()
+    db = client.app.state.session_factory()
+    try:
+        assert db.scalar(select(PuzzleSignature).where(PuzzleSignature.puzzle_id == p["id"])) is not None
+    finally:
+        db.close()
+
+
 def test_saved_tactic_enters_the_queue_and_accepts_reviews(client):
     run_import(client)
     p = client.post("/api/tactics/00sHx/save").json()
@@ -299,6 +316,23 @@ def test_twin_tactic_reports_saved_after_the_other_was_saved(client):
     # ...e a tela de treino já a mostra como guardada
     t = client.get("/api/tactics/next", params={"exclude": "00sHx,00sJ9,gemA"}).json()
     assert t["id"] == "gemB" and t["saved"] is True
+
+
+def test_salvar_de_novo_com_sibling_of_completa_o_dado_que_faltava(client):
+    """Achado 8 (deferido do achado 7): guardar sem `sibling_of` e depois de novo com um
+    válido completa o campo (`_back_to_queue`, ramo do dado que faltava), sem sobrescrever
+    uma origem já gravada."""
+    run_import(client)
+    assert client.put("/api/settings", json={"tactics_rating": 1760, "tactics_window": 50}).status_code == 200
+    origem = client.get("/api/tactics/next").json()["id"]
+    p_origem = client.post(f"/api/tactics/{origem}/save").json()
+    outro = client.get(f"/api/tactics/next?exclude={origem}").json()["id"]
+
+    sem_vinculo = client.post(f"/api/tactics/{outro}/save").json()
+    assert sem_vinculo["sibling_of"] is None
+
+    completo = client.post(f"/api/tactics/{outro}/save", json={"sibling_of": p_origem["id"]})
+    assert completo.status_code == 200 and completo.json()["sibling_of"] == p_origem["id"]
 
 
 def test_salvar_tatica_com_sibling_of(client):

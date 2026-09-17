@@ -87,8 +87,11 @@ def golpes_imagem(origem: str, id: str, db: Session = Depends(get_db)):
     if achado is None:
         raise HTTPException(404, "exercício sem assinatura de golpe")
     _a, fen, lances = achado
+    # exercício próprio: a solução pode mudar sob o mesmo id (extensão da linha, edição do
+    # capítulo), então cachear por um dia serviria uma imagem velha; só o Lichess é imutável
+    cache = "public, max-age=86400" if origem == "lichess" else "no-cache"
     return Response(content=svg_do_golpe(fen, lances), media_type="image/svg+xml",
-                    headers={"Cache-Control": "public, max-age=86400"})
+                    headers={"Cache-Control": cache})
 
 
 @router.get("/rotulagem/proximo", dependencies=[Depends(rotulagem_ligada)])

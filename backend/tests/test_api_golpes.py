@@ -67,6 +67,26 @@ def test_imagem_svg(client):
     assert client.get("/api/golpes/lichess/nao/imagem.svg").status_code == 404
 
 
+def test_imagem_svg_de_exercicio_proprio_nao_tem_cache_longo(client):
+    """Achado 6 da revisão: a solução de um exercício próprio pode mudar sob o mesmo id
+    (extensão da linha, edição do capítulo) — cachear por um dia serviria uma imagem velha."""
+    from chess_trainer.core.models import Puzzle
+
+    db = client.app.state.session_factory()
+    puzzle = Puzzle(
+        kind="punish", fen_start="r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 5 5",
+        side_to_move="white", solution='{"moves": [{"uci": "h5f7", "by": "solver", "alternatives": []}]}',
+        end_reason="mate", theme="mateIn1", category="rapid", solver_moves=1, source="own",
+    )
+    db.add(puzzle); db.commit()
+    pid = puzzle.id
+    db.close()
+
+    r = client.get(f"/api/golpes/own/{pid}/imagem.svg")
+    assert r.status_code == 200 and r.text.startswith("<svg")
+    assert r.headers["cache-control"] == "no-cache"
+
+
 def test_rotulagem_desligada_por_padrao(client):
     assert client.get("/api/golpes/rotulagem/proximo").status_code == 404
     assert client.post("/api/golpes/rotulagem", json={"anchor_origem": "lichess", "anchor_id": "p0", "candidate_id": "p1", "tier": "mesmo", "label": "mesmo"}).status_code == 404

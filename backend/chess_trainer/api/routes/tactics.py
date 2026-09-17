@@ -16,6 +16,7 @@ from chess_trainer.api.schemas import (
     AttemptIn, AttemptOut, PuzzleOut, SaveTacticIn, TacticOut, TacticsStatusOut, ThemeCountOut, ThemeStatOut,
 )
 from chess_trainer.config import get_setting, load_settings, set_setting
+from chess_trainer.core.golpes.service import garantir_assinatura
 from chess_trainer.core.models import LichessPuzzle, Puzzle, TrainingSession, utcnow
 from chess_trainer.core.srs.reviews import record_review
 from chess_trainer.core.stats import theme_stats
@@ -169,6 +170,10 @@ def post_save_tactic(lichess_id: str, response: Response, body: SaveTacticIn | N
         if twin is None:
             raise
         return _back_to_queue(db, twin, body)
+    # a assinatura do golpe é calculada quando o exercício é criado (spec §4.1): sem ela
+    # a rotulagem e o cartão "Repetir o golpe" nunca enxergariam esta tática como âncora
+    garantir_assinatura(db, puzzle)
+    db.commit()
     _schedule_first_review(db, puzzle, body)
     response.status_code = 201
     return _puzzle_out(db, puzzle)
