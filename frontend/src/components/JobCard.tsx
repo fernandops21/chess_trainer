@@ -3,7 +3,7 @@ import { useCancelJob, useStartJob, useStatus } from "../api/queries";
 import { ErrorBox } from "./ErrorBox";
 import { storage } from "../lib/storage";
 
-const JOB_LABEL: Record<string, string> = {
+export const JOB_LABEL: Record<string, string> = {
   import: "Importação",
   analyze: "Análise",
   regenerate: "Recriação de todos os puzzles",

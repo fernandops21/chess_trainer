@@ -3,6 +3,7 @@ import type { ChangeEvent } from "react";
 import { useCoachStatus, useGolpesStatus, useSaveSettings, useSettings, useStartJob, useStatus, useTacticsStatus } from "../api/queries";
 import type { Settings, SettingsIn } from "../api/types";
 import { ErrorBox } from "../components/ErrorBox";
+import { JobStatusLine } from "../components/JobStatusLine";
 import { Modal } from "../components/Modal";
 import { formatDate } from "../lib/format";
 
@@ -149,6 +150,7 @@ export function SettingsPage() {
             Baixar e importar
           </button>
         </div>
+        <JobStatusLine job="import_lichess" />
         <div className="muted" style={{ marginTop: 6 }}>
           Download de ~300 MB de database.lichess.org; o arquivo fica em backend/data/ e a importação leva uns 5 minutos.
           Acompanhe o andamento no Painel; dá para cancelar (para no fim do lote atual).
@@ -229,6 +231,7 @@ export function SettingsPage() {
           {coach && coach.index_stale > 0 ? ` · ${coach.index_stale} capítulos desatualizados` : ""}
         </div>
         <button onClick={() => start.mutate({ kind: "coach_reindex" })} disabled={status?.job.state === "running"}>Recriar índice</button>
+        <JobStatusLine job="coach_reindex" />
         <h4>LangFuse (observabilidade)</h4>
         <label className="row" style={{ justifyContent: "space-between" }}>Host<input value={form.langfuse_host} placeholder="http://localhost:3000" onChange={(e) => setForm({ ...form, langfuse_host: e.target.value })} style={{ flex: 1 }} /></label>
         <label className="row" style={{ justifyContent: "space-between" }}>Chave pública do LangFuse<input value={form.langfuse_public_key} onChange={(e) => setForm({ ...form, langfuse_public_key: e.target.value })} style={{ flex: 1 }} /></label>
@@ -259,6 +262,7 @@ export function SettingsPage() {
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Exercícios</h3>
         <button onClick={() => start.mutate({ kind: "extend_puzzles" })} disabled={status?.job.state === "running"}>Estender exercícios</button>
+        <JobStatusLine job="extend_puzzles" />
         <div className="muted" style={{ marginTop: 6 }}>
           Alonga os exercícios existentes enquanto o lance for único, mantendo o histórico de revisão.
         </div>
@@ -270,6 +274,7 @@ export function SettingsPage() {
         <p className="muted">{golpes ? `${nf.format(golpes.assinados)} de ${nf.format(golpes.total)} puzzles com assinatura` : ""}
           {golpes?.cobertura ? ` · ${nf.format(golpes.cobertura.destinos.ge5)} com cinco ou mais irmãos` : ""}</p>
         <button onClick={() => start.mutate({ kind: "golpes_preparar" })} disabled={status?.job.state === "running"}>Preparar golpes</button>
+        <JobStatusLine job="golpes_preparar" />
       </div>
       <div className="card">
         <h3 style={{ marginTop: 0, color: "var(--bad)" }}>Perigo</h3>
