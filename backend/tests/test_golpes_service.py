@@ -107,11 +107,11 @@ def test_preparar_assina_em_lotes_e_grava_cobertura(db_session):
     assert chamadas[-1][0] == "golpes_preparar" and chamadas[-1][1] == chamadas[-1][2]
     cob = get_setting(db_session, "golpes_cobertura", None)
     assert cob["destinos"] == {"ge5": 7, "ge2": 7, "sozinhos": 0} and get_setting(db_session, "golpes_assinados", 0) == 7
-    # segunda rodada: nada a fazer
-    assert preparar(db_session, lambda *a: None) == 0
-    # versão antiga: refaz só ela
-    s = db_session.get(LichessPuzzleSignature, "p0"); s.versao = 0; db_session.commit()
+    # segunda rodada: só o "ruim" continua pendente (retentado, sem exclusão persistida)
     assert preparar(db_session, lambda *a: None) == 1
+    # versão antiga: refaz p0, e o "ruim" segue retentado junto
+    s = db_session.get(LichessPuzzleSignature, "p0"); s.versao = 0; db_session.commit()
+    assert preparar(db_session, lambda *a: None) == 2
 
 
 def test_preparar_para_no_cancelamento(db_session):
