@@ -8,11 +8,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from chess_trainer.api.deps import get_db
-from chess_trainer.api.schemas import ContagemOut, GolpesStatusOut, IrmaoOut, IrmaosOut, RotuloIn, RotuloOut
+from chess_trainer.api.schemas import (
+    ContagemOut, GolpesStatusOut, IrmaoOut, IrmaosOut, RotulagemResumoLinha, RotuloIn, RotuloOut,
+)
 from chess_trainer.config import get_setting, load_settings
 from chess_trainer.core.golpes.assinatura import VERSAO_ASSINATURA
 from chess_trainer.core.golpes.imagem import svg_do_golpe
-from chess_trainer.core.golpes.rotulagem import exportar_ouro, proximo_item, rotular
+from chess_trainer.core.golpes.rotulagem import exportar_ouro, proximo_item, resumo, rotular
 from chess_trainer.core.golpes.service import NOME_TAREFA, assinatura_de, irmaos, preparar
 from chess_trainer.core.models import GolpeLabel, LichessPuzzle, Puzzle, utcnow
 from chess_trainer.core.tactics.convert import to_tactic
@@ -42,7 +44,8 @@ def golpes_status(request: Request, db: Session = Depends(get_db)):
     return GolpesStatusOut(enabled=s.golpes_enabled, versao=VERSAO_ASSINATURA,
                            assinados=int(get_setting(db, "golpes_assinados", 0) or 0), total=int(total),
                            cobertura=get_setting(db, "golpes_cobertura", None),
-                           rotulagem=bool(getattr(request.app.state, "rotulagem_enabled", False)))
+                           rotulagem=bool(getattr(request.app.state, "rotulagem_enabled", False)),
+                           trechos=int(get_setting(db, "golpes_trechos", 0) or 0))
 
 
 @router.post("/preparar", status_code=202, dependencies=[Depends(golpes_ligado)])
@@ -66,16 +69,16 @@ def golpes_irmaos(origem: str, id: str, k: int | None = None, db: Session = Depe
     achado = assinatura_de(db, origem, id)
     if achado is None:
         raise HTTPException(404, "exercício sem assinatura de golpe")
-    a, _fen, _lances = achado
+    a, fen, lances = achado
     s = load_settings(db)
     n = max(1, min(10, s.golpes_bloco if k is None else k))
     excluir = _seen_ids(db, utcnow(), [id] if origem == "lichess" else [])
     excluir |= set(db.scalars(select(Puzzle.external_id).where(Puzzle.external_id.is_not(None))))
     itens = []
-    for irmao in irmaos(db, a, rating=s.tactics_rating, abaixo=s.golpes_faixa_abaixo, acima=s.golpes_faixa_acima,
-                        excluir=excluir, k=n):
+    for irmao in irmaos(db, fen, lances, rating=s.tactics_rating, abaixo=s.golpes_faixa_abaixo,
+                        acima=s.golpes_faixa_acima, excluir=excluir, k=n):
         try:
-            itens.append(IrmaoOut(tier=irmao.tier, tactic=asdict(to_tactic(irmao.row))))
+            itens.append(IrmaoOut(tier=irmao.tier, procedencia=asdict(irmao.procedencia), tactic=asdict(to_tactic(irmao.row))))
         except ValueError:
             continue
     return IrmaosOut(assinatura=a.destinos(), itens=itens)
@@ -95,7 +98,7 @@ def golpes_imagem(origem: str, id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/rotulagem/proximo", dependencies=[Depends(rotulagem_ligada)])
-def golpes_rotulagem_proximo(por_camada: int = 3, db: Session = Depends(get_db)):
+def golpes_rotulagem_proximo(por_camada: int = 2, db: Session = Depends(get_db)):
     item = proximo_item(db, load_settings(db), por_camada=por_camada)
     if item is None:
         raise HTTPException(404, "sem exercício assinado para rotular")
@@ -106,7 +109,8 @@ def golpes_rotulagem_proximo(por_camada: int = 3, db: Session = Depends(get_db))
 def golpes_rotular(body: RotuloIn, db: Session = Depends(get_db)):
     try:
         linha = rotular(db, anchor_origem=body.anchor_origem, anchor_id=body.anchor_id,
-                        candidate_id=body.candidate_id, tier=body.tier, label=body.label)
+                        candidate_id=body.candidate_id, tier=body.tier, label=body.label,
+                        n_lances=body.n_lances, posicao=body.posicao, nivel=body.nivel, espelhado=body.espelhado)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     return RotuloOut(id=linha.id, label=linha.label)
@@ -122,3 +126,8 @@ def golpes_rotulagem_contagem(db: Session = Depends(get_db)):
     linhas = db.execute(select(GolpeLabel.label, func.count()).group_by(GolpeLabel.label)).all()
     por_label = {label: n for label, n in linhas}
     return ContagemOut(total=sum(por_label.values()), por_label=por_label)
+
+
+@router.get("/rotulagem/resumo", response_model=list[RotulagemResumoLinha], dependencies=[Depends(rotulagem_ligada)])
+def golpes_rotulagem_resumo(db: Session = Depends(get_db)):
+    return resumo(db)

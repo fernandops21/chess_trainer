@@ -157,6 +157,7 @@ def post_save_tactic(lichess_id: str, response: Response, body: SaveTacticIn | N
         end_reason=t.end_reason, theme=t.theme, category="lichess", solver_moves=t.solver_moves,
         fen_before=row.fen, last_move=row.moves.split()[0],
         sibling_of=body.sibling_of if body is not None else None,
+        sibling_tier=body.sibling_tier if body is not None else None,
     )
     db.add(puzzle)
     try:
@@ -188,6 +189,9 @@ def _back_to_queue(db: Session, puzzle: Puzzle, body: SaveTacticIn | None = None
     # mas nunca sobrescreve uma origem já gravada
     if body is not None and body.sibling_of is not None and puzzle.sibling_of is None:
         puzzle.sibling_of = body.sibling_of
+        dirty = True
+    if body is not None and body.sibling_tier is not None and puzzle.sibling_tier is None:
+        puzzle.sibling_tier = body.sibling_tier
         dirty = True
     if dirty:
         db.commit()

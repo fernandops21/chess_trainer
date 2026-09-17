@@ -8,7 +8,7 @@ import random
 import string
 from dataclasses import asdict
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from chess_trainer.config import AppSettings
@@ -18,7 +18,6 @@ from chess_trainer.core.models import GolpeLabel, LichessPuzzle, LichessPuzzleSi
 from chess_trainer.core.tactics.convert import to_tactic
 
 LABELS = ("mesmo", "parecido", "nada")
-TIERS = ("mesmo", "espelho", "esqueleto")
 # até quantos sorteios tentar antes de desistir: uma âncora sem candidato desperdiça o
 # pedido, mas a tabela do Lichess é grande demais para varrer atrás de uma que sirva
 MAX_SORTEIOS = 20
@@ -58,13 +57,13 @@ def _anchor_payload(origem: str, id: str, texto: str, puzzle_row) -> dict:
 
 
 def _item(db: Session, origem: str, aid: str, por_camada: int, rng: random.Random) -> dict | None:
-    """Uma âncora e seus candidatos ainda sem rótulo, das três camadas, embaralhados. `None`
-    quando a âncora não tem assinatura válida — nunca por falta de candidato (isso quem decide
-    é quem sorteia a âncora, tentando outra)."""
+    """Uma âncora e seus candidatos ainda sem rótulo, de todos os degraus da cascata,
+    embaralhados. `None` quando a âncora não tem assinatura válida — nunca por falta de
+    candidato (isso quem decide é quem sorteia a âncora, tentando outra)."""
     achado = assinatura_de(db, origem, aid)
     if achado is None:
         return None
-    a, _fen, _lances = achado
+    a, fen, lances = achado
     puzzle_row = db.get(Puzzle, aid) if origem == "own" else db.get(LichessPuzzle, aid)
     if puzzle_row is None:
         return None
@@ -74,19 +73,20 @@ def _item(db: Session, origem: str, aid: str, por_camada: int, rng: random.Rando
         return None
     ja_rotulados = set(db.scalars(
         select(GolpeLabel.candidate_id).where(GolpeLabel.anchor_origem == origem, GolpeLabel.anchor_id == aid)))
-    por_tier = candidatos_por_camada(db, a, excluir=ja_rotulados | {aid}, k=por_camada)
+    por_degrau = candidatos_por_camada(db, fen, lances, excluir=ja_rotulados | {aid}, k=por_camada)
     candidatos = []
-    for tier in TIERS:
-        for row in por_tier.get(tier, ()):
+    for irmaos_do_degrau in por_degrau.values():
+        for irmao in irmaos_do_degrau:
             try:
-                candidatos.append({"id": row.id, "tier": tier, "tactic": asdict(to_tactic(row))})
+                candidatos.append({"id": irmao.row.id, "tier": irmao.tier, "procedencia": asdict(irmao.procedencia),
+                                  "tactic": asdict(to_tactic(irmao.row))})
             except ValueError:
                 continue
     rng.shuffle(candidatos)
     return {"anchor": anchor, "candidatos": candidatos}
 
 
-def proximo_item(db: Session, settings: AppSettings, rng: random.Random | None = None, por_camada: int = 3,
+def proximo_item(db: Session, settings: AppSettings, rng: random.Random | None = None, por_camada: int = 2,
                  ancora: tuple[str, str] | None = None) -> dict | None:
     """Uma âncora (dada ou sorteada) e seus candidatos ainda não rotulados, embaralhados
     para a tela de rotulagem. Sem rating a filtrar (o julgamento é sobre o golpe, não sobre a
@@ -114,15 +114,36 @@ def proximo_item(db: Session, settings: AppSettings, rng: random.Random | None =
     return None
 
 
-def rotular(db: Session, *, anchor_origem: str, anchor_id: str, candidate_id: str, tier: str, label: str) -> GolpeLabel:
-    """Grava o julgamento humano de um par (âncora, candidato) da cascata (spec §8)."""
+def rotular(db: Session, *, anchor_origem: str, anchor_id: str, candidate_id: str, tier: str, label: str,
+           n_lances: int | None = None, posicao: str | None = None, nivel: str | None = None,
+           espelhado: bool | None = None) -> GolpeLabel:
+    """Grava o julgamento humano de um par (âncora, candidato) da cascata (spec §8, trechos §8):
+    a procedência (`n_lances`, `posicao`, `nivel`, `espelhado`) fica junto para o placar por
+    procedência (`resumo`), embora a tela nunca a mostre a quem rotula."""
     if label not in LABELS:
         raise ValueError(f"rótulo inválido: {label!r} (esperado {LABELS})")
     linha = GolpeLabel(anchor_origem=anchor_origem, anchor_id=anchor_id, candidate_id=candidate_id,
-                       tier_na_hora=tier, versao_assinatura=VERSAO_ASSINATURA, label=label)
+                       tier_na_hora=tier, versao_assinatura=VERSAO_ASSINATURA, label=label,
+                       n_lances=n_lances, posicao=posicao, nivel=nivel, espelhado=espelhado)
     db.add(linha)
     db.commit()
     return linha
+
+
+def resumo(db: Session) -> list[dict]:
+    """Placar da rotulagem por procedência (spec golpes trechos §8): quantos rótulos de cada
+    resposta ("mesmo"/"parecido"/"nada") cada combinação (degrau, posição, tamanho do trecho)
+    já recebeu, para mostrar o quanto cada tipo de casamento é ruído."""
+    linhas = db.execute(select(GolpeLabel.tier_na_hora, GolpeLabel.posicao, GolpeLabel.n_lances,
+                              GolpeLabel.label, func.count())
+                        .group_by(GolpeLabel.tier_na_hora, GolpeLabel.posicao, GolpeLabel.n_lances, GolpeLabel.label)).all()
+    agregados: dict[tuple, dict[str, int]] = {}
+    for tier, posicao, n_lances, label, n in linhas:
+        agregados.setdefault((tier, posicao, n_lances), {"mesmo": 0, "parecido": 0, "nada": 0})[label] = n
+    saida = []
+    for (tier, posicao, n_lances), contagem in sorted(agregados.items(), key=lambda kv: (kv[0][0], kv[0][1] or "")):
+        saida.append({"tier": tier, "posicao": posicao, "n_lances": n_lances, **contagem, "total": sum(contagem.values())})
+    return saida
 
 
 def exportar_ouro(db: Session) -> str:
@@ -141,6 +162,10 @@ def exportar_ouro(db: Session) -> str:
             "tier": label.tier_na_hora,
             "versao": label.versao_assinatura,
             "label": label.label,
+            "n_lances": label.n_lances,
+            "posicao": label.posicao,
+            "nivel": label.nivel,
+            "espelhado": label.espelhado,
             "created_at": label.created_at.isoformat(),
         }, ensure_ascii=False) + "\n")
     return "".join(linhas)

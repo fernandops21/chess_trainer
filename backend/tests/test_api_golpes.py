@@ -26,12 +26,14 @@ def client():
 
 def test_status_e_preparar(client):
     s = client.get("/api/golpes/status").json()
-    assert s["enabled"] is True and s["versao"] == 1 and s["assinados"] == 0 and s["cobertura"] is None and s["rotulagem"] is False
+    assert s["enabled"] is True and s["versao"] == 2 and s["assinados"] == 0 and s["cobertura"] is None and s["rotulagem"] is False
+    assert s["trechos"] == 0
     assert client.post("/api/golpes/preparar").status_code == 202
     client.app.state.jobs.wait()
     assert client.get("/api/status").json()["job"]["state"] == "idle"
     s = client.get("/api/golpes/status").json()
     assert s["assinados"] == 6 and s["cobertura"]["destinos"]["ge5"] == 6
+    assert s["trechos"] > 0
 
 
 def test_desligado_da_404(client):
@@ -71,8 +73,9 @@ def test_irmaos_de_um_puzzle_do_lichess(client):
     client.put("/api/settings", json={"tactics_rating": 900, "tactics_window": 400})
     r = client.get("/api/golpes/lichess/p0/irmaos?k=3").json()
     assert r["assinatura"].startswith("Ke8 | Q") and len(r["itens"]) == 3
-    assert all(i["tier"] == "mesmo" for i in r["itens"]) and r["itens"][0]["tactic"]["id"] != "p0"
+    assert all(i["tier"] == "inteira" for i in r["itens"]) and r["itens"][0]["tactic"]["id"] != "p0"
     assert r["itens"][0]["tactic"]["fen_start"] and r["itens"][0]["tactic"]["rating"] <= r["itens"][-1]["tactic"]["rating"]
+    assert r["itens"][0]["procedencia"] == {"degrau": "inteira", "nivel": "destinos", "n": 1, "posicao": "inteira", "espelhado": False}
     assert client.get("/api/golpes/lichess/nao/irmaos").status_code == 404
     assert client.get("/api/golpes/own/nao/irmaos").status_code == 404
     # k=0 não é "não informado": é o pedido de um único item, não o padrão de golpes_bloco

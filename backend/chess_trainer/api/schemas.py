@@ -226,6 +226,8 @@ class PuzzleOut(BaseModel):
     siblings: list[PuzzleSibling] = []
     # exercício de origem, quando esta tática nasceu do bloco de irmãos (repetir o golpe)
     sibling_of: str | None = None
+    # degrau da cascata que trouxe este puzzle como irmão (spec golpes trechos §6)
+    sibling_tier: str | None = None
 
 
 class QueueIn(BaseModel):
@@ -257,6 +259,8 @@ class SaveTacticIn(BaseModel):
     session_id: str | None = None
     # exercício de origem no bloco de irmãos: preenchido quando esta tática nasce de "repetir o golpe"
     sibling_of: str | None = None
+    # degrau da cascata que trouxe este irmão (spec golpes trechos §6)
+    sibling_tier: str | None = None
 
 
 class SessionIn(BaseModel):
@@ -602,11 +606,22 @@ class GolpesStatusOut(BaseModel):
     total: int
     cobertura: dict[str, dict[str, int]] | None
     rotulagem: bool
+    trechos: int = 0
+
+
+class ProcedenciaOut(BaseModel):
+    """De onde veio um irmão na cascata (spec golpes trechos §5)."""
+    degrau: str
+    nivel: str
+    n: int
+    posicao: str
+    espelhado: bool
 
 
 class IrmaoOut(BaseModel):
     tier: str
     tactic: TacticOut
+    procedencia: ProcedenciaOut | None = None
 
 
 class IrmaosOut(BaseModel):
@@ -618,8 +633,12 @@ class RotuloIn(BaseModel):
     anchor_origem: Literal["own", "lichess"]
     anchor_id: str
     candidate_id: str
-    tier: Literal["mesmo", "espelho", "esqueleto"]
+    tier: str
     label: Literal["mesmo", "parecido", "nada"]
+    n_lances: int | None = None
+    posicao: str | None = None
+    nivel: str | None = None
+    espelhado: bool | None = None
 
 
 class RotuloOut(BaseModel):
@@ -630,3 +649,15 @@ class RotuloOut(BaseModel):
 class ContagemOut(BaseModel):
     total: int
     por_label: dict[str, int]
+
+
+class RotulagemResumoLinha(BaseModel):
+    """Placar da rotulagem por procedência (spec golpes trechos §8): agrega os rótulos já
+    gravados por degrau/posição/tamanho do trecho."""
+    tier: str
+    posicao: str | None
+    n_lances: int | None
+    mesmo: int
+    parecido: int
+    nada: int
+    total: int

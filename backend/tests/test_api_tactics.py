@@ -345,3 +345,33 @@ def test_salvar_tatica_com_sibling_of(client):
     r = client.post(f"/api/tactics/{outro}/save", json={"correct": True, "sibling_of": p_origem["id"]})
     assert r.status_code == 201 and r.json()["sibling_of"] == p_origem["id"]
     assert client.post(f"/api/tactics/{outro}/save", json={"sibling_of": "nao-existe"}).status_code == 404
+
+
+def test_salvar_tatica_com_sibling_tier(client):
+    """`sibling_tier` (o degrau da cascata que trouxe o irmão) grava junto de `sibling_of`,
+    do mesmo jeito e sem exigir um exercício existente (spec golpes trechos §6)."""
+    run_import(client)
+    assert client.put("/api/settings", json={"tactics_rating": 1760, "tactics_window": 50}).status_code == 200
+    origem = client.get("/api/tactics/next").json()["id"]
+    p_origem = client.post(f"/api/tactics/{origem}/save").json()
+    outro = client.get(f"/api/tactics/next?exclude={origem}").json()["id"]
+    r = client.post(f"/api/tactics/{outro}/save",
+                    json={"correct": True, "sibling_of": p_origem["id"], "sibling_tier": "trecho2"})
+    assert r.status_code == 201 and r.json()["sibling_tier"] == "trecho2"
+
+
+def test_salvar_de_novo_com_sibling_tier_completa_o_dado_que_faltava(client):
+    run_import(client)
+    assert client.put("/api/settings", json={"tactics_rating": 1760, "tactics_window": 50}).status_code == 200
+    origem = client.get("/api/tactics/next").json()["id"]
+    p_origem = client.post(f"/api/tactics/{origem}/save").json()
+    outro = client.get(f"/api/tactics/next?exclude={origem}").json()["id"]
+
+    sem_vinculo = client.post(f"/api/tactics/{outro}/save").json()
+    assert sem_vinculo["sibling_tier"] is None
+
+    completo = client.post(f"/api/tactics/{outro}/save", json={"sibling_of": p_origem["id"], "sibling_tier": "espelho"})
+    assert completo.status_code == 200 and completo.json()["sibling_tier"] == "espelho"
+    # não sobrescreve um degrau já gravado
+    outra_vez = client.post(f"/api/tactics/{outro}/save", json={"sibling_tier": "esqueleto"})
+    assert outra_vez.json()["sibling_tier"] == "espelho"

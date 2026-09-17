@@ -193,9 +193,9 @@ def test_escolher_por_rating_k_maior_que_tudo():
 
 
 def test_irmaos_ignora_rating_para_achar_a_camada(db_session):
-    """Achado do bug: os irmãos exatos ('mesmo') existem só bem acima da faixa preferida; a busca
-    não pode declarar essa camada vazia e cair para o esqueleto — quem decide a camada é o golpe,
-    o rating só escolhe quem aparece no bloco."""
+    """Achado do bug: os irmãos exatos ('inteira') existem só bem acima da faixa preferida; a
+    busca não pode declarar esse degrau vazio e cair para o esqueleto — quem decide o degrau é o
+    golpe, o rating só escolhe quem aparece no bloco."""
     from chess_trainer.core.golpes.service import linha_de_assinatura
     for i in range(3):
         db_session.add(pastor(f"m{i}", rating=700 + 100 * i))  # 700, 800, 900: acima da faixa
@@ -209,8 +209,8 @@ def test_irmaos_ignora_rating_para_achar_a_camada(db_session):
     db_session.add(esq)
     db_session.commit()
 
-    r = irmaos(db_session, a, rating=200, abaixo=100, acima=100, excluir=set(), k=3)
-    assert [x.tier for x in r] == ["mesmo"] * 3
+    r = irmaos(db_session, FEN_PASTOR_START, ["h5f7"], rating=200, abaixo=100, acima=100, excluir=set(), k=3)
+    assert [x.tier for x in r] == ["inteira"] * 3
     assert {x.row.id for x in r} == {"m0", "m1", "m2"}
 
 
@@ -226,14 +226,14 @@ def test_irmaos_prefere_a_faixa_e_fica_ascendente(db_session):
         db_session.add(linha_de_assinatura(a, LichessPuzzleSignature, f"m{i}"))
     db_session.commit()
 
-    r = irmaos(db_session, a, rating=900, abaixo=100, acima=500, excluir=set(), k=5)
+    r = irmaos(db_session, FEN_PASTOR_START, ["h5f7"], rating=900, abaixo=100, acima=500, excluir=set(), k=5)
     assert [x.row.rating for x in r] == [800, 900, 1000, 1100, 1200]
     assert "m0" not in {x.row.id for x in r}  # 700: fora da faixa e não precisou entrar
 
 
 def test_irmaos_ordena_o_bloco_por_rating_mesmo_cruzando_camadas(db_session):
-    """Um de cada camada, ratings entrelaçados: a ordem final do bloco é por rating, não pela
-    ordem em que a cascata visitou as camadas."""
+    """Um de cada degrau, ratings entrelaçados: a ordem final do bloco é por rating, não pela
+    ordem em que a cascata visitou os degraus."""
     from chess_trainer.core.golpes.service import linha_de_assinatura
     db_session.add(pastor("m0", rating=1000))
     db_session.add(pastor("esp", rating=900))
@@ -247,16 +247,16 @@ def test_irmaos_ordena_o_bloco_por_rating_mesmo_cruzando_camadas(db_session):
     db_session.add(esq)
     db_session.commit()
 
-    r = irmaos(db_session, a, rating=1000, abaixo=200, acima=200, excluir=set(), k=3)
+    r = irmaos(db_session, FEN_PASTOR_START, ["h5f7"], rating=1000, abaixo=200, acima=200, excluir=set(), k=3)
     assert [x.row.id for x in r] == ["esp", "m0", "esq"]
-    assert [x.tier for x in r] == ["espelho", "mesmo", "esqueleto"]
+    assert [x.tier for x in r] == ["espelho", "inteira", "esqueleto"]
 
 
 def test_irmaos_respeita_popularidade(db_session):
     db_session.add(pastor("pop", popularity=10))
     db_session.commit()
     preparar(db_session, lambda *a: None)
-    assert irmaos(db_session, assinar(FEN_PASTOR_START, ["h5f7"]), rating=1500, abaixo=1500, acima=1500,
+    assert irmaos(db_session, FEN_PASTOR_START, ["h5f7"], rating=1500, abaixo=1500, acima=1500,
                   excluir=set()) == []
 
 
@@ -275,5 +275,94 @@ def test_irmaos_respeita_o_limite_de_candidatos(db_session, monkeypatch):
     db_session.commit()
 
     # faixa 650..1250, centro 950: os três mais próximos do centro são 900, 1000 e 800
-    r = irmaos(db_session, a, rating=950, abaixo=300, acima=300, excluir=set(), k=6)
+    r = irmaos(db_session, FEN_PASTOR_START, ["h5f7"], rating=950, abaixo=300, acima=300, excluir=set(), k=6)
     assert [x.row.rating for x in r] == [800, 900, 1000]
+
+
+# --- trechos na cascata (spec golpes trechos §5) -----------------------------
+
+FEN_QXD4 = "r1b2bnr/pp2kppp/4p3/1B1pP3/3q4/8/PP3PPP/RNBQK2R w KQ - 2 10"  # francesa, só falta Qxd4
+FEN_BEIJO_PUZZLE = "r1bq1rk1/pp1nbppp/2p1p3/3pP3/3P4/2PB1N2/PP3PPP/R1BQ1RK1 w - - 0 11"
+MOVES_BEIJO = ["d3h7", "g8h7", "f3g5", "h7g8", "d1h5"]  # beijo grego: três lances do solucionador
+
+
+def test_irmaos_acha_pelo_fim_do_trecho(db_session):
+    """Âncora de um lance só: sem "inteira" nem "espelho"/"esqueleto" batendo, o degrau
+    `trecho1` acha um candidato cujo ÚLTIMO lance do solucionador é o mesmo golpe — o trecho
+    dele fica marcado "fim" (posição na solução DELE, não na da âncora)."""
+    from chess_trainer.core.golpes.assinatura import Trecho
+    from chess_trainer.core.golpes.service import linha_de_trecho
+    ancora = assinar(FEN_QXD4, ["d1d4"])  # golpe de um lance só: Qxd4
+    db_session.add(pastor("cand", rating=1000))  # sem NENHUMA assinatura inteira
+    db_session.commit()
+    # o candidato tem esse mesmo golpe como o lance FINAL de uma solução maior (inicio=1)
+    db_session.add(linha_de_trecho(Trecho(inicio=1, n=1, posicao="fim", assinatura=ancora), "cand"))
+    db_session.commit()
+
+    r = irmaos(db_session, FEN_QXD4, ["d1d4"], rating=1000, abaixo=500, acima=500, excluir=set(), k=1)
+    assert len(r) == 1 and r[0].row.id == "cand"
+    assert r[0].procedencia.degrau == "trecho1" and r[0].tier == "trecho1"
+    assert r[0].procedencia.posicao == "fim" and r[0].procedencia.nivel == "destinos" and r[0].procedencia.n == 1
+
+
+def test_irmaos_acha_pelo_inicio_do_trecho(db_session):
+    """O mesmo golpe de um lance, mas como o PRIMEIRO lance de uma solução maior do
+    candidato: a procedência marca "inicio"."""
+    from chess_trainer.core.golpes.assinatura import Trecho
+    from chess_trainer.core.golpes.service import linha_de_trecho
+    ancora = assinar(FEN_QXD4, ["d1d4"])
+    db_session.add(pastor("cand2", rating=1000))
+    db_session.commit()
+    db_session.add(linha_de_trecho(Trecho(inicio=0, n=1, posicao="inicio", assinatura=ancora), "cand2"))
+    db_session.commit()
+
+    r = irmaos(db_session, FEN_QXD4, ["d1d4"], rating=1000, abaixo=500, acima=500, excluir=set(), k=1)
+    assert len(r) == 1 and r[0].row.id == "cand2" and r[0].procedencia.posicao == "inicio"
+
+
+def test_irmaos_tres_lances_cai_para_trecho2_depois_trecho1(db_session):
+    """Âncora de três lances sem casamento inteiro nem de três: a cascata cai para `trecho2` e,
+    faltando ainda, para `trecho1` (spec §5)."""
+    from chess_trainer.core.golpes.assinatura import trechos
+    from chess_trainer.core.golpes.service import linha_de_trecho
+    meus = {t.n: t for t in trechos(FEN_BEIJO_PUZZLE, MOVES_BEIJO) if t.inicio == 0}
+    db_session.add(pastor("t2", rating=1000))
+    db_session.add(pastor("t1", rating=1100))
+    db_session.commit()
+    db_session.add(linha_de_trecho(meus[2], "t2"))
+    db_session.add(linha_de_trecho(meus[1], "t1"))
+    db_session.commit()
+
+    r = irmaos(db_session, FEN_BEIJO_PUZZLE, MOVES_BEIJO, rating=1000, abaixo=500, acima=500, excluir=set(), k=2)
+    assert {x.row.id: x.procedencia.degrau for x in r} == {"t2": "trecho2", "t1": "trecho1"}
+
+
+def test_esqueleto_de_um_lance_nunca_e_gravado_nem_casa(db_session):
+    """O esqueleto de um lance só é ruído (bate com quase tudo) e não entra na busca: a linha do
+    trecho de tamanho 1 sempre tem `esqueleto` nulo."""
+    from chess_trainer.core.golpes.service import linha_de_trecho, trechos_lichess
+    row = lichess("um", FEN_PASTOR_ANTES, MOVES_PASTOR)
+    ts = trechos_lichess(row)
+    linha = linha_de_trecho(next(t for t in ts if t.n == 1), "um")
+    assert linha.esqueleto is None
+
+
+def test_candidatos_por_camada_inclui_espelho_trecho1_mas_o_bloco_nao(db_session):
+    """`espelho-trecho1` é o único degrau que usa o esqueleto (na verdade o destino) de um
+    lance espelhado só — bom demais para achar pares (ruído): a rotulagem precisa vê-lo para
+    medir isso, mas o bloco (`irmaos`) nunca o usa, mesmo quando é a única coisa que bateria."""
+    from chess_trainer.core.golpes.assinatura import Trecho
+    from chess_trainer.core.golpes.service import candidatos_por_camada, linha_de_trecho
+    ancora = assinar(FEN_PASTOR_START, ["h5f7"])
+    db_session.add(pastor("esp1", rating=1000))
+    db_session.commit()
+    # o candidato só tem o trecho espelhado da âncora, nada mais
+    db_session.add(linha_de_trecho(Trecho(inicio=0, n=1, posicao="inicio", assinatura=ancora.espelhada()), "esp1"))
+    db_session.commit()
+
+    por_degrau = candidatos_por_camada(db_session, FEN_PASTOR_START, ["h5f7"], excluir=set(), k=3)
+    assert "espelho-trecho1" in por_degrau and [i.row.id for i in por_degrau["espelho-trecho1"]] == ["esp1"]
+    assert por_degrau["espelho-trecho1"][0].procedencia.espelhado is True
+
+    r = irmaos(db_session, FEN_PASTOR_START, ["h5f7"], rating=1000, abaixo=500, acima=500, excluir=set(), k=5)
+    assert "esp1" not in {x.row.id for x in r}
