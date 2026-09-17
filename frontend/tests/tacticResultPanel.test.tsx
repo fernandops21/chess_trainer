@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { BoardProps } from "../src/board/Board";
 import { api } from "../src/api/client";
 import { TacticResultPanel } from "../src/train/TacticResultPanel";
-import type { AnalyseOut, AttemptOut, TacticOut } from "../src/api/types";
+import type { AnalyseOut, AttemptOut, IrmaosOut, TacticOut } from "../src/api/types";
 
 // o chessground não roda no jsdom: o dublê guarda as props do tabuleiro
 const { boardProps } = vi.hoisted(() => ({ boardProps: [] as Record<string, unknown>[] }));
@@ -132,4 +132,15 @@ test("guardar para repetir manda o resultado da tentativa mostrada", async () =>
   renderPanel(baseTactic(), { attempt, durationMs: 2400 });
   fireEvent.click(screen.getByText("Guardar para repetir"));
   await waitFor(() => expect(save).toHaveBeenCalledWith("t1", { correct: true, used_hint: false, duration_ms: 2400 }));
+});
+
+// --- cartão "Repetir o golpe" --------------------------------------------
+
+test("sem tentativa registrada ainda (enviando ou erro ao enviar), o cartão do golpe não presume erro", async () => {
+  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: true, versao: 1, assinados: 1, total: 1, cobertura: null, rotulagem: false });
+  const irmaos: IrmaosOut = { assinatura: "Ke8 | Q xP f7 #", itens: [{ tier: "mesmo", tactic: baseTactic({ id: "a" }) }] };
+  vi.spyOn(api, "golpesIrmaos").mockResolvedValue(irmaos);
+  renderPanel(baseTactic());
+  expect(await screen.findByAltText("O golpe desenhado")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /parecidos/ })).toBeNull();
 });

@@ -49,7 +49,7 @@ export function TacticResultPanel({ tactic, attempt, played, durationMs, error, 
           {attempt && <button className="primary" style={{ marginLeft: "auto" }} disabled={nextDisabled} onClick={onNext}>{nextDisabled ? "Carregando…" : "Próximo"}</button>}
         </div>
       </div>
-      {golpes?.enabled && <GolpeCard origem="lichess" id={tactic.id} errou={!attempt?.correct || !!attempt?.used_hint} />}
+      {golpes?.enabled && <GolpeCard origem="lichess" id={tactic.id} errou={!!attempt && (!attempt.correct || !!attempt.used_hint)} />}
     </>
   );
   return <AnalysisBoard tree={tree} initialNodeId={alternativa ?? "last"} engine={false} allowSetup={false} sidePanel={lateral} />;
