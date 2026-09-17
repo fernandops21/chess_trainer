@@ -35,6 +35,8 @@ export const keys = {
   progress: (days: number) => ["stats", "progress", days] as const,
   coachStatus: ["coach", "status"] as const,
   coachExplanation: (id: string) => ["coach", "explanation", id] as const,
+  golpesStatus: ["golpes", "status"] as const,
+  irmaos: (origem: "own" | "lichess", id: string) => ["golpes", "irmaos", origem, id] as const,
 };
 
 export const useStatus = () =>
@@ -91,6 +93,12 @@ export function useExplain() {
   });
 }
 
+/** Estado do encoder de golpes: quem manda o cartão "Repetir o golpe" aparecer. */
+export const useGolpesStatus = () => useQuery({ queryKey: keys.golpesStatus, queryFn: api.golpesStatus });
+/** Irmãos do golpe (mesma assinatura), para o bloco de repetição. */
+export const useIrmaos = (origem: "own" | "lichess", id: string, enabled = true) =>
+  useQuery({ queryKey: keys.irmaos(origem, id), queryFn: () => api.golpesIrmaos(origem, id), enabled, staleTime: 60_000 });
+
 export const useOpenings = (fen: string | null, db: OpeningsDb) =>
   useQuery({
     queryKey: ["openings", db, fen],
@@ -143,13 +151,14 @@ function useInvalidate(extra: readonly (readonly unknown[])[] = []) {
 export function useStartJob() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (p: { kind: "import" | "analyze" | "regenerate" | "extend_puzzles" | "import_lichess" | "import_study" | "coach_reindex"; limit?: number; game_id?: string; avoidOnly?: boolean; study?: StudyImportIn }) =>
+    mutationFn: (p: { kind: "import" | "analyze" | "regenerate" | "extend_puzzles" | "import_lichess" | "import_study" | "coach_reindex" | "golpes_preparar"; limit?: number; game_id?: string; avoidOnly?: boolean; study?: StudyImportIn }) =>
       p.kind === "import" ? api.importGames()
         : p.kind === "analyze" ? api.analyze({ limit: p.limit, game_id: p.game_id })
         : p.kind === "import_lichess" ? api.importTactics()
         : p.kind === "import_study" ? api.importStudy(p.study ?? {})
         : p.kind === "coach_reindex" ? api.coachReindex()
         : p.kind === "extend_puzzles" ? api.extendPuzzles()
+        : p.kind === "golpes_preparar" ? api.golpesPreparar()
         : api.regenerate(p.avoidOnly ? "avoid" : undefined),
     onSettled: invalidate,
   });

@@ -11,6 +11,8 @@ import type {
   GameDetail,
   GameOut,
   GamesQuery,
+  GolpesStatus,
+  IrmaosOut,
   JobQueued,
   MistakeOut,
   MistakesQuery,
@@ -235,9 +237,23 @@ export const api = {
   themeStats: (days = 30) =>
     request<ThemeStat[]>(`/stats/themes${qs({ days })}`),
   progress: (days = 90) => request<ProgressOut>(`/stats/progress${qs({ days })}`),
+  golpesStatus: () => request<GolpesStatus>("/golpes/status"),
+  /** Irmãos do golpe (mesma assinatura); `null` sem assinatura ou com o encoder desligado (404). */
+  golpesIrmaos: async (origem: "own" | "lichess", id: string, k?: number) => {
+    try {
+      return await request<IrmaosOut>(`/golpes/${origem}/${id}/irmaos${qs({ k })}`);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null;
+      throw e;
+    }
+  },
+  golpesPreparar: () => request<JobQueued>("/golpes/preparar", post("")),
 };
 
 /** Downloads de PGN: links comuns, o navegador salva pelo Content-Disposition. */
 export const studyPgnUrl = (id: string) => `/api/studies/${id}/pgn`;
 export const chapterPgnUrl = (id: string, cid: string) =>
   `/api/studies/${id}/chapters/${cid}/pgn`;
+/** Imagem do golpe desenhado (setas do lance da vítima e da resposta). */
+export const golpeImagemUrl = (origem: "own" | "lichess", id: string) =>
+  `/api/golpes/${origem}/${id}/imagem.svg`;

@@ -324,6 +324,30 @@ export interface SaveTacticIn {
   used_hint?: boolean;
   duration_ms?: number;
   session_id?: string | null;
+  /** Exercício de origem, quando esta tática nasceu do bloco de irmãos (repetir o golpe). */
+  sibling_of?: string;
+}
+
+/** Estado do encoder de golpes: cobre a assinatura, os irmãos e a rotulagem (spec golpes). */
+export interface GolpesStatus {
+  enabled: boolean;
+  versao: number;
+  assinados: number;
+  total: number;
+  /** Por tema: quantos golpes já têm irmãos suficientes (`ge5`/`ge2`) e quantos ficaram sozinhos. */
+  cobertura: Record<string, { ge5: number; ge2: number; sozinhos: number }> | null;
+  rotulagem: boolean;
+}
+
+/** Um irmão do golpe: mesma assinatura, com o quão parecido é (`tier`). */
+export interface IrmaoOut {
+  tier: "mesmo" | "espelho" | "esqueleto";
+  tactic: TacticOut;
+}
+
+export interface IrmaosOut {
+  assinatura: string;
+  itens: IrmaoOut[];
 }
 
 export interface TacticsStatus {

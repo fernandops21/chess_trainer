@@ -1,9 +1,11 @@
 import { useMemo } from "react";
 import type { AttemptOut, TacticOut } from "../api/types";
+import { useGolpesStatus } from "../api/queries";
 import { AnalysisBoard } from "../analysis/AnalysisBoard";
 import { treeFromSolution, withPlayedLine } from "../analysis/solutionTree";
 import { ErrorBox } from "../components/ErrorBox";
 import { themeLabel } from "../lib/format";
+import { GolpeCard } from "./GolpeCard";
 import { QueueButtons } from "./QueueButtons";
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
@@ -11,6 +13,7 @@ const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 export function TacticResultPanel({ tactic, attempt, played, durationMs, error, onRetry, onNext, nextDisabled, clockLabel }:
   { tactic: TacticOut; attempt?: AttemptOut; played?: string[]; durationMs?: number; error?: unknown; onRetry: () => void; onNext: () => void; nextDisabled?: boolean; clockLabel?: string }) {
   const clean = attempt && attempt.correct && !attempt.used_hint;
+  const { data: golpes } = useGolpesStatus();
   const exploreHref = `/analise?fen=${encodeURIComponent(tactic.fen_start)}&orientation=${tactic.side_to_move}&back=${encodeURIComponent("/treinar")}`;
   // a solução vira a árvore do tabuleiro de análise: dá para sair da linha e
   // experimentar qualquer lance, sem pedir nada à engine antes de o usuário querer
@@ -46,6 +49,7 @@ export function TacticResultPanel({ tactic, attempt, played, durationMs, error, 
           {attempt && <button className="primary" style={{ marginLeft: "auto" }} disabled={nextDisabled} onClick={onNext}>{nextDisabled ? "Carregando…" : "Próximo"}</button>}
         </div>
       </div>
+      {golpes?.enabled && <GolpeCard origem="lichess" id={tactic.id} errou={!attempt?.correct || !!attempt?.used_hint} />}
     </>
   );
   return <AnalysisBoard tree={tree} initialNodeId={alternativa ?? "last"} engine={false} allowSetup={false} sidePanel={lateral} />;

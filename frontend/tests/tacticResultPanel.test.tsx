@@ -43,6 +43,8 @@ beforeEach(() => {
   vi.spyOn(api, "analyse").mockResolvedValue(analyse);
   vi.spyOn(api, "openings").mockRejectedValue(new Error("sem livro"));
   vi.spyOn(api, "settings").mockRejectedValue(new Error("sem configurações"));
+  // encoder de golpes desligado (o padrão): sem o cartão "Repetir o golpe" nestes testes
+  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: false, versao: 0, assinados: 0, total: 0, cobertura: null, rotulagem: false });
 });
 afterEach(() => vi.restoreAllMocks());
 
