@@ -49,4 +49,29 @@ describe("RotulagemPage", () => {
     expect(await screen.findByText(/CHESS_TRAINER_ROTULAGEM=1/)).toBeInTheDocument();
     expect(api.rotulagemProximo).not.toHaveBeenCalled();
   });
+  it("sem mais nada para rotular, mostra a mensagem de fim de fila", async () => {
+    vi.spyOn(api, "rotulagemProximo").mockResolvedValue(null);
+    montar();
+    expect(await screen.findByText("Nada para rotular.")).toBeInTheDocument();
+  });
+  it("quando a busca do próximo item falha, mostra o erro e permite tentar de novo", async () => {
+    vi.spyOn(api, "rotulagemProximo").mockRejectedValue(new Error("falha de rede"));
+    montar();
+    expect(await screen.findByText(/Não consegui buscar o próximo item\./)).toBeInTheDocument();
+    expect(screen.getByText(/falha de rede/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeInTheDocument();
+    expect(screen.queryByText("Nada para rotular.")).toBeNull();
+  });
+  it("quando gravar o rótulo falha, mantém o candidato e avisa; a próxima gravação some com o aviso", async () => {
+    vi.spyOn(api, "rotular").mockRejectedValueOnce(new Error("erro de rede")).mockResolvedValueOnce({});
+    montar();
+    await screen.findByText("Ke8 | Q xP f7 #");
+    await userEvent.click(screen.getAllByRole("button", { name: "mesmo golpe" })[0]);
+    expect(await screen.findByText(/Não consegui gravar o rótulo; tente de novo\./)).toBeInTheDocument();
+    expect(screen.getByText(/erro de rede/)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "mesmo golpe" })).toHaveLength(2);
+    await userEvent.click(screen.getAllByRole("button", { name: "mesmo golpe" })[0]);
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "mesmo golpe" })).toHaveLength(1));
+    expect(screen.queryByText(/Não consegui gravar o rótulo/)).toBeNull();
+  });
 });

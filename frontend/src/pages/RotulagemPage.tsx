@@ -10,6 +10,10 @@ const ROTULOS: { label: RotuloIn["label"]; texto: string }[] = [
   { label: "nada", texto: "nada a ver" },
 ];
 
+function mensagemDeErro(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
 /**
  * Rotulagem cega do conjunto de ouro (spec golpes, fase A): compara a âncora
  * com cada candidato sem nunca mostrar a camada (`tier`) que os aproximou —
@@ -21,10 +25,11 @@ const ROTULOS: { label: RotuloIn["label"]; texto: string }[] = [
 export function RotulagemPage() {
   const { data: status } = useGolpesStatus();
   const ligado = status?.rotulagem === true;
-  const { data: item, refetch } = useRotulagemProximo(ligado);
+  const { data: item, isLoading, isError, error, refetch } = useRotulagemProximo(ligado);
   const { data: contagem } = useRotulagemContagem(ligado);
   const rotular = useRotular();
   const [candidatos, setCandidatos] = useState<RotulagemItem["candidatos"]>([]);
+  const [erroRotular, setErroRotular] = useState<string | null>(null);
 
   useEffect(() => {
     setCandidatos(item?.candidatos ?? []);
@@ -37,23 +42,35 @@ export function RotulagemPage() {
 
   async function enviar(candidateId: string, tier: string, label: RotuloIn["label"]) {
     if (!item) return;
-    await rotular.mutateAsync({
-      anchor_origem: item.anchor.origem,
-      anchor_id: item.anchor.id,
-      candidate_id: candidateId,
-      tier,
-      label,
-    });
-    const restantes = candidatos.filter((c) => c.id !== candidateId);
-    setCandidatos(restantes);
-    if (restantes.length === 0) void refetch();
+    try {
+      await rotular.mutateAsync({
+        anchor_origem: item.anchor.origem,
+        anchor_id: item.anchor.id,
+        candidate_id: candidateId,
+        tier,
+        label,
+      });
+      setErroRotular(null);
+      const restantes = candidatos.filter((c) => c.id !== candidateId);
+      setCandidatos(restantes);
+      if (restantes.length === 0) void refetch();
+    } catch (e) {
+      setErroRotular(`Não consegui gravar o rótulo; tente de novo. ${mensagemDeErro(e)}`);
+    }
   }
 
   return (
     <>
       <h1>Rotulagem</h1>
       <p>{contagem?.total ?? 0} rótulos</p>
-      {!item && <p className="muted">Nada para rotular.</p>}
+      {isLoading && <p className="muted">Carregando…</p>}
+      {isError && (
+        <p className="muted">
+          Não consegui buscar o próximo item. {mensagemDeErro(error)}{" "}
+          <button onClick={() => void refetch()}>Tentar de novo</button>
+        </p>
+      )}
+      {!isLoading && !isError && item === null && <p className="muted">Nada para rotular.</p>}
       {item && (
         <div className="row" style={{ alignItems: "flex-start" }}>
           <div className="card" style={{ maxWidth: 320 }}>
@@ -61,6 +78,7 @@ export function RotulagemPage() {
             <p>{item.anchor.assinatura}</p>
           </div>
           <div style={{ flex: 1 }}>
+            {erroRotular && <p className="muted">{erroRotular}</p>}
             {candidatos.map((c) => (
               <div key={c.id} className="card" style={{ maxWidth: 320, marginBottom: 12 }}>
                 <img alt="O candidato" src={golpeImagemUrl("lichess", c.id)} style={{ width: "100%" }} />

@@ -251,8 +251,15 @@ export const api = {
     }
   },
   golpesPreparar: () => request<JobQueued>("/golpes/preparar", post("")),
-  /** Próximo item da fila de rotulagem (âncora + candidatos); `null` quando não sobra nada. */
-  rotulagemProximo: () => request<RotulagemItem>("/golpes/rotulagem/proximo"),
+  /** Próximo item da fila de rotulagem (âncora + candidatos); `null` quando não sobra nada (404). */
+  rotulagemProximo: async (): Promise<RotulagemItem | null> => {
+    try {
+      return await request<RotulagemItem>("/golpes/rotulagem/proximo");
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return null;
+      throw e;
+    }
+  },
   rotular: (body: RotuloIn) => request<unknown>("/golpes/rotulagem", post("", body)),
   rotulagemContagem: () => request<RotulagemContagem>("/golpes/rotulagem/contagem"),
 };
