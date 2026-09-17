@@ -13,7 +13,13 @@ def main() -> None:
     from pathlib import Path
     from chess_trainer.core.db import make_engine, make_session_factory
     caminho = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[4] / "ml" / "golpes" / "gold" / f"{date.today().isoformat()}.jsonl"
-    engine = make_engine(os.environ.get("CHESS_TRAINER_DB", "data/chess_trainer.db"))
+    # mesma derivação de `api/app.py::create_app` (BACKEND_DIR ali é `parents[2]` a partir de
+    # `api/app.py`; daqui, três níveis acima chega ao mesmo `backend/`): caminho absoluto,
+    # não relativo ao diretório de onde o comando é chamado
+    backend_dir = Path(__file__).resolve().parents[3]
+    data_dir = Path(os.environ.get("CHESS_TRAINER_DATA", str(backend_dir / "data")))
+    db_path = os.environ.get("CHESS_TRAINER_DB", str(data_dir / "chess_trainer.db"))
+    engine = make_engine(db_path)
     with make_session_factory(engine)() as db:
         texto = exportar_ouro(db)
     caminho.parent.mkdir(parents=True, exist_ok=True)

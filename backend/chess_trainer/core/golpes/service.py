@@ -188,20 +188,26 @@ def _candidatos(db: Session, cond, rating_lo: int, rating_hi: int, excluir: set[
     return [pid for pid, _rating in db.execute(q) if pid not in excluir]
 
 
+def _camadas(a: Assinatura):
+    """As três condições da cascata (spec §5), na ordem: mesmo golpe → espelho → esqueleto
+    na mesma zona. Compartilhada por `irmaos` (cascata, um total) e `candidatos_por_camada`
+    (cada camada à parte, para a rotulagem)."""
+    h = a.hashes()
+    return [
+        ("mesmo", LichessPuzzleSignature.destinos == h["destinos"]),
+        ("espelho", LichessPuzzleSignature.destinos == h["destinos_esp"]),
+        ("esqueleto", (LichessPuzzleSignature.esqueleto == h["esqueleto"]) & (LichessPuzzleSignature.zona_rei == a.zona_rei)),
+    ]
+
+
 def irmaos(db: Session, a: Assinatura, *, rating_lo: int, rating_hi: int, excluir: set[str], k: int = 5,
            min_popularity: int = 50, min_plays: int = 50) -> list[Irmao]:
     """Cascata (spec §5): mesmo golpe → espelho → esqueleto na mesma zona. Cada camada enche o que
     falta, espalhada do fácil ao difícil; o que já saiu numa camada não volta na seguinte. Ids
     primeiro, linhas completas só dos escolhidos no final: a tabela do Lichess tem milhões de linhas."""
-    h = a.hashes()
-    camadas = [
-        ("mesmo", LichessPuzzleSignature.destinos == h["destinos"]),
-        ("espelho", LichessPuzzleSignature.destinos == h["destinos_esp"]),
-        ("esqueleto", (LichessPuzzleSignature.esqueleto == h["esqueleto"]) & (LichessPuzzleSignature.zona_rei == a.zona_rei)),
-    ]
     escolhidos: list[tuple[str, str]] = []  # (id, tier), já na ordem final
     usados = set(excluir)
-    for tier, cond in camadas:
+    for tier, cond in _camadas(a):
         if len(escolhidos) >= k:
             break
         ids = _candidatos(db, cond, rating_lo, rating_hi, usados, min_popularity, min_plays)
@@ -211,3 +217,24 @@ def irmaos(db: Session, a: Assinatura, *, rating_lo: int, rating_hi: int, exclui
     linhas = {r.id: r for r in db.scalars(
         select(LichessPuzzle).where(LichessPuzzle.id.in_([pid for pid, _tier in escolhidos])))}
     return [Irmao(linhas[pid], tier) for pid, tier in escolhidos]
+
+
+def candidatos_por_camada(db: Session, a: Assinatura, *, rating_lo: int, rating_hi: int, excluir: set[str], k: int,
+                          min_popularity: int = 50, min_plays: int = 50) -> dict[str, list[LichessPuzzle]]:
+    """As três camadas da cascata (spec §5) à parte, até `k` de cada uma, espalhadas do fácil
+    ao difícil — diferente de `irmaos`, que cascateia até completar `k` no total e por isso
+    nunca chega às camadas seguintes quando a primeira já basta sozinha. Quem combina com uma
+    camada mais específica não some pelas mais frouxas mesmo sem ter sido um dos `k` escolhidos
+    ali (senão o mesmo puzzle apareceria de novo, rotulado uma vez como "mesmo" e outra como
+    "esqueleto"): por isso o que exclui a camada seguinte é todo mundo que combinou, não só os
+    escolhidos. A rotulagem usa esta função porque precisa ver as três camadas para formar o
+    conjunto de ouro."""
+    usados = set(excluir)
+    ids_por_tier: dict[str, list[str]] = {}
+    for tier, cond in _camadas(a):
+        combinam = _candidatos(db, cond, rating_lo, rating_hi, usados, min_popularity, min_plays)
+        ids_por_tier[tier] = espalhar(combinam, k)
+        usados |= set(combinam)
+    linhas = {r.id: r for r in db.scalars(
+        select(LichessPuzzle).where(LichessPuzzle.id.in_([pid for ids in ids_por_tier.values() for pid in ids])))}
+    return {tier: [linhas[pid] for pid in ids] for tier, ids in ids_por_tier.items()}

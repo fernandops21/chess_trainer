@@ -4,10 +4,11 @@ import random
 import pytest
 
 from chess_trainer.config import load_settings
+from chess_trainer.core.golpes.assinatura import assinar
 from chess_trainer.core.golpes.rotulagem import exportar_ouro, proximo_item, rotular
-from chess_trainer.core.golpes.service import preparar
-from chess_trainer.core.models import GolpeLabel
-from tests.test_golpes_service import pastor
+from chess_trainer.core.golpes.service import linha_de_assinatura, preparar
+from chess_trainer.core.models import GolpeLabel, LichessPuzzleSignature
+from tests.test_golpes_service import FEN_PASTOR_START, pastor
 
 
 def _oito_pastores(db):
@@ -46,3 +47,43 @@ def test_exportar_ouro_uma_linha_por_rotulo(db_session):
     assert len(linhas) == 1
     assert linhas[0]["anchor_id"] == "r0" and linhas[0]["candidate_id"] == "r1" and linhas[0]["label"] == "parecido"
     assert linhas[0]["anchor_assinatura"] == linhas[0]["candidate_assinatura"] == "Ke8 | Q xP f7 #" and linhas[0]["versao"] == 1
+
+
+def test_proximo_item_traz_candidatos_de_cada_camada(db_session):
+    """Três mesmos, um espelho e um esqueleto (assinaturas gravadas à mão, como em
+    `test_irmaos_em_cascata_com_faixa_e_exclusao`): a cascata de `irmaos` pararia em "mesmo"
+    (já dá os 3 pedidos); a rotulagem precisa ver as três camadas para formar o ouro."""
+    db_session.add(pastor("anchor", rating=800))
+    for i in range(3):
+        db_session.add(pastor(f"m{i}", rating=700 + 50 * i))
+    db_session.add(pastor("esp", rating=900))
+    db_session.add(pastor("esq", rating=1000))
+    db_session.commit()
+
+    a = assinar(FEN_PASTOR_START, ["h5f7"])
+    for pid in ("m0", "m1", "m2"):
+        db_session.add(linha_de_assinatura(a, LichessPuzzleSignature, pid))
+    db_session.add(linha_de_assinatura(a.espelhada(), LichessPuzzleSignature, "esp"))
+    esq = linha_de_assinatura(a, LichessPuzzleSignature, "esq")
+    esq.destinos, esq.destinos_esp = 12345, 54321  # mesmo esqueleto e zona, outras casas
+    db_session.add(esq)
+    db_session.commit()
+
+    item = proximo_item(db_session, load_settings(db_session), ancora=("lichess", "anchor"), por_camada=3)
+    tiers = {c["tier"] for c in item["candidatos"]}
+    assert tiers == {"mesmo", "espelho", "esqueleto"}
+    assert {c["id"] for c in item["candidatos"] if c["tier"] == "mesmo"} == {"m0", "m1", "m2"}
+    assert {c["id"] for c in item["candidatos"] if c["tier"] == "espelho"} == {"esp"}
+    assert {c["id"] for c in item["candidatos"] if c["tier"] == "esqueleto"} == {"esq"}
+
+
+def test_proximo_item_sorteia_sem_carregar_a_tabela_toda(db_session):
+    """O sorteio da âncora é um cursor no índice (`puzzle_id >= sorteio`), não uma lista de
+    todos os ids — não dá para espiar o SQL aqui, mas para qualquer semente a âncora sorteada
+    existe e vem com candidato (o comportamento que a implementação por cursor tem de manter)."""
+    _oito_pastores(db_session)
+    for seed in range(10):
+        item = proximo_item(db_session, load_settings(db_session), rng=random.Random(seed))
+        assert item is not None
+        assert item["anchor"]["origem"] == "lichess" and item["anchor"]["id"].startswith("r")
+        assert item["candidatos"]
