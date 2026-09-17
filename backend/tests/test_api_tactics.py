@@ -299,3 +299,15 @@ def test_twin_tactic_reports_saved_after_the_other_was_saved(client):
     # ...e a tela de treino já a mostra como guardada
     t = client.get("/api/tactics/next", params={"exclude": "00sHx,00sJ9,gemA"}).json()
     assert t["id"] == "gemB" and t["saved"] is True
+
+
+def test_salvar_tatica_com_sibling_of(client):
+    run_import(client)
+    # janela larga: as duas táticas do fixture (1760 e 2671) precisam caber para o teste pegar as duas
+    assert client.put("/api/settings", json={"tactics_rating": 1760, "tactics_window": 50}).status_code == 200
+    origem = client.get("/api/tactics/next").json()["id"]
+    p_origem = client.post(f"/api/tactics/{origem}/save").json()
+    outro = client.get(f"/api/tactics/next?exclude={origem}").json()["id"]
+    r = client.post(f"/api/tactics/{outro}/save", json={"correct": True, "sibling_of": p_origem["id"]})
+    assert r.status_code == 201 and r.json()["sibling_of"] == p_origem["id"]
+    assert client.post(f"/api/tactics/{outro}/save", json={"sibling_of": "nao-existe"}).status_code == 404

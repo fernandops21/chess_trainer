@@ -219,6 +219,8 @@ class PuzzleOut(BaseModel):
     mistake: MistakeRef | None = None
     study: StudyRef | None = None
     siblings: list[PuzzleSibling] = []
+    # exercício de origem, quando esta tática nasceu do bloco de irmãos (repetir o golpe)
+    sibling_of: str | None = None
 
 
 class QueueIn(BaseModel):
@@ -248,6 +250,8 @@ class SaveTacticIn(BaseModel):
     used_hint: bool = False
     duration_ms: int = 0
     session_id: str | None = None
+    # exercício de origem no bloco de irmãos: preenchido quando esta tática nasce de "repetir o golpe"
+    sibling_of: str | None = None
 
 
 class SessionIn(BaseModel):

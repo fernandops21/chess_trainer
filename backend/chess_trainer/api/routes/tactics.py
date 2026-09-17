@@ -139,6 +139,8 @@ def post_save_tactic(lichess_id: str, response: Response, body: SaveTacticIn | N
         raise HTTPException(404, "tática não encontrada")
     if body is not None and body.session_id is not None and db.get(TrainingSession, body.session_id) is None:
         raise HTTPException(404, "sessão não encontrada")
+    if body is not None and body.sibling_of is not None and db.get(Puzzle, body.sibling_of) is None:
+        raise HTTPException(404, "exercício de origem não encontrado")
     existing = db.scalar(select(Puzzle).where(Puzzle.external_id == lichess_id))
     if existing is not None:
         return _back_to_queue(db, existing, body)
@@ -153,6 +155,7 @@ def post_save_tactic(lichess_id: str, response: Response, body: SaveTacticIn | N
         fen_start=t.fen_start, side_to_move=t.side_to_move, solution=json.dumps(t.solution),
         end_reason=t.end_reason, theme=t.theme, category="lichess", solver_moves=t.solver_moves,
         fen_before=row.fen, last_move=row.moves.split()[0],
+        sibling_of=body.sibling_of if body is not None else None,
     )
     db.add(puzzle)
     try:
@@ -172,8 +175,16 @@ def post_save_tactic(lichess_id: str, response: Response, body: SaveTacticIn | N
 
 
 def _back_to_queue(db: Session, puzzle: Puzzle, body: SaveTacticIn | None = None) -> PuzzleOut:
+    dirty = False
     if not puzzle.in_queue:
         puzzle.in_queue = True
+        dirty = True
+    # exercício sem origem registrada ainda: guardar de novo com sibling_of completa o dado,
+    # mas nunca sobrescreve uma origem já gravada
+    if body is not None and body.sibling_of is not None and puzzle.sibling_of is None:
+        puzzle.sibling_of = body.sibling_of
+        dirty = True
+    if dirty:
         db.commit()
     _schedule_first_review(db, puzzle, body)
     return _puzzle_out(db, puzzle)

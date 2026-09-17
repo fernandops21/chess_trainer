@@ -105,6 +105,7 @@ def _puzzle_out(db: Session, p: Puzzle, my_replies: dict[str, MyReplyInfo] | Non
         move_played=pos.move_played if pos is not None else None,
         mistake=mistake, study=_study_ref(p),
         siblings=[PuzzleSibling(id=s.id, kind=s.kind) for s in (pos.puzzles if pos is not None else []) if s.id != p.id],
+        sibling_of=p.sibling_of,
     )
 
 

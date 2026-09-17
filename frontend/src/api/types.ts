@@ -266,6 +266,8 @@ export interface PuzzleOut {
   mistake: MistakeRef | null;
   study: StudyRef | null;
   siblings: PuzzleSibling[];
+  /** Exercício de origem, quando esta tática nasceu do bloco de irmãos (repetir o golpe). */
+  sibling_of?: string | null;
 }
 
 /** Tática do banco do Lichess: mesmo formato de treino dos puzzles próprios,
