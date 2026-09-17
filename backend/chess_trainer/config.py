@@ -46,6 +46,9 @@ class AppSettings:
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
     langfuse_host: str = ""
+    # golpes: cartão "Repetir o golpe" e tamanho do bloco de irmãos
+    golpes_enabled: bool = True
+    golpes_bloco: int = 5
 
 
 def get_setting(db: Session, key: str, default: Any = None) -> Any:

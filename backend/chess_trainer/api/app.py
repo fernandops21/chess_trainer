@@ -9,7 +9,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.staticfiles import StaticFiles
 
 from chess_trainer.api.jobs import JobRunner
-from chess_trainer.api.routes import analysis, coach, games, openings, stats, studies, system, tactics, training
+from chess_trainer.api.routes import analysis, coach, games, golpes, openings, stats, studies, system, tactics, training
 from chess_trainer.coach.costs import MODELO_CHECAGEM
 from chess_trainer.coach.llm import AnthropicClient
 from chess_trainer.coach.retrieval.embeddings import FastembedEmbeddings
@@ -84,6 +84,7 @@ def create_app(
     coach_llm_factory=None,
     coach_checagem_factory=None,
     coach_enabled: bool | None = None,
+    rotulagem_enabled: bool | None = None,
 ) -> FastAPI:
     # tudo o que é dado local (banco, banco de táticas, modelo de embeddings) mora aqui
     data_dir = Path(os.environ.get("CHESS_TRAINER_DATA", str(BACKEND_DIR / "data")))
@@ -151,6 +152,11 @@ def create_app(
     if coach_enabled is None:
         coach_enabled = os.environ.get("CHESS_TRAINER_COACH") == "1"
     app.state.coach_enabled = bool(coach_enabled)
+    # rotulagem de golpes (spec golpes §8): mesmo padrão do treinador com IA, ainda em
+    # desenvolvimento, desligada por padrão e ligada só com `CHESS_TRAINER_ROTULAGEM=1`
+    if rotulagem_enabled is None:
+        rotulagem_enabled = os.environ.get("CHESS_TRAINER_ROTULAGEM") == "1"
+    app.state.rotulagem_enabled = bool(rotulagem_enabled)
 
     app.include_router(system.router)
     app.include_router(games.router)
@@ -161,6 +167,7 @@ def create_app(
     app.include_router(openings.router)
     app.include_router(stats.router)
     app.include_router(coach.router)
+    app.include_router(golpes.router)
 
     dist = Path(dist_dir) if dist_dir is not None else BACKEND_DIR.parent / "frontend" / "dist"
     if dist.is_dir():

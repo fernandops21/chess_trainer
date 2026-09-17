@@ -35,6 +35,8 @@ class SettingsOut(BaseModel):
     langfuse_public_key: str
     langfuse_secret_key_set: bool
     langfuse_host: str
+    golpes_enabled: bool
+    golpes_bloco: int
 
 
 class SettingsIn(BaseModel):
@@ -69,6 +71,9 @@ class SettingsIn(BaseModel):
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = None
     langfuse_host: str | None = None
+    golpes_enabled: bool | None = None
+    # tamanho do bloco de irmãos no cartão "Repetir o golpe"
+    golpes_bloco: int | None = Field(None, ge=3, le=10)
 
 
 class GameOut(BaseModel):
@@ -579,3 +584,12 @@ class CoachExplanationOut(BaseModel):
     tokens: TokensOut
     duration_ms: int
     trace_url: str | None = None
+
+
+class GolpesStatusOut(BaseModel):
+    enabled: bool
+    versao: int
+    assinados: int
+    total: int
+    cobertura: dict[str, dict[str, int]] | None
+    rotulagem: bool

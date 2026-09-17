@@ -2,12 +2,18 @@
 from __future__ import annotations
 
 import json
+from typing import Callable
 
 import chess
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from chess_trainer.config import get_setting, set_setting
 from chess_trainer.core.golpes.assinatura import VERSAO_ASSINATURA, Assinatura, assinar
 from chess_trainer.core.models import LichessPuzzle, LichessPuzzleSignature, Puzzle, PuzzleSignature
+
+ProgressFn = Callable[[str, int, int, str], None]
+NOME_TAREFA = "golpes_preparar"
 
 
 def _lances_lichess(row: LichessPuzzle) -> tuple[str, list[str]] | None:
@@ -88,3 +94,68 @@ def assinatura_de(db: Session, origem: str, id: str) -> tuple[Assinatura, str, l
         except ValueError:
             return None
     return None
+
+
+def _pendentes(db: Session, invalidos: set[str] = frozenset()):
+    """Ids do Lichess sem assinatura ou com versão antiga, fora os já sabidos inválidos
+    (`golpes_invalidos`, gravado por `preparar`): sem esse filtro, um puzzle do Lichess com
+    dado ruim (menos de dois lances, lance ilegal) nunca ganha linha e voltaria como pendente
+    para sempre, fazendo a tarefa reprocessá-lo (sem proveito) toda vez que roda de novo."""
+    q = (select(LichessPuzzle.id).outerjoin(LichessPuzzleSignature, LichessPuzzleSignature.puzzle_id == LichessPuzzle.id)
+         .where((LichessPuzzleSignature.puzzle_id.is_(None)) | (LichessPuzzleSignature.versao < VERSAO_ASSINATURA)))
+    if invalidos:
+        q = q.where(LichessPuzzle.id.notin_(invalidos))
+    return q.order_by(LichessPuzzle.id)
+
+
+def preparar(db: Session, progress: ProgressFn, should_stop: Callable[[], bool] | None = None, lote: int = 5000) -> int:
+    """Assina o que falta, em lotes, com progresso e cancelamento. Percorre os pendentes por um
+    cursor de id: puzzle inválido do Lichess não ganha linha, e sem o cursor ele voltaria no lote
+    seguinte para sempre. Devolve quantos puzzles foram processados (válidos ou não)."""
+    invalidos = set(get_setting(db, "golpes_invalidos", []) or [])
+    total = db.scalar(select(func.count()).select_from(_pendentes(db, invalidos).subquery())) or 0
+    progress(NOME_TAREFA, 0, total, "contando")
+    feitos = 0
+    ultimo = ""
+    while True:
+        if should_stop is not None and should_stop():
+            progress(NOME_TAREFA, feitos, total, "cancelado")
+            return feitos
+        ids = list(db.scalars(_pendentes(db, invalidos).where(LichessPuzzle.id > ultimo).limit(lote)))
+        if not ids:
+            break
+        ultimo = ids[-1]
+        rows = db.scalars(select(LichessPuzzle).where(LichessPuzzle.id.in_(ids))).all()
+        for s in db.scalars(select(LichessPuzzleSignature).where(LichessPuzzleSignature.puzzle_id.in_(ids))):
+            db.delete(s)  # versão antiga: sai antes de entrar a nova
+        db.flush()
+        for row in rows:
+            a = assinar_lichess(row)
+            if a is not None:
+                db.add(linha_de_assinatura(a, LichessPuzzleSignature, row.id))
+                invalidos.discard(row.id)
+            else:
+                invalidos.add(row.id)
+        db.commit()
+        feitos += len(ids)
+        progress(NOME_TAREFA, feitos, total, f"{feitos}/{total} puzzles")
+    set_setting(db, "golpes_invalidos", sorted(invalidos))
+    set_setting(db, "golpes_cobertura", cobertura(db))
+    set_setting(db, "golpes_assinados", db.scalar(select(func.count()).select_from(LichessPuzzleSignature)) or 0)
+    progress(NOME_TAREFA, total, total, "concluído")
+    return feitos
+
+
+def cobertura(db: Session) -> dict[str, dict[str, int]]:
+    """Por nível: quantos puzzles têm grupo ≥ 5, ≥ 2 e ficam sozinhos (spec §4.2)."""
+    out = {}
+    for nivel in ("esqueleto", "destinos", "completo"):
+        col = getattr(LichessPuzzleSignature, nivel)
+        grupos = select(func.count().label("c")).select_from(LichessPuzzleSignature).group_by(col).subquery()
+        ge5, ge2, solos = db.execute(select(
+            func.coalesce(func.sum(func.iif(grupos.c.c >= 5, grupos.c.c, 0)), 0),
+            func.coalesce(func.sum(func.iif(grupos.c.c >= 2, grupos.c.c, 0)), 0),
+            func.coalesce(func.sum(func.iif(grupos.c.c == 1, 1, 0)), 0),
+        )).one()
+        out[nivel] = {"ge5": int(ge5), "ge2": int(ge2), "sozinhos": int(solos)}
+    return out
