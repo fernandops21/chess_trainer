@@ -11,7 +11,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from chess_trainer.config import set_setting
-from chess_trainer.core.golpes.assinatura import VERSAO_ASSINATURA, Assinatura, Trecho, assinar, trechos
+from chess_trainer.core.golpes.assinatura import VERSAO_ASSINATURA, Assinatura, Trecho, assinar, assinar_com_trechos, trechos
 from chess_trainer.core.models import (
     LichessPuzzle, LichessPuzzleSignature, LichessPuzzleTrecho, Puzzle, PuzzleSignature,
 )
@@ -164,12 +164,16 @@ def preparar(db: Session, progress: ProgressFn, should_stop: Callable[[], bool] 
         db.execute(delete(LichessPuzzleTrecho).where(LichessPuzzleTrecho.puzzle_id.in_(ids)))
         db.flush()
         for row in rows:
-            a = assinar_lichess(row)
-            if a is not None:
-                db.add(linha_de_assinatura(a, LichessPuzzleSignature, row.id))
-            ts = trechos_lichess(row)
-            if ts:
-                db.add_all([linha_de_trecho(t, row.id) for t in ts])
+            # assinatura e trechos numa passada só pela solução (o milhão agradece)
+            par = _lances_lichess(row)
+            if par is None:
+                continue
+            try:
+                a, ts = assinar_com_trechos(par[0], par[1])
+            except ValueError:
+                continue
+            db.add(linha_de_assinatura(a, LichessPuzzleSignature, row.id))
+            db.add_all([linha_de_trecho(t, row.id) for t in ts])
         db.commit()
         feitos += len(ids)
         progress(NOME_TAREFA, feitos, total, f"{feitos}/{total} puzzles")

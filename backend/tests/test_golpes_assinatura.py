@@ -142,3 +142,39 @@ def test_trechos_levanta_erro_como_assinar():
         trechos("posicao invalida", ["e2e4"])
     with pytest.raises(ValueError):
         trechos(FEN_BEIJO, ["a1a8"])
+
+
+def _trechos_de_referencia(fen, lances, max_solver=6):
+    """A definição, do jeito lento: um `anotar` por (início, tamanho)."""
+    import chess as _c
+    from chess_trainer.core.golpes.assinatura import _uci_espelho_vertical
+    board = _c.Board(fen)
+    if board.turn == _c.BLACK:
+        board = board.mirror()
+        lances = [_uci_espelho_vertical(u) for u in lances]
+    n_solver = (len(lances) + 1) // 2
+    limite = min(n_solver, max_solver)
+    out = []
+    b = board.copy()
+    for i in range(limite):
+        for n in (1, 2, 3):
+            if i + n <= limite:
+                out.append((i, n, anotar(b, lances[2 * i:], max_lances=n)))
+        for u in lances[2 * i:2 * i + 2]:
+            b.push(_c.Move.from_uci(u))
+    return out
+
+
+def test_trechos_em_uma_passada_batem_com_a_definicao():
+    from chess_trainer.core.golpes.assinatura import assinar_com_trechos, trechos
+    casos = [
+        (FEN_FRANCESA, ["d3b5", "e8e7", "d1d4"]),
+        (FEN_BEIJO, ["d3h7", "g8h7", "f3g5", "h7g8", "d1h5", "f8e8", "h5h7"]),
+        ("rnbqk2r/pp3ppp/3b4/3Q4/3Pp3/4P3/PP3PPP/R1B1KBNR b KQkq - 0 9", ["d6b4", "e1e2", "d8d5"]),
+        (FEN_GARFO, ["d5e7", "g8h8", "e7c8"]),
+    ]
+    for fen, lances in casos:
+        rapido = [(t.inicio, t.n, t.assinatura) for t in trechos(fen, lances)]
+        assert rapido == _trechos_de_referencia(fen, lances)
+        a, ts = assinar_com_trechos(fen, lances)
+        assert a == assinar(fen, lances) and ts == trechos(fen, lances)

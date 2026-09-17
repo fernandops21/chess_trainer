@@ -198,39 +198,53 @@ class Trecho:
     assinatura: Assinatura
 
 
-def trechos(fen: str, lances_uci: Sequence[str], max_solver: int = 6, tamanhos: tuple[int, ...] = (1, 2, 3)) -> list["Trecho"]:
-    """Todo trecho contíguo de `tamanhos` lances do solucionador, começando em cada lance até
-    `max_solver` (spec golpes trechos §3.5): a busca de irmãos por trecho compara a âncora
-    (sempre `inicio == 0`, prefixos) contra qualquer posição da solução de um candidato — um
-    golpe pode estar espalhado a partir do início, do fim ou do meio de uma solução mais longa.
-    Normaliza como `assinar` (o solucionador sempre joga de brancas). Levanta ValueError como
-    `assinar` (FEN inválida ou lance ilegal)."""
+def _normalizar(fen: str, lances_uci: Sequence[str]) -> tuple[chess.Board, list[str]]:
+    """Tabuleiro e lances com quem soluciona sempre de brancas (como `assinar`)."""
     try:
         board = chess.Board(fen)
     except ValueError as exc:
         raise ValueError(f"FEN inválida: {fen}") from exc
+    lances = list(lances_uci)
     if board.turn == chess.BLACK:
         board = board.mirror()
-        lances_uci = [_uci_espelho_vertical(u) for u in lances_uci]
-    n_solver = (len(lances_uci) + 1) // 2
-    limite = min(n_solver, max_solver)
-    # tabuleiro no início de cada lance do solucionador (`boards[i]`): antes do i-ésimo lance
-    # dele, ou seja, depois de i lances dele e i respostas do adversário
-    boards = [board.copy()]
-    atual = board.copy()
-    for j in range(min(len(lances_uci), 2 * limite)):
-        mv = chess.Move.from_uci(lances_uci[j])
-        if not atual.is_legal(mv):
-            raise ValueError(f"lance ilegal: {lances_uci[j]} em {atual.fen()}")
-        atual.push(mv)
-        if j % 2 == 1:
-            boards.append(atual.copy())
+        lances = [_uci_espelho_vertical(u) for u in lances]
+    return board, lances
+
+
+def _anotar_cada_lance(board: chess.Board, lances_uci: Sequence[str], max_solver: int) -> tuple[list[str], list[Lance]]:
+    """Uma passada só pela solução: para cada lance de quem soluciona (até `max_solver`), a casa
+    do rei adversário ANTES dele e o lance anotado. Todo trecho e a assinatura inteira saem de
+    fatias disso — anotar de novo por (início, tamanho) triplicava o custo no milhão do Lichess."""
+    board = board.copy()
+    if not board.is_valid():
+        raise ValueError(f"posição impossível: {board.fen()}")
+    quem = board.turn
+    reis: list[str] = []
+    anotados: list[Lance] = []
+    for j, uci in enumerate(lances_uci):
+        try:
+            mv = chess.Move.from_uci(uci)
+        except ValueError as exc:
+            raise ValueError(f"lance inválido: {uci}") from exc
+        if j % 2 == 0:
+            if len(anotados) >= max_solver:
+                break
+            reis.append(chess.square_name(board.king(not quem)))
+            anotados.append(_anotar_lance(board, mv))
+        else:
+            if not board.is_legal(mv):
+                raise ValueError(f"lance ilegal: {uci} em {board.fen()}")
+            board.push(mv)
+    return reis, anotados
+
+
+def _montar_trechos(reis: list[str], anotados: list[Lance], n_solver: int, tamanhos: tuple[int, ...]) -> list["Trecho"]:
     out = []
+    limite = len(anotados)
     for i in range(limite):
         for n in tamanhos:
             if i + n > limite:
                 continue
-            a = anotar(boards[i], lances_uci[2 * i:], max_lances=n)
             if i == 0 and i + n == n_solver:
                 posicao = "inteira"
             elif i == 0:
@@ -239,5 +253,28 @@ def trechos(fen: str, lances_uci: Sequence[str], max_solver: int = 6, tamanhos: 
                 posicao = "fim"
             else:
                 posicao = "meio"
-            out.append(Trecho(inicio=i, n=n, posicao=posicao, assinatura=a))
+            out.append(Trecho(inicio=i, n=n, posicao=posicao, assinatura=Assinatura(reis[i], tuple(anotados[i:i + n]))))
     return out
+
+
+def trechos(fen: str, lances_uci: Sequence[str], max_solver: int = 6, tamanhos: tuple[int, ...] = (1, 2, 3)) -> list["Trecho"]:
+    """Todo trecho contíguo de `tamanhos` lances do solucionador, começando em cada lance até
+    `max_solver` (spec golpes trechos §3.5): a busca de irmãos por trecho compara a âncora
+    (sempre `inicio == 0`, prefixos) contra qualquer posição da solução de um candidato — um
+    golpe pode estar espalhado a partir do início, do fim ou do meio de uma solução mais longa.
+    Normaliza como `assinar` (o solucionador sempre joga de brancas). Levanta ValueError como
+    `assinar` (FEN inválida ou lance ilegal)."""
+    board, lances = _normalizar(fen, lances_uci)
+    reis, anotados = _anotar_cada_lance(board, lances, max_solver)
+    return _montar_trechos(reis, anotados, (len(lances) + 1) // 2, tamanhos)
+
+
+def assinar_com_trechos(fen: str, lances_uci: Sequence[str], max_solver: int = 6,
+                        tamanhos: tuple[int, ...] = (1, 2, 3)) -> tuple[Assinatura, list["Trecho"]]:
+    """A assinatura da solução inteira (`assinar`) e os trechos (`trechos`) numa passada só:
+    é o que a tarefa de preparo usa, para não ler a posição e anotar os lances duas vezes."""
+    board, lances = _normalizar(fen, lances_uci)
+    reis, anotados = _anotar_cada_lance(board, lances, max(max_solver, MAX_LANCES))
+    rei0 = reis[0] if reis else chess.square_name(board.king(not board.turn))
+    inteira = Assinatura(rei0, tuple(anotados[:MAX_LANCES]))
+    return inteira, _montar_trechos(reis[:max_solver], anotados[:max_solver], (len(lances) + 1) // 2, tamanhos)
