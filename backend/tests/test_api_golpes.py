@@ -65,3 +65,26 @@ def test_imagem_svg(client):
     assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg+xml") and r.text.startswith("<svg")
     assert "max-age" in r.headers["cache-control"]
     assert client.get("/api/golpes/lichess/nao/imagem.svg").status_code == 404
+
+
+def test_rotulagem_desligada_por_padrao(client):
+    assert client.get("/api/golpes/rotulagem/proximo").status_code == 404
+    assert client.post("/api/golpes/rotulagem", json={"anchor_origem": "lichess", "anchor_id": "p0", "candidate_id": "p1", "tier": "mesmo", "label": "mesmo"}).status_code == 404
+
+
+def test_rotulagem_ligada(tmp_path):
+    app = create_app(db_path=":memory:", engine_factory=lambda s: FakeEngine(default=first_legal_default(0)), rotulagem_enabled=True)
+    with TestClient(app) as c:
+        db = app.state.session_factory()
+        for i in range(6):
+            db.add(pastor(f"p{i}", 700 + 100 * i))
+        db.commit(); db.close()
+        c.post("/api/golpes/preparar"); app.state.jobs.wait()
+        assert c.get("/api/golpes/status").json()["rotulagem"] is True
+        item = c.get("/api/golpes/rotulagem/proximo").json()
+        cand = item["candidatos"][0]
+        r = c.post("/api/golpes/rotulagem", json={"anchor_origem": "lichess", "anchor_id": item["anchor"]["id"], "candidate_id": cand["id"], "tier": cand["tier"], "label": "nada"})
+        assert r.status_code == 201
+        assert c.get("/api/golpes/rotulagem/contagem").json() == {"total": 1, "por_label": {"nada": 1}}
+        ouro = c.get("/api/golpes/rotulagem/ouro")
+        assert ouro.status_code == 200 and ouro.text.count("\n") == 1

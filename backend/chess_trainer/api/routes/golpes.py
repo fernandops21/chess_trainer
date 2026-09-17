@@ -1,4 +1,4 @@
-"""Golpes: status, tarefa de preparo, busca de irmãos (e, nas tarefas seguintes, imagem e rotulagem)."""
+"""Golpes: status, tarefa de preparo, busca de irmãos, imagem e rotulagem (conjunto de ouro)."""
 from __future__ import annotations
 
 from dataclasses import asdict
@@ -8,12 +8,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from chess_trainer.api.deps import get_db
-from chess_trainer.api.schemas import GolpesStatusOut, IrmaoOut, IrmaosOut
+from chess_trainer.api.schemas import ContagemOut, GolpesStatusOut, IrmaoOut, IrmaosOut, RotuloIn, RotuloOut
 from chess_trainer.config import get_setting, load_settings
 from chess_trainer.core.golpes.assinatura import VERSAO_ASSINATURA
 from chess_trainer.core.golpes.imagem import svg_do_golpe
+from chess_trainer.core.golpes.rotulagem import exportar_ouro, proximo_item, rotular
 from chess_trainer.core.golpes.service import NOME_TAREFA, assinatura_de, irmaos, preparar
-from chess_trainer.core.models import LichessPuzzle, Puzzle, utcnow
+from chess_trainer.core.models import GolpeLabel, LichessPuzzle, Puzzle, utcnow
 from chess_trainer.core.tactics.convert import to_tactic
 from chess_trainer.core.tactics.service import _seen_ids
 
@@ -23,6 +24,11 @@ router = APIRouter(prefix="/api/golpes")
 def golpes_ligado(db: Session = Depends(get_db)) -> None:
     if not load_settings(db).golpes_enabled:
         raise HTTPException(404, "golpes desligados em Configurações")
+
+
+def rotulagem_ligada(request: Request) -> None:
+    if not getattr(request.app.state, "rotulagem_enabled", False):
+        raise HTTPException(404, "rotulagem em desenvolvimento, desligada")
 
 
 @router.get("/status", response_model=GolpesStatusOut)
@@ -83,3 +89,33 @@ def golpes_imagem(origem: str, id: str, db: Session = Depends(get_db)):
     _a, fen, lances = achado
     return Response(content=svg_do_golpe(fen, lances), media_type="image/svg+xml",
                     headers={"Cache-Control": "public, max-age=86400"})
+
+
+@router.get("/rotulagem/proximo", dependencies=[Depends(rotulagem_ligada)])
+def golpes_rotulagem_proximo(por_camada: int = 3, db: Session = Depends(get_db)):
+    item = proximo_item(db, load_settings(db), por_camada=por_camada)
+    if item is None:
+        raise HTTPException(404, "sem exercício assinado para rotular")
+    return item
+
+
+@router.post("/rotulagem", status_code=201, response_model=RotuloOut, dependencies=[Depends(rotulagem_ligada)])
+def golpes_rotular(body: RotuloIn, db: Session = Depends(get_db)):
+    try:
+        linha = rotular(db, anchor_origem=body.anchor_origem, anchor_id=body.anchor_id,
+                        candidate_id=body.candidate_id, tier=body.tier, label=body.label)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return RotuloOut(id=linha.id, label=linha.label)
+
+
+@router.get("/rotulagem/ouro", dependencies=[Depends(rotulagem_ligada)])
+def golpes_rotulagem_ouro(db: Session = Depends(get_db)):
+    return Response(content=exportar_ouro(db), media_type="text/plain")
+
+
+@router.get("/rotulagem/contagem", response_model=ContagemOut, dependencies=[Depends(rotulagem_ligada)])
+def golpes_rotulagem_contagem(db: Session = Depends(get_db)):
+    linhas = db.execute(select(GolpeLabel.label, func.count()).group_by(GolpeLabel.label)).all()
+    por_label = {label: n for label, n in linhas}
+    return ContagemOut(total=sum(por_label.values()), por_label=por_label)

@@ -607,3 +607,21 @@ class IrmaoOut(BaseModel):
 class IrmaosOut(BaseModel):
     assinatura: str
     itens: list[IrmaoOut]
+
+
+class RotuloIn(BaseModel):
+    anchor_origem: Literal["own", "lichess"]
+    anchor_id: str
+    candidate_id: str
+    tier: Literal["mesmo", "espelho", "esqueleto"]
+    label: Literal["mesmo", "parecido", "nada"]
+
+
+class RotuloOut(BaseModel):
+    id: str
+    label: str
+
+
+class ContagemOut(BaseModel):
+    total: int
+    por_label: dict[str, int]
