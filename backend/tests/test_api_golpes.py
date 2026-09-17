@@ -44,3 +44,14 @@ def test_settings_validam_o_bloco(client):
     assert client.put("/api/settings", json={"golpes_bloco": 2}).status_code == 422
     assert client.put("/api/settings", json={"golpes_bloco": 7}).status_code == 200
     assert client.get("/api/settings").json()["golpes_bloco"] == 7
+
+
+def test_irmaos_de_um_puzzle_do_lichess(client):
+    client.post("/api/golpes/preparar"); client.app.state.jobs.wait()
+    client.put("/api/settings", json={"tactics_rating": 900, "tactics_window": 400})
+    r = client.get("/api/golpes/lichess/p0/irmaos?k=3").json()
+    assert r["assinatura"].startswith("Ke8 | Q") and len(r["itens"]) == 3
+    assert all(i["tier"] == "mesmo" for i in r["itens"]) and r["itens"][0]["tactic"]["id"] != "p0"
+    assert r["itens"][0]["tactic"]["fen_start"] and r["itens"][0]["tactic"]["rating"] <= r["itens"][-1]["tactic"]["rating"]
+    assert client.get("/api/golpes/lichess/nao/irmaos").status_code == 404
+    assert client.get("/api/golpes/own/nao/irmaos").status_code == 404

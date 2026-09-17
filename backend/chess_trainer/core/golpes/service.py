@@ -1,7 +1,9 @@
-"""Assinaturas no banco: calcular para o Lichess e para os exercícios do usuário (spec golpes §4)."""
+"""Assinaturas no banco: calcular para o Lichess e para os exercícios do usuário (spec golpes §4);
+busca de irmãos em cascata para um exercício (spec golpes §5)."""
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import Callable
 
 import chess
@@ -150,4 +152,51 @@ def cobertura(db: Session) -> dict[str, dict[str, int]]:
             func.coalesce(func.sum(func.iif(grupos.c.c == 1, 1, 0)), 0),
         )).one()
         out[nivel] = {"ge5": int(ge5), "ge2": int(ge2), "sozinhos": int(solos)}
+    return out
+
+
+@dataclass
+class Irmao:
+    row: LichessPuzzle
+    tier: str  # mesmo | espelho | esqueleto
+
+
+def espalhar(itens: list, k: int) -> list:
+    """k itens espalhados ao longo de uma lista ordenada: do fácil ao difícil, sem se amontoar."""
+    n = len(itens)
+    if n <= k:
+        return list(itens)
+    if k == 1:
+        return [itens[0]]
+    posicoes = sorted({round(i * (n - 1) / (k - 1)) for i in range(k)})
+    return [itens[p] for p in posicoes]
+
+
+def _candidatos(db: Session, cond, rating_lo: int, rating_hi: int, excluir: set[str], min_popularity: int, min_plays: int):
+    q = (select(LichessPuzzle).join(LichessPuzzleSignature, LichessPuzzleSignature.puzzle_id == LichessPuzzle.id)
+         .where(cond, LichessPuzzle.rating.between(rating_lo, rating_hi),
+                LichessPuzzle.popularity >= min_popularity, LichessPuzzle.nb_plays >= min_plays)
+         .order_by(LichessPuzzle.rating, LichessPuzzle.id))
+    return [r for r in db.scalars(q) if r.id not in excluir]
+
+
+def irmaos(db: Session, a: Assinatura, *, rating_lo: int, rating_hi: int, excluir: set[str], k: int = 5,
+           min_popularity: int = 50, min_plays: int = 50) -> list[Irmao]:
+    """Cascata (spec §5): mesmo golpe → espelho → esqueleto na mesma zona. Cada camada enche o que
+    falta, espalhada do fácil ao difícil; o que já saiu numa camada não volta na seguinte."""
+    h = a.hashes()
+    camadas = [
+        ("mesmo", LichessPuzzleSignature.destinos == h["destinos"]),
+        ("espelho", LichessPuzzleSignature.destinos == h["destinos_esp"]),
+        ("esqueleto", (LichessPuzzleSignature.esqueleto == h["esqueleto"]) & (LichessPuzzleSignature.zona_rei == a.zona_rei)),
+    ]
+    out: list[Irmao] = []
+    usados = set(excluir)
+    for tier, cond in camadas:
+        if len(out) >= k:
+            break
+        cands = _candidatos(db, cond, rating_lo, rating_hi, usados, min_popularity, min_plays)
+        for row in espalhar(cands, k - len(out)):
+            out.append(Irmao(row, tier))
+            usados.add(row.id)
     return out

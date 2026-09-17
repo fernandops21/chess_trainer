@@ -1,16 +1,20 @@
-"""Golpes: status, tarefa de preparo (e, nas tarefas seguintes, irmãos, imagem e rotulagem)."""
+"""Golpes: status, tarefa de preparo, busca de irmãos (e, nas tarefas seguintes, imagem e rotulagem)."""
 from __future__ import annotations
+
+from dataclasses import asdict
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from chess_trainer.api.deps import get_db
-from chess_trainer.api.schemas import GolpesStatusOut
+from chess_trainer.api.schemas import GolpesStatusOut, IrmaoOut, IrmaosOut
 from chess_trainer.config import get_setting, load_settings
 from chess_trainer.core.golpes.assinatura import VERSAO_ASSINATURA
-from chess_trainer.core.golpes.service import NOME_TAREFA, preparar
-from chess_trainer.core.models import LichessPuzzle
+from chess_trainer.core.golpes.service import NOME_TAREFA, assinatura_de, irmaos, preparar
+from chess_trainer.core.models import LichessPuzzle, Puzzle, utcnow
+from chess_trainer.core.tactics.convert import to_tactic
+from chess_trainer.core.tactics.service import _seen_ids
 
 router = APIRouter(prefix="/api/golpes")
 
@@ -48,3 +52,23 @@ def golpes_preparar(request: Request):
     if not app.state.jobs.submit(NOME_TAREFA, job):
         raise HTTPException(409, "já existe uma tarefa em andamento")
     return {"queued": True, "job": NOME_TAREFA}
+
+
+@router.get("/{origem}/{id}/irmaos", response_model=IrmaosOut, dependencies=[Depends(golpes_ligado)])
+def golpes_irmaos(origem: str, id: str, k: int | None = None, db: Session = Depends(get_db)):
+    achado = assinatura_de(db, origem, id)
+    if achado is None:
+        raise HTTPException(404, "exercício sem assinatura de golpe")
+    a, _fen, _lances = achado
+    s = load_settings(db)
+    n = max(1, min(10, k or s.golpes_bloco))
+    excluir = _seen_ids(db, utcnow(), [id] if origem == "lichess" else [])
+    excluir |= set(db.scalars(select(Puzzle.external_id).where(Puzzle.external_id.is_not(None))))
+    lo, hi = s.tactics_rating - s.tactics_window, s.tactics_rating + s.tactics_window
+    itens = []
+    for irmao in irmaos(db, a, rating_lo=lo, rating_hi=hi, excluir=excluir, k=n):
+        try:
+            itens.append(IrmaoOut(tier=irmao.tier, tactic=asdict(to_tactic(irmao.row))))
+        except ValueError:
+            continue
+    return IrmaosOut(assinatura=a.destinos(), itens=itens)

@@ -1,13 +1,16 @@
 import json
 
 from chess_trainer.config import get_setting
-from chess_trainer.core.golpes.assinatura import VERSAO_ASSINATURA
+from chess_trainer.core.golpes.assinatura import VERSAO_ASSINATURA, assinar
 from chess_trainer.core.golpes.service import (
+    Irmao,
     assinar_lichess,
     assinar_proprio,
     assinatura_de,
     cobertura,
+    espalhar,
     garantir_assinatura,
+    irmaos,
     preparar,
 )
 from chess_trainer.core.models import LichessPuzzle, LichessPuzzleSignature, Position, Puzzle, PuzzleSignature
@@ -22,6 +25,7 @@ MOVES_FRANCESA = "b6d4 d3b5 e8e7 d1d4"
 # Mate do pastor: pretas a jogar, preparo 4...Nf6?? e Qxf7#
 FEN_PASTOR_ANTES = "r1bqkbnr/pppp1ppp/2n5/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR b KQkq - 4 4"
 MOVES_PASTOR = "g8f6 h5f7"
+FEN_PASTOR_START = "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 5 5"
 
 
 def lichess(pid: str, fen: str, moves: str, rating: int = 1500, popularity: int = 90):
@@ -152,3 +156,42 @@ def test_persist_draft_grava_assinatura(db_session):
     puzzle = persist_draft(db_session, pos, game, "punish", draft)
     assert puzzle is not None
     assert db_session.get(PuzzleSignature, puzzle.id) is not None
+
+
+def test_espalhar_pega_do_facil_ao_dificil():
+    assert espalhar(list(range(10)), 5) == [0, 2, 4, 7, 9]
+    assert espalhar([1, 2, 3], 5) == [1, 2, 3]
+    assert espalhar([], 3) == []
+
+
+def test_irmaos_em_cascata_com_faixa_e_exclusao(db_session):
+    """Seis iguais (mate do pastor, ratings 700..1200), um só espelho e um só esqueleto — os dois
+    últimos com a assinatura gravada à mão, porque no xadrez real esse mate não existe na outra ala."""
+    from chess_trainer.core.golpes.service import linha_de_assinatura
+    for i in range(6):
+        db_session.add(pastor(f"m{i}", rating=700 + 100 * i))
+    db_session.add(pastor("esp", rating=900))
+    db_session.add(pastor("esq", rating=1000))
+    db_session.commit()
+    a = assinar(FEN_PASTOR_START, ["h5f7"])
+    for pid in (f"m{i}" for i in range(6)):
+        db_session.add(linha_de_assinatura(a, LichessPuzzleSignature, pid))
+    db_session.add(linha_de_assinatura(a.espelhada(), LichessPuzzleSignature, "esp"))
+    esq = linha_de_assinatura(a, LichessPuzzleSignature, "esq")
+    esq.destinos, esq.destinos_esp = 12345, 54321  # mesmo esqueleto e zona, outras casas
+    db_session.add(esq)
+    db_session.commit()
+
+    r = irmaos(db_session, a, rating_lo=650, rating_hi=1250, excluir={"m0"}, k=5)
+    assert [x.tier for x in r] == ["mesmo"] * 5 and "m0" not in {x.row.id for x in r}
+    assert [x.row.rating for x in r] == sorted(x.row.rating for x in r)
+    r2 = irmaos(db_session, a, rating_lo=650, rating_hi=1250, excluir=set(), k=8)
+    assert [x.tier for x in r2] == ["mesmo"] * 6 + ["espelho", "esqueleto"]
+    assert irmaos(db_session, a, rating_lo=2000, rating_hi=2200, excluir=set(), k=5) == []
+
+
+def test_irmaos_respeita_popularidade(db_session):
+    db_session.add(pastor("pop", popularity=10))
+    db_session.commit()
+    preparar(db_session, lambda *a: None)
+    assert irmaos(db_session, assinar(FEN_PASTOR_START, ["h5f7"]), rating_lo=0, rating_hi=3000, excluir=set()) == []

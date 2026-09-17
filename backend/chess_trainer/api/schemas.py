@@ -593,3 +593,13 @@ class GolpesStatusOut(BaseModel):
     total: int
     cobertura: dict[str, dict[str, int]] | None
     rotulagem: bool
+
+
+class IrmaoOut(BaseModel):
+    tier: str
+    tactic: TacticOut
+
+
+class IrmaosOut(BaseModel):
+    assinatura: str
+    itens: list[IrmaoOut]
