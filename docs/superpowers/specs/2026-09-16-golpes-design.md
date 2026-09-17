@@ -289,6 +289,8 @@ ouro, decisão e data.
 
 Cada passo é utilizável sozinho.
 
+Passos 1 a 4 implementados em 2026-09-17 (plano `docs/superpowers/plans/2026-09-16-golpes-fase-a.md`).
+
 1. Assinatura, tarefa de preparo, cobertura.
 2. Rota de irmãos, imagem, cartão de resultado.
 3. Bloco de N e entrada na repetição espaçada com `sibling_of`.

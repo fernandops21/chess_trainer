@@ -323,6 +323,39 @@ no "Certo! — …" dos estudos.
 Ligue ou desligue em **Configurações → Refutar o lance errado com a engine** (ligado por padrão).
 Desligada — ou sem Stockfish disponível — a tentativa é só recusada, como antes.
 
+## Golpes
+
+Errar um exercício ensina pouco sozinho: o que fixa uma ideia é repetir o mesmo golpe (a mesma
+combinação de peças, casas e capturas) em outras posições, várias vezes seguidas. Para isso o app
+calcula uma **assinatura** de cada puzzle — a geometria da solução: quais peças jogam, para onde,
+o que capturam, os xeques e o que fica atacado ou descoberto — e usa ela para achar **irmãos**:
+outros puzzles do banco de táticas do Lichess com o mesmo golpe.
+
+Antes de usar, prepare a base em **Configurações → Golpes → "Preparar golpes"**: a tarefa calcula
+a assinatura de todos os puzzles do banco de táticas (precisa dele já importado — ver "Táticas do
+Lichess"), leva uns dez minutos na primeira vez, aparece no cartão "Tarefas" do Painel e pode ser
+cancelada e retomada de onde parou. Terminada, a linha abaixo do botão mostra quantos puzzles
+ficaram com assinatura e quantos têm cinco ou mais irmãos ("N de M puzzles com assinatura · K com
+cinco ou mais irmãos").
+
+Na tela de resultado de um exercício — dos seus próprios ou de uma tática do Lichess — aparece o
+cartão **"Repetir o golpe"** com a imagem do golpe desenhada no tabuleiro: setas verdes para os
+lances do solucionador, setas vermelhas para o que eles descobrem ou atacam. Quando você **erra**,
+o cartão traz o botão **"Treinar N parecidos"**, que abre um bloco de N puzzles do Lichess com o
+mesmo golpe, do mais fácil ao mais difícil. A busca vai em cascata: primeiro o mesmo golpe nas
+mesmas casas, depois o espelhado (a mesma ideia do outro lado do tabuleiro) e, faltando irmãos,
+o mesmo esqueleto com o rei adversário na mesma zona. Cada puzzle do bloco que você resolve entra
+na sua fila de repetição espaçada, junto com os outros exercícios.
+
+Em **Configurações → Golpes** dá para desligar o cartão ("Mostrar 'Repetir o golpe' no resultado
+dos exercícios") e ajustar o tamanho do bloco em **"Irmãos por bloco"** (de 3 a 10, padrão 5).
+
+A tela `/rotulagem` é uma ferramenta de desenvolvimento, ligada com `CHESS_TRAINER_ROTULAGEM=1`:
+nela um humano compara uma âncora com candidatos e marca "mesmo golpe", "parecido" ou "nada a
+ver", montando um conjunto de referência que hoje calibra a assinatura e, mais adiante, serve para
+avaliar um modelo de semelhança aprendido. O conjunto se exporta com
+`uv run python -m chess_trainer.core.golpes.exportar_ouro`, rodado em `backend/`.
+
 ## Treinador (IA)
 
 Em desenvolvimento: vem desligado; para experimentar, inicie o servidor com `CHESS_TRAINER_COACH=1`.

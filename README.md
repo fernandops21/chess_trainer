@@ -29,6 +29,9 @@ read and build annotated studies, and trains tactics with a local rating.
   inaccuracy, blunder…), masters opening book, position setup, save as study chapter.
 - **Progress.** Rating over time, reviews per day, accuracy by theme and by source, streaks. Light and
   dark themes, sounds, keyboard navigation, mobile layout.
+- **Patterns and siblings.** Every Lichess tactic gets a signature (the geometry of its solution), used
+  to find "siblings" — other puzzles with the same tactical pattern. Miss an exercise and a "repeat the
+  pattern" card offers a block of siblings, easy to hard, that feed back into the spaced-repetition queue.
 - **AI coach** (in development, off by default; start the server with `CHESS_TRAINER_COACH=1` to enable
   it locally). After an exercise, "Explain" asks an LLM agent (engine, game context, your stats and a
   search over your own studies) to explain the mistake in Portuguese. Every line it cites is replayed on
@@ -396,6 +399,41 @@ author's comment in the "Certo! — …" (Correct! — …) of the studies.
 Turn it on or off in **"Configurações" → "Refutar o lance errado com a engine"** (Settings → Refute the
 wrong move with the engine) (on by default). Turned off — or with no Stockfish available — the attempt is
 simply refused, as before.
+
+### Patterns and siblings
+
+Missing an exercise once teaches little by itself; what makes an idea stick is repeating the same
+tactical pattern ("golpe") in other positions, several times in a row. To do that the app computes a
+**signature** for every puzzle — the geometry of the solution: which pieces move, where to, what they
+capture, the checks and what ends up attacked or discovered — and uses it to find **siblings**: other
+puzzles in the Lichess tactics database with the same pattern.
+
+Before using it, build the base in **"Configurações" → "Golpes"** (Settings → Patterns) → **"Preparar
+golpes"** (Prepare patterns): the task computes the signature of every puzzle in the tactics database
+(it needs the database already imported — see "Lichess tactics" above), takes about ten minutes the
+first time, shows up in the "Tarefas" card on the Dashboard and can be cancelled and resumed from where
+it stopped. Once done, the line below the button shows how many puzzles got a signature and how many
+have five or more siblings ("N de M puzzles com assinatura · K com cinco ou mais irmãos" — N of M
+puzzles with a signature, K with five or more siblings).
+
+On the result screen of an exercise — one of your own or a Lichess tactic — a **"Repetir o golpe"**
+(Repeat the pattern) card shows the pattern drawn on the board: green arrows for the solver's moves,
+red arrows for what they uncover or attack. When you **miss** the exercise, the card also shows a
+**"Treinar N parecidos"** (Train N similar) button, which opens a block of N Lichess puzzles with the
+same pattern, from easiest to hardest. The search falls back in stages: first the exact same pattern
+on the same squares, then the mirrored one (the same idea on the other side of the board), and, when
+siblings are still short, the same skeleton with the opponent's king in the same zone. Every puzzle in
+the block that you solve joins your spaced-repetition queue alongside the other exercises.
+
+In **"Configurações" → "Golpes"** you can turn the card off ("Mostrar 'Repetir o golpe' no resultado
+dos exercícios" — Show "Repeat the pattern" on the exercise result) and set the block size in **"Irmãos
+por bloco"** (Siblings per block, 3 to 10, default 5).
+
+The `/rotulagem` (labelling) screen is a development tool, enabled with `CHESS_TRAINER_ROTULAGEM=1`:
+in it, a human compares an anchor puzzle against candidates and marks each one "mesmo golpe" (same
+pattern), "parecido" (similar) or "nada a ver" (unrelated), building a reference set that today
+calibrates the signature and, later on, will be used to evaluate a learned similarity model. The set is
+exported with `uv run python -m chess_trainer.core.golpes.exportar_ouro`, run from `backend/`.
 
 ### AI coach
 
