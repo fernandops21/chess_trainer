@@ -24,6 +24,9 @@ import type {
   QueueOut,
   ReviewIn,
   ReviewOut,
+  RotulagemContagem,
+  RotulagemItem,
+  RotuloIn,
   SaveTacticIn,
   SessionIn,
   SessionOut,
@@ -248,6 +251,10 @@ export const api = {
     }
   },
   golpesPreparar: () => request<JobQueued>("/golpes/preparar", post("")),
+  /** Próximo item da fila de rotulagem (âncora + candidatos); `null` quando não sobra nada. */
+  rotulagemProximo: () => request<RotulagemItem>("/golpes/rotulagem/proximo"),
+  rotular: (body: RotuloIn) => request<unknown>("/golpes/rotulagem", post("", body)),
+  rotulagemContagem: () => request<RotulagemContagem>("/golpes/rotulagem/contagem"),
 };
 
 /** Downloads de PGN: links comuns, o navegador salva pelo Content-Disposition. */

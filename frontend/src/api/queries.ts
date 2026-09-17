@@ -9,6 +9,7 @@ import type {
   MistakesQuery,
   OpeningsDb,
   QueueFilters,
+  RotuloIn,
   SaveTacticIn,
   SettingsIn,
   StudyImportIn,
@@ -37,6 +38,8 @@ export const keys = {
   coachExplanation: (id: string) => ["coach", "explanation", id] as const,
   golpesStatus: ["golpes", "status"] as const,
   irmaos: (origem: "own" | "lichess", id: string) => ["golpes", "irmaos", origem, id] as const,
+  rotulagemProximo: ["golpes", "rotulagem", "proximo"] as const,
+  rotulagemContagem: ["golpes", "rotulagem", "contagem"] as const,
 };
 
 export const useStatus = () =>
@@ -98,6 +101,22 @@ export const useGolpesStatus = () => useQuery({ queryKey: keys.golpesStatus, que
 /** Irmãos do golpe (mesma assinatura), para o bloco de repetição. */
 export const useIrmaos = (origem: "own" | "lichess", id: string, enabled = true) =>
   useQuery({ queryKey: keys.irmaos(origem, id), queryFn: () => api.golpesIrmaos(origem, id), enabled, staleTime: 60_000 });
+
+/** Próximo item da fila de rotulagem (âncora cega + candidatos); desligado sem
+ *  consultar quando `enabled` é falso (rotulagem fora do ar ou status ainda não chegou). */
+export const useRotulagemProximo = (enabled = true) =>
+  useQuery({ queryKey: keys.rotulagemProximo, queryFn: api.rotulagemProximo, enabled });
+/** Contagem de rótulos já gravados, para o cabeçalho da tela. */
+export const useRotulagemContagem = (enabled = true) =>
+  useQuery({ queryKey: keys.rotulagemContagem, queryFn: api.rotulagemContagem, enabled });
+/** Grava um rótulo (mesmo/parecido/nada) e atualiza a contagem do cabeçalho. */
+export function useRotular() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RotuloIn) => api.rotular(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.rotulagemContagem }),
+  });
+}
 
 export const useOpenings = (fen: string | null, db: OpeningsDb) =>
   useQuery({

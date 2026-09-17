@@ -354,6 +354,27 @@ export interface IrmaosOut {
   itens: IrmaoOut[];
 }
 
+/** Próximo item da fila de rotulagem: a âncora e os candidatos, sem revelar a
+ *  camada (`tier`) de cada um — ela só volta no `POST` (spec golpes, fase A). */
+export interface RotulagemItem {
+  anchor: { origem: "own" | "lichess"; id: string; assinatura: string };
+  candidatos: { id: string; tier: string; tactic: TacticOut }[];
+}
+
+/** Corpo do `POST /api/golpes/rotulagem`: um rótulo humano para um par âncora/candidato. */
+export interface RotuloIn {
+  anchor_origem: "own" | "lichess";
+  anchor_id: string;
+  candidate_id: string;
+  tier: string;
+  label: "mesmo" | "parecido" | "nada";
+}
+
+export interface RotulagemContagem {
+  total: number;
+  por_label: Record<string, number>;
+}
+
 export interface TacticsStatus {
   imported: boolean;
   count: number;
