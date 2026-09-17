@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "../src/api/client";
-import type { CoachStatus, Settings, StatusOut, TacticsStatus } from "../src/api/types";
+import type { CoachStatus, GolpesStatus, Settings, StatusOut, TacticsStatus } from "../src/api/types";
 import { SettingsPage } from "../src/pages/SettingsPage";
 
 const SETTINGS: Settings = {
@@ -13,6 +13,7 @@ const SETTINGS: Settings = {
   classify_moves: true, refute_wrong_moves: true, lichess_token_set: false,
   anthropic_api_key_set: false, coach_model: "claude-opus-5", coach_effort: "high",
   langfuse_public_key: "", langfuse_secret_key_set: false, langfuse_host: "",
+  golpes_enabled: true, golpes_bloco: 5,
 };
 
 const STATUS: StatusOut = {
@@ -29,6 +30,10 @@ const tactics = (over: Partial<TacticsStatus> = {}): TacticsStatus => ({
 const coachStatus = (over: Partial<CoachStatus> = {}): CoachStatus => ({
   enabled: true, configured: false, model: "claude-opus-5", effort: "high", embeddings_ready: false,
   index_chunks: 0, index_model: "", index_stale: 2, vector_backend: "sqlite-vec", langfuse_configured: false, ...over,
+});
+
+const golpesStatus = (over: Partial<GolpesStatus> = {}): GolpesStatus => ({
+  enabled: true, versao: 1, assinados: 800, total: 1000, cobertura: null, rotulagem: false, ...over,
 });
 
 function renderPage() {
@@ -56,6 +61,8 @@ beforeEach(() => {
   vi.spyOn(api, "coachStatus").mockResolvedValue(coachStatus());
   vi.spyOn(api, "coachReindex").mockResolvedValue({ queued: true, job: "coach_reindex" });
   vi.spyOn(api, "extendPuzzles").mockResolvedValue({ queued: true, job: "extend_puzzles" });
+  vi.spyOn(api, "golpesStatus").mockResolvedValue(golpesStatus());
+  vi.spyOn(api, "golpesPreparar").mockResolvedValue({ queued: true, job: "golpes_preparar" });
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -242,4 +249,50 @@ test("Estender exercícios dispara o job sem pedir confirmação", async () => {
   // o clique dispara o job direto, sem modal de confirmação no caminho
   await waitFor(() => expect(api.extendPuzzles).toHaveBeenCalledTimes(1));
   expect(screen.queryByRole("dialog")).toBeNull();
+});
+
+// --- Golpes ---------------------------------------------------------------
+
+test("a seção Golpes mostra o toggle, o campo do bloco e o status de assinatura", async () => {
+  renderPage();
+  const caixa = (await screen.findByLabelText(
+    'Mostrar "Repetir o golpe" no resultado dos exercícios',
+  )) as HTMLInputElement;
+  expect(caixa.type).toBe("checkbox");
+  expect(caixa.checked).toBe(true);
+  expect((screen.getByLabelText("Irmãos por bloco") as HTMLInputElement).value).toBe("5");
+  expect(await screen.findByText("800 de 1.000 puzzles com assinatura")).toBeTruthy();
+});
+
+test("a cobertura aparece quando o status a traz", async () => {
+  vi.spyOn(api, "golpesStatus").mockResolvedValue(
+    golpesStatus({ cobertura: { esqueleto: { ge5: 10, ge2: 20, sozinhos: 1 }, destinos: { ge5: 300, ge2: 400, sozinhos: 5 }, completo: { ge5: 100, ge2: 200, sozinhos: 2 } } }),
+  );
+  renderPage();
+  expect(await screen.findByText(/300 com cinco ou mais irmãos/)).toBeTruthy();
+});
+
+test("sem cobertura o texto extra não aparece", async () => {
+  renderPage();
+  await screen.findByText("800 de 1.000 puzzles com assinatura");
+  expect(screen.queryByText(/com cinco ou mais irmãos/)).toBeNull();
+});
+
+test("Preparar golpes dispara o job", async () => {
+  renderPage();
+  fireEvent.click(await screen.findByRole("button", { name: "Preparar golpes" }));
+  await waitFor(() => expect(api.golpesPreparar).toHaveBeenCalled());
+});
+
+test("desligar o toggle e mudar o bloco vão no salvamento", async () => {
+  renderPage();
+  const caixa = await screen.findByLabelText('Mostrar "Repetir o golpe" no resultado dos exercícios');
+  fireEvent.click(caixa);
+  const bloco = screen.getByLabelText("Irmãos por bloco");
+  fireEvent.change(bloco, { target: { value: "7" } });
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+  await waitFor(() => expect(api.saveSettings).toHaveBeenCalled());
+  const body = vi.mocked(api.saveSettings).mock.calls[0][0];
+  expect(body.golpes_enabled).toBe(false);
+  expect(body.golpes_bloco).toBe(7);
 });

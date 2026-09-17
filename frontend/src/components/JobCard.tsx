@@ -12,6 +12,7 @@ const JOB_LABEL: Record<string, string> = {
   import_lichess: "Importação das táticas do Lichess",
   import_study: "Importação de estudo do Lichess",
   coach_reindex: "Recriação do índice dos estudos",
+  golpes_preparar: "Preparando golpes",
 };
 
 const JOB_RUNNING_HINT: Record<string, string> = {
@@ -21,6 +22,7 @@ const JOB_RUNNING_HINT: Record<string, string> = {
   import_lichess: "baixa o banco (~300 MB) e importa as táticas filtradas; leva uns 5 minutos",
   import_study: "baixa o PGN do estudo e cria um exercício por capítulo",
   coach_reindex: "baixa o modelo de embeddings na primeira vez (~250 MB) e indexa os comentários dos capítulos",
+  golpes_preparar: "assina os golpes ainda sem assinatura e monta os blocos de irmãos para a repetição",
 };
 
 /** Até onde o cancelamento deixa a tarefa chegar: cada job para num ponto diferente. */
@@ -35,6 +37,7 @@ const CANCEL_LABEL: Record<string, [string, string]> = {
   extend_puzzles: ["Cancelar (após o exercício atual)", "Cancelando… termina o exercício atual e para"],
   // o que já foi indexado fica; os capítulos restantes seguem desatualizados até o próximo "Recriar índice"
   coach_reindex: ["Cancelar (após o capítulo atual)", "Cancelando… termina o capítulo atual e para"],
+  golpes_preparar: ["Cancelar (após o lote atual)", "Cancelando… termina o lote atual e para"],
 };
 const CANCEL_FALLBACK: [string, string] = ["Cancelar", "Cancelando…"];
 

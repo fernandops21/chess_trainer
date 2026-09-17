@@ -49,6 +49,10 @@ export interface Settings {
   /** Só diz se há uma chave secreta do LangFuse guardada: o valor nunca sai da API. */
   langfuse_secret_key_set: boolean;
   langfuse_host: string;
+  /** Mostra "Repetir o golpe" no resultado dos exercícios (spec golpes). */
+  golpes_enabled: boolean;
+  /** Quantos irmãos entram no bloco de repetição (3 a 10). */
+  golpes_bloco: number;
 }
 
 /**

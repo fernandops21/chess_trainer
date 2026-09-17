@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
-import { useCoachStatus, useSaveSettings, useSettings, useStartJob, useStatus, useTacticsStatus } from "../api/queries";
+import { useCoachStatus, useGolpesStatus, useSaveSettings, useSettings, useStartJob, useStatus, useTacticsStatus } from "../api/queries";
 import type { Settings, SettingsIn } from "../api/types";
 import { ErrorBox } from "../components/ErrorBox";
 import { Modal } from "../components/Modal";
@@ -27,6 +27,7 @@ export function validate(s: Settings): string[] {
   if (s.tactics_rating < 400 || s.tactics_rating > 3200) errs.push("rating de táticas entre 400 e 3200");
   if (s.lichess_min_popularity < -100 || s.lichess_min_popularity > 100) errs.push("popularidade entre -100 e 100");
   if (s.lichess_min_plays < 0) errs.push("mínimo de partidas não pode ser negativo");
+  if (!Number.isInteger(s.golpes_bloco) || s.golpes_bloco < 3 || s.golpes_bloco > 10) errs.push("Irmãos por bloco: entre 3 e 10");
   return errs;
 }
 
@@ -35,6 +36,7 @@ export function SettingsPage() {
   const { data: status } = useStatus();
   const { data: tactics } = useTacticsStatus();
   const { data: coach } = useCoachStatus();
+  const { data: golpes } = useGolpesStatus();
   const save = useSaveSettings();
   const start = useStartJob();
   const [form, setForm] = useState<Settings | null>(null);
@@ -260,6 +262,14 @@ export function SettingsPage() {
         <div className="muted" style={{ marginTop: 6 }}>
           Alonga os exercícios existentes enquanto o lance for único, mantendo o histórico de revisão.
         </div>
+      </div>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Golpes</h3>
+        <label className="row"><input type="checkbox" checked={form.golpes_enabled} onChange={(e) => setForm({ ...form, golpes_enabled: e.target.checked })} /> Mostrar "Repetir o golpe" no resultado dos exercícios</label>
+        {field("Irmãos por bloco", "golpes_bloco")}
+        <p className="muted">{golpes ? `${nf.format(golpes.assinados)} de ${nf.format(golpes.total)} puzzles com assinatura` : ""}
+          {golpes?.cobertura ? ` · ${nf.format(golpes.cobertura.destinos.ge5)} com cinco ou mais irmãos` : ""}</p>
+        <button onClick={() => start.mutate({ kind: "golpes_preparar" })} disabled={status?.job.state === "running"}>Preparar golpes</button>
       </div>
       <div className="card">
         <h3 style={{ marginTop: 0, color: "var(--bad)" }}>Perigo</h3>

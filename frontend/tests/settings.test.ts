@@ -6,7 +6,8 @@ const ok = { chesscom_username: "x", categories: ["rapid"], stockfish_path: "", 
   tactics_rating: 1500, tactics_window: 300, lichess_min_plays: 100, lichess_min_popularity: 80,
   classify_moves: true, refute_wrong_moves: true, lichess_token_set: false,
   anthropic_api_key_set: false, coach_model: "claude-opus-5" as const, coach_effort: "high" as const,
-  langfuse_public_key: "", langfuse_secret_key_set: false, langfuse_host: "" };
+  langfuse_public_key: "", langfuse_secret_key_set: false, langfuse_host: "",
+  golpes_enabled: true, golpes_bloco: 5 };
 
 test("validate", () => {
   expect(validate(ok)).toEqual([]);
@@ -25,4 +26,11 @@ test("validate: campos das táticas", () => {
   expect(validate({ ...ok, lichess_min_popularity: -100 })).toEqual([]);
   expect(validate({ ...ok, lichess_min_plays: -1 })).toContain("mínimo de partidas não pode ser negativo");
   expect(validate({ ...ok, lichess_min_plays: 0 })).toEqual([]);
+});
+
+test("validate: bloco de irmãos dos golpes", () => {
+  expect(validate({ ...ok, golpes_bloco: 2 })).toContain("Irmãos por bloco: entre 3 e 10");
+  expect(validate({ ...ok, golpes_bloco: 11 })).toContain("Irmãos por bloco: entre 3 e 10");
+  expect(validate({ ...ok, golpes_bloco: 3 })).toEqual([]);
+  expect(validate({ ...ok, golpes_bloco: 10 })).toEqual([]);
 });
