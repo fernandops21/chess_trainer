@@ -496,3 +496,52 @@ def test_migracao_cria_golpes(tmp_path):
     con.close()
     assert "sibling_of" in colunas
     assert {"lichess_puzzle_signatures", "puzzle_signatures", "golpe_labels"} <= tabelas
+
+
+# --- trechos: colunas de procedência e a tabela nova (spec golpes trechos) ----
+
+
+@pytest.fixture
+def db_sem_trechos(tmp_path):
+    """Banco já com as tabelas de golpes (fase A), mas de antes dos trechos: sem
+    `puzzles.sibling_tier`, sem as colunas de procedência em `golpe_labels` e sem
+    `lichess_puzzle_trechos` (o `DROP TABLE`/`DROP COLUMN` do SQLite as tira de um
+    banco novo, simulando o estado anterior)."""
+    path = tmp_path / "sem_trechos.db"
+    engine = make_engine(str(path))
+    init_db(engine)
+    with make_session_factory(engine)() as db:
+        db.add(Puzzle(id="pz1", kind="punish", fen_start="fen-do-puzzle", side_to_move="white",
+                      solution="[]", end_reason="mate", theme="mate_in_1", category="rapid", solver_moves=1))
+        db.commit()
+    engine.dispose()
+    conn = sqlite3.connect(path)
+    conn.execute("ALTER TABLE puzzles DROP COLUMN sibling_tier")
+    conn.execute("ALTER TABLE golpe_labels DROP COLUMN n_lances")
+    conn.execute("ALTER TABLE golpe_labels DROP COLUMN posicao")
+    conn.execute("ALTER TABLE golpe_labels DROP COLUMN nivel")
+    conn.execute("ALTER TABLE golpe_labels DROP COLUMN espelhado")
+    conn.execute("DROP TABLE lichess_puzzle_trechos")
+    conn.commit()
+    conn.close()
+    return path
+
+
+def test_migracao_acrescenta_as_colunas_e_a_tabela_dos_trechos(db_sem_trechos):
+    assert "sibling_tier" not in _colunas(db_sem_trechos, "puzzles")
+    assert "lichess_puzzle_trechos" not in {
+        r[0] for r in sqlite3.connect(db_sem_trechos).execute("select name from sqlite_master where type='table'")
+    }
+    engine = make_engine(str(db_sem_trechos))
+    init_db(engine)
+    init_db(engine)  # idempotente
+    try:
+        assert "sibling_tier" in _colunas(db_sem_trechos, "puzzles")
+        assert {"n_lances", "posicao", "nivel", "espelhado"} <= _colunas(db_sem_trechos, "golpe_labels")
+        tabelas = {r[0] for r in sqlite3.connect(db_sem_trechos).execute("select name from sqlite_master where type='table'")}
+        assert "lichess_puzzle_trechos" in tabelas
+        with make_session_factory(engine)() as db:
+            puzzle = db.get(Puzzle, "pz1")
+            assert puzzle is not None and puzzle.sibling_tier is None
+    finally:
+        engine.dispose()

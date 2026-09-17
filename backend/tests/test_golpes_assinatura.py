@@ -3,7 +3,7 @@ import hashlib
 import chess
 import pytest
 
-from chess_trainer.core.golpes.assinatura import (VERSAO_ASSINATURA, Assinatura, Lance, anotar, assinar, hash64)
+from chess_trainer.core.golpes.assinatura import (VERSAO_ASSINATURA, Assinatura, Lance, anotar, assinar, hash64, trechos)
 
 # Francesa, avanço: 1.e4 e6 2.d4 d5 3.e5 c5 4.c3 Nc6 5.Nf3 Qb6 6.Bd3 cxd4 7.cxd4 Nxd4 8.Nxd4 Qxd4; brancas jogam 9.Bb5+
 FEN_FRANCESA = "r1b1kbnr/pp3ppp/4p3/3pP3/3q4/3B4/PP3PPP/RNBQK2R w KQkq - 0 9"
@@ -101,4 +101,44 @@ def test_erros_de_entrada():
 def test_anotar_nao_normaliza():
     board = chess.Board("rnbqk2r/pp3ppp/3b4/3Q4/3Pp3/4P3/PP3PPP/R1B1KBNR b KQkq - 0 9")
     a = anotar(board, ["d6b4"])
-    assert a.rei == "e1" and a.lances[0].destino == "b4" and VERSAO_ASSINATURA == 1
+    assert a.rei == "e1" and a.lances[0].destino == "b4" and VERSAO_ASSINATURA == 2
+
+
+# --- trechos (spec golpes trechos §3.5) --------------------------------------
+
+
+def test_trechos_da_francesa_inicio_inteira_e_fim():
+    ts = {(t.inicio, t.n): t for t in trechos(FEN_FRANCESA, ["d3b5", "e8e7", "d1d4"])}
+    assert set(ts) == {(0, 1), (0, 2), (1, 1)}
+    assert ts[(0, 1)].posicao == "inicio" and ts[(0, 1)].assinatura.destinos() == "Ke8 | B b5 + desc(Qd4)"
+    assert ts[(0, 2)].posicao == "inteira" and ts[(0, 2)].assinatura.destinos() == "Ke8 | B b5 + desc(Qd4) | Q xQ d4"
+    # o rei segue a peça: o trecho "fim" começa depois do rei fugir para e7
+    assert ts[(1, 1)].posicao == "fim" and ts[(1, 1)].assinatura.destinos() == "Ke7 | Q xQ d4"
+
+
+def test_trecho_de_tres_lances_da_um_trecho_do_meio():
+    ts = {(t.inicio, t.n): t for t in trechos(FEN_BEIJO, ["d3h7", "g8h7", "f3g5", "h7g8", "d1h5"])}
+    assert ts[(1, 1)].posicao == "meio"
+    assert ts[(0, 3)].posicao == "inteira" and ts[(0, 1)].posicao == "inicio"
+    assert ts[(1, 2)].posicao == "fim" and ts[(2, 1)].posicao == "fim"
+
+
+def test_trechos_pretas_igual_a_brancas():
+    fen_pretas = "rnbqk2r/pp3ppp/3b4/3Q4/3Pp3/4P3/PP3PPP/R1B1KBNR b KQkq - 0 9"
+    a = {(t.inicio, t.n): t.assinatura.destinos() for t in trechos(fen_pretas, ["d6b4", "e1e2", "d8d5"])}
+    b = {(t.inicio, t.n): t.assinatura.destinos() for t in trechos(FEN_FRANCESA, ["d3b5", "e8e7", "d1d4"])}
+    assert a == b
+
+
+def test_trechos_respeita_max_solver():
+    # sete lances: quatro do solucionador (d3b5 é só o primeiro de uma solução mais longa fictícia)
+    fen_mate = "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1"
+    ts = trechos(fen_mate, ["e1e8"], max_solver=0)
+    assert ts == []
+
+
+def test_trechos_levanta_erro_como_assinar():
+    with pytest.raises(ValueError):
+        trechos("posicao invalida", ["e2e4"])
+    with pytest.raises(ValueError):
+        trechos(FEN_BEIJO, ["a1a8"])

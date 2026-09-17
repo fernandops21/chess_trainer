@@ -107,6 +107,21 @@ _NEW_GOLPES_PUZZLE_COLUMNS: tuple[tuple[str, str], ...] = (
     ("sibling_of", "VARCHAR(36)"),
 )
 
+# Coluna acrescentada a `puzzles` no ciclo dos trechos: o degrau da cascata que
+# trouxe o irmão (spec golpes trechos §6).
+_NEW_GOLPES_TRECHOS_PUZZLE_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("sibling_tier", "VARCHAR(24)"),
+)
+
+# Colunas acrescentadas a `golpe_labels` no ciclo dos trechos: a procedência do
+# candidato na hora do julgamento (spec golpes trechos §8).
+_NEW_GOLPES_TRECHOS_LABEL_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("n_lances", "INTEGER"),
+    ("posicao", "VARCHAR(8)"),
+    ("nivel", "VARCHAR(10)"),
+    ("espelhado", "BOOLEAN"),
+)
+
 # Índices de `puzzles` que não saem de um `CREATE INDEX` do metadata: o
 # `uq_puzzle_fen_kind_source` acompanha a `UniqueConstraint` declarada dentro do
 # `CREATE TABLE`, e num banco antigo a tabela já existe quando o `create_all` roda.
@@ -225,6 +240,8 @@ def migrate(engine: Engine) -> None:
         _acrescenta_colunas(conn, "coach_explanations", _NEW_COACH_EXPLANATION_COLUMNS)
         _acrescenta_colunas(conn, "puzzles", _NEW_GOLPES_PUZZLE_COLUMNS)
         conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_puzzles_sibling_of ON puzzles (sibling_of)")
+        _acrescenta_colunas(conn, "puzzles", _NEW_GOLPES_TRECHOS_PUZZLE_COLUMNS)
+        _acrescenta_colunas(conn, "golpe_labels", _NEW_GOLPES_TRECHOS_LABEL_COLUMNS)
 
 
 def init_db(engine: Engine) -> None:

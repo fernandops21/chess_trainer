@@ -11,7 +11,7 @@ from typing import Sequence
 
 import chess
 
-VERSAO_ASSINATURA = 1
+VERSAO_ASSINATURA = 2
 MAX_LANCES = 3
 LETRA = {chess.PAWN: "P", chess.KNIGHT: "N", chess.BISHOP: "B", chess.ROOK: "R", chess.QUEEN: "Q", chess.KING: "K"}
 VALOR = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9}
@@ -182,3 +182,62 @@ def assinar(fen: str, lances_uci: Sequence[str], max_lances: int = MAX_LANCES) -
 def _uci_espelho_vertical(uci: str) -> str:
     mv = chess.Move.from_uci(uci)
     return chess.Move(chess.square_mirror(mv.from_square), chess.square_mirror(mv.to_square), mv.promotion).uci()
+
+
+@dataclass(frozen=True)
+class Trecho:
+    """Um pedaço da solução, começando no `inicio`-ésimo lance do solucionador (0-based) e
+    cobrindo `n` deles (spec golpes trechos §3.5). `posicao` é relativa a TODOS os lances do
+    solucionador na solução: "inteira" quando o trecho cobre todos, "inicio" quando começa no
+    primeiro, "fim" quando termina no último, senão "meio". A casa do rei em `assinatura` é a de
+    quando o trecho começa, não a da posição do puzzle: um trecho que começa depois de o rei se
+    mexer mostra a casa nova (é o que faz um irmão "mesmo trecho" ter a mesma geometria local)."""
+    inicio: int
+    n: int
+    posicao: str
+    assinatura: Assinatura
+
+
+def trechos(fen: str, lances_uci: Sequence[str], max_solver: int = 6, tamanhos: tuple[int, ...] = (1, 2, 3)) -> list["Trecho"]:
+    """Todo trecho contíguo de `tamanhos` lances do solucionador, começando em cada lance até
+    `max_solver` (spec golpes trechos §3.5): a busca de irmãos por trecho compara a âncora
+    (sempre `inicio == 0`, prefixos) contra qualquer posição da solução de um candidato — um
+    golpe pode estar espalhado a partir do início, do fim ou do meio de uma solução mais longa.
+    Normaliza como `assinar` (o solucionador sempre joga de brancas). Levanta ValueError como
+    `assinar` (FEN inválida ou lance ilegal)."""
+    try:
+        board = chess.Board(fen)
+    except ValueError as exc:
+        raise ValueError(f"FEN inválida: {fen}") from exc
+    if board.turn == chess.BLACK:
+        board = board.mirror()
+        lances_uci = [_uci_espelho_vertical(u) for u in lances_uci]
+    n_solver = (len(lances_uci) + 1) // 2
+    limite = min(n_solver, max_solver)
+    # tabuleiro no início de cada lance do solucionador (`boards[i]`): antes do i-ésimo lance
+    # dele, ou seja, depois de i lances dele e i respostas do adversário
+    boards = [board.copy()]
+    atual = board.copy()
+    for j in range(min(len(lances_uci), 2 * limite)):
+        mv = chess.Move.from_uci(lances_uci[j])
+        if not atual.is_legal(mv):
+            raise ValueError(f"lance ilegal: {lances_uci[j]} em {atual.fen()}")
+        atual.push(mv)
+        if j % 2 == 1:
+            boards.append(atual.copy())
+    out = []
+    for i in range(limite):
+        for n in tamanhos:
+            if i + n > limite:
+                continue
+            a = anotar(boards[i], lances_uci[2 * i:], max_lances=n)
+            if i == 0 and i + n == n_solver:
+                posicao = "inteira"
+            elif i == 0:
+                posicao = "inicio"
+            elif i + n == n_solver:
+                posicao = "fim"
+            else:
+                posicao = "meio"
+            out.append(Trecho(inicio=i, n=n, posicao=posicao, assinatura=a))
+    return out

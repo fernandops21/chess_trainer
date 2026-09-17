@@ -11,6 +11,7 @@ from sqlalchemy import (
     Index,
     Integer,
     LargeBinary,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -120,6 +121,9 @@ class Puzzle(Base):
     srs_last_reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     # exercício de origem quando este puzzle entrou pelo bloco "Repetir o golpe" (spec golpes §6)
     sibling_of: Mapped[str | None] = mapped_column(String(36), ForeignKey("puzzles.id"), default=None, index=True)
+    # degrau da cascata que trouxe este puzzle como irmão ("inteira", "trecho2", "espelho"...),
+    # espelhando `Procedencia.degrau` de quando ele entrou pelo bloco (spec golpes trechos §6)
+    sibling_tier: Mapped[str | None] = mapped_column(String(24), default=None)
 
     position: Mapped[Position | None] = relationship(back_populates="puzzles")
     game: Mapped[Game | None] = relationship(back_populates="puzzles")
@@ -277,6 +281,28 @@ class PuzzleSignature(_ColunasDeAssinatura, Base):
     puzzle_id: Mapped[str] = mapped_column(ForeignKey("puzzles.id", ondelete="CASCADE"), primary_key=True)
 
 
+class LichessPuzzleTrecho(Base):
+    """Um trecho (pedaço contíguo) da solução de um puzzle do Lichess (spec golpes trechos
+    §3.5, §4.1): permite achar um irmão que compartilha só o início, o fim ou um pedaço do
+    meio do golpe, não a solução inteira. Chave (puzzle_id, inicio, n): um puzzle tem vários
+    trechos, um por posição e tamanho gerados por `core.golpes.assinatura.trechos`.
+    `esqueleto` fica nulo quando `n == 1`: o esqueleto de um lance só combina com quase
+    qualquer coisa (ruído) e não entra na busca nem é gravado."""
+    __tablename__ = "lichess_puzzle_trechos"
+    __table_args__ = (
+        Index("ix_lpt_destinos", "destinos"),
+        Index("ix_lpt_destinos_esp", "destinos_esp"),
+        Index("ix_lpt_esqueleto", "esqueleto"),
+    )
+    puzzle_id: Mapped[str] = mapped_column(ForeignKey("lichess_puzzles.id", ondelete="CASCADE"), primary_key=True)
+    inicio: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    n: Mapped[int] = mapped_column(SmallInteger, primary_key=True)
+    posicao: Mapped[str] = mapped_column(String(8))  # inteira | inicio | meio | fim
+    destinos: Mapped[int] = mapped_column(BigInteger)
+    destinos_esp: Mapped[int] = mapped_column(BigInteger)
+    esqueleto: Mapped[int | None] = mapped_column(BigInteger, default=None)
+
+
 class GolpeLabel(Base):
     """Julgamento humano na tela de rotulagem: o conjunto de ouro (spec golpes §8)."""
     __tablename__ = "golpe_labels"
@@ -288,6 +314,12 @@ class GolpeLabel(Base):
     versao_assinatura: Mapped[int] = mapped_column(Integer)
     label: Mapped[str] = mapped_column(String(8))  # mesmo | parecido | nada
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # procedência do candidato na hora do julgamento (spec golpes trechos §8): nulos nos
+    # rótulos gravados antes deste ciclo, quando só existia a cascata de três camadas
+    n_lances: Mapped[int | None] = mapped_column(Integer, default=None)
+    posicao: Mapped[str | None] = mapped_column(String(8), default=None)
+    nivel: Mapped[str | None] = mapped_column(String(10), default=None)
+    espelhado: Mapped[bool | None] = mapped_column(Boolean, default=None)
 
 
 class TacticsAttempt(Base):
