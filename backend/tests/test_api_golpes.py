@@ -57,3 +57,11 @@ def test_irmaos_de_um_puzzle_do_lichess(client):
     assert client.get("/api/golpes/own/nao/irmaos").status_code == 404
     # k=0 não é "não informado": é o pedido de um único item, não o padrão de golpes_bloco
     assert len(client.get("/api/golpes/lichess/p0/irmaos?k=0").json()["itens"]) == 1
+
+
+def test_imagem_svg(client):
+    client.post("/api/golpes/preparar"); client.app.state.jobs.wait()
+    r = client.get("/api/golpes/lichess/p0/imagem.svg")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg+xml") and r.text.startswith("<svg")
+    assert "max-age" in r.headers["cache-control"]
+    assert client.get("/api/golpes/lichess/nao/imagem.svg").status_code == 404

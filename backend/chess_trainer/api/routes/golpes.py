@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ from chess_trainer.api.deps import get_db
 from chess_trainer.api.schemas import GolpesStatusOut, IrmaoOut, IrmaosOut
 from chess_trainer.config import get_setting, load_settings
 from chess_trainer.core.golpes.assinatura import VERSAO_ASSINATURA
+from chess_trainer.core.golpes.imagem import svg_do_golpe
 from chess_trainer.core.golpes.service import NOME_TAREFA, assinatura_de, irmaos, preparar
 from chess_trainer.core.models import LichessPuzzle, Puzzle, utcnow
 from chess_trainer.core.tactics.convert import to_tactic
@@ -72,3 +73,13 @@ def golpes_irmaos(origem: str, id: str, k: int | None = None, db: Session = Depe
         except ValueError:
             continue
     return IrmaosOut(assinatura=a.destinos(), itens=itens)
+
+
+@router.get("/{origem}/{id}/imagem.svg", dependencies=[Depends(golpes_ligado)])
+def golpes_imagem(origem: str, id: str, db: Session = Depends(get_db)):
+    achado = assinatura_de(db, origem, id)
+    if achado is None:
+        raise HTTPException(404, "exercício sem assinatura de golpe")
+    _a, fen, lances = achado
+    return Response(content=svg_do_golpe(fen, lances), media_type="image/svg+xml",
+                    headers={"Cache-Control": "public, max-age=86400"})
