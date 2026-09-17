@@ -53,6 +53,11 @@ export interface Settings {
   golpes_enabled: boolean;
   /** Quantos irmãos entram no bloco de repetição (3 a 10). */
   golpes_bloco: number;
+  /** Faixa preferida do bloco: pontos abaixo do rating de táticas (0 a 1000). A busca de
+   *  irmãos ignora rating; a faixa só decide quais aparecem no bloco. */
+  golpes_faixa_abaixo: number;
+  /** Faixa preferida do bloco: pontos acima do rating de táticas (0 a 2000). */
+  golpes_faixa_acima: number;
 }
 
 /**

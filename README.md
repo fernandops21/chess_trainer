@@ -425,6 +425,13 @@ on the same squares, then the mirrored one (the same idea on the other side of t
 siblings are still short, the same skeleton with the opponent's king in the same zone. Every puzzle in
 the block that you attempt — right or wrong — joins your spaced-repetition queue alongside the other exercises.
 
+Siblings are searched across every rating — the pattern's geometry decides "same pattern", not
+difficulty. Rating only picks which siblings make the block: the preferred range climbs from your
+tactics rating upward, with **"Faixa do bloco: pontos abaixo do meu rating"** (Block range: points
+below my rating, default 100) and **"Faixa do bloco: pontos acima do meu rating"** (points above,
+default 500), both in **"Configurações" → "Golpes"**. Short on siblings inside the range, the block
+fills in with the closest ones outside it.
+
 In **"Configurações" → "Golpes"** you can turn the card off ("Mostrar 'Repetir o golpe' no resultado
 dos exercícios" — Show "Repeat the pattern" on the exercise result) and set the block size in **"Irmãos
 por bloco"** (Siblings per block, 3 to 10, default 5).

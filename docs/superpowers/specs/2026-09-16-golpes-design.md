@@ -146,13 +146,23 @@ Lichess, cada um com a **camada** de onde veio, em cascata (*fallback tiers*):
 3. **parecido pela rede** (fase B): vizinhos por cosseno no índice vetorial,
    fora dos que as camadas anteriores já deram.
 
-Em cada camada: rating dentro da faixa do usuário (a mesma janela que a sessão
-de táticas já usa), `popularity ≥ 50` e `nb_plays ≥ 50` para evitar puzzles
-ruins, excluídos os já vistos (`tactics_attempts`), os já salvos na fila e a
-própria âncora. Dentro da camada os candidatos são ordenados por rating e o
-bloco pega k deles espalhados ao longo da faixa, para ir **do fácil ao
-difícil**. A resposta traz, por item, `tier`, rating e os campos do puzzle; e a
-assinatura da âncora em texto.
+Em cada camada a busca **ignora rating**: só `popularity ≥ 50` e
+`nb_plays ≥ 50` para evitar puzzles ruins, excluídos os já vistos
+(`tactics_attempts`), os já salvos na fila e a própria âncora. Quem decide a
+camada é o golpe, não o rating — um irmão exato fora da faixa do usuário
+continua "mesmo golpe", nunca cai para uma camada mais frouxa por causa disso.
+
+O rating só escolhe **quais** irmãos entram no bloco. A faixa preferida é
+`[rating − golpes_faixa_abaixo, rating + golpes_faixa_acima]` (padrão 100
+abaixo, 500 acima: o bloco sobe a partir do nível do usuário). Dentro de cada
+camada, os candidatos da faixa são espalhados **do fácil ao difícil**;
+faltando para completar `k`, entram os mais próximos de fora da faixa —
+primeiro os de cima (subindo), depois os de baixo (descendo, o mais perto
+primeiro). Por segurança, a consulta de cada camada corta em `LIMITE_CANDIDATOS`
+(5 000) candidatos, os mais próximos do centro da faixa preferida. O bloco
+final fica em ordem ascendente de rating, mesmo cruzando camadas (cada item
+mantém o `tier` de onde veio). A resposta traz, por item, `tier`, rating e os
+campos do puzzle; e a assinatura da âncora em texto.
 
 A âncora pode ser um exercício próprio ou um puzzle do Lichess: qualquer puzzle
 com assinatura tem irmãos.
@@ -170,8 +180,10 @@ com assinatura tem irmãos.
   mecanismo que já salva táticas do Lichess (`tactics/{id}/save`), com
   `sibling_of` apontando para a âncora. A partir daí é revisado como qualquer
   exercício, misturado e espaçado.
-- **Configurações**: `golpes_enabled` (padrão ligado) e `golpes_bloco` (padrão
-  5, de 3 a 10).
+- **Configurações**: `golpes_enabled` (padrão ligado), `golpes_bloco` (padrão
+  5, de 3 a 10), `golpes_faixa_abaixo` (padrão 100, de 0 a 1000) e
+  `golpes_faixa_acima` (padrão 500, de 0 a 2000) — a faixa preferida do bloco
+  em volta do rating de táticas (§5).
 
 ### 6.1 Imagem do golpe
 

@@ -10,5 +10,5 @@ export const SETTINGS: Settings = {
   classify_moves: true, refute_wrong_moves: true, lichess_token_set: false,
   anthropic_api_key_set: false, coach_model: "claude-opus-5", coach_effort: "high",
   langfuse_public_key: "", langfuse_secret_key_set: false, langfuse_host: "",
-  golpes_enabled: true, golpes_bloco: 5,
+  golpes_enabled: true, golpes_bloco: 5, golpes_faixa_abaixo: 100, golpes_faixa_acima: 500,
 };

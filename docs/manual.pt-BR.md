@@ -347,6 +347,13 @@ mesmas casas, depois o espelhado (a mesma ideia do outro lado do tabuleiro) e, f
 o mesmo esqueleto com o rei adversário na mesma zona. Cada puzzle do bloco que você tenta — acerte
 ou erre — entra na sua fila de repetição espaçada, junto com os outros exercícios.
 
+Os irmãos são procurados em qualquer rating — quem decide se é "o mesmo golpe" é a geometria da
+solução, não a dificuldade. O rating só escolhe **quais** aparecem no bloco: a faixa preferida vai
+do seu rating de táticas para cima, com **"Faixa do bloco: pontos abaixo do meu rating"** (padrão
+100) e **"Faixa do bloco: pontos acima do meu rating"** (padrão 500), ambas em
+**Configurações → Golpes**. Faltando irmãos dentro da faixa, o bloco completa com os mais
+próximos de fora dela.
+
 Em **Configurações → Golpes** dá para desligar o cartão ("Mostrar 'Repetir o golpe' no resultado
 dos exercícios") e ajustar o tamanho do bloco em **"Irmãos por bloco"** (de 3 a 10, padrão 5).
 

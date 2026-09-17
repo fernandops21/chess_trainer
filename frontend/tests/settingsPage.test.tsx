@@ -13,7 +13,7 @@ const SETTINGS: Settings = {
   classify_moves: true, refute_wrong_moves: true, lichess_token_set: false,
   anthropic_api_key_set: false, coach_model: "claude-opus-5", coach_effort: "high",
   langfuse_public_key: "", langfuse_secret_key_set: false, langfuse_host: "",
-  golpes_enabled: true, golpes_bloco: 5,
+  golpes_enabled: true, golpes_bloco: 5, golpes_faixa_abaixo: 100, golpes_faixa_acima: 500,
 };
 
 const STATUS: StatusOut = {
@@ -295,4 +295,37 @@ test("desligar o toggle e mudar o bloco vão no salvamento", async () => {
   const body = vi.mocked(api.saveSettings).mock.calls[0][0];
   expect(body.golpes_enabled).toBe(false);
   expect(body.golpes_bloco).toBe(7);
+});
+
+test("a seção Golpes mostra os campos da faixa do bloco com os valores das configurações", async () => {
+  renderPage();
+  expect((await screen.findByLabelText("Faixa do bloco: pontos abaixo do meu rating")) as HTMLInputElement)
+    .toHaveProperty("value", "100");
+  expect((screen.getByLabelText("Faixa do bloco: pontos acima do meu rating") as HTMLInputElement).value).toBe("500");
+  expect(await screen.findByText(
+    "Os irmãos são procurados em qualquer rating; a faixa só decide quais aparecem no bloco, do mais fácil ao mais difícil.",
+  )).toBeTruthy();
+});
+
+test("mudar a faixa do bloco vai no salvamento", async () => {
+  renderPage();
+  const abaixo = await screen.findByLabelText("Faixa do bloco: pontos abaixo do meu rating");
+  const acima = screen.getByLabelText("Faixa do bloco: pontos acima do meu rating");
+  fireEvent.change(abaixo, { target: { value: "50" } });
+  fireEvent.change(acima, { target: { value: "300" } });
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
+  await waitFor(() => expect(api.saveSettings).toHaveBeenCalled());
+  const body = vi.mocked(api.saveSettings).mock.calls[0][0];
+  expect(body.golpes_faixa_abaixo).toBe(50);
+  expect(body.golpes_faixa_acima).toBe(300);
+});
+
+test("a faixa do bloco fora do intervalo mostra a mensagem de validação", async () => {
+  renderPage();
+  const abaixo = await screen.findByLabelText("Faixa do bloco: pontos abaixo do meu rating");
+  fireEvent.change(abaixo, { target: { value: "1001" } });
+  expect(await screen.findByText(/Faixa do bloco \(abaixo\): entre 0 e 1000/)).toBeTruthy();
+  const acima = screen.getByLabelText("Faixa do bloco: pontos acima do meu rating");
+  fireEvent.change(acima, { target: { value: "2001" } });
+  expect(await screen.findByText(/Faixa do bloco \(acima\): entre 0 e 2000/)).toBeTruthy();
 });

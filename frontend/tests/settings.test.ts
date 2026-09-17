@@ -7,7 +7,7 @@ const ok = { chesscom_username: "x", categories: ["rapid"], stockfish_path: "", 
   classify_moves: true, refute_wrong_moves: true, lichess_token_set: false,
   anthropic_api_key_set: false, coach_model: "claude-opus-5" as const, coach_effort: "high" as const,
   langfuse_public_key: "", langfuse_secret_key_set: false, langfuse_host: "",
-  golpes_enabled: true, golpes_bloco: 5 };
+  golpes_enabled: true, golpes_bloco: 5, golpes_faixa_abaixo: 100, golpes_faixa_acima: 500 };
 
 test("validate", () => {
   expect(validate(ok)).toEqual([]);
@@ -33,4 +33,15 @@ test("validate: bloco de irmãos dos golpes", () => {
   expect(validate({ ...ok, golpes_bloco: 11 })).toContain("Irmãos por bloco: entre 3 e 10");
   expect(validate({ ...ok, golpes_bloco: 3 })).toEqual([]);
   expect(validate({ ...ok, golpes_bloco: 10 })).toEqual([]);
+});
+
+test("validate: faixa do bloco dos golpes", () => {
+  expect(validate({ ...ok, golpes_faixa_abaixo: -1 })).toContain("Faixa do bloco (abaixo): entre 0 e 1000");
+  expect(validate({ ...ok, golpes_faixa_abaixo: 1001 })).toContain("Faixa do bloco (abaixo): entre 0 e 1000");
+  expect(validate({ ...ok, golpes_faixa_abaixo: 0 })).toEqual([]);
+  expect(validate({ ...ok, golpes_faixa_abaixo: 1000 })).toEqual([]);
+  expect(validate({ ...ok, golpes_faixa_acima: -1 })).toContain("Faixa do bloco (acima): entre 0 e 2000");
+  expect(validate({ ...ok, golpes_faixa_acima: 2001 })).toContain("Faixa do bloco (acima): entre 0 e 2000");
+  expect(validate({ ...ok, golpes_faixa_acima: 0 })).toEqual([]);
+  expect(validate({ ...ok, golpes_faixa_acima: 2000 })).toEqual([]);
 });
