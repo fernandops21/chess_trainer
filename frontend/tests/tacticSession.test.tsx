@@ -284,7 +284,7 @@ test("guardar a tática resolvida manda o resultado da tentativa", async () => {
 
 test("bloco: não chama nextTactic e mostra o primeiro irmão", async () => {
   const next = vi.spyOn(api, "nextTactic");
-  const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")] });
+  const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")], tiers: { a: "mesmo", b: "mesmo" } });
   renderBloco(blocoConfig);
   expect(await screen.findByText(/Repetir o golpe/)).toBeInTheDocument();
   expect(screen.getByText("fen:" + FEN_BEFORE)).toBeTruthy();
@@ -295,7 +295,7 @@ test("bloco: percorre a lista fixa e acaba no fim, salvando o irmão com o vínc
   const next = vi.spyOn(api, "nextTactic");
   const save = vi.spyOn(api, "saveTactic").mockResolvedValue({} as never);
   const onFinish = vi.fn();
-  const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")] });
+  const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")], tiers: { a: "mesmo", b: "trecho2" } });
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <MemoryRouter><TacticSession config={blocoConfig} onFinish={onFinish} /></MemoryRouter>
@@ -303,11 +303,11 @@ test("bloco: percorre a lista fixa e acaba no fim, salvando o irmão com o vínc
   );
   expect(await screen.findByText("1 de 2")).toBeTruthy();
   await solve();
-  expect(save).toHaveBeenCalledWith("a", expect.objectContaining({ correct: true, used_hint: false, sibling_of: "p1" }));
+  expect(save).toHaveBeenCalledWith("a", expect.objectContaining({ correct: true, used_hint: false, sibling_of: "p1", sibling_tier: "mesmo" }));
   fireEvent.click(await screen.findByText("Próximo"));
   expect(await screen.findByText("2 de 2")).toBeTruthy();
   await solve();
-  expect(save).toHaveBeenLastCalledWith("b", expect.objectContaining({ correct: true, used_hint: false, sibling_of: "p1" }));
+  expect(save).toHaveBeenLastCalledWith("b", expect.objectContaining({ correct: true, used_hint: false, sibling_of: "p1", sibling_tier: "trecho2" }));
   fireEvent.click(await screen.findByText("Próximo"));
   await waitFor(() => expect(onFinish).toHaveBeenCalled());
   expect(next).not.toHaveBeenCalled();
@@ -317,7 +317,7 @@ test("bloco: o irmão não entrar na fila não bloqueia nem repete a tentativa",
   const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
   const attempt = vi.spyOn(api, "attempt");
   vi.spyOn(api, "saveTactic").mockRejectedValue(new Error("sem conexão"));
-  const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")] });
+  const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")], tiers: { a: "mesmo", b: "mesmo" } });
   renderBloco(blocoConfig);
   await solve();
   // a tentativa já foi registrada: o painel mostra o resultado, não o erro de envio

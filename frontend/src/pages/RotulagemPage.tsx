@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { golpeImagemUrl } from "../api/client";
-import { useGolpesStatus, useRotulagemContagem, useRotulagemProximo, useRotular } from "../api/queries";
+import { useGolpesStatus, useRotulagemContagem, useRotulagemProximo, useRotulagemResumo, useRotular } from "../api/queries";
 import type { RotulagemItem, RotuloIn } from "../api/types";
 
 /** Um botão de rótulo: o texto visível e o valor gravado (nunca a `tier` do candidato). */
@@ -27,6 +27,7 @@ export function RotulagemPage() {
   const ligado = status?.rotulagem === true;
   const { data: item, isLoading, isError, error, refetch } = useRotulagemProximo(ligado);
   const { data: contagem } = useRotulagemContagem(ligado);
+  const { data: resumo } = useRotulagemResumo(ligado);
   const rotular = useRotular();
   const [candidatos, setCandidatos] = useState<RotulagemItem["candidatos"]>([]);
   const [erroRotular, setErroRotular] = useState<string | null>(null);
@@ -43,18 +44,22 @@ export function RotulagemPage() {
   }
   if (!ligado) return null;
 
-  async function enviar(candidateId: string, tier: string, label: RotuloIn["label"]) {
+  async function enviar(candidato: RotulagemItem["candidatos"][number], label: RotuloIn["label"]) {
     if (!item) return;
     try {
       await rotular.mutateAsync({
         anchor_origem: item.anchor.origem,
         anchor_id: item.anchor.id,
-        candidate_id: candidateId,
-        tier,
+        candidate_id: candidato.id,
+        tier: candidato.tier,
         label,
+        n_lances: candidato.procedencia?.n,
+        posicao: candidato.procedencia?.posicao,
+        nivel: candidato.procedencia?.nivel,
+        espelhado: candidato.procedencia?.espelhado,
       });
       setErroRotular(null);
-      const restantes = candidatos.filter((c) => c.id !== candidateId);
+      const restantes = candidatos.filter((c) => c.id !== candidato.id);
       setCandidatos(restantes);
       if (restantes.length === 0) void refetch();
     } catch (e) {
@@ -66,6 +71,25 @@ export function RotulagemPage() {
     <>
       <h1>Rotulagem</h1>
       <p>{contagem?.total ?? 0} rótulos</p>
+      {resumo && resumo.length > 0 && (
+        <table style={{ marginBottom: 16 }}>
+          <thead>
+            <tr>
+              <th>degrau</th><th>posição</th><th>lances</th><th>mesmo golpe</th><th>parecido</th>
+              <th>nada a ver</th><th>total</th><th>% nada a ver</th>
+            </tr>
+          </thead>
+          <tbody>
+            {resumo.map((l) => (
+              <tr key={`${l.tier}-${l.posicao}-${l.n_lances}`}>
+                <td>{l.tier}</td><td>{l.posicao ?? "—"}</td><td>{l.n_lances ?? "—"}</td>
+                <td>{l.mesmo}</td><td>{l.parecido}</td><td>{l.nada}</td><td>{l.total}</td>
+                <td>{l.total > 0 ? `${Math.round((l.nada / l.total) * 100)}%` : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       {isLoading && <p className="muted">Carregando…</p>}
       {isError && (
         <p className="muted">
@@ -87,7 +111,7 @@ export function RotulagemPage() {
                 <img alt="O candidato" src={golpeImagemUrl("lichess", c.id)} style={{ width: "100%" }} />
                 <div className="row">
                   {ROTULOS.map((r) => (
-                    <button key={r.label} onClick={() => void enviar(c.id, c.tier, r.label)} disabled={rotular.isPending}>
+                    <button key={r.label} onClick={() => void enviar(c, r.label)} disabled={rotular.isPending}>
                       {r.texto}
                     </button>
                   ))}

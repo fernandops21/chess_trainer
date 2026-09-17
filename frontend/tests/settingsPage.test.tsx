@@ -33,7 +33,7 @@ const coachStatus = (over: Partial<CoachStatus> = {}): CoachStatus => ({
 });
 
 const golpesStatus = (over: Partial<GolpesStatus> = {}): GolpesStatus => ({
-  enabled: true, versao: 1, assinados: 800, total: 1000, cobertura: null, rotulagem: false, ...over,
+  enabled: true, versao: 1, assinados: 800, total: 1000, cobertura: null, rotulagem: false, trechos: 0, ...over,
 });
 
 function renderPage() {
@@ -276,6 +276,18 @@ test("sem cobertura o texto extra não aparece", async () => {
   renderPage();
   await screen.findByText("800 de 1.000 puzzles com assinatura");
   expect(screen.queryByText(/com cinco ou mais irmãos/)).toBeNull();
+});
+
+test("os trechos aparecem quando o status traz mais de zero", async () => {
+  vi.spyOn(api, "golpesStatus").mockResolvedValue(golpesStatus({ trechos: 4500 }));
+  renderPage();
+  expect(await screen.findByText(/4\.500 trechos/)).toBeTruthy();
+});
+
+test("sem trechos (zero) o texto extra não aparece", async () => {
+  renderPage();
+  await screen.findByText("800 de 1.000 puzzles com assinatura");
+  expect(screen.queryByText(/trechos/)).toBeNull();
 });
 
 test("Preparar golpes dispara o job", async () => {

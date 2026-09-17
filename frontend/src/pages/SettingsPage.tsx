@@ -279,7 +279,8 @@ export function SettingsPage() {
           Os irmãos são procurados em qualquer rating; a faixa só decide quais aparecem no bloco, do mais fácil ao mais difícil.
         </p>
         <p className="muted">{golpes ? `${nf.format(golpes.assinados)} de ${nf.format(golpes.total)} puzzles com assinatura` : ""}
-          {golpes?.cobertura ? ` · ${nf.format(golpes.cobertura.destinos.ge5)} com cinco ou mais irmãos` : ""}</p>
+          {golpes?.cobertura ? ` · ${nf.format(golpes.cobertura.destinos.ge5)} com cinco ou mais irmãos` : ""}
+          {golpes && golpes.trechos > 0 ? ` · ${nf.format(golpes.trechos)} trechos` : ""}</p>
         <button onClick={() => start.mutate({ kind: "golpes_preparar" })} disabled={status?.job.state === "running"}>Preparar golpes</button>
         <JobStatusLine job="golpes_preparar" />
       </div>

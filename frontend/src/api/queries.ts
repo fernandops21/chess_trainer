@@ -40,6 +40,7 @@ export const keys = {
   irmaos: (origem: "own" | "lichess", id: string) => ["golpes", "irmaos", origem, id] as const,
   rotulagemProximo: ["golpes", "rotulagem", "proximo"] as const,
   rotulagemContagem: ["golpes", "rotulagem", "contagem"] as const,
+  rotulagemResumo: ["golpes", "rotulagem", "resumo"] as const,
 };
 
 export const useStatus = () =>
@@ -109,12 +110,18 @@ export const useRotulagemProximo = (enabled = true) =>
 /** Contagem de rótulos já gravados, para o cabeçalho da tela. */
 export const useRotulagemContagem = (enabled = true) =>
   useQuery({ queryKey: keys.rotulagemContagem, queryFn: api.rotulagemContagem, enabled });
-/** Grava um rótulo (mesmo/parecido/nada) e atualiza a contagem do cabeçalho. */
+/** Placar da rotulagem por procedência (spec golpes trechos §8), embaixo do contador. */
+export const useRotulagemResumo = (enabled = true) =>
+  useQuery({ queryKey: keys.rotulagemResumo, queryFn: api.rotulagemResumo, enabled });
+/** Grava um rótulo (mesmo/parecido/nada) e atualiza a contagem e o placar do cabeçalho. */
 export function useRotular() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: RotuloIn) => api.rotular(body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.rotulagemContagem }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: keys.rotulagemContagem });
+      void qc.invalidateQueries({ queryKey: keys.rotulagemResumo });
+    },
   });
 }
 

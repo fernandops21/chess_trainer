@@ -28,7 +28,10 @@ describe("GolpeCard", () => {
     const iniciar = montar({ errou: true });
     expect(await screen.findByAltText("O golpe desenhado")).toHaveAttribute("src", "/api/golpes/own/p1/imagem.svg");
     await userEvent.click(screen.getByRole("button", { name: "Treinar 2 parecidos" }));
-    expect(iniciar).toHaveBeenCalledWith({ anchorId: "p1", anchorOrigem: "own", itens: irmaos.itens.map((i) => i.tactic) });
+    expect(iniciar).toHaveBeenCalledWith({
+      anchorId: "p1", anchorOrigem: "own", itens: irmaos.itens.map((i) => i.tactic),
+      tiers: { a: "mesmo", b: "mesmo" },
+    });
   });
   it("acerto: só a imagem", async () => {
     montar({ errou: false });

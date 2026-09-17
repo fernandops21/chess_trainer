@@ -43,7 +43,7 @@ function TacticPuzzle({ tactic, sessionId, clockLabel, orderInfo, onDone, nextDi
     // submit (isso repetiria o `api.attempt` no "Tentar registrar de novo" e duplicaria a tentativa)
     if (bloco) {
       try {
-        await api.saveTactic(tactic.id, corpoDoSalvamento(bloco, { ...out, duration_ms: body.duration_ms ?? 0, session_id: body.session_id }));
+        await api.saveTactic(tactic.id, corpoDoSalvamento(bloco, { ...out, duration_ms: body.duration_ms ?? 0, session_id: body.session_id }, tactic.id));
       } catch (e) {
         console.warn("irmão não entrou na fila", e);
       }

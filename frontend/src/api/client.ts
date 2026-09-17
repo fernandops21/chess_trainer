@@ -26,6 +26,7 @@ import type {
   ReviewOut,
   RotulagemContagem,
   RotulagemItem,
+  RotulagemResumoLinha,
   RotuloIn,
   SaveTacticIn,
   SessionIn,
@@ -262,6 +263,7 @@ export const api = {
   },
   rotular: (body: RotuloIn) => request<unknown>("/golpes/rotulagem", post("", body)),
   rotulagemContagem: () => request<RotulagemContagem>("/golpes/rotulagem/contagem"),
+  rotulagemResumo: () => request<RotulagemResumoLinha[]>("/golpes/rotulagem/resumo"),
 };
 
 /** Downloads de PGN: links comuns, o navegador salva pelo Content-Disposition. */

@@ -277,6 +277,8 @@ export interface PuzzleOut {
   siblings: PuzzleSibling[];
   /** Exercício de origem, quando esta tática nasceu do bloco de irmãos (repetir o golpe). */
   sibling_of?: string | null;
+  /** Degrau da cascata que trouxe este puzzle como irmão (spec golpes trechos §6). */
+  sibling_tier?: string | null;
 }
 
 /** Tática do banco do Lichess: mesmo formato de treino dos puzzles próprios,
@@ -335,6 +337,8 @@ export interface SaveTacticIn {
   session_id?: string | null;
   /** Exercício de origem, quando esta tática nasceu do bloco de irmãos (repetir o golpe). */
   sibling_of?: string;
+  /** Degrau da cascata que trouxe este irmão (spec golpes trechos §6). */
+  sibling_tier?: string;
 }
 
 /** Estado do encoder de golpes: cobre a assinatura, os irmãos e a rotulagem (spec golpes). */
@@ -346,12 +350,26 @@ export interface GolpesStatus {
   /** Por tema: quantos golpes já têm irmãos suficientes (`ge5`/`ge2`) e quantos ficaram sozinhos. */
   cobertura: Record<string, { ge5: number; ge2: number; sozinhos: number }> | null;
   rotulagem: boolean;
+  /** Quantas linhas de trecho já foram calculadas (spec golpes trechos §4.1). */
+  trechos: number;
 }
 
-/** Um irmão do golpe: mesma assinatura, com o quão parecido é (`tier`). */
+/** De onde veio um irmão na cascata (spec golpes trechos §5): o degrau, o nível de
+ *  assinatura comparado, quantos lances entraram na comparação, a posição do trecho na
+ *  solução do CANDIDATO e se foi por espelho. */
+export interface Procedencia {
+  degrau: string;
+  nivel: "destinos" | "destinos_esp" | "esqueleto";
+  n: number;
+  posicao: "inteira" | "inicio" | "meio" | "fim";
+  espelhado: boolean;
+}
+
+/** Um irmão do golpe: mesma assinatura (ou trecho dela), com o degrau que o achou (`tier`). */
 export interface IrmaoOut {
-  tier: "mesmo" | "espelho" | "esqueleto";
+  tier: string;
   tactic: TacticOut;
+  procedencia?: Procedencia;
 }
 
 export interface IrmaosOut {
@@ -363,7 +381,7 @@ export interface IrmaosOut {
  *  camada (`tier`) de cada um — ela só volta no `POST` (spec golpes, fase A). */
 export interface RotulagemItem {
   anchor: { origem: "own" | "lichess"; id: string; assinatura: string };
-  candidatos: { id: string; tier: string; tactic: TacticOut }[];
+  candidatos: { id: string; tier: string; procedencia?: Procedencia; tactic: TacticOut }[];
 }
 
 /** Corpo do `POST /api/golpes/rotulagem`: um rótulo humano para um par âncora/candidato. */
@@ -373,11 +391,26 @@ export interface RotuloIn {
   candidate_id: string;
   tier: string;
   label: "mesmo" | "parecido" | "nada";
+  n_lances?: number;
+  posicao?: string;
+  nivel?: string;
+  espelhado?: boolean;
 }
 
 export interface RotulagemContagem {
   total: number;
   por_label: Record<string, number>;
+}
+
+/** Uma linha do placar da rotulagem por procedência (spec golpes trechos §8). */
+export interface RotulagemResumoLinha {
+  tier: string;
+  posicao: string | null;
+  n_lances: number | null;
+  mesmo: number;
+  parecido: number;
+  nada: number;
+  total: number;
 }
 
 export interface TacticsStatus {
