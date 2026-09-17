@@ -38,8 +38,16 @@ function TacticPuzzle({ tactic, sessionId, clockLabel, orderInfo, onDone, nextDi
     // a tentativa mexe no rating e nas estatísticas por tema
     void qc.invalidateQueries({ queryKey: ["tactics"] });
     void qc.invalidateQueries({ queryKey: ["stats"] });
-    // no bloco de irmãos a tentativa já entra na fila com o vínculo para a âncora
-    if (bloco) await api.saveTactic(tactic.id, corpoDoSalvamento(bloco, { ...out, duration_ms: body.duration_ms ?? 0, session_id: body.session_id }));
+    // no bloco de irmãos a tentativa já entra na fila com o vínculo para a âncora — melhor-esforço:
+    // a tentativa já está registrada (linha acima), então uma falha aqui não pode virar erro do
+    // submit (isso repetiria o `api.attempt` no "Tentar registrar de novo" e duplicaria a tentativa)
+    if (bloco) {
+      try {
+        await api.saveTactic(tactic.id, corpoDoSalvamento(bloco, { ...out, duration_ms: body.duration_ms ?? 0, session_id: body.session_id }));
+      } catch (e) {
+        console.warn("irmão não entrou na fila", e);
+      }
+    }
     return out;
   }, [qc, bloco, tactic.id]);
   // enquanto as configurações não chegam, a refutação fica ligada (é o padrão)

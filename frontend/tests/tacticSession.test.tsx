@@ -312,3 +312,20 @@ test("bloco: percorre a lista fixa e acaba no fim, salvando o irmão com o vínc
   await waitFor(() => expect(onFinish).toHaveBeenCalled());
   expect(next).not.toHaveBeenCalled();
 });
+
+test("bloco: o irmão não entrar na fila não bloqueia nem repete a tentativa", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const attempt = vi.spyOn(api, "attempt");
+  vi.spyOn(api, "saveTactic").mockRejectedValue(new Error("sem conexão"));
+  const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")] });
+  renderBloco(blocoConfig);
+  await solve();
+  // a tentativa já foi registrada: o painel mostra o resultado, não o erro de envio
+  expect(await screen.findByText("Rating 1200 → 1216 (+16)")).toBeTruthy();
+  expect(attempt).toHaveBeenCalledTimes(1);
+  fireEvent.click(await screen.findByText("Próximo"));
+  expect(await screen.findByText("2 de 2")).toBeTruthy();
+  // sem "Tentar registrar de novo" disparado, a tentativa da primeira tática não se repete
+  expect(attempt).toHaveBeenCalledTimes(1);
+  expect(warn).toHaveBeenCalled();
+});
