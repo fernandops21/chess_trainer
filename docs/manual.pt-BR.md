@@ -344,8 +344,8 @@ lances do solucionador, setas vermelhas para o que eles descobrem ou atacam. Qua
 o cartão traz o botão **"Treinar N parecidos"**, que abre um bloco de N puzzles do Lichess com o
 mesmo golpe, do mais fácil ao mais difícil. A busca vai em cascata: primeiro o mesmo golpe nas
 mesmas casas, depois o espelhado (a mesma ideia do outro lado do tabuleiro) e, faltando irmãos,
-o mesmo esqueleto com o rei adversário na mesma zona. Cada puzzle do bloco que você resolve entra
-na sua fila de repetição espaçada, junto com os outros exercícios.
+o mesmo esqueleto com o rei adversário na mesma zona. Cada puzzle do bloco que você tenta — acerte
+ou erre — entra na sua fila de repetição espaçada, junto com os outros exercícios.
 
 Em **Configurações → Golpes** dá para desligar o cartão ("Mostrar 'Repetir o golpe' no resultado
 dos exercícios") e ajustar o tamanho do bloco em **"Irmãos por bloco"** (de 3 a 10, padrão 5).

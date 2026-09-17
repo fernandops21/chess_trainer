@@ -23,7 +23,7 @@ function mensagemDeErro(e: unknown): string {
  * servidor iniciado com `CHESS_TRAINER_ROTULAGEM=1`.
  */
 export function RotulagemPage() {
-  const { data: status } = useGolpesStatus();
+  const { data: status, isError: statusError, error: statusErrorObj } = useGolpesStatus();
   const ligado = status?.rotulagem === true;
   const { data: item, isLoading, isError, error, refetch } = useRotulagemProximo(ligado);
   const { data: contagem } = useRotulagemContagem(ligado);
@@ -35,6 +35,9 @@ export function RotulagemPage() {
     setCandidatos(item?.candidatos ?? []);
   }, [item]);
 
+  if (statusError) {
+    return <p className="muted">Não consegui consultar o servidor. {mensagemDeErro(statusErrorObj)}</p>;
+  }
   if (status?.rotulagem === false) {
     return <p>Rotulagem desligada: inicie o servidor com CHESS_TRAINER_ROTULAGEM=1.</p>;
   }

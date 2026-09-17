@@ -423,7 +423,7 @@ red arrows for what they uncover or attack. When you **miss** the exercise, the 
 same pattern, from easiest to hardest. The search falls back in stages: first the exact same pattern
 on the same squares, then the mirrored one (the same idea on the other side of the board), and, when
 siblings are still short, the same skeleton with the opponent's king in the same zone. Every puzzle in
-the block that you solve joins your spaced-repetition queue alongside the other exercises.
+the block that you attempt — right or wrong — joins your spaced-repetition queue alongside the other exercises.
 
 In **"Configurações" → "Golpes"** you can turn the card off ("Mostrar 'Repetir o golpe' no resultado
 dos exercícios" — Show "Repeat the pattern" on the exercise result) and set the block size in **"Irmãos

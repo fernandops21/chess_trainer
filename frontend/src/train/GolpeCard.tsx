@@ -6,10 +6,11 @@ import { useBloco } from "./BlocoContext";
 export function GolpeCard({ origem, id, errou }: { origem: "own" | "lichess"; id: string; errou: boolean }) {
   const { data } = useIrmaos(origem, id);
   const { iniciar } = useBloco();
-  if (!data) return null;
+  // sem irmãos o cartão não existe (spec §6): nada para repetir, nada para mostrar
+  if (!data || data.itens.length === 0) return null;
   const itens = data.itens.map((i) => i.tactic);
   return (
-    <div className="card golpe-card">
+    <div className="card">
       <h3 style={{ marginTop: 0 }}>Repetir o golpe</h3>
       <img alt="O golpe desenhado" src={golpeImagemUrl(origem, id)} style={{ width: "100%", maxWidth: 320 }} />
       {errou && itens.length > 0 && (

@@ -98,3 +98,34 @@ test("o cartão do golpe troca a sessão em andamento pelo bloco de irmãos, den
   // a lista fixa não bate na fila do Lichess: só a busca da sessão original chamou `nextTactic`
   expect(next).toHaveBeenCalledTimes(1);
 });
+
+test("ao fim do bloco, 'Voltar ao treino' retoma a sessão que estava em andamento (achado 4)", async () => {
+  const next = vi.spyOn(api, "nextTactic")
+    .mockResolvedValueOnce(tactic("t1"))
+    .mockResolvedValueOnce(tactic("t2"));
+  renderPage();
+  fireEvent.click(screen.getByLabelText("Táticas do Lichess"));
+  fireEvent.click(screen.getByText("Começar"));
+
+  await screen.findByText("resolver");
+  fireEvent.click(screen.getByText("resolver"));
+
+  const treinar = await screen.findByRole("button", { name: "Treinar 2 parecidos" });
+  fireEvent.click(treinar);
+
+  // resolve os dois irmãos do bloco (a e b) para o bloco terminar e mostrar o resumo
+  await screen.findByText("Repetir o golpe");
+  fireEvent.click(screen.getByText("resolver"));
+  fireEvent.click(await screen.findByRole("button", { name: "Próximo" }));
+  await screen.findByText("2 de 2");
+  fireEvent.click(screen.getByText("resolver"));
+  fireEvent.click(await screen.findByRole("button", { name: "Próximo" }));
+
+  const voltar = await screen.findByRole("button", { name: "Voltar ao treino" });
+  expect(screen.queryByRole("button", { name: "Nova sessão" })).toBeNull();
+  fireEvent.click(voltar);
+
+  // a sessão original volta a pedir da fila do Lichess (segunda chamada de nextTactic)
+  await screen.findByText("resolver");
+  expect(next).toHaveBeenCalledTimes(2);
+});

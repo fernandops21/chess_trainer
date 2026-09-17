@@ -43,6 +43,13 @@ describe("RotulagemPage", () => {
     await userEvent.click(screen.getAllByRole("button", { name: "nada a ver" })[0]);
     await waitFor(() => expect(api.rotulagemProximo).toHaveBeenCalledTimes(2));
   });
+  it("quando a consulta ao status falha, avisa em vez de ficar em branco (achado 9)", async () => {
+    vi.spyOn(api, "golpesStatus").mockRejectedValue(new Error("falha de rede"));
+    montar();
+    expect(await screen.findByText(/Não consegui consultar o servidor\./)).toBeInTheDocument();
+    expect(screen.getByText(/falha de rede/)).toBeInTheDocument();
+  });
+
   it("desligada: explica como ligar", async () => {
     vi.spyOn(api, "golpesStatus").mockResolvedValue({ ...status, rotulagem: false });
     montar();

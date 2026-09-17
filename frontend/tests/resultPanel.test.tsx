@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import type { AnalyseOut, CoachStatus, PuzzleOut } from "../src/api/types";
+import type { AnalyseOut, CoachStatus, IrmaosOut, PuzzleOut } from "../src/api/types";
 import type { BoardProps } from "../src/board/Board";
 import { api } from "../src/api/client";
 import { ResultPanel } from "../src/train/ResultPanel";
@@ -229,4 +229,22 @@ test("resolvido pela linha principal: nada muda no resultado", () => {
     </QueryClientProvider>,
   );
   expect(screen.queryByText(/alternativa aceita/)).toBeNull();
+});
+
+// --- cartão "Repetir o golpe": dica conta como erro (achado 7) -----------
+
+test("resolvido com dica: o cartão do golpe oferece o bloco (dica conta como erro)", async () => {
+  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: true, versao: 1, assinados: 1, total: 1, cobertura: null, rotulagem: false });
+  const irmaos: IrmaosOut = { assinatura: "Ke8 | Q xP f7 #", itens: [{ tier: "mesmo", tactic: { id: "a" } as never }] };
+  vi.spyOn(api, "golpesIrmaos").mockResolvedValue(irmaos);
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter>
+        <ResultPanel puzzle={base}
+          review={{ id: "r", puzzle_id: "p1", result: "correct", used_hint: true, ease: 2.6, interval_days: 1, due_at: "2026-09-09T00:00:00", lapses: 0, is_leech: false }}
+          onRetry={() => {}} onNext={() => {}} />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(await screen.findByRole("button", { name: "Treinar 1 parecidos" })).toBeTruthy();
 });

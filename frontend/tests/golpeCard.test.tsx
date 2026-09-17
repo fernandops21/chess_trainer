@@ -43,4 +43,15 @@ describe("GolpeCard", () => {
     await waitFor(() => expect(api.golpesIrmaos).toHaveBeenCalled());
     expect(container.querySelector("img")).toBeNull();
   });
+  it("sem irmãos: o cartão não existe (spec §6)", async () => {
+    vi.spyOn(api, "golpesIrmaos").mockResolvedValue({ assinatura: "Ke8 | Q xP f7 #", itens: [] });
+    const { container } = render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><GolpeCard origem="lichess" id="x" errou /></QueryClientProvider>,
+    );
+    await waitFor(() => expect(api.golpesIrmaos).toHaveBeenCalled());
+    // a resposta chega antes de checar: sem isto, a asserção passaria mesmo com o bug
+    // (`itens: []` não distingue de "carregando" enquanto `data` ainda é `undefined`)
+    await new Promise((r) => setTimeout(r, 0));
+    expect(container.querySelector("img")).toBeNull();
+  });
 });

@@ -28,17 +28,27 @@ export function TrainPage() {
   const [config, setConfig] = useState<SessionConfig | null>(null);
   const [summary, setSummary] = useState<OwnSummary | null>(null);
   const [tacticSummary, setTacticSummary] = useState<TacticSummaryData | null>(null);
-  const restart = () => { setSummary(null); setTacticSummary(null); setConfig(null); };
+  // a sessão que estava em andamento antes do cartão "Repetir o golpe" abrir o bloco:
+  // "Voltar ao treino" a retoma depois do resumo, em vez de largar o usuário no início.
+  // `undefined` é "não veio de um bloco" (não oferece o botão); `null` é um valor válido
+  // (o bloco abriu direto da tela de início, sem sessão em andamento antes dele).
+  const [configAntesDoBloco, setConfigAntesDoBloco] = useState<SessionConfig | null | undefined>(undefined);
+  const restart = () => { setSummary(null); setTacticSummary(null); setConfig(null); setConfigAntesDoBloco(undefined); };
+  const voltarAoBloco = () => {
+    setTacticSummary(null);
+    setConfig(configAntesDoBloco ?? null);
+    setConfigAntesDoBloco(undefined);
+  };
   // o cartão "Repetir o golpe" troca a configuração da sessão em andamento pela do
   // bloco de irmãos; a `key` força o remonte da `TacticSession` (sem ela, a troca de
   // config reaproveitaria a instância — e os refs de uma sessão já em curso — em vez
   // de começar a sessão do bloco do zero)
-  const iniciar = (bloco: Bloco) => setConfig(configDoBloco(bloco));
+  const iniciar = (bloco: Bloco) => { setConfigAntesDoBloco(config); setConfig(configDoBloco(bloco)); };
 
   if (single) return <><h1>Treinar</h1><SingleTrain id={single} seen={params.get("seen") === "1"} /></>;
 
   let body;
-  if (tacticSummary) body = <TacticSummary {...tacticSummary} onNew={restart} />;
+  if (tacticSummary) body = <TacticSummary {...tacticSummary} onNew={restart} onVoltar={configAntesDoBloco !== undefined ? voltarAoBloco : undefined} />;
   else if (summary) body = <SessionSummary {...summary} onNew={restart} />;
   else if (config?.source === "tactics") body = <TacticSession key={config.bloco ? `bloco-${config.bloco.anchorId}` : "tactics"} config={config} onFinish={setTacticSummary} />;
   else if (config) body = <Session config={config} onFinish={(done, elapsedLabel, reason) => setSummary({ done, elapsedLabel, reason })} />;
