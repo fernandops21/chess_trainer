@@ -409,21 +409,24 @@ capture, the checks and what ends up attacked or discovered — and uses it to f
 puzzles in the Lichess tactics database with the same pattern.
 
 Before using it, build the base in **"Configurações" → "Golpes"** (Settings → Patterns) → **"Preparar
-golpes"** (Prepare patterns): the task computes the signature of every puzzle in the tactics database
-(it needs the database already imported — see "Lichess tactics" above), takes about ten minutes the
-first time, shows up in the "Tarefas" card on the Dashboard and can be cancelled and resumed from where
-it stopped. Once done, the line below the button shows how many puzzles got a signature and how many
-have five or more siblings ("N de M puzzles com assinatura · K com cinco ou mais irmãos" — N of M
-puzzles with a signature, K with five or more siblings).
+golpes"** (Prepare patterns): the task computes the signature (and its inner stretches) of every puzzle
+in the tactics database (it needs the database already imported — see "Lichess tactics" above), takes
+about fifteen minutes the first time, shows up in the "Tarefas" card on the Dashboard and can be
+cancelled and resumed from where it stopped. Once done, the line below the button shows how many
+puzzles got a signature, how many have five or more siblings and how many stretches were computed
+("N de M puzzles com assinatura · K com cinco ou mais irmãos · T trechos"). After updating to this
+version, run "Preparar golpes" again so already-signed puzzles pick up the stretches they were
+missing.
 
 On the result screen of an exercise — one of your own or a Lichess tactic — a **"Repetir o golpe"**
 (Repeat the pattern) card shows the pattern drawn on the board: green arrows for the solver's moves,
 red arrows for what they uncover or attack. When you **miss** the exercise, the card also shows a
 **"Treinar N parecidos"** (Train N similar) button, which opens a block of N Lichess puzzles with the
-same pattern, from easiest to hardest. The search falls back in stages: first the exact same pattern
-on the same squares, then the mirrored one (the same idea on the other side of the board), and, when
-siblings are still short, the same skeleton with the opponent's king in the same zone. Every puzzle in
-the block that you attempt — right or wrong — joins your spaced-repetition queue alongside the other exercises.
+same pattern, from easiest to hardest. A sibling may share the whole combination, or just a stretch of
+it — the opening move, the final blow, or a run in the middle — and, when siblings are still short, the
+search falls back to the mirrored pattern (the same idea on the other side of the board) or the same
+skeleton with the opponent's king in the same zone. Every puzzle in the block that you attempt — right
+or wrong — joins your spaced-repetition queue alongside the other exercises.
 
 Siblings are searched across every rating — the pattern's geometry decides "same pattern", not
 difficulty. Rating only picks which siblings make the block: the preferred range climbs from your

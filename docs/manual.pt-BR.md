@@ -332,20 +332,23 @@ o que capturam, os xeques e o que fica atacado ou descoberto — e usa ela para 
 outros puzzles do banco de táticas do Lichess com o mesmo golpe.
 
 Antes de usar, prepare a base em **Configurações → Golpes → "Preparar golpes"**: a tarefa calcula
-a assinatura de todos os puzzles do banco de táticas (precisa dele já importado — ver "Táticas do
-Lichess"), leva uns dez minutos na primeira vez, aparece no cartão "Tarefas" do Painel e pode ser
-cancelada e retomada de onde parou. Terminada, a linha abaixo do botão mostra quantos puzzles
-ficaram com assinatura e quantos têm cinco ou mais irmãos ("N de M puzzles com assinatura · K com
-cinco ou mais irmãos").
+a assinatura (e os trechos dela) de todos os puzzles do banco de táticas (precisa dele já
+importado — ver "Táticas do Lichess"), leva uns quinze minutos na primeira vez, aparece no cartão
+"Tarefas" do Painel e pode ser cancelada e retomada de onde parou. Terminada, a linha abaixo do
+botão mostra quantos puzzles ficaram com assinatura, quantos têm cinco ou mais irmãos e quantos
+trechos foram calculados ("N de M puzzles com assinatura · K com cinco ou mais irmãos · T
+trechos"). Depois de atualizar o app para esta versão, rode "Preparar golpes" de novo: os puzzles
+já assinados ganham os trechos que ainda não tinham.
 
 Na tela de resultado de um exercício — dos seus próprios ou de uma tática do Lichess — aparece o
 cartão **"Repetir o golpe"** com a imagem do golpe desenhada no tabuleiro: setas verdes para os
 lances do solucionador, setas vermelhas para o que eles descobrem ou atacam. Quando você **erra**,
 o cartão traz o botão **"Treinar N parecidos"**, que abre um bloco de N puzzles do Lichess com o
-mesmo golpe, do mais fácil ao mais difícil. A busca vai em cascata: primeiro o mesmo golpe nas
-mesmas casas, depois o espelhado (a mesma ideia do outro lado do tabuleiro) e, faltando irmãos,
-o mesmo esqueleto com o rei adversário na mesma zona. Cada puzzle do bloco que você tenta — acerte
-ou erre — entra na sua fila de repetição espaçada, junto com os outros exercícios.
+mesmo golpe, do mais fácil ao mais difícil. Um irmão pode compartilhar a combinação inteira ou só
+um trecho dela — o lance de abertura do golpe, o golpe final, ou um pedaço do meio — e, faltando
+ainda, o espelhado (a mesma ideia do outro lado do tabuleiro) ou o mesmo esqueleto com o rei
+adversário na mesma zona. Cada puzzle do bloco que você tenta — acerte ou erre — entra na sua fila
+de repetição espaçada, junto com os outros exercícios.
 
 Os irmãos são procurados em qualquer rating — quem decide se é "o mesmo golpe" é a geometria da
 solução, não a dificuldade. O rating só escolhe **quais** aparecem no bloco: a faixa preferida vai

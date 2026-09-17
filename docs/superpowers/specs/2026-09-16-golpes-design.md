@@ -108,6 +108,34 @@ versão; a tarefa de preparo refaz o que estiver com versão antiga.
 Puzzles de lance quieto (sem captura, xeque, descoberta nem ataque novo) ficam
 com assinatura fraca: só peça e destino. Aceito e medido (§9), não resolvido.
 
+### 3.5 Trechos
+
+Medido nos dados do usuário (129 exercícios, leitura): exigir a assinatura da
+solução **inteira** só acha algum irmão em 58 dos 129 (45%) — soluções de um
+lance quase nunca coincidem inteiras (só 4% dos puzzles do Lichess têm um
+lance só) e soluções de três lances são específicas demais. Deixando o
+casamento acontecer com um **trecho** contíguo da solução — a sequência da
+âncora inteira, senão os dois primeiros lances, senão só o primeiro —
+aparecendo em QUALQUER posição da solução de um candidato (mesmas casas, rei
+na casa de quando o trecho começa), 101 dos 129 (78%) acham cinco ou mais
+irmãos (só o início: 85; só o fim: 76). Essa é a motivação dos trechos.
+
+- `Trecho(inicio, n, posicao, assinatura)`: um pedaço de `n` lances do
+  solucionador começando no `inicio`-ésimo (0-based) de uma solução.
+  `assinatura` é a `Assinatura` desse pedaço (`anotar` a partir do tabuleiro
+  de quando o trecho começa — o rei aparece na casa de NAQUELE momento, não
+  na da posição do puzzle).
+- `posicao` é relativa a TODOS os lances do solucionador da solução:
+  `"inteira"` quando o trecho cobre todos, `"inicio"` quando começa no
+  primeiro, `"fim"` quando termina no último, senão `"meio"`.
+- `trechos(fen, lances, max_solver=6, tamanhos=(1,2,3))` gera todos os trechos
+  de 1, 2 e 3 lances começando em cada um dos até seis primeiros lances do
+  solucionador (normaliza como `assinar`).
+- O esqueleto de um trecho de **um lance só** é ruído: bate com quase
+  qualquer coisa (não descreve geometria nenhuma sozinho) e por isso nunca é
+  gravado nem entra numa busca por esqueleto — só o nível `destinos` (e seu
+  espelho) usa trechos de um lance.
+
 ## 4. Dados e tarefa de preparo
 
 ### 4.1 Tabelas
@@ -118,51 +146,82 @@ com assinatura fraca: só peça e destino. Aceito e medido (§9), não resolvido
   `(esqueleto, zona_rei)`.
 - `puzzle_signatures`: o mesmo para os exercícios próprios (`puzzles`).
   Calculada quando o exercício é criado e refeita quando a versão muda.
+- `lichess_puzzle_trechos` (spec §3.5): `puzzle_id` (FK, cascade),
+  `inicio`, `n` (chave junto com `puzzle_id`), `posicao`, `destinos`,
+  `destinos_esp` (inteiros), `esqueleto` (inteiro, nulo quando `n == 1`).
+  Índices em `destinos`, `destinos_esp`, `esqueleto`. Uns 4,5 trechos por
+  puzzle em média.
 - `puzzles.sibling_of` (texto, nulo, FK `puzzles.id`): o exercício de origem de
   um irmão salvo pelo bloco (§6). É o vínculo que o perfil futuro usa.
-- `golpe_labels` (§8).
+- `puzzles.sibling_tier`: o degrau da cascata (§5) que trouxe esse irmão,
+  espelhando `Procedencia.degrau` de quando ele entrou (§6).
+- `golpe_labels` (§8), com a procedência do candidato na hora do julgamento:
+  `n_lances`, `posicao`, `nivel`, `espelhado` (§8).
 - Fase B: `lichess_puzzle_vectors` e `puzzle_vectors` (§7).
 
 ### 4.2 Tarefa "Preparar golpes"
 
 - Botão em Configurações, no executor de tarefas existente (`JobRunner`), com
   progresso e cancelamento. Percorre `lichess_puzzles` em lotes de 5 000,
-  calcula só as linhas sem assinatura ou com versão antiga, grava por lote.
-  Cancelar e retomar continua de onde parou.
+  calcula só as linhas sem assinatura ou com versão antiga, grava a
+  assinatura E os trechos (§3.5) da linha por lote. Cancelar e retomar
+  continua de onde parou.
 - No fim, grava em `settings` a **cobertura** por nível: quantos puzzles têm
-  grupo de tamanho ≥ 5, ≥ 2 e 1 (sozinhos). É o primeiro número da calibração
-  (§8) e aparece na tela de dev.
-- Estimativa: dez minutos na primeira vez (reprodução de três a seis lances por
-  puzzle no python-chess). O banco cresce uns 60 MB.
+  grupo de tamanho ≥ 5, ≥ 2 e 1 (sozinhos); e a contagem de trechos gravados
+  (`GET /api/golpes/status` traz `trechos`). É o primeiro número da
+  calibração (§8) e aparece na tela de dev.
+- Estimativa: quinze minutos (era dez antes dos trechos: cada puzzle reproduz
+  a solução mais vezes — uma por trecho, além da assinatura inteira). O banco
+  cresce mais que antes (a tabela de trechos tem uns 4,5× as linhas da de
+  assinaturas).
 
 ## 5. Busca de irmãos (`core/golpes/service.py`)
 
-`irmaos(db, âncora, faixa_de_rating, excluir, k=5)` devolve até k puzzles do
-Lichess, cada um com a **camada** de onde veio, em cascata (*fallback tiers*):
+`irmaos(db, fen, lances, faixa_de_rating, excluir, k=5)` devolve até k
+puzzles do Lichess, cada um com a **procedência** de onde veio: `degrau`
+(nome do passo da cascata, mantido em `tier` por compatibilidade), `nivel`
+(`destinos` | `destinos_esp` | `esqueleto`), `n` (quantos lances entraram na
+comparação), `posicao` (a do trecho **do candidato** que casou) e `espelhado`.
 
-1. **mesmo golpe**: `destinos` igual ao da âncora;
-2. **parecido por regra**: `destinos` igual ao `destinos_esp` da âncora
-   (espelho), depois `esqueleto` e `zona_rei` iguais;
-3. **parecido pela rede** (fase B): vizinhos por cosseno no índice vetorial,
-   fora dos que as camadas anteriores já deram.
+A cascata anda em degraus, na ordem (spec trechos §5; `k = min(n_solver, 3)`
+lances da âncora):
 
-Em cada camada a busca **ignora rating**: só `popularity ≥ 50` e
+1. `inteira` — `destinos` da solução inteira da âncora igual ao do candidato
+   (o que já existia, antes chamado "mesmo").
+2. `trecho{n}`, para `n = k … 1` — o prefixo de `n` lances da âncora (de
+   `trechos(fen, lances)` com `inicio == 0`) igual a um trecho de tamanho `n`
+   **em qualquer posição** da solução do candidato. Casando em mais de uma
+   posição, fica o de menor `inicio`.
+3. `espelho` — `destinos_esp` da âncora igual ao `destinos` do candidato
+   (o espelho esquerda-direita); depois `espelho-trecho{n}` para `n = k … 2`
+   (mesma ideia, por trecho).
+4. `esqueleto` — `esqueleto` e `zona_rei` da âncora iguais aos do candidato
+   (o que já existia); depois `esqueleto-trecho{n}` para `n = k … 2` (por
+   trecho; o esqueleto de um lance só nunca entra, §3.5).
+
+Cada degrau exclui os puzzles que um degrau anterior já devolveu. Só a
+**rotulagem** (§8) enxerga um degrau a mais, `espelho-trecho1`: o esqueleto
+espelhado de um lance é ruído demais para o bloco, mas vale medir o quanto
+erra.
+
+Dentro de cada degrau a busca **ignora rating**: só `popularity ≥ 50` e
 `nb_plays ≥ 50` para evitar puzzles ruins, excluídos os já vistos
-(`tactics_attempts`), os já salvos na fila e a própria âncora. Quem decide a
-camada é o golpe, não o rating — um irmão exato fora da faixa do usuário
-continua "mesmo golpe", nunca cai para uma camada mais frouxa por causa disso.
+(`tactics_attempts`), os já salvos na fila e a própria âncora. Quem decide o
+degrau é o golpe, não o rating — um irmão exato fora da faixa do usuário
+continua "inteira", nunca cai para um degrau mais frouxo por causa disso.
 
 O rating só escolhe **quais** irmãos entram no bloco. A faixa preferida é
 `[rating − golpes_faixa_abaixo, rating + golpes_faixa_acima]` (padrão 100
 abaixo, 500 acima: o bloco sobe a partir do nível do usuário). Dentro de cada
-camada, os candidatos da faixa são espalhados **do fácil ao difícil**;
+degrau, os candidatos da faixa são espalhados **do fácil ao difícil**;
 faltando para completar `k`, entram os mais próximos de fora da faixa —
 primeiro os de cima (subindo), depois os de baixo (descendo, o mais perto
-primeiro). Por segurança, a consulta de cada camada corta em `LIMITE_CANDIDATOS`
+primeiro). Por segurança, a consulta de cada degrau corta em `LIMITE_CANDIDATOS`
 (5 000) candidatos, os mais próximos do centro da faixa preferida. O bloco
-final fica em ordem ascendente de rating, mesmo cruzando camadas (cada item
-mantém o `tier` de onde veio). A resposta traz, por item, `tier`, rating e os
-campos do puzzle; e a assinatura da âncora em texto.
+final fica em ordem ascendente de rating, mesmo cruzando degraus (cada item
+mantém a `procedencia` de onde veio). A resposta traz, por item, `tier`,
+`procedencia`, rating e os campos do puzzle; e a assinatura da âncora em
+texto.
 
 A âncora pode ser um exercício próprio ou um puzzle do Lichess: qualquer puzzle
 com assinatura tem irmãos.
@@ -178,8 +237,10 @@ com assinatura tem irmãos.
   (`tactics/attempts`, rating de táticas). No fim, resumo "4 de 5" e volta.
 - **Repetição espaçada**: cada irmão do bloco é salvo na fila do usuário pelo
   mecanismo que já salva táticas do Lichess (`tactics/{id}/save`), com
-  `sibling_of` apontando para a âncora. A partir daí é revisado como qualquer
-  exercício, misturado e espaçado.
+  `sibling_of` apontando para a âncora e `sibling_tier` gravando o degrau da
+  cascata (§5) que o trouxe. A partir daí é revisado como qualquer exercício,
+  misturado e espaçado; `sibling_tier` fica disponível para o perfil futuro
+  medir se golpes achados por trecho se fixam tão bem quanto os "inteira".
 - **Configurações**: `golpes_enabled` (padrão ligado), `golpes_bloco` (padrão
   5, de 3 a 10), `golpes_faixa_abaixo` (padrão 100, de 0 a 1000) e
   `golpes_faixa_acima` (padrão 500, de 0 a 2000) — a faixa preferida do bloco
@@ -196,10 +257,12 @@ cartão e, mais adiante, para salvar ou compartilhar.
 ### 6.2 API
 
 - `GET /api/golpes/{origem}/{id}/irmaos?k=5` → `{assinatura, itens: [{tier,
-  puzzle...}]}`; 404 sem assinatura ou com o recurso desligado.
+  procedencia, puzzle...}]}`; 404 sem assinatura ou com o recurso desligado.
 - `GET /api/golpes/{origem}/{id}/imagem.svg`.
-- `POST /api/tactics/{lichess_id}/save` ganha `sibling_of` opcional.
-- `POST /api/golpes/preparar` dispara a tarefa; o status vem pelo executor.
+- `POST /api/tactics/{lichess_id}/save` ganha `sibling_of` e `sibling_tier`
+  opcionais.
+- `POST /api/golpes/preparar` dispara a tarefa; o status vem pelo executor
+  (`GET /api/golpes/status` traz `trechos`, a contagem de linhas de trecho).
 - Rotas de rotulagem (§8) só com `CHESS_TRAINER_ROTULAGEM=1`.
 
 ## 7. Codificador (fase B, `ml/golpes/`)
@@ -253,12 +316,23 @@ solucionador. A rede vê posição e golpe juntos, como a assinatura.
 ## 8. Rotulagem e conjunto de ouro (só em dev)
 
 - Tela `/rotulagem`, atrás de `CHESS_TRAINER_ROTULAGEM=1`: uma âncora (exercício
-  próprio ou puzzle do Lichess) com a imagem do golpe, e candidatos das camadas
-  todas embaralhados, sem dizer a origem. Para cada candidato, uma de três
+  próprio ou puzzle do Lichess) com a imagem do golpe, e candidatos de todos os
+  degraus da cascata (§5) — incluindo `espelho-trecho1`, que nunca entra no
+  bloco — embaralhados, sem dizer a origem. Para cada candidato, uma de três
   respostas: **mesmo golpe**, **parecido**, **nada a ver**.
 - `golpe_labels`: `id`, `anchor_origem`, `anchor_id`, `candidate_id`,
-  `tier_na_hora`, `versao_assinatura`, `label`, `created_at`. Exportado por
-  comando para `ml/golpes/gold/<data>.jsonl`, versionado no repositório.
+  `tier_na_hora`, `versao_assinatura`, `label`, `created_at`, e a procedência
+  do candidato na hora (spec trechos §5): `n_lances`, `posicao`, `nivel`,
+  `espelhado`. A tela nunca mostra essa procedência a quem rotula; ela só
+  serve para agregar depois. Exportado por comando para
+  `ml/golpes/gold/<data>.jsonl` (as mesmas colunas de procedência vão junto),
+  versionado no repositório.
+- **Placar por procedência**: `GET /api/golpes/rotulagem/resumo` (mesmo portão
+  de `CHESS_TRAINER_ROTULAGEM=1`) devolve, agrupado por `(tier, posicao,
+  n_lances)`, quantos rótulos de cada resposta aquela combinação já recebeu
+  (`mesmo`, `parecido`, `nada`, `total`). A tela de rotulagem mostra essa
+  tabela embaixo do contador, atualizada a cada rótulo — é o primeiro sinal
+  visível de qual degrau (e qual posição do trecho) é ruído.
 - Meta: ~300 julgamentos nas primeiras sessões. Com a rede treinada, a tela
   passa a priorizar os pares em que regra e rede discordam (**aprendizado
   ativo**), onde cada resposta vale mais.
@@ -286,9 +360,14 @@ ouro, decisão e data.
 - Assinatura: posições conhecidas (francesa 9.Bb5+, beijo grego, mate sufocado,
   garfo com xeque, promoção, en passant); cores trocadas dão a mesma assinatura;
   espelho dá `destinos_esp`; detecção de descoberta e de ataques testada
-  isolada; níveis e hashes estáveis.
-- Busca: conjunto pequeno em memória cobrindo a cascata, a faixa de rating, a
-  exclusão de vistos e salvos, o espalhamento do fácil ao difícil.
+  isolada; níveis e hashes estáveis; trechos (§3.5): posição relativa
+  (`inteira`/`inicio`/`meio`/`fim`), rei na casa de quando o trecho começa,
+  cores trocadas, limite de `max_solver`.
+- Busca: conjunto pequeno em memória cobrindo a cascata em degraus (§5), o
+  casamento por trecho (início, fim e meio da solução do candidato), o
+  esqueleto de um lance nunca combinando, `espelho-trecho1` fora do bloco, a
+  faixa de rating, a exclusão de vistos e salvos, o espalhamento do fácil ao
+  difícil.
 - Tarefa: lotes, versão antiga refeita, cancelar e retomar, cobertura gravada.
 - API e interface: rotas de irmãos e imagem, `sibling_of` no salvamento, cartão
   de resultado (erro com botão, acerto só imagem, sem irmãos nada), bloco com
@@ -302,6 +381,9 @@ ouro, decisão e data.
 Cada passo é utilizável sozinho.
 
 Passos 1 a 4 implementados em 2026-09-17 (plano `docs/superpowers/plans/2026-09-16-golpes-fase-a.md`).
+Trechos (§3.5, §5, §8) — busca por pedaço da solução, com procedência em cada
+irmão e placar por procedência na rotulagem — implementados em 2026-09-17,
+dentro do passo 4.
 
 1. Assinatura, tarefa de preparo, cobertura.
 2. Rota de irmãos, imagem, cartão de resultado.
