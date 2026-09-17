@@ -71,9 +71,9 @@ def golpes_irmaos(origem: str, id: str, k: int | None = None, db: Session = Depe
     n = max(1, min(10, s.golpes_bloco if k is None else k))
     excluir = _seen_ids(db, utcnow(), [id] if origem == "lichess" else [])
     excluir |= set(db.scalars(select(Puzzle.external_id).where(Puzzle.external_id.is_not(None))))
-    lo, hi = s.tactics_rating - s.tactics_window, s.tactics_rating + s.tactics_window
     itens = []
-    for irmao in irmaos(db, a, rating_lo=lo, rating_hi=hi, excluir=excluir, k=n):
+    for irmao in irmaos(db, a, rating=s.tactics_rating, abaixo=s.golpes_faixa_abaixo, acima=s.golpes_faixa_acima,
+                        excluir=excluir, k=n):
         try:
             itens.append(IrmaoOut(tier=irmao.tier, tactic=asdict(to_tactic(irmao.row))))
         except ValueError:

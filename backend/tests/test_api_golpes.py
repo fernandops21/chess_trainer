@@ -46,6 +46,26 @@ def test_settings_validam_o_bloco(client):
     assert client.get("/api/settings").json()["golpes_bloco"] == 7
 
 
+def test_settings_validam_a_faixa_do_bloco(client):
+    assert client.put("/api/settings", json={"golpes_faixa_abaixo": -1}).status_code == 422
+    assert client.put("/api/settings", json={"golpes_faixa_abaixo": 1001}).status_code == 422
+    assert client.put("/api/settings", json={"golpes_faixa_acima": -1}).status_code == 422
+    assert client.put("/api/settings", json={"golpes_faixa_acima": 2001}).status_code == 422
+    assert client.put("/api/settings", json={"golpes_faixa_abaixo": 50, "golpes_faixa_acima": 300}).status_code == 200
+    s = client.get("/api/settings").json()
+    assert s["golpes_faixa_abaixo"] == 50 and s["golpes_faixa_acima"] == 300
+
+
+def test_irmaos_usa_a_faixa_configurada(client):
+    """A rota lê `golpes_faixa_abaixo/acima` das configurações: faixa de largura zero em volta
+    do rating escolhe exatamente o puzzle daquele rating, não o mais fácil da cascata."""
+    client.post("/api/golpes/preparar"); client.app.state.jobs.wait()
+    # a própria âncora (p0, 700) sai da busca; a faixa de largura zero em 800 aponta exatamente p1
+    client.put("/api/settings", json={"tactics_rating": 800, "golpes_faixa_abaixo": 0, "golpes_faixa_acima": 0})
+    r = client.get("/api/golpes/lichess/p0/irmaos?k=1").json()
+    assert r["itens"][0]["tactic"]["rating"] == 800
+
+
 def test_irmaos_de_um_puzzle_do_lichess(client):
     client.post("/api/golpes/preparar"); client.app.state.jobs.wait()
     client.put("/api/settings", json={"tactics_rating": 900, "tactics_window": 400})

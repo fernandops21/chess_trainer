@@ -74,7 +74,7 @@ def _item(db: Session, origem: str, aid: str, por_camada: int, rng: random.Rando
         return None
     ja_rotulados = set(db.scalars(
         select(GolpeLabel.candidate_id).where(GolpeLabel.anchor_origem == origem, GolpeLabel.anchor_id == aid)))
-    por_tier = candidatos_por_camada(db, a, rating_lo=0, rating_hi=4000, excluir=ja_rotulados | {aid}, k=por_camada)
+    por_tier = candidatos_por_camada(db, a, excluir=ja_rotulados | {aid}, k=por_camada)
     candidatos = []
     for tier in TIERS:
         for row in por_tier.get(tier, ()):

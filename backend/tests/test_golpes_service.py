@@ -8,6 +8,7 @@ from chess_trainer.core.golpes.service import (
     assinar_proprio,
     assinatura_de,
     cobertura,
+    escolher_por_rating,
     espalhar,
     garantir_assinatura,
     irmaos,
@@ -164,51 +165,115 @@ def test_espalhar_pega_do_facil_ao_dificil():
     assert espalhar([], 3) == []
 
 
-def test_irmaos_em_cascata_com_faixa_e_exclusao(db_session):
-    """Seis iguais (mate do pastor, ratings 700..1200), um só espelho e um só esqueleto — os dois
-    últimos com a assinatura gravada à mão, porque no xadrez real esse mate não existe na outra ala."""
+def test_escolher_por_rating_so_a_faixa():
+    """Cabe tudo na faixa preferida: espalha (fácil ao difícil) sem sair dela."""
+    cands = [(f"p{r}", r) for r in (800, 900, 1000, 1100, 1200)]
+    assert escolher_por_rating(cands, 3, lo=800, hi=1400) == ["p800", "p1000", "p1200"]
+
+
+def test_escolher_por_rating_completa_de_cima():
+    """Faltando na faixa, completa primeiro com os de cima (subindo, mais perto primeiro)."""
+    cands = [("baixo1", 500), ("dentro", 900), ("cima1", 1500), ("cima2", 1600)]
+    assert escolher_por_rating(cands, 3, lo=800, hi=1400) == ["dentro", "cima1", "cima2"]
+
+
+def test_escolher_por_rating_completa_de_cima_e_de_baixo():
+    """De cima esgotado, completa de baixo (descendo, mais perto primeiro)."""
+    cands = [("baixo1", 500), ("baixo2", 700), ("dentro", 900), ("cima1", 1500)]
+    assert escolher_por_rating(cands, 4, lo=800, hi=1400) == ["dentro", "cima1", "baixo2", "baixo1"]
+
+
+def test_escolher_por_rating_vazio():
+    assert escolher_por_rating([], 3, lo=800, hi=1400) == []
+
+
+def test_escolher_por_rating_k_maior_que_tudo():
+    cands = [("a", 900), ("b", 1500)]
+    assert escolher_por_rating(cands, 10, lo=800, hi=1400) == ["a", "b"]
+
+
+def test_irmaos_ignora_rating_para_achar_a_camada(db_session):
+    """Achado do bug: os irmãos exatos ('mesmo') existem só bem acima da faixa preferida; a busca
+    não pode declarar essa camada vazia e cair para o esqueleto — quem decide a camada é o golpe,
+    o rating só escolhe quem aparece no bloco."""
+    from chess_trainer.core.golpes.service import linha_de_assinatura
+    for i in range(3):
+        db_session.add(pastor(f"m{i}", rating=700 + 100 * i))  # 700, 800, 900: acima da faixa
+    db_session.add(pastor("esq", rating=150))  # dentro da faixa, mas só esqueleto
+    db_session.commit()
+    a = assinar(FEN_PASTOR_START, ["h5f7"])
+    for pid in ("m0", "m1", "m2"):
+        db_session.add(linha_de_assinatura(a, LichessPuzzleSignature, pid))
+    esq = linha_de_assinatura(a, LichessPuzzleSignature, "esq")
+    esq.destinos, esq.destinos_esp = 12345, 54321  # mesmo esqueleto e zona, outras casas
+    db_session.add(esq)
+    db_session.commit()
+
+    r = irmaos(db_session, a, rating=200, abaixo=100, acima=100, excluir=set(), k=3)
+    assert [x.tier for x in r] == ["mesmo"] * 3
+    assert {x.row.id for x in r} == {"m0", "m1", "m2"}
+
+
+def test_irmaos_prefere_a_faixa_e_fica_ascendente(db_session):
+    """Seis 'mesmo golpe' (ratings 700..1200): com rating=900, abaixo=100, acima=500 a faixa
+    preferida é 800..1400, então o bloco fica em 800..1200, ascendente."""
     from chess_trainer.core.golpes.service import linha_de_assinatura
     for i in range(6):
         db_session.add(pastor(f"m{i}", rating=700 + 100 * i))
-    db_session.add(pastor("esp", rating=900))
-    db_session.add(pastor("esq", rating=1000))
     db_session.commit()
     a = assinar(FEN_PASTOR_START, ["h5f7"])
-    for pid in (f"m{i}" for i in range(6)):
-        db_session.add(linha_de_assinatura(a, LichessPuzzleSignature, pid))
+    for i in range(6):
+        db_session.add(linha_de_assinatura(a, LichessPuzzleSignature, f"m{i}"))
+    db_session.commit()
+
+    r = irmaos(db_session, a, rating=900, abaixo=100, acima=500, excluir=set(), k=5)
+    assert [x.row.rating for x in r] == [800, 900, 1000, 1100, 1200]
+    assert "m0" not in {x.row.id for x in r}  # 700: fora da faixa e não precisou entrar
+
+
+def test_irmaos_ordena_o_bloco_por_rating_mesmo_cruzando_camadas(db_session):
+    """Um de cada camada, ratings entrelaçados: a ordem final do bloco é por rating, não pela
+    ordem em que a cascata visitou as camadas."""
+    from chess_trainer.core.golpes.service import linha_de_assinatura
+    db_session.add(pastor("m0", rating=1000))
+    db_session.add(pastor("esp", rating=900))
+    db_session.add(pastor("esq", rating=1100))
+    db_session.commit()
+    a = assinar(FEN_PASTOR_START, ["h5f7"])
+    db_session.add(linha_de_assinatura(a, LichessPuzzleSignature, "m0"))
     db_session.add(linha_de_assinatura(a.espelhada(), LichessPuzzleSignature, "esp"))
     esq = linha_de_assinatura(a, LichessPuzzleSignature, "esq")
     esq.destinos, esq.destinos_esp = 12345, 54321  # mesmo esqueleto e zona, outras casas
     db_session.add(esq)
     db_session.commit()
 
-    r = irmaos(db_session, a, rating_lo=650, rating_hi=1250, excluir={"m0"}, k=5)
-    assert [x.tier for x in r] == ["mesmo"] * 5 and "m0" not in {x.row.id for x in r}
-    assert [x.row.rating for x in r] == sorted(x.row.rating for x in r)
-    r2 = irmaos(db_session, a, rating_lo=650, rating_hi=1250, excluir=set(), k=8)
-    assert [x.tier for x in r2] == ["mesmo"] * 6 + ["espelho", "esqueleto"]
-    assert irmaos(db_session, a, rating_lo=2000, rating_hi=2200, excluir=set(), k=5) == []
+    r = irmaos(db_session, a, rating=1000, abaixo=200, acima=200, excluir=set(), k=3)
+    assert [x.row.id for x in r] == ["esp", "m0", "esq"]
+    assert [x.tier for x in r] == ["espelho", "mesmo", "esqueleto"]
 
 
 def test_irmaos_respeita_popularidade(db_session):
     db_session.add(pastor("pop", popularity=10))
     db_session.commit()
     preparar(db_session, lambda *a: None)
-    assert irmaos(db_session, assinar(FEN_PASTOR_START, ["h5f7"]), rating_lo=0, rating_hi=3000, excluir=set()) == []
+    assert irmaos(db_session, assinar(FEN_PASTOR_START, ["h5f7"]), rating=1500, abaixo=1500, acima=1500,
+                  excluir=set()) == []
 
 
 def test_irmaos_respeita_o_limite_de_candidatos(db_session, monkeypatch):
-    """Com o limite baixo, só os mais fáceis dentro dele entram — mesmo pedindo mais e havendo mais
-    no banco: o corte é feito na consulta (fácil ao difícil), antes de carregar as linhas escolhidas."""
+    """Com o limite baixo, só os mais próximos do centro da faixa preferida entram — mesmo pedindo
+    mais e havendo mais no banco: o corte é feito na consulta (mais perto do centro), antes de
+    espalhar e de carregar as linhas escolhidas."""
     from chess_trainer.core.golpes.service import linha_de_assinatura
     monkeypatch.setattr("chess_trainer.core.golpes.service.LIMITE_CANDIDATOS", 3)
     for i in range(6):
-        db_session.add(pastor(f"lim{i}", rating=700 + 100 * i))
+        db_session.add(pastor(f"lim{i}", rating=700 + 100 * i))  # 700..1200
     db_session.commit()
     a = assinar(FEN_PASTOR_START, ["h5f7"])
     for i in range(6):
         db_session.add(linha_de_assinatura(a, LichessPuzzleSignature, f"lim{i}"))
     db_session.commit()
 
-    r = irmaos(db_session, a, rating_lo=650, rating_hi=1250, excluir=set(), k=6)
-    assert [x.row.rating for x in r] == [700, 800, 900]
+    # faixa 650..1250, centro 950: os três mais próximos do centro são 900, 1000 e 800
+    r = irmaos(db_session, a, rating=950, abaixo=300, acima=300, excluir=set(), k=6)
+    assert [x.row.rating for x in r] == [800, 900, 1000]

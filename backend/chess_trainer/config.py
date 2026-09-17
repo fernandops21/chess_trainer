@@ -49,6 +49,10 @@ class AppSettings:
     # golpes: cartão "Repetir o golpe" e tamanho do bloco de irmãos
     golpes_enabled: bool = True
     golpes_bloco: int = 5
+    # faixa preferida do bloco em volta do rating de táticas: a busca de irmãos ignora rating
+    # (quem decide a camada é o golpe); a faixa só escolhe quem aparece, do mais fácil ao mais difícil
+    golpes_faixa_abaixo: int = 100
+    golpes_faixa_acima: int = 500
 
 
 def get_setting(db: Session, key: str, default: Any = None) -> Any:

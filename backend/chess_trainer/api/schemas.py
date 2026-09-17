@@ -37,6 +37,8 @@ class SettingsOut(BaseModel):
     langfuse_host: str
     golpes_enabled: bool
     golpes_bloco: int
+    golpes_faixa_abaixo: int
+    golpes_faixa_acima: int
 
 
 class SettingsIn(BaseModel):
@@ -74,6 +76,9 @@ class SettingsIn(BaseModel):
     golpes_enabled: bool | None = None
     # tamanho do bloco de irmãos no cartão "Repetir o golpe"
     golpes_bloco: int | None = Field(None, ge=3, le=10)
+    # faixa preferida do bloco em volta do rating de táticas (pontos abaixo/acima)
+    golpes_faixa_abaixo: int | None = Field(None, ge=0, le=1000)
+    golpes_faixa_acima: int | None = Field(None, ge=0, le=2000)
 
 
 class GameOut(BaseModel):

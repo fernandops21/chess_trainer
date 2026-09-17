@@ -173,7 +173,8 @@ class Irmao:
     tier: str  # mesmo | espelho | esqueleto
 
 
-# ordenado do fácil ao difícil, 5000 é mais do que qualquer bloco espalha e cabe na memória
+# cortados pelos mais próximos do centro da faixa preferida (ou do fácil ao difícil, em
+# `candidatos_por_camada`); 5000 é mais do que qualquer bloco espalha e cabe na memória
 LIMITE_CANDIDATOS = 5000
 
 
@@ -188,16 +189,39 @@ def espalhar(itens: list, k: int) -> list:
     return [itens[p] for p in posicoes]
 
 
-def _candidatos(db: Session, cond, rating_lo: int, rating_hi: int, excluir: set[str], min_popularity: int,
-                min_plays: int) -> list[str]:
-    """Ids candidatos, do fácil ao difícil, sem materializar a linha inteira nem a tabela toda:
-    só (id, rating), até `LIMITE_CANDIDATOS`; a exclusão é aplicada depois, em Python."""
+def _candidatos(db: Session, cond, excluir: set[str], centro: int, min_popularity: int,
+                min_plays: int) -> list[tuple[str, int]]:
+    """Ids e rating candidatos, sem materializar a linha inteira nem a tabela toda: só (id,
+    rating), até `LIMITE_CANDIDATOS` — os mais próximos de `centro`, não os mais fáceis: quem
+    decide a camada é o golpe (sem filtro de rating aqui), e o corte de segurança deve cobrir a
+    faixa preferida em volta de `centro`, não só as táticas mais fáceis do banco. A exclusão é
+    aplicada depois, em Python."""
     q = (select(LichessPuzzle.id, LichessPuzzle.rating)
          .join(LichessPuzzleSignature, LichessPuzzleSignature.puzzle_id == LichessPuzzle.id)
-         .where(cond, LichessPuzzle.rating.between(rating_lo, rating_hi),
-                LichessPuzzle.popularity >= min_popularity, LichessPuzzle.nb_plays >= min_plays)
-         .order_by(LichessPuzzle.rating, LichessPuzzle.id).limit(LIMITE_CANDIDATOS))
-    return [pid for pid, _rating in db.execute(q) if pid not in excluir]
+         .where(cond, LichessPuzzle.popularity >= min_popularity, LichessPuzzle.nb_plays >= min_plays)
+         .order_by(func.abs(LichessPuzzle.rating - centro), LichessPuzzle.id).limit(LIMITE_CANDIDATOS))
+    return [(pid, rating) for pid, rating in db.execute(q) if pid not in excluir]
+
+
+def escolher_por_rating(cands: list[tuple[str, int]], k: int, lo: int, hi: int) -> list[str]:
+    """Dos candidatos (id, rating) de uma camada, escolhe até k para o bloco: a busca de irmãos
+    ignora rating (quem decide a camada é o golpe), mas o bloco mostra do fácil ao difícil dentro
+    da faixa preferida `[lo, hi]` do usuário. Primeiro espalha (fácil → difícil) os que caem na
+    faixa; faltando, completa com os mais próximos de fora dela — primeiro os de cima (subindo),
+    depois os de baixo (descendo, o mais perto primeiro)."""
+    dentro = sorted(((r, pid) for pid, r in cands if lo <= r <= hi))
+    escolhidos = espalhar([pid for _r, pid in dentro], k)
+    faltam = k - len(escolhidos)
+    if faltam <= 0:
+        return escolhidos
+    acima = sorted((r, pid) for pid, r in cands if r > hi)
+    escolhidos += [pid for _r, pid in acima[:faltam]]
+    faltam = k - len(escolhidos)
+    if faltam <= 0:
+        return escolhidos
+    abaixo = sorted(((-r, pid) for pid, r in cands if r < lo))
+    escolhidos += [pid for _r, pid in abaixo[:faltam]]
+    return escolhidos
 
 
 def _camadas(a: Assinatura):
@@ -212,41 +236,50 @@ def _camadas(a: Assinatura):
     ]
 
 
-def irmaos(db: Session, a: Assinatura, *, rating_lo: int, rating_hi: int, excluir: set[str], k: int = 5,
-           min_popularity: int = 50, min_plays: int = 50) -> list[Irmao]:
-    """Cascata (spec §5): mesmo golpe → espelho → esqueleto na mesma zona. Cada camada enche o que
-    falta, espalhada do fácil ao difícil; o que já saiu numa camada não volta na seguinte. Ids
-    primeiro, linhas completas só dos escolhidos no final: a tabela do Lichess tem milhões de linhas."""
-    escolhidos: list[tuple[str, str]] = []  # (id, tier), já na ordem final
+def irmaos(db: Session, a: Assinatura, *, rating: int, abaixo: int = 100, acima: int = 500, excluir: set[str],
+           k: int = 5, min_popularity: int = 50, min_plays: int = 50) -> list[Irmao]:
+    """Cascata (spec §5): mesmo golpe → espelho → esqueleto na mesma zona. A busca de irmãos
+    ignora rating (quem decide a camada é o golpe); o rating só escolhe quem aparece no bloco,
+    preferindo a faixa `[rating - abaixo, rating + acima]` e completando de fora dela quando falta
+    (`escolher_por_rating`). O que já saiu numa camada não volta na seguinte. Ids primeiro, linhas
+    completas só dos escolhidos no final: a tabela do Lichess tem milhões de linhas. O bloco final
+    fica em ordem ascendente de rating, mesmo cruzando camadas."""
+    lo, hi = rating - abaixo, rating + acima
+    centro = (lo + hi) // 2
+    escolhidos: list[tuple[str, str]] = []  # (id, tier)
     usados = set(excluir)
     for tier, cond in _camadas(a):
         if len(escolhidos) >= k:
             break
-        ids = _candidatos(db, cond, rating_lo, rating_hi, usados, min_popularity, min_plays)
-        for pid in espalhar(ids, k - len(escolhidos)):
+        cands = _candidatos(db, cond, usados, centro, min_popularity, min_plays)
+        for pid in escolher_por_rating(cands, k - len(escolhidos), lo, hi):
             escolhidos.append((pid, tier))
             usados.add(pid)
     linhas = {r.id: r for r in db.scalars(
         select(LichessPuzzle).where(LichessPuzzle.id.in_([pid for pid, _tier in escolhidos])))}
+    escolhidos.sort(key=lambda par: (linhas[par[0]].rating, par[0]))
     return [Irmao(linhas[pid], tier) for pid, tier in escolhidos]
 
 
-def candidatos_por_camada(db: Session, a: Assinatura, *, rating_lo: int, rating_hi: int, excluir: set[str], k: int,
+def candidatos_por_camada(db: Session, a: Assinatura, *, excluir: set[str], k: int,
                           min_popularity: int = 50, min_plays: int = 50) -> dict[str, list[LichessPuzzle]]:
     """As três camadas da cascata (spec §5) à parte, até `k` de cada uma, espalhadas do fácil
-    ao difícil — diferente de `irmaos`, que cascateia até completar `k` no total e por isso
-    nunca chega às camadas seguintes quando a primeira já basta sozinha. Quem combina com uma
-    camada mais específica não some pelas mais frouxas mesmo sem ter sido um dos `k` escolhidos
-    ali (senão o mesmo puzzle apareceria de novo, rotulado uma vez como "mesmo" e outra como
-    "esqueleto"): por isso o que exclui a camada seguinte é todo mundo que combinou, não só os
-    escolhidos. A rotulagem usa esta função porque precisa ver as três camadas para formar o
-    conjunto de ouro."""
+    ao difícil (sem faixa de rating: a rotulagem julga o golpe, não a dificuldade) — diferente de
+    `irmaos`, que cascateia até completar `k` no total e por isso nunca chega às camadas seguintes
+    quando a primeira já basta sozinha. Quem combina com uma camada mais específica não some pelas
+    mais frouxas mesmo sem ter sido um dos `k` escolhidos ali (senão o mesmo puzzle apareceria de
+    novo, rotulado uma vez como "mesmo" e outra como "esqueleto"): por isso o que exclui a camada
+    seguinte é todo mundo que combinou, não só os escolhidos. A rotulagem usa esta função porque
+    precisa ver as três camadas para formar o conjunto de ouro."""
     usados = set(excluir)
     ids_por_tier: dict[str, list[str]] = {}
     for tier, cond in _camadas(a):
-        combinam = _candidatos(db, cond, rating_lo, rating_hi, usados, min_popularity, min_plays)
-        ids_por_tier[tier] = espalhar(combinam, k)
-        usados |= set(combinam)
+        # `centro=0`: rating nunca é negativo, então `abs(rating - 0) == rating` e a ordem
+        # sai crescente — os candidatos vêm do fácil ao difícil sem precisar de outra consulta.
+        combinam = _candidatos(db, cond, usados, 0, min_popularity, min_plays)
+        ids = [pid for pid, _rating in combinam]
+        ids_por_tier[tier] = espalhar(ids, k)
+        usados |= set(ids)
     linhas = {r.id: r for r in db.scalars(
         select(LichessPuzzle).where(LichessPuzzle.id.in_([pid for ids in ids_por_tier.values() for pid in ids])))}
     return {tier: [linhas[pid] for pid in ids] for tier, ids in ids_por_tier.items()}
