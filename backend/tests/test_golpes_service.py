@@ -362,3 +362,99 @@ def test_espelho_trecho1_nunca_entra_no_bloco(db_session):
 
     r = irmaos(db_session, FEN_PASTOR_START, ["h5f7"], rating=1000, abaixo=500, acima=500, excluir=set(), k=5)
     assert "esp1" not in {x.row.id for x in r}
+
+
+# --- padrão de mate na cascata (spec golpes design §3.6) ---------------------
+
+# 36.Rb8+ Qd8 37.Rxd8+ Ne8 38.Rxe8#: mate do corredor com três lances de quem soluciona
+# (a linha real do usuário, com o abrigo de peões completo — ver nota em test_golpes_mates.py
+# sobre a versão exata do jogo, cuja casa h7 vazia não bate com a regra literal do corredor)
+FEN_CORREDOR_USUARIO = "6k1/5ppp/5n2/2pqp3/r1N5/2PQ1P1P/6P1/1R4K1 w - - 0 36"
+MOVES_CORREDOR_USUARIO = ["b1b8", "d5d8", "b8d8", "f6e8", "d8e8"]
+
+
+def _marcar_temas(db, pid, *temas):
+    from chess_trainer.core.models import LichessPuzzleTheme
+    for t in temas:
+        db.add(LichessPuzzleTheme(theme=t, puzzle_id=pid))
+
+
+def test_padrao_mate_entra_antes_do_trecho1_e_prefere_o_mate_in_da_ancora(db_session):
+    """Âncora de mate do corredor, três lances: sem nada batendo por assinatura (inteira,
+    trecho3, trecho2), o degrau `padrao-mate` acha os candidatos etiquetados pelo Lichess —
+    primeiro `backRankMate` + `mateIn3` (o tamanho da própria âncora), depois `backRankMate`
+    sozinho — antes de `trecho1` ter a chance de entrar no bloco (spec golpes design §3.6/§5)."""
+    from chess_trainer.core.golpes.assinatura import trechos as _trechos
+    from chess_trainer.core.golpes.service import linha_de_trecho
+
+    # só alcançável por trecho1: repete o primeiro lance da âncora (1.Rb8+) como início da dele
+    db_session.add(pastor("t1", rating=1000))
+    meu_trecho1 = next(t for t in _trechos(FEN_CORREDOR_USUARIO, MOVES_CORREDOR_USUARIO) if t.inicio == 0 and t.n == 1)
+    db_session.add(linha_de_trecho(meu_trecho1, "t1"))
+
+    db_session.add(lichess("m3", FEN_PASTOR_ANTES, MOVES_PASTOR, rating=1000))
+    db_session.add(lichess("m2", FEN_PASTOR_ANTES, MOVES_PASTOR, rating=1000))
+    db_session.add(lichess("semtag", FEN_PASTOR_ANTES, MOVES_PASTOR, rating=1000))
+    db_session.commit()
+    _marcar_temas(db_session, "m3", "backRankMate", "mateIn3")
+    _marcar_temas(db_session, "m2", "backRankMate", "mateIn2")
+    _marcar_temas(db_session, "semtag", "backRankMate")
+    db_session.commit()
+
+    r = irmaos(db_session, FEN_CORREDOR_USUARIO, MOVES_CORREDOR_USUARIO, rating=1000, abaixo=500, acima=500,
+              excluir=set(), k=2)
+    ids = {x.row.id for x in r}
+    assert ids == {"m3", "m2"}  # o degrau padrao-mate preenche o bloco antes de sobrar vez para o trecho1
+    proc = {x.row.id: x.procedencia for x in r}
+    assert proc["m3"].degrau == "padrao-mate" and proc["m3"].nivel == "backRankMate"
+    assert proc["m3"].n == 3 and proc["m3"].posicao == "inteira" and proc["m3"].espelhado is False
+    assert proc["m2"].degrau == "padrao-mate" and proc["m2"].nivel == "backRankMate" and proc["m2"].n == 3
+
+
+def test_padrao_mate_nao_repete_quem_ja_saiu_na_subconsulta_anterior(db_session):
+    """As duas subconsultas do degrau (`mateIn{n}` e depois só o tema) não devolvem o mesmo
+    puzzle duas vezes: quem já saiu na primeira sai da exclusão da segunda."""
+    db_session.add(lichess("m3", FEN_PASTOR_ANTES, MOVES_PASTOR, rating=1000))
+    db_session.add(lichess("m2", FEN_PASTOR_ANTES, MOVES_PASTOR, rating=1000))
+    db_session.add(lichess("semtag", FEN_PASTOR_ANTES, MOVES_PASTOR, rating=1000))
+    db_session.commit()
+    _marcar_temas(db_session, "m3", "backRankMate", "mateIn3")
+    _marcar_temas(db_session, "m2", "backRankMate", "mateIn2")
+    _marcar_temas(db_session, "semtag", "backRankMate")
+    db_session.commit()
+
+    r = irmaos(db_session, FEN_CORREDOR_USUARIO, MOVES_CORREDOR_USUARIO, rating=1000, abaixo=500, acima=500,
+              excluir=set(), k=5)
+    ids = [x.row.id for x in r]
+    assert sorted(ids) == ["m2", "m3", "semtag"] and len(ids) == len(set(ids))
+    assert all(x.procedencia.degrau == "padrao-mate" for x in r)
+
+
+def test_padrao_mate_ausente_num_exercicio_que_nao_termina_em_mate(db_session):
+    """Sem xeque-mate no fim da solução, o degrau `padrao-mate` nunca entra na cascata — mesmo
+    havendo puzzles do Lichess etiquetados com um padrão de mate no banco."""
+    db_session.add(lichess("m3", FEN_PASTOR_ANTES, MOVES_PASTOR, rating=1000))
+    db_session.commit()
+    _marcar_temas(db_session, "m3", "backRankMate", "mateIn3")
+    db_session.commit()
+
+    r = irmaos(db_session, FEN_QXD4, ["d1d4"], rating=1000, abaixo=1000, acima=1000, excluir=set(), k=5)
+    assert all(x.procedencia.degrau != "padrao-mate" for x in r)
+    assert "m3" not in {x.row.id for x in r}
+
+
+def test_padrao_mate_no_placar_de_votos(db_session):
+    """O voto sobre um irmão do degrau `padrao-mate` é gravado com esse tier e agrupado à
+    parte no placar (spec golpes trechos §8) — o tema (`nivel`), até 13 letras
+    (`smotheredMate`), cabe na coluna alargada de `GolpeLabel.nivel`."""
+    from chess_trainer.core.golpes.votos import resumo, votar
+    from chess_trainer.core.models import GolpeLabel
+    db_session.add(pastor("anc", rating=800))
+    db_session.add(pastor("cand", rating=850))
+    db_session.commit()
+    votar(db_session, anchor_origem="lichess", anchor_id="anc", candidate_id="cand", tier="padrao-mate",
+         label="mesmo", n_lances=3, posicao="inteira", nivel="backRankMate", espelhado=False)
+    linha = db_session.query(GolpeLabel).one()
+    assert linha.nivel == "backRankMate"
+    por_tier = {l["tier"]: l for l in resumo(db_session)}
+    assert por_tier["padrao-mate"]["mesmo"] == 1 and por_tier["padrao-mate"]["total"] == 1

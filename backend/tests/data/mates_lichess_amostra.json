@@ -1,0 +1,1442 @@
+[
+{
+"id": "01oma",
+"fen": "r4q1k/1p4pp/1n2Q1pN/p3P3/Pbp1P3/3p4/1P2B1PP/5RK1 b - - 5 25",
+"moves": "d3e2 f1f8 a8f8 e6g8 f8g8 h6f7",
+"themes": "kingsideAttack long mate mateIn3 middlegame sacrifice smotheredMate"
+},
+{
+"id": "02U15",
+"fen": "3rkbnr/pp1b1ppp/2n5/2pBP3/4NP2/5N2/PP4PP/R1B1K2R b KQk - 6 12",
+"moves": "g8e7 e4d6",
+"themes": "mate mateIn1 oneMove opening smotheredMate"
+},
+{
+"id": "058MB",
+"fen": "1rR3k1/pQ1b2pp/1p3n2/q3N3/3P4/P7/1B3PPP/6K1 b - - 0 27",
+"moves": "d7c8 b7f7 g8h8 f7f8 f6g8 e5f7",
+"themes": "long mate mateIn3 middlegame smotheredMate"
+},
+{
+"id": "06XV4",
+"fen": "3qkb1r/pb1pppp1/1p3n2/nN4B1/2r5/P3QNP1/1P2PPB1/R4RK1 b k - 4 15",
+"moves": "a7a6 b5d6",
+"themes": "master masterVsMaster mate mateIn1 middlegame oneMove pin smotheredMate"
+},
+{
+"id": "07Qdz",
+"fen": "r1b1k1nr/1pp1qppp/1p6/4n3/1P1p4/P4N2/1B1NPPPP/R2QKB1R w KQkq - 0 11",
+"moves": "b2d4 e5d3",
+"themes": "mate mateIn1 oneMove opening pin smotheredMate"
+},
+{
+"id": "07bg6",
+"fen": "6k1/pb3ppp/1q1p4/8/N7/PP1r1P1n/3Q2PP/1R3R1K w - - 10 28",
+"moves": "d2d3 b6g1 f1g1 h3f2",
+"themes": "mate mateIn2 middlegame sacrifice short smotheredMate"
+},
+{
+"id": "0BSZ7",
+"fen": "r3k2r/1p2ppbp/pq1p2p1/8/3nPPn1/2NB4/PPPQ2PP/R1B2RK1 w kq - 2 16",
+"moves": "c3d5 d4e2 g1h1 b6g1 f1g1 g4f2",
+"themes": "discoveredCheck doubleCheck kingsideAttack long mate mateIn3 middlegame sacrifice smotheredMate"
+},
+{
+"id": "0Di6g",
+"fen": "2rqkbQ1/1p1bn2N/2n2r2/1pp5/3p4/3P4/PPP2PPP/R3R1K1 b - - 1 17",
+"moves": "f6f5 g8g6 f5f7 h7f6",
+"themes": "mate mateIn2 middlegame pin short smotheredMate"
+},
+{
+"id": "0EIBd",
+"fen": "r1bqrbk1/pp3ppp/2p2pn1/5N1P/3P2Q1/3B4/PPP2PP1/R1B2RK1 b - - 0 13",
+"moves": "g6h8 f5h6",
+"themes": "mate mateIn1 oneMove opening pin smotheredMate"
+},
+{
+"id": "0ETW8",
+"fen": "6rk/1b4pp/3NQn2/p7/Pp3q1P/3P4/1P3PP1/1K2R3 b - - 2 25",
+"moves": "b7d5 d6f7",
+"themes": "master masterVsMaster mate mateIn1 middlegame oneMove smotheredMate"
+},
+{
+"id": "0GpyZ",
+"fen": "5Bk1/6pp/p7/1p6/4R3/2P4n/P4qPP/R6K w - - 0 28",
+"moves": "f8d6 f2g1 a1g1 h3f2",
+"themes": "endgame mate mateIn2 sacrifice short smotheredMate"
+},
+{
+"id": "0IWnA",
+"fen": "1r3r1k/5Npp/5p2/1p1Qp3/p2p4/P2n3P/1q3PPK/R1n2R2 b - - 1 30",
+"moves": "h8g8 f7h6 g8h8 d5g8 f8g8 h6f7",
+"themes": "discoveredCheck doubleCheck kingsideAttack long mate mateIn3 middlegame sacrifice smotheredMate"
+},
+{
+"id": "0KdLT",
+"fen": "r5Qk/4P1pp/7N/5p2/4pP1P/6P1/1P2qBK1/8 b - - 8 37",
+"moves": "a8g8 h6f7",
+"themes": "endgame mate mateIn1 oneMove smotheredMate"
+},
+{
+"id": "0MVgZ",
+"fen": "r3kbnr/ppp1qppp/8/3p4/1n1P4/1P6/PBbNNPPP/2RQKB1R w Kkq - 0 9",
+"moves": "c1c2 b4d3",
+"themes": "mate mateIn1 oneMove opening smotheredMate"
+},
+{
+"id": "0Q47e",
+"fen": "r1bqkb1r/1pppnp2/p1n3p1/3N3p/B2pP2P/5N2/PPP2PP1/R1BQK2R b KQkq - 1 8",
+"moves": "b7b5 d5f6",
+"themes": "master mate mateIn1 oneMove opening smotheredMate"
+},
+{
+"id": "0TKak",
+"fen": "r3kb1r/ppp1pppp/5n2/3P1b2/1nP1q3/N7/PP2NPPP/R1BQKB1R w KQkq - 3 8",
+"moves": "c1d2 b4d3",
+"themes": "mate mateIn1 oneMove opening smotheredMate"
+},
+{
+"id": "0TV4F",
+"fen": "r1bqkb1r/pp1nppp1/2p4p/6B1/4N3/8/PPP1QPPP/R3KBNR b KQkq - 1 8",
+"moves": "h6g5 e4d6",
+"themes": "mate mateIn1 oneMove opening pin smotheredMate"
+},
+{
+"id": "0Te90",
+"fen": "rn1qkb1r/pp2pppp/2p2n2/8/4N3/8/PPPPQPPP/R1B1KB1R b KQkq - 0 7",
+"moves": "b8d7 e4d6",
+"themes": "mate mateIn1 oneMove opening pin smotheredMate"
+},
+{
+"id": "0Ul9h",
+"fen": "r2qkb1r/1ppnnbpp/3N1p2/1Q1Pp3/4N1P1/2P1B2P/PP3P2/R4RK1 b kq - 0 19",
+"moves": "c7d6 e4d6",
+"themes": "mate mateIn1 middlegame oneMove smotheredMate"
+},
+{
+"id": "0V8Fr",
+"fen": "rnbqkb1r/1p1pnpp1/p1p1p2p/4P1B1/2PPN3/5N2/PP3PPP/R2QKB1R b KQkq - 1 8",
+"moves": "h6g5 e4d6",
+"themes": "mate mateIn1 oneMove opening smotheredMate"
+},
+{
+"id": "0WwmS",
+"fen": "5rk1/6pp/p3N3/8/1Ppbnq2/P7/6PP/3QR2K w - - 0 29",
+"moves": "d1d4 f4f1 e1f1 f8f1 d4g1 e4f2",
+"themes": "endgame long master mate mateIn3 pin sacrifice smotheredMate"
+},
+{
+"id": "0XnGM",
+"fen": "5r1k/bp4pp/p2pb3/4P2q/1PPp2n1/P2P2Q1/3B1PBP/R5RK w - - 1 30",
+"moves": "f2f4 h5h2 g3h2 g4f2",
+"themes": "kingsideAttack mate mateIn2 middlegame sacrifice short smotheredMate"
+},
+{
+"id": "0YPGX",
+"fen": "r4rk1/1pp3pp/p3Q2N/8/8/7P/Pq3PPK/RN6 b - - 4 20",
+"moves": "g8h8 e6g8 f8g8 h6f7",
+"themes": "mate mateIn2 middlegame sacrifice short smotheredMate"
+},
+{
+"id": "0kuMo",
+"fen": "r1b1k2r/ppppqppp/8/3PN3/1b1n4/6P1/PP1PPP1P/R1BQKB1R w KQkq - 1 8",
+"moves": "e5d3 d4f3",
+"themes": "mate mateIn1 oneMove opening pin smotheredMate"
+},
+{
+"id": "0vQcy",
+"fen": "2rqkb1r/3bpppp/8/1p6/1pRPN3/5N2/PP2QPPP/4KB1R b Kk - 0 14",
+"moves": "b5c4 e4d6",
+"themes": "mate mateIn1 middlegame oneMove pin smotheredMate"
+},
+{
+"id": "0wZOG",
+"fen": "2r2bk1/Q4ppp/1p2pn2/4N3/3P4/8/1q3PPP/4R1K1 b - - 0 25",
+"moves": "c8c1 a7f7 g8h8 f7f8 f6g8 e5f7",
+"themes": "deflection long mate mateIn3 middlegame smotheredMate"
+},
+{
+"id": "0wZTL",
+"fen": "5r1k/4pNbp/p2pQ1p1/1p6/5p2/3n2P1/4R1KP/3q4 b - - 3 37",
+"moves": "h8g8 f7h6 g8h8 e6g8 f8g8 h6f7",
+"themes": "discoveredCheck doubleCheck long mate mateIn3 middlegame sacrifice smotheredMate"
+},
+{
+"id": "125yA",
+"fen": "2kr4/pppq1ppp/8/2b1p2b/2B1P3/4Qn2/PPP1N2P/R1K4R w - - 0 17",
+"moves": "e3c5 d7d2 c1b1 d2d1 h1d1 d8d1 e2c1 f3d2",
+"themes": "mate mateIn4 middlegame queensideAttack sacrifice smotheredMate veryLong"
+},
+{
+"id": "131bq",
+"fen": "1n3rk1/6pp/7N/8/3q4/8/Q4RPP/1q3BK1 b - - 1 32",
+"moves": "g8h8 a2g8 f8g8 h6f7",
+"themes": "mate mateIn2 middlegame sacrifice short smotheredMate"
+},
+{
+"id": "13863",
+"fen": "5r2/1k2b3/p3p3/qP1pP2p/2pPn1p1/2P1B3/Q5PP/7K w - - 0 34",
+"moves": "a2a5 f8f1 e3g1 e4f2",
+"themes": "endgame mate mateIn2 short smotheredMate"
+},
+{
+"id": "15PRk",
+"fen": "Q6r/1pp3kp/5p2/2b5/2Nq2b1/3n4/P2N2PP/R4R1K w - - 7 26",
+"moves": "a8b7 d4g1 f1g1 d3f2",
+"themes": "mate mateIn2 middlegame sacrifice short smotheredMate"
+},
+{
+"id": "15nMO",
+"fen": "r1b1k2r/pp1pbppp/5n2/q1p1p3/2PnP3/2NP2P1/PP1BNP1P/R2QKB1R w KQkq - 3 8",
+"moves": "c3d5 d4f3",
+"themes": "mate mateIn1 oneMove opening smotheredMate"
+},
+{
+"id": "194iw",
+"fen": "r1bqkbnr/pp1p1ppp/8/1R1nPN2/8/P7/2PBPPPP/3QKB1R b Kkq - 0 13",
+"moves": "d5e7 f5d6",
+"themes": "mate mateIn1 oneMove opening smotheredMate"
+},
+{
+"id": "1BekD",
+"fen": "1r3r1k/5Nbp/4Q1p1/8/5P2/6P1/Pq1N1P1P/3nK2R b K - 2 20",
+"moves": "h8g8 f7h6 g8h8 e6g8 f8g8 h6f7",
+"themes": "discoveredCheck doubleCheck long mate mateIn3 middlegame sacrifice smotheredMate"
+},
+{
+"id": "1FSuW",
+"fen": "r2qkbnr/pp1npppp/2p5/5b2/4NP2/5N2/PPPPQ1PP/R1B1KB1R b KQkq - 4 6",
+"moves": "h7h5 e4d6",
+"themes": "mate mateIn1 oneMove opening pin smotheredMate"
+},
+{
+"id": "1FrhY",
+"fen": "2r2rQk/6pp/p6N/1pP2p2/1P5q/2R4P/P4PP1/6K1 b - - 5 34",
+"moves": "f8g8 h6f7",
+"themes": "endgame mate mateIn1 oneMove smotheredMate"
+},
+{
+"id": "1IqRp",
+"fen": "6k1/p1p2ppp/1p5q/5n2/N1P2b2/1PBPrN2/P5PP/4R1QK w - - 6 24",
+"moves": "e1e3 f5g3",
+"themes": "mate mateIn1 middlegame oneMove pin smotheredMate"
+},
+{
+"id": "1N6Db",
+"fen": "5k2/p4prp/7Q/5p2/1P6/3q4/PP1NnPPP/4N1KR w - - 1 28",
+"moves": "g1f1 e2g3 f1g1 d3f1 d2f1 g3e2",
+"themes": "discoveredCheck doubleCheck long mate mateIn3 middlegame sacrifice smotheredMate"
+},
+{
+"id": "1O0X1",
+"fen": "2b1k2r/1p3p2/2pp4/2q1p1p1/1PP1P1n1/3Q2B1/2P1N1PP/r4R1K w k - 0 20",
+"moves": "b4c5 a1f1 e2g1 h8h2 g3h2 g4f2",
+"themes": "hangingPiece kingsideAttack long master mate mateIn3 middlegame smotheredMate"
+},
+{
+"id": "1QIMT",
+"fen": "1r4k1/4Qp2/1q1p2pp/3P1P2/p5n1/P7/1PB3PP/1R2R1K1 w - - 5 41",
+"moves": "g1h1 g4f2 h1g1 f2h3 g1h1 b6g1 e1g1 h3f2",
+"themes": "discoveredCheck doubleCheck kingsideAttack mate mateIn4 middlegame sacrifice smotheredMate veryLong"
+},
+{
+"id": "01GBu",
+"fen": "5r1k/3p2bp/p4pp1/qp1br3/4P3/1Q4B1/PP2RPPP/4R1K1 w - - 0 23",
+"moves": "e4d5 a5e1 e2e1 e5e1",
+"themes": "backRankMate mate mateIn2 middlegame short xRayAttack"
+},
+{
+"id": "01pl8",
+"fen": "3r4/pR1N2p1/2p2p1k/4p2p/2B1Pn1N/1P6/P1P2PPP/3R2K1 w - - 4 31",
+"moves": "d7f6 d8d1 c4f1 f4e2 g1h1 d1f1",
+"themes": "backRankMate deflection hangingPiece long mate mateIn3 middlegame pin"
+},
+{
+"id": "01srl",
+"fen": "2r1r3/pQ5p/5kp1/1P6/P7/8/5PPP/4R1K1 w - - 1 34",
+"moves": "e1e8 c8c1 e8e1 c1e1",
+"themes": "backRankMate endgame mate mateIn2 queenRookEndgame short"
+},
+{
+"id": "024fF",
+"fen": "1k5r/ppp5/nr3pRp/4pB2/3pPP2/qP1P3P/2PQ1P2/1K4R1 b - - 0 23",
+"moves": "a6b4 g6g8 h8g8 g1g8",
+"themes": "backRankMate mate mateIn2 middlegame short"
+},
+{
+"id": "02QKd",
+"fen": "2r3k1/1p1p1ppp/1P2p3/8/6n1/7q/1PPPPP1P/R1BQ1nK1 b - - 0 18",
+"moves": "c8c5 a1a8 c5c8 a8c8",
+"themes": "backRankMate mate mateIn2 middlegame short"
+},
+{
+"id": "033rG",
+"fen": "5r1k/1p3qbp/6p1/2P5/1P1Q4/8/6PP/3R1NK1 w - - 1 29",
+"moves": "d4d6 f7f2 g1h1 f2f1 d1f1 f8f1",
+"themes": "backRankMate deflection endgame long mate mateIn3"
+},
+{
+"id": "038TX",
+"fen": "3r2k1/5ppp/brn1p3/2Q5/8/Rp1q1NB1/3N1PPP/1R4K1 w - - 1 25",
+"moves": "c5b6 d3b1 d2b1 d8d1 f3e1 d1e1",
+"themes": "backRankMate clearance fork long mate mateIn3 middlegame sacrifice"
+},
+{
+"id": "03xmY",
+"fen": "1RQ2bk1/7p/3p1rp1/2p5/P1P1p3/8/q4PPP/1R4K1 w - - 2 35",
+"moves": "c8c6 a2f2 g1h1 f2f1 b1f1 f6f1",
+"themes": "backRankMate endgame long mate mateIn3 sacrifice"
+},
+{
+"id": "04qGt",
+"fen": "5rk1/6pp/3R4/p7/1p5q/1P1Q4/2B3PP/R3r2K w - - 1 34",
+"moves": "a1e1 h4e1 d3f1 f8f1",
+"themes": "backRankMate endgame mate mateIn2 short"
+},
+{
+"id": "05UHr",
+"fen": "5rbk/p5b1/1p3NQp/4p3/2PnP3/3P4/PP4PP/5RK1 w - - 1 26",
+"moves": "f6g8 d4e2 g1h1 f8f1",
+"themes": "backRankMate deflection endgame mate mateIn2 short"
+},
+{
+"id": "05k87",
+"fen": "3r2k1/5ppp/R7/1p3P2/4rnP1/2N4P/PPP5/2K5 w - - 0 25",
+"moves": "c3e4 f4e2 c1b1 d8d1",
+"themes": "backRankMate endgame mate mateIn2 short"
+},
+{
+"id": "05nsE",
+"fen": "r4rk1/ppn3p1/1np1p1B1/4p3/2PP1q2/1P4R1/PB4PP/R2Q2K1 w - - 4 24",
+"moves": "d1h5 f4f2 g1h1 f2f1 a1f1 f8f1",
+"themes": "backRankMate fork long mate mateIn3 middlegame sacrifice"
+},
+{
+"id": "06Nmx",
+"fen": "1k3r2/pp6/3p3p/8/1q6/2Q5/P4P2/K1R5 b - - 0 31",
+"moves": "b4f4 c3c7 b8a8 c7c8 f8c8 c1c8",
+"themes": "backRankMate endgame long mate mateIn3 sacrifice"
+},
+{
+"id": "06X5t",
+"fen": "5rk1/p4q1p/1p4p1/4Q3/8/P1P1P3/1P4PP/R5K1 w - - 1 23",
+"moves": "e5e4 f7f2 g1h1 f2f1 a1f1 f8f1",
+"themes": "backRankMate endgame long mate mateIn3 sacrifice"
+},
+{
+"id": "07Dtq",
+"fen": "2k3r1/pp3p2/1p1p3p/4P3/1P2P3/P4q2/3Q1PrP/2RR1K2 b - - 2 25",
+"moves": "c8b8 d2d6 b8a8 d6d8 g8d8 d1d8",
+"themes": "backRankMate endgame long mate mateIn3 sacrifice"
+},
+{
+"id": "07YH3",
+"fen": "7k/p4p1p/4rp2/4q3/2Q5/1P6/P4PPP/3R1K2 w - - 5 28",
+"moves": "c4d4 e5e2 f1g1 e2e1 d1e1 e6e1",
+"themes": "backRankMate endgame long mate mateIn3 sacrifice"
+},
+{
+"id": "07ZWX",
+"fen": "6k1/pp4p1/2p5/5r2/4n2Q/8/PPq2PPP/4R1K1 w - - 0 24",
+"moves": "h4e4 c2f2 g1h1 f2f1 e1f1 f5f1",
+"themes": "backRankMate endgame long mate mateIn3 sacrifice"
+},
+{
+"id": "07a30",
+"fen": "5rk1/p5b1/bq4pB/8/4Q2R/2P5/PP3PPP/5RK1 w - - 15 27",
+"moves": "f1d1 b6f2 g1h1 f2f1 d1f1 f8f1",
+"themes": "backRankMate long mate mateIn3 middlegame sacrifice"
+},
+{
+"id": "08xqh",
+"fen": "4rrk1/pppbQp1p/5npB/3P4/8/2N3R1/P1q2PPP/1R4K1 w - - 2 20",
+"moves": "e7f6 c2b1 c3b1 e8e1",
+"themes": "backRankMate mate mateIn2 middlegame sacrifice short"
+},
+{
+"id": "08zLJ",
+"fen": "r5k1/3bQ1pp/3pp3/p1p5/4P3/2NP3P/1q4P1/5R1K b - - 1 24",
+"moves": "b2c3 e7f7 g8h8 f7f8 a8f8 f1f8",
+"themes": "backRankMate endgame fork long mate mateIn3 sacrifice"
+},
+{
+"id": "097wk",
+"fen": "2r3k1/p3Qp1p/1p2p1p1/4P3/q4P2/6P1/PP5P/1K1R4 w - - 8 30",
+"moves": "e7d7 a4c2 b1a1 c2c1 d1c1 c8c1",
+"themes": "backRankMate endgame long mate mateIn3 sacrifice"
+},
+{
+"id": "09MFh",
+"fen": "5qk1/2Q3p1/1p2p2p/p3N3/3Pn3/PP2P3/1B3PPP/6K1 w - - 7 31",
+"moves": "c7b6 f8f2 g1h1 f2e1",
+"themes": "backRankMate endgame fork mate mateIn2 short"
+},
+{
+"id": "09m1d",
+"fen": "rn1r1k2/1p3ppp/p1pq1p2/3B4/3P4/2P3P1/PP2QP1P/1K2R1NR b - - 0 16",
+"moves": "d6d5 e2e7 f8g8 e7e8 d8e8 e1e8",
+"themes": "backRankMate long mate mateIn3 middlegame sacrifice"
+},
+{
+"id": "09xRv",
+"fen": "6k1/6pp/Q3pp2/3p3q/2pP1P2/2P2NP1/Pr6/4R1K1 b - - 2 33",
+"moves": "h5f3 a6e6 g8h8 e6c8",
+"themes": "backRankMate endgame mate mateIn2 short"
+},
+{
+"id": "0AIOd",
+"fen": "2r3k1/2p3pp/1q1p4/8/2b2Q2/7P/1P3RP1/7K b - - 3 39",
+"moves": "d6d5 f4f7 g8h8 f7f8 c8f8 f2f8",
+"themes": "backRankMate endgame long mate mateIn3 sacrifice"
+},
+{
+"id": "0CWTj",
+"fen": "3R3k/6pp/p1q3r1/4rp2/1Q2bR2/P3P3/6PP/6K1 b - - 1 34",
+"moves": "e5e8 b4f8 e8f8 d8f8",
+"themes": "backRankMate mate mateIn2 middlegame sacrifice short xRayAttack"
+},
+{
+"id": "0ClEz",
+"fen": "RB3bk1/p2r1ppp/1p6/8/1P6/6P1/5P1P/6K1 b - - 5 30",
+"moves": "f8b4 b8d6 d7d8 a8d8",
+"themes": "backRankMate discoveredAttack discoveredCheck endgame mate mateIn2 short"
+},
+{
+"id": "0Clgm",
+"fen": "1r2q1k1/pb4pp/1p6/5Q2/3P2P1/2P5/P5P1/5RK1 b - - 2 27",
+"moves": "e8c6 f5f7 g8h8 f7f8 b8f8 f1f8",
+"themes": "backRankMate endgame long mate mateIn3 sacrifice"
+},
+{
+"id": "0CuNM",
+"fen": "4r1k1/1p3Qpp/1p1p4/2p5/3Pr3/q1P1P3/P5PP/4RRK1 b - - 0 21",
+"moves": "g8h8 f7f8 e8f8 f1f8",
+"themes": "backRankMate endgame mate mateIn2 sacrifice short"
+},
+{
+"id": "0DG5n",
+"fen": "4rr2/ppk3p1/4bqQ1/4R1N1/8/8/P4PPP/3R2K1 w - - 1 23",
+"moves": "e5e6 f6f2 g1h1 f2f1 d1f1 f8f1",
+"themes": "backRankMate long mate mateIn3 middlegame sacrifice"
+},
+{
+"id": "0E5dY",
+"fen": "2r2k2/3q1ppp/8/5N2/1pb5/4Q3/1P3PPP/4R1K1 b - - 8 26",
+"moves": "d7f5 e3e7 f8g8 e7e8 c8e8 e1e8",
+"themes": "backRankMate endgame long mate mateIn3 sacrifice"
+},
+{
+"id": "0Eorj",
+"fen": "4r2k/1pQ2pp1/p3qn1p/8/8/1P5N/5PPP/2R2K1R w - - 3 27",
+"moves": "c7b7 e6e2 f1g1 e2e1 c1e1 e8e1",
+"themes": "backRankMate long mate mateIn3 middlegame sacrifice"
+},
+{
+"id": "0GRNc",
+"fen": "5rk1/p5p1/1p5p/3p1q2/3P4/P1P5/6PP/R3Q1K1 w - - 0 26",
+"moves": "e1e5 f5f2 g1h1 f2f1 a1f1 f8f1",
+"themes": "backRankMate endgame long mate mateIn3 sacrifice"
+},
+{
+"id": "0HTsP",
+"fen": "B2k4/p1pn1q1p/3p1n2/8/6b1/3P4/PPP2KPP/RNB1R3 w - - 1 17",
+"moves": "b1c3 f6e4 f2g1 f7f2 g1h1 f2e1",
+"themes": "backRankMate discoveredCheck doubleCheck fork long mate mateIn3 middlegame"
+},
+{
+"id": "0Hxu5",
+"fen": "r1bkr3/1p1p2pp/p7/5p2/2Q2b2/7P/PPPn2P1/1K1RR3 w - - 3 30",
+"moves": "d1d2 e8e1 d2d1 e1d1",
+"themes": "backRankMate hangingPiece mate mateIn2 middlegame short"
+},
+{
+"id": "0IfLD",
+"fen": "5r1k/1b6/p3Bq1p/8/1Q2P3/3P4/PP4PP/R5K1 w - - 1 31",
+"moves": "b4b7 f6f2 g1h1 f2f1 a1f1 f8f1",
+"themes": "backRankMate endgame long mate mateIn3 sacrifice"
+},
+{
+"id": "0J02L",
+"fen": "5r1k/1p2QBqp/2b5/2P5/1P2p3/P3P3/5PPP/R2R2K1 w - - 3 30",
+"moves": "d1d8 g7a1 d8d1 a1d1",
+"themes": "backRankMate hangingPiece mate mateIn2 middlegame short"
+},
+{
+"id": "0JCfS",
+"fen": "r4r1k/4nq1p/bp4p1/p1ppR3/3P4/2P4Q/PPB2PPP/4R1K1 w - - 1 23",
+"moves": "e5e7 f7f2 g1h1 f2f1 e1f1 f8f1",
+"themes": "backRankMate fork long mate mateIn3 middlegame sacrifice"
+},
+{
+"id": "0JFtK",
+"fen": "2qr4/5kpp/pp2pp2/8/1n2P3/1P4Q1/PB3PPP/5RK1 w - - 3 25",
+"moves": "f1c1 c8c1 b2c1 d8d1",
+"themes": "backRankMate endgame mate mateIn2 sacrifice short"
+},
+{
+"id": "0JqYd",
+"fen": "r1b1r1k1/4qppp/p2n4/1ppn4/4N3/2PP4/PPB2PPP/R1BQR1K1 w - - 0 19",
+"moves": "e4d6 e7e1 d1e1 e8e1",
+"themes": "backRankMate mate mateIn2 opening short"
+},
+{
+"id": "00dt1",
+"fen": "Q7/8/3B4/2p5/Krkn4/8/8/8 w - - 1 54",
+"moves": "a4a3 d4b5 a3a2 b5c3 a2a1 b4b1",
+"themes": "arabianMate endgame exposedKing fork long master mate mateIn3"
+},
+{
+"id": "0Gjvb",
+"fen": "1k6/6R1/1P5p/5B2/5P2/5nP1/1r6/6K1 w - - 1 46",
+"moves": "g1h1 b2h2",
+"themes": "arabianMate endgame mate mateIn1 oneMove"
+},
+{
+"id": "0HEko",
+"fen": "8/R2N2bk/2p3pp/8/P7/2p4P/1r2nPPK/8 b - - 1 30",
+"moves": "g7d4 d7f6 h7h8 a7h7",
+"themes": "arabianMate discoveredCheck doubleCheck endgame master mate mateIn2 short"
+},
+{
+"id": "0J9yJ",
+"fen": "r1b4k/2p1qprQ/p2p1N2/1pn3PR/4PP2/8/PPP5/2KR2N1 b - - 0 22",
+"moves": "g7h7 h5h7",
+"themes": "arabianMate kingsideAttack mate mateIn1 middlegame oneMove"
+},
+{
+"id": "0Jyd0",
+"fen": "5bk1/2R4p/3p1p2/2pNpPp1/6r1/5K2/r4B2/8 b - - 1 37",
+"moves": "g4a4 d5f6 g8h8 c7h7",
+"themes": "arabianMate endgame mate mateIn2 short"
+},
+{
+"id": "0KHJe",
+"fen": "5bk1/3R3p/4npp1/8/6N1/7P/5KP1/2r5 b - - 1 42",
+"moves": "f6f5 g4f6 g8h8 d7h7",
+"themes": "arabianMate endgame mate mateIn2 short"
+},
+{
+"id": "0L1cy",
+"fen": "6rk/2R3Q1/p2p1N1p/4p1pP/4P3/5P2/Pq2p3/5RK1 b - - 0 35",
+"moves": "g8g7 c7c8 g7g8 c8g8",
+"themes": "arabianMate endgame master mate mateIn2 short"
+},
+{
+"id": "0MKmH",
+"fen": "5rRk/ppp4q/2n1p2p/3p3N/3P3P/2bQ1P2/PPP5/2K3R1 b - - 0 24",
+"moves": "f8g8 d3h7 h8h7 h5f6 h7h8 g1g8",
+"themes": "arabianMate attraction exposedKing fork long mate mateIn3 middlegame"
+},
+{
+"id": "0MoLO",
+"fen": "1R6/5ppk/7p/8/5P2/4NnP1/3r3P/6K1 w - - 3 31",
+"moves": "g1h1 d2h2",
+"themes": "arabianMate endgame mate mateIn1 oneMove"
+},
+{
+"id": "0Ntz6",
+"fen": "1r6/p4k2/4Np1p/P4P2/4N3/5K1P/1pr3P1/3R4 b - - 1 42",
+"moves": "b2b1q d1d7 f7g8 e4f6 g8h8 d7h7",
+"themes": "arabianMate deflection endgame long mate mateIn3"
+},
+{
+"id": "0O7TQ",
+"fen": "1k4r1/1p6/7p/p4Rn1/P7/1r5P/5PPK/4RN2 w - - 0 29",
+"moves": "f5a5 b3h3 g2h3 g5f3 h2h1 g8g1",
+"themes": "arabianMate endgame fork long mate mateIn3 sacrifice"
+},
+{
+"id": "0Psvo",
+"fen": "2k5/ppp5/7N/3Np3/3Pp3/5nrb/PPP2R2/R1B4K w - - 0 24",
+"moves": "c1e3 h3g2 f2g2 g3h3 g2h2 h3h2",
+"themes": "arabianMate clearance exposedKing long mate mateIn3 middlegame sacrifice"
+},
+{
+"id": "0Q6gU",
+"fen": "3r1r1k/p2p1p1p/1p2nNP1/4P3/6P1/2R5/PP5R/5K2 b - - 0 27",
+"moves": "f7g6 h2h7",
+"themes": "arabianMate endgame mate mateIn1 oneMove"
+},
+{
+"id": "0QA4Q",
+"fen": "2k3r1/1pp5/p3N3/7r/1P2p2n/2P1B3/P4PPP/3R1RK1 w - - 6 29",
+"moves": "e6f4 h4f3 g1h1 h5h2",
+"themes": "arabianMate discoveredAttack mate mateIn2 middlegame pin short"
+},
+{
+"id": "0RQ84",
+"fen": "4N1r1/p4p2/6kp/3P4/1P5P/P3b1R1/4r1P1/7K b - - 2 37",
+"moves": "g6h7 e8f6 h7h8 g3g8",
+"themes": "arabianMate endgame fork mate mateIn2 short"
+},
+{
+"id": "0SCZr",
+"fen": "3r2k1/R2N2bp/3P2p1/p3pp2/P7/4P3/8/7K b - - 0 41",
+"moves": "g7f8 d7f6 g8h8 a7h7",
+"themes": "arabianMate discoveredAttack endgame mate mateIn2 short"
+},
+{
+"id": "0X9QO",
+"fen": "8/8/R3P3/6pk/P2B1p1n/1PP2P2/3r2PK/8 w - - 1 40",
+"moves": "e6e7 h4f3 h2h1 d2d1 d4g1 d1g1",
+"themes": "arabianMate endgame long mate mateIn3 pin"
+},
+{
+"id": "0aiJs",
+"fen": "2R1R3/pp3ppk/8/6r1/8/5P1P/P2n1P2/6K1 w - - 4 27",
+"moves": "g1h2 d2f3 h2h1 g5g1",
+"themes": "arabianMate endgame mate mateIn2 short"
+},
+{
+"id": "0au7E",
+"fen": "3k2r1/pp4q1/5n1p/3p1P2/2p2B2/2P2nrP/PPB1QRP1/4R1K1 w - - 2 28",
+"moves": "g1h1 g3h3 g2h3 g7g1 e1g1 g8g1",
+"themes": "arabianMate clearance kingsideAttack long mate mateIn3 middlegame sacrifice"
+},
+{
+"id": "0crO9",
+"fen": "3r4/8/6p1/3pKbR1/p2N3p/2P5/7k/8 b - - 5 61",
+"moves": "h4h3 d4f3 h2h1 g5g1",
+"themes": "arabianMate endgame mate mateIn2 short"
+},
+{
+"id": "0dbef",
+"fen": "r1bqk2r/4bp2/p2p4/2pPpP2/2P3p1/P4np1/2B2P1P/1RBQ1RNK w kq - 0 23",
+"moves": "f2g3 h8h2",
+"themes": "arabianMate kingsideAttack mate mateIn1 middlegame oneMove"
+},
+{
+"id": "0sUJc",
+"fen": "r2q1rk1/ppp2p1p/5Np1/4pnP1/5n2/1b1P4/PPPQ1PP1/2KR2NR b - - 1 18",
+"moves": "g8h8 h1h7",
+"themes": "arabianMate kingsideAttack mate mateIn1 oneMove opening"
+},
+{
+"id": "0sdSq",
+"fen": "2k3r1/1p3p2/2p2P2/8/4r2n/PP2B1NP/4RP1K/4b3 w - - 0 38",
+"moves": "g3e4 h4f3 h2h1 g8g1",
+"themes": "arabianMate endgame mate mateIn2 short"
+},
+{
+"id": "0xXXu",
+"fen": "6r1/5pk1/7p/pp6/4NP2/P5R1/1PK2P2/q7 b - - 2 35",
+"moves": "g7h7 e4f6 h7h8 g3g8",
+"themes": "arabianMate endgame fork mate mateIn2 short"
+},
+{
+"id": "0xZ1n",
+"fen": "8/8/8/3Q2n1/5pk1/6r1/7K/8 w - - 4 54",
+"moves": "d5d6 g5f3 h2h1 g3g1",
+"themes": "arabianMate endgame master mate mateIn2 short"
+},
+{
+"id": "0xccK",
+"fen": "6k1/Q3q1pp/2b1p3/2P1P3/3p1pPn/5P1P/1r1N1K2/R7 w - - 2 29",
+"moves": "a7e7 b2d2 f2f1 c6b5 f1g1 h4f3 g1h1 d2h2",
+"themes": "arabianMate endgame hangingPiece mate mateIn4 veryLong"
+},
+{
+"id": "18Gb1",
+"fen": "8/5kpR/1p2p1r1/5p2/8/1P2Qn2/P4PBP/3q1NK1 w - - 22 40",
+"moves": "g1h1 d1f1 g2f1 g6g1",
+"themes": "arabianMate mate mateIn2 middlegame sacrifice short"
+},
+{
+"id": "19SA1",
+"fen": "2r2k2/1R3b1p/r1pp4/3N2P1/4P2q/2Q5/4n1PP/5R1K b - - 5 36",
+"moves": "e2c3 f1f7 f8g8 d5f6 g8h8 f7h7 h4h7 b7h7",
+"themes": "arabianMate exposedKing fork mate mateIn4 middlegame veryLong"
+},
+{
+"id": "19Th6",
+"fen": "1r4k1/2R3b1/4b1pp/2pN4/2P1PK2/8/4B3/8 b - - 2 45",
+"moves": "g7f8 d5f6 g8h8 c7h7",
+"themes": "arabianMate endgame master mate mateIn2 short"
+},
+{
+"id": "19gSb",
+"fen": "2r2bk1/1pq2pp1/p3pN1p/7Q/P7/2P1P3/6RP/6K1 b - - 3 27",
+"moves": "g8h8 h5h6 g7h6 g2g8",
+"themes": "arabianMate endgame master mate mateIn2 sacrifice short"
+},
+{
+"id": "1DZfz",
+"fen": "7k/2p2R1p/1p2pN2/p4p2/4b3/1P6/1PPK1P2/6r1 b - - 4 32",
+"moves": "g1g2 f7h7",
+"themes": "arabianMate endgame mate mateIn1 oneMove"
+},
+{
+"id": "1G2VZ",
+"fen": "r1b4k/p1p2prQ/1pn1qN2/3pp1PR/2B1P3/3P4/PPP2PP1/R3K3 b Q - 0 18",
+"moves": "g7h7 h5h7",
+"themes": "arabianMate kingsideAttack master mate mateIn1 middlegame oneMove"
+},
+{
+"id": "1H107",
+"fen": "r1b5/1p5Q/p3p2k/n6p/4Nq2/8/2B2P2/4K1R1 b - - 0 34",
+"moves": "h6h7 e4f6 h7h8 g1g8",
+"themes": "arabianMate discoveredCheck doubleCheck mate mateIn2 middlegame short"
+},
+{
+"id": "1IIyn",
+"fen": "6k1/B4p1p/4b1p1/4P3/6Pn/1P5P/P1r5/3R1BK1 w - - 1 29",
+"moves": "d1a1 h4f3 g1h1 c2h2",
+"themes": "arabianMate endgame mate mateIn2 short"
+},
+{
+"id": "1Ks1l",
+"fen": "1k2r3/p2r4/1pNp4/1P4pp/Q3q1n1/2R5/2P3PP/R5K1 b - - 1 26",
+"moves": "b8a8 a4a7 d7a7 a1a7",
+"themes": "arabianMate mate mateIn2 middlegame queensideAttack sacrifice short"
+},
+{
+"id": "1MooK",
+"fen": "b6k/p1p1q2p/1p1p1N1Q/4pP2/P7/2P4R/6rP/5K2 b - - 1 30",
+"moves": "e7g7 h6h7 g7h7 h3h7",
+"themes": "arabianMate endgame mate mateIn2 short"
+},
+{
+"id": "1UGiE",
+"fen": "8/5p1k/7p/7N/8/6RP/r2r2PK/8 b - - 2 49",
+"moves": "f7f5 h5f6 h7h8 g3g8",
+"themes": "arabianMate endgame mate mateIn2 short"
+},
+{
+"id": "1WQfY",
+"fen": "1r3b1k/pp4r1/3pP3/3Np1q1/P3Pp2/5n1P/1PR4K/2R1BQ2 w - - 0 34",
+"moves": "h2h1 g5g1 f1g1 g7g1",
+"themes": "arabianMate kingsideAttack mate mateIn2 middlegame short"
+},
+{
+"id": "1Wb7s",
+"fen": "2b5/k4ppp/p3p3/3rn3/1RpNN3/2P5/5PPP/6K1 b - - 0 29",
+"moves": "e5d3 d4c6 a7a8 b4b8",
+"themes": "arabianMate endgame mate mateIn2 short"
+},
+{
+"id": "1aryp",
+"fen": "6rk/3rqpR1/pp2pN1p/4P3/1P1p3R/P1P4P/5PP1/6K1 b - - 0 26",
+"moves": "h8g7 h4g4 g7h8 g4g8",
+"themes": "arabianMate endgame mate mateIn2 short"
+},
+{
+"id": "001cr",
+"fen": "8/3B2pp/p5k1/2p3P1/1p1p1K2/8/1P6/8 b - - 0 38",
+"moves": "c5c4 d7e8",
+"themes": "bishopEndgame endgame mate mateIn1 oneMove"
+},
+{
+"id": "001wR",
+"fen": "6nr/pp3p1p/k1p5/8/1QN5/2P1P3/4KPqP/8 b - - 5 26",
+"moves": "b7b5 b4a5 a6b7 c4d6 b7b8 a5d8",
+"themes": "endgame long mate mateIn3"
+},
+{
+"id": "004JD",
+"fen": "3r4/R7/2p5/p1P2p2/1p4k1/nP6/P2KNP2/8 w - - 3 41",
+"moves": "d2e3 a3c2",
+"themes": "cornerMate endgame mate mateIn1 oneMove"
+},
+{
+"id": "005Bm",
+"fen": "4rk2/p1q5/1p3Q1b/8/1p5N/2P1p3/P3P3/2K5 b - - 0 43",
+"moves": "c7f7 h4g6 f8g8 f6h8",
+"themes": "endgame mate mateIn2 pin short"
+},
+{
+"id": "005wy",
+"fen": "1r6/pp2kpp1/2n1p1n1/3p2PQ/5P2/2PqP3/PP1N4/2KR3R w - - 3 27",
+"moves": "h5h7 c6b4 c3b4 b8c8 d2c4 c8c4",
+"themes": "long mate mateIn3 middlegame queensideAttack sacrifice"
+},
+{
+"id": "006pe",
+"fen": "r4r2/2q1NN2/4bQpk/2n4p/pp5P/8/1PP2PP1/2KR3R b - - 0 28",
+"moves": "e6f7 e7f5 h6h7 f6g7",
+"themes": "master mate mateIn2 middlegame pin short"
+},
+{
+"id": "007en",
+"fen": "rn3rk1/4pp1p/3p2pB/2q4P/3bP1b1/Pp2Q3/1P2B3/1K1R2NR w - - 0 20",
+"moves": "e3d4 c5c2 b1a1 a8a3 b2a3 c2a2",
+"themes": "long mate mateIn3 middlegame queensideAttack sacrifice"
+},
+{
+"id": "009BH",
+"fen": "3r2k1/6p1/4Q3/4B3/1p3P2/4PKP1/3q4/8 b - - 17 51",
+"moves": "g8h8 e6h6 h8g8 h6g7",
+"themes": "endgame mate mateIn2 pin short"
+},
+{
+"id": "00CWE",
+"fen": "3r4/1p4p1/2pBkbBp/p1P5/3rp3/P7/1PK2P2/4R3 b - - 1 31",
+"moves": "e6d5 g6f7",
+"themes": "endgame mate mateIn1 oneMove"
+},
+{
+"id": "00CtS",
+"fen": "Q5k1/5q2/p2p4/b1p1pr2/P7/6P1/4KP1R/8 b - - 3 38",
+"moves": "g8g7 a8h8 g7g6 h8h6",
+"themes": "endgame mate mateIn2 short swallowstailMate"
+},
+{
+"id": "00FND",
+"fen": "8/1P6/8/7p/3P4/3k1p1P/4p3/3K4 w - - 0 49",
+"moves": "d1e1 d3e3 h3h4 f3f2",
+"themes": "advancedPawn endgame mate mateIn2 pawnEndgame short"
+},
+{
+"id": "00H1C",
+"fen": "r3r3/1kpRnqpp/p4p2/Qp2P2P/1N6/4Pb2/PPP3P1/2K2R2 b - - 0 22",
+"moves": "e7c6 a5c7",
+"themes": "mate mateIn1 middlegame oneMove swallowstailMate"
+},
+{
+"id": "00Hut",
+"fen": "r4rk1/4p1bp/3p2p1/q1pP1P2/4QP2/4B3/1p5P/1BKR3R w - - 0 22",
+"moves": "c1c2 a5c3",
+"themes": "mate mateIn1 middlegame oneMove"
+},
+{
+"id": "00IPp",
+"fen": "4Q3/6pk/p3p2p/5p2/1p1P2P1/4q2P/2B1n2B/7K w - - 0 35",
+"moves": "g4f5 e3f3",
+"themes": "endgame mate mateIn1 oneMove"
+},
+{
+"id": "00IUW",
+"fen": "8/Q1p1r1kp/5pp1/3P3r/4P3/2N2bPq/PPP2R1P/5RK1 w - - 3 23",
+"moves": "a7e3 h3g3 h2g3 h5h1",
+"themes": "clearance kingsideAttack mate mateIn2 middlegame operaMate sacrifice short"
+},
+{
+"id": "00J1t",
+"fen": "r1qr3k/pp3pB1/1np1pb2/8/3P3P/2N2PR1/PP1Q2P1/2KR4 b - - 0 22",
+"moves": "f6g7 d2g5 d8g8 g5h5 g7h6 h5h6",
+"themes": "exposedKing kingsideAttack long mate mateIn3 middlegame"
+},
+{
+"id": "00JR7",
+"fen": "r4rk1/pp2q1p1/2p1p2p/3nP1pP/3P2P1/2PQ1R2/PPB5/R5K1 b - - 1 23",
+"moves": "f8f3 d3h7 g8f7 c2g6 f7f8 h7h8",
+"themes": "kingsideAttack long mate mateIn3 middlegame"
+},
+{
+"id": "00Kbj",
+"fen": "8/8/6p1/PR3p2/1P3k2/7P/r5P1/7K w - - 1 39",
+"moves": "h3h4 f4g3 b5d5 a2a1 d5d1 a1d1",
+"themes": "endgame long mate mateIn3 rookEndgame"
+},
+{
+"id": "00LNB",
+"fen": "kr6/1pR4p/p4R2/n2r4/P3p3/4B3/6PP/6K1 b - - 0 38",
+"moves": "d5d3 f6a6 b7a6 c7a7",
+"themes": "endgame mate mateIn2 operaMate sacrifice short"
+},
+{
+"id": "00LRq",
+"fen": "1k6/1p1q4/P2p3p/1NpPpn1Q/5b2/2P3r1/1P2B1P1/R6K b - - 3 28",
+"moves": "g3g7 a6a7 b8a8 b5c7 d7c7 h5e8 c7b8 a7b8q",
+"themes": "advancedPawn discoveredCheck doubleCheck mate mateIn4 middlegame promotion queensideAttack sacrifice veryLong"
+},
+{
+"id": "00MFe",
+"fen": "3r3k/p5pp/2r2q2/2p4Q/8/8/P5PP/3R1R1K b - - 5 29",
+"moves": "d8d1 h5e8 f6f8 e8f8",
+"themes": "endgame mate mateIn2 short"
+},
+{
+"id": "00Mbv",
+"fen": "2k2b1r/pp3ppp/1n6/BN2p1P1/2Q1Nn1P/8/PP3P2/2KR4 b - - 0 24",
+"moves": "b6c4 d1d8",
+"themes": "mate mateIn1 middlegame oneMove operaMate"
+},
+{
+"id": "00NHK",
+"fen": "r1b2rk1/1p2b1p1/pqn1p1P1/3pP3/1P1P4/P1N1P3/6P1/R2QK2R b KQ - 0 17",
+"moves": "c6e5 h1h8 g8h8 d1h5 h8g8 h5h7",
+"themes": "attraction fork long mate mateIn3 middlegame sacrifice"
+},
+{
+"id": "00NUS",
+"fen": "4rk2/pbp2pp1/1p1b4/3P1q2/QPBPN3/1KP2P2/P5r1/R3R3 w - - 0 25",
+"moves": "e4d6 f5c2 b3a3 c2b2",
+"themes": "mate mateIn2 middlegame short"
+},
+{
+"id": "00Pr6",
+"fen": "r1b2rk1/p4ppp/2p5/6q1/2p3P1/3P1Q1P/PPP5/1K2RR2 b - - 0 17",
+"moves": "c4d3 f3f7 f8f7 e1e8 f7f8 f1f8",
+"themes": "kingsideAttack long mate mateIn3 middlegame sacrifice"
+},
+{
+"id": "00Se9",
+"fen": "5rk1/pp1n2r1/3p2N1/2pQ4/2P5/4P1P1/qP2KPP1/7R b - - 1 24",
+"moves": "g7f7 g6e7 g8g7 d5g5",
+"themes": "mate mateIn2 middlegame pin short"
+},
+{
+"id": "00TQf",
+"fen": "4r1k1/p1R1n2p/4N3/5rK1/8/6PP/P3R3/8 w - - 3 46",
+"moves": "g5g4 h7h5 g4h4 e7g6",
+"themes": "endgame mate mateIn2 short"
+},
+{
+"id": "00TRo",
+"fen": "5q1k/2r3p1/1p2p2b/3p2NQ/3P4/1p6/5R2/6K1 b - - 1 38",
+"moves": "f8b4 h5e8 b4f8 f2f8",
+"themes": "endgame mate mateIn2 short"
+},
+{
+"id": "00Tya",
+"fen": "r4rk1/6pp/1p1Bp3/p7/P1PP4/4nqP1/2QR3P/4R1K1 w - - 1 25",
+"moves": "c2a2 f3f1 e1f1 f8f1",
+"themes": "kingsideAttack mate mateIn2 middlegame sacrifice short"
+},
+{
+"id": "00VIe",
+"fen": "8/8/8/P6p/8/2RnkN2/r7/3K4 w - - 1 60",
+"moves": "f3e1 a2d2",
+"themes": "endgame mate mateIn1 oneMove vukovicMate"
+},
+{
+"id": "00WqT",
+"fen": "r4r2/1ppb1p2/p2p2pk/5P2/4P3/2PBB1R1/PKP2P1q/8 b - - 4 26",
+"moves": "h6h5 d3e2 h5h4 e3g5",
+"themes": "mate mateIn2 middlegame short"
+},
+{
+"id": "00Wyh",
+"fen": "2r5/8/8/pNp1r2p/3kNppP/1P1P4/2R2K2/8 b - - 2 42",
+"moves": "d4d3 c2d2 d3e4 b5d6",
+"themes": "endgame mate mateIn2 sacrifice short"
+},
+{
+"id": "00YbZ",
+"fen": "b6k/8/6p1/4q2p/1Q3r1P/P1N3R1/1PP3PK/8 w - - 3 35",
+"moves": "b4b6 f4h4 h2g1 e5e1",
+"themes": "endgame mate mateIn2 pin short"
+},
+{
+"id": "00ZEc",
+"fen": "1r3bk1/5p2/3P1qRP/r1n1p3/ppB5/P2Q1P2/1PP5/1K6 b - - 0 35",
+"moves": "g8h7 g6g7 h7h6 d3h7",
+"themes": "discoveredCheck doubleCheck mate mateIn2 middlegame short"
+},
+{
+"id": "00aDl",
+"fen": "r5k1/1p3p2/2p1ppp1/3p4/2nP4/1QB2B1P/rPP2PP1/qNKR3R w - - 3 22",
+"moves": "f3e2 a1b1 c1b1 a2a1",
+"themes": "attraction mate mateIn2 middlegame queensideAttack sacrifice short"
+},
+{
+"id": "00fXd",
+"fen": "8/Q5b1/p2kp3/1p2qpN1/1P6/P7/4nPP1/5K2 b - - 5 46",
+"moves": "d6d5 a7c5",
+"themes": "endgame master mate mateIn1 oneMove"
+},
+{
+"id": "00fZM",
+"fen": "5rk1/1q3r1p/3p2RQ/3p4/3B4/2P2P2/P5PP/6K1 b - - 0 30",
+"moves": "h7g6 h6h8",
+"themes": "endgame mate mateIn1 oneMove"
+},
+{
+"id": "00fwM",
+"fen": "Qn1qk2r/p4ppp/2p5/2bn4/4pPb1/2N5/PPPP2PP/R1B1KBNR w KQk - 1 9",
+"moves": "h2h3 d8h4 g2g3 h4g3",
+"themes": "mate mateIn2 opening short"
+},
+{
+"id": "00fxc",
+"fen": "4r2k/1pQ2p2/p4N1p/5P2/1P6/P1Pn1K2/4r3/6R1 w - - 1 36",
+"moves": "c7f7 e8e3 f3g4 d3e5 g4h5 e2h2",
+"themes": "endgame exposedKing fork long mate mateIn3"
+},
+{
+"id": "00hSr",
+"fen": "r4rk1/5p2/1q2pnRP/p2p4/1ppP4/2P1P3/PPQN1P2/2K4R b - - 0 21",
+"moves": "f7g6 c2g6 g8h8 g6g7",
+"themes": "kingsideAttack mate mateIn2 middlegame short"
+},
+{
+"id": "00j3i",
+"fen": "5rk1/R5p1/5q1p/8/3p4/1P4Q1/P3rPPP/5RK1 w - - 2 38",
+"moves": "g3g4 f6f2 f1f2 e2e1 f2f1 e1f1",
+"themes": "endgame long mate mateIn3 sacrifice"
+},
+{
+"id": "00jNk",
+"fen": "7r/2Q2pb1/3ppk1p/5Bp1/3P4/1N2P1P1/Pr2qPP1/R5KR w - - 6 29",
+"moves": "c7d6 e2f2 g1h2 f2g2",
+"themes": "fork mate mateIn2 middlegame short"
+},
+{
+"id": "00jPw",
+"fen": "r3r1k1/ppp2p2/1b5Q/3PP2n/2B3bq/2N5/PP4PP/R4R1K w - - 1 18",
+"moves": "f1f7 h5g3",
+"themes": "mate mateIn1 middlegame oneMove pin"
+},
+{
+"id": "00l68",
+"fen": "3k2Q1/q7/3pB1p1/2pP1p2/2P2P2/rp2PK1P/8/8 b - - 2 37",
+"moves": "d8c7 g8c8 c7b6 c8c6 b6a5 c6b5",
+"themes": "endgame long mate mateIn3"
+},
+{
+"id": "00mFI",
+"fen": "4r2k/2q1r3/2p4Q/p5P1/1p1Pp1P1/2P1N2P/PP6/4bRK1 b - - 0 28",
+"moves": "e7h7 f1f8 e8f8 h6f8",
+"themes": "kingsideAttack mate mateIn2 middlegame short"
+},
+{
+"id": "00mRr",
+"fen": "8/2Q2kpp/1p1p2r1/1PnN4/2P1n3/6P1/1r3PK1/8 b - - 6 41",
+"moves": "f7e6 c7e7 e6f5 d5e3",
+"themes": "endgame master mate mateIn2 short"
+},
+{
+"id": "00nZE",
+"fen": "r1b1r1k1/pp1p1p1Q/2n2Bp1/2p1qp2/2B1P3/3P1R2/PPP3PP/R5K1 b - - 0 16",
+"moves": "g8h7 f3h3 h7g8 h3h8",
+"themes": "mate mateIn2 middlegame operaMate short"
+},
+{
+"id": "00noA",
+"fen": "8/1b4p1/p3p1Pr/1p1p4/3N4/2PB4/PP3k1r/1K3R2 b - - 20 41",
+"moves": "f2e3 f1f3 e3d2 d4b3 d2e1 f3f1",
+"themes": "endgame long mate mateIn3 operaMate"
+},
+{
+"id": "00ouE",
+"fen": "2r5/2r3k1/1p2pp1p/p2pQ1p1/3P4/4P1P1/PPq2P1R/KR6 w - - 0 30",
+"moves": "e5e6 c2b1 a1b1 c7c1",
+"themes": "attraction endgame mate mateIn2 sacrifice short"
+},
+{
+"id": "00qk4",
+"fen": "3r4/ppN1kppp/5n2/8/1n3Nb1/4P3/1B3PPP/R3KB1R w KQ - 0 18",
+"moves": "a1c1 b4c2 c1c2 d8d1",
+"themes": "mate mateIn2 middlegame operaMate sacrifice short"
+},
+{
+"id": "00qoE",
+"fen": "1n1q2rk/p3b1p1/1pr1p1RB/2p1P3/4N3/2PP1N1P/P3B2K/6R1 b - - 0 28",
+"moves": "g7h6 g6h6",
+"themes": "kingsideAttack mate mateIn1 middlegame oneMove"
+},
+{
+"id": "00rNc",
+"fen": "1q5r/p3kpp1/2Q1p2p/3pP2P/2n3P1/2N2P2/PrP5/K3R1NR w - - 0 26",
+"moves": "g1e2 b2a2 c3a2 b8b2",
+"themes": "clearance mate mateIn2 middlegame sacrifice short"
+},
+{
+"id": "00rqm",
+"fen": "2r2r1k/3b3n/p6q/1p1nN3/7P/3P2Q1/PPP2P2/1K4RR b - - 0 30",
+"moves": "d7f5 g3g8 f8g8 e5f7",
+"themes": "cornerMate kingsideAttack mate mateIn2 middlegame sacrifice short"
+},
+{
+"id": "00tgU",
+"fen": "r4rk1/pbpp2p1/1pn3Qp/3N4/3q1N2/3B4/PP3PPP/5RK1 b - - 5 20",
+"moves": "c6e5 d5e7 g8h8 g6h7",
+"themes": "kingsideAttack mate mateIn2 middlegame short"
+},
+{
+"id": "00ueM",
+"fen": "2kr4/2pR4/2P1K1P1/8/8/p3n3/8/8 b - - 1 49",
+"moves": "a3a2 d7d8 c8d8 g6g7 a2a1q g7g8q",
+"themes": "advancedPawn endgame long mate mateIn3 promotion"
+},
+{
+"id": "00voi",
+"fen": "1r6/2r2p1R/7R/4pPk1/2B2n2/1P3P1P/P4K2/8 b - - 0 43",
+"moves": "c7c4 h3h4 g5f5 h7f7",
+"themes": "endgame mate mateIn2 short"
+},
+{
+"id": "00vuv",
+"fen": "r3r3/2q1b1pk/p3P1Np/5Qp1/8/3p4/PPp2P2/2R1R1K1 b - - 1 30",
+"moves": "d3d2 g6f8 h7g8 f5h7 g8f8 h7h8",
+"themes": "discoveredCheck doubleCheck long mate mateIn3 middlegame sacrifice"
+},
+{
+"id": "00wUm",
+"fen": "5rk1/pR1Q1ppp/4N3/3p1n2/8/7P/q1r2PP1/4R1K1 b - - 0 28",
+"moves": "c2f2 d7f7 f8f7 b7b8 f7f8 b8f8",
+"themes": "long mate mateIn3 middlegame sacrifice"
+},
+{
+"id": "00wft",
+"fen": "3r2k1/pp3pp1/7p/b7/2b3Q1/P2qPN1P/3N1PP1/3RK2R w K - 0 30",
+"moves": "f3e5 a5d2 d1d2 d3d2",
+"themes": "mate mateIn2 middlegame short"
+},
+{
+"id": "00y2j",
+"fen": "3r4/1pB3kp/2b1Pp2/1pN2RpK/1P6/7P/6r1/8 w - - 0 34",
+"moves": "c7d8 c6e8",
+"themes": "endgame mate mateIn1 morphysMate oneMove"
+},
+{
+"id": "00ySR",
+"fen": "2r1rk2/pp1R3p/1b4p1/6B1/4p2P/1B6/PP3PP1/6K1 b - - 0 31",
+"moves": "c8c7 g5h6",
+"themes": "endgame mate mateIn1 oneMove"
+},
+{
+"id": "00yzf",
+"fen": "3rk3/3N2R1/4P1pr/3pP3/2p5/6p1/PP6/2K5 b - - 3 29",
+"moves": "g3g2 d7f6 e8f8 g7f7",
+"themes": "endgame mate mateIn2 short vukovicMate"
+},
+{
+"id": "00zNz",
+"fen": "r1bqk2r/pp1np1bp/2p3p1/3pNB2/3P1B2/4P3/PPP2PPP/R2QK2R b KQkq - 0 10",
+"moves": "g6f5 d1h5 e8f8 h5f7",
+"themes": "mate mateIn2 opening short"
+},
+{
+"id": "010MJ",
+"fen": "3r2k1/pR3pp1/8/5p1p/3n1q2/5P2/PP4R1/6QK b - - 4 29",
+"moves": "d4f3 g2g7 g8h8 g7h7 h8h7 b7f7 h7h8 g1g7",
+"themes": "attraction endgame mate mateIn4 sacrifice veryLong"
+},
+{
+"id": "012LI",
+"fen": "6k1/p4p1p/4bp2/1p2p3/3r4/KP1nQPN1/P5B1/8 w - - 0 33",
+"moves": "g2f1 d4a4 b3a4 b5b4",
+"themes": "endgame master mate mateIn2 sacrifice short"
+},
+{
+"id": "0156a",
+"fen": "2k4r/ppp1q1p1/3b2p1/3Q4/1P2NPn1/P1P3N1/6P1/R1B2RKr w - - 5 21",
+"moves": "g3h1 h8h1 g1h1 e7h4 h1g1 h4h2",
+"themes": "attraction kingsideAttack long mate mateIn3 middlegame sacrifice"
+},
+{
+"id": "015Di",
+"fen": "r2k1bnr/p1pp1Bpp/1p3q2/4N1B1/3p4/2P5/PP2QPbP/RN2K2R b KQ - 2 10",
+"moves": "f6g5 e5c6 g2c6 e2e8",
+"themes": "clearance mate mateIn2 opening sacrifice short"
+},
+{
+"id": "015mX",
+"fen": "r3k2r/1ppqb2p/p1b1N1p1/3pPR2/3P2Q1/2P5/PP4PP/RNB3K1 b kq - 0 14",
+"moves": "g6f5 g4h5",
+"themes": "mate mateIn1 middlegame oneMove"
+},
+{
+"id": "016rF",
+"fen": "r4qk1/pppb2p1/1bnp1R2/6N1/8/2NQ2B1/PP4PP/7K b - - 0 19",
+"moves": "f8f6 d3h7 g8f8 h7h8 f8e7 c3d5",
+"themes": "kingsideAttack long mate mateIn3 middlegame"
+},
+{
+"id": "0184P",
+"fen": "1r6/3R2p1/p5kp/1p2p2N/2Pn2K1/1P6/P5PP/8 b - - 2 30",
+"moves": "b5c4 d7g7",
+"themes": "endgame mate mateIn1 oneMove"
+},
+{
+"id": "01B5q",
+"fen": "r4rk1/1pp1np1p/p4Qp1/3P3P/P2Nq3/8/1B4R1/5B1K b - - 0 36",
+"moves": "e7d5 f6g7 g8g7 d4f5 g7g8 f5h6",
+"themes": "attraction discoveredCheck doubleCheck long mate mateIn3 middlegame pin sacrifice"
+},
+{
+"id": "01BeL",
+"fen": "8/5Q1R/pr5p/6p1/5p1k/q6P/2P2PPK/8 w - - 6 39",
+"moves": "f7g7 a3g3 f2g3 f4g3 h2g1 b6b1",
+"themes": "endgame long mate mateIn3 sacrifice"
+},
+{
+"id": "01DhL",
+"fen": "1r4k1/2q3p1/p3R2p/b2p4/1rpP3N/6P1/1PQ1RPP1/6K1 b - - 0 31",
+"moves": "b4b2 e6e8 b8e8 e2e8 g8f7 c2g6",
+"themes": "killBoxMate long mate mateIn3 middlegame"
+},
+{
+"id": "01EMd",
+"fen": "r6k/4q1pp/1n1pBp2/2p1nP2/1p2R2Q/1P5P/r5P1/2B1R1K1 b - - 6 31",
+"moves": "b6d7 h4h7 h8h7 e4h4",
+"themes": "attraction kingsideAttack mate mateIn2 middlegame pillsburysMate sacrifice short"
+},
+{
+"id": "01EUl",
+"fen": "r2qk2r/ppp2pp1/2p2n2/7p/3bP1b1/2N3Q1/PPP2PPP/R1B1KB1R w KQkq - 0 9",
+"moves": "h2h3 d4c3 g3c3 d8d1",
+"themes": "clearance mate mateIn2 opening short"
+},
+{
+"id": "01FmQ",
+"fen": "3r2k1/2B3pp/1Q2Pp2/2b5/P3n3/5N2/2q2PPP/5RK1 w - - 4 32",
+"moves": "e6e7 c2f2 f1f2 d8d1 f3e1 d1e1",
+"themes": "long mate mateIn3 middlegame pin sacrifice"
+},
+{
+"id": "01G4i",
+"fen": "6r1/1pp2rpk/p4nR1/3qpP1P/8/2P3Q1/PP3P1K/6R1 b - - 6 35",
+"moves": "f6h5 g6h6 g7h6 g3g8",
+"themes": "discoveredAttack mate mateIn2 middlegame short"
+},
+{
+"id": "01Gjl",
+"fen": "rn2k2N/p1pn3p/8/3b2B1/3p4/N7/PP4PP/4R1K1 b - - 3 21",
+"moves": "e8f8 g5h6 f8g8 e1e8 d7f8 e8f8",
+"themes": "exposedKing long mate mateIn3 middlegame operaMate"
+},
+{
+"id": "01Gqt",
+"fen": "4Q3/6bk/6pp/pp6/8/3qBP1P/PP6/K1R5 w - - 0 37",
+"moves": "a2a3 d3a3 a1b1 a3b2",
+"themes": "endgame mate mateIn2 pin short"
+},
+{
+"id": "01Hgu",
+"fen": "2k5/p1p5/r6q/3b4/8/3P4/PPP2P1P/R1B2RK1 w - - 0 31",
+"moves": "c1h6 a6g6 h6g5 g6g5",
+"themes": "endgame fork mate mateIn2 pillsburysMate short"
+},
+{
+"id": "01IFU",
+"fen": "r1b2rk1/pp3pp1/3b3p/3Bn3/P2N1q2/2P4P/1P3PP1/RN1Q1RK1 w - - 1 17",
+"moves": "d4e2 e5f3 g2f3 f4h2",
+"themes": "kingsideAttack mate mateIn2 opening sacrifice short"
+},
+{
+"id": "01Ie5",
+"fen": "8/3R3p/6pk/5p2/5PP1/1r5P/r2B1K2/8 b - - 0 46",
+"moves": "b3b2 g4g5 h6h5 d7h7",
+"themes": "deflection endgame mate mateIn2 short"
+},
+{
+"id": "01InH",
+"fen": "4k1nr/r1pp1ppq/1p2p3/2b5/2P1PP2/pPNP1nP1/P2B1N1P/R2Q1RKB w k - 3 21",
+"moves": "d1f3 h7h2",
+"themes": "kingsideAttack mate mateIn1 middlegame oneMove"
+},
+{
+"id": "01J3q",
+"fen": "r3r1k1/ppq1ppb1/2p3nN/2Pp3p/3Pn2N/1P2P2P/PB3QP1/R4RK1 b - - 9 23",
+"moves": "g7h6 f2f7 g8h8 h4g6",
+"themes": "fork mate mateIn2 middlegame short"
+},
+{
+"id": "01J5O",
+"fen": "r4r1k/1pp1NppR/3p4/p3n3/4P3/1PPP2P1/1P1K2P1/3R4 b - - 0 22",
+"moves": "h8h7 d1h1",
+"themes": "anastasiaMate endgame mate mateIn1 oneMove"
+},
+{
+"id": "01N7F",
+"fen": "6k1/Q7/6p1/2p4p/P6P/1P3qPK/2P5/8 w - - 1 46",
+"moves": "a7c5 f3h1",
+"themes": "endgame mate mateIn1 oneMove queenEndgame"
+},
+{
+"id": "01NPD",
+"fen": "8/5p2/6pk/3PQp2/8/p3PP2/6PK/4q3 b - - 6 39",
+"moves": "a3a2 e5h8 h6g5 f3f4 g5g4 h8h3",
+"themes": "endgame long mate mateIn3 queenEndgame"
+},
+{
+"id": "01NfS",
+"fen": "r3k2r/pp2bppp/2pQ4/2Bn4/6P1/3P4/PPP4P/1K2R1Nq b kq - 3 19",
+"moves": "a8d8 e1e7 d5e7 d6e7",
+"themes": "mate mateIn2 middlegame short"
+},
+{
+"id": "01Qdr",
+"fen": "6k1/pp4p1/7p/1PPp4/P2b2rq/5rN1/6PP/3QR2K w - - 0 30",
+"moves": "d1f3 h4h2 h1h2 g4h4",
+"themes": "attraction endgame mate mateIn2 pillsburysMate sacrifice short"
+},
+{
+"id": "01QgQ",
+"fen": "r1qk4/pp4Q1/2p1p3/4Pp1B/7P/6P1/P5K1/8 b - - 4 41",
+"moves": "c6c5 g7f8 d8c7 f8d6",
+"themes": "dovetailMate endgame mate mateIn2 short"
+},
+{
+"id": "01Sr1",
+"fen": "1r4k1/6pp/4p3/QBR2p2/3q4/B3nP1P/P5P1/6K1 w - - 0 35",
+"moves": "a5a7 e3g4 g1h1 d4d1 b5f1 d1f1",
+"themes": "discoveredAttack discoveredCheck long mate mateIn3 middlegame"
+},
+{
+"id": "01VQD",
+"fen": "r1b2rk1/ppp2p1p/6p1/1N1P2q1/1PPbBp2/6n1/1P2Q1PP/R1B2R1K w - - 5 18",
+"moves": "h2g3 g5h6 e2h5 h6h5",
+"themes": "mate mateIn2 middlegame short"
+},
+{
+"id": "01Vce",
+"fen": "2r4r/6b1/8/1b1pPQ1k/2p2P2/4P3/PP1B3q/2K5 b - - 7 33",
+"moves": "h5h4 d2e1 h2g3 f5g5 h4h3 g5g3",
+"themes": "long mate mateIn3 middlegame pin"
+},
+{
+"id": "01Vky",
+"fen": "1r2k1nr/3b1ppp/3Qp3/8/8/B3P1P1/5P1P/1q3RK1 b k - 0 24",
+"moves": "b1b6 d6f8",
+"themes": "mate mateIn1 middlegame oneMove"
+},
+{
+"id": "01WoU",
+"fen": "6k1/1p4pp/p3r3/2b1r3/5N2/2P5/PP2n1PP/2B1RR1K w - - 4 26",
+"moves": "f4e6 e2g3 h2g3 e5h5",
+"themes": "mate mateIn2 middlegame pillsburysMate sacrifice short"
+},
+{
+"id": "01XlK",
+"fen": "r3qr2/2pn2bk/p2p1P2/1p4pp/3PN3/P2Q4/1PP2P2/2K4R b - - 0 22",
+"moves": "g7h6 e4g5 h7h8 d3h7",
+"themes": "discoveredCheck doubleCheck mate mateIn2 middlegame short"
+},
+{
+"id": "01YV3",
+"fen": "1r3rk1/p3R2p/3p2pQ/3q4/3b4/3p4/PP3PPP/1RB4K b - - 3 22",
+"moves": "f8f2 h6h7 g8f8 c1h6 d4g7 h7g7",
+"themes": "long mate mateIn3 middlegame triangleMate"
+},
+{
+"id": "01Yqt",
+"fen": "8/2p5/3b2kp/3p2p1/P3p1K1/1P2R2P/1B4P1/8 w - - 2 36",
+"moves": "h3h4 h6h5 g4h3 g5g4",
+"themes": "endgame mate mateIn2 short"
+},
+{
+"id": "01awh",
+"fen": "3r3k/pQ2b1pp/8/8/2p2q1n/2B2p2/PP3P1P/1K4NN w - - 0 27",
+"moves": "b7e7 d8d1 b1c2 f4c1",
+"themes": "fork mate mateIn2 middlegame short"
+},
+{
+"id": "01bwq",
+"fen": "r1b2k1r/pppq1ppp/1n6/1B1PQ1B1/8/2P5/P4PPP/R3K2R b KQ - 2 15",
+"moves": "d7d6 e5e8",
+"themes": "mate mateIn1 middlegame oneMove"
+},
+{
+"id": "01cKS",
+"fen": "k1r4r/3bbppp/1Qn1qn2/1N6/5B2/5N2/PPP2PPP/R4RK1 b - - 4 17",
+"moves": "f6d5 b6a6 c6a7 a6a7",
+"themes": "mate mateIn2 middlegame queensideAttack short"
+},
+{
+"id": "01dKr",
+"fen": "1Q1k3r/5p2/2r1p3/3pP2q/6p1/3B2P1/2P4n/5R1K b - - 2 35",
+"moves": "c6c8 b8d6 d8e8 d3b5 c8c6 b5c6",
+"themes": "exposedKing long mate mateIn3 middlegame"
+},
+{
+"id": "01ehq",
+"fen": "2kr3r/1bpp1ppp/1b4q1/p3Pn2/PpN5/1BpP1P2/1P1BQ1PP/R4R1K w - - 0 18",
+"moves": "b2c3 f5g3 h2g3 g6h5",
+"themes": "kingsideAttack mate mateIn2 middlegame sacrifice short"
+},
+{
+"id": "01eqy",
+"fen": "6r1/p1qk4/QbN5/3p1p2/8/4P1r1/P6P/1R2R1K1 w - - 0 32",
+"moves": "h2g3 c7g3 g1f1 g3g2",
+"themes": "mate mateIn2 middlegame short"
+},
+{
+"id": "01g9c",
+"fen": "r4rk1/ppq3pp/8/3pn1B1/8/3B1N1b/PP2NKPb/2RQR3 w - - 0 19",
+"moves": "c1c7 e5g4 f2f1 f8f3",
+"themes": "deflection mate mateIn2 middlegame pillsburysMate pin short"
+},
+{
+"id": "01h56",
+"fen": "r3n3/2q1b1kp/3p2p1/2n2N2/2B1P3/8/1Pp2B2/1NKR3R b - - 1 29",
+"moves": "g7h8 h1h7 h8h7 d1h1 e7h4 h1h4",
+"themes": "attraction long master masterVsMaster mate mateIn3 middlegame pillsburysMate sacrifice"
+},
+{
+"id": "01hEk",
+"fen": "4r2r/p1p2kp1/2p2p2/2Qb4/8/2B3Nq/PPP2R1P/R5K1 w - - 10 30",
+"moves": "a1f1 h3g3 h2g3 h8h1",
+"themes": "clearance kingsideAttack mate mateIn2 middlegame operaMate sacrifice short"
+},
+{
+"id": "01hRk",
+"fen": "3k3r/ppNb4/3B1p2/6pp/2B1P1n1/3P2K1/PPn3PP/7R w - - 0 19",
+"moves": "h2h3 h5h4 g3f3 c2d4",
+"themes": "mate mateIn2 middlegame short"
+},
+{
+"id": "01jao",
+"fen": "2kr3r/ppp2ppp/2nbp3/6B1/P2P2n1/2N2N1q/1PP1BP2/R2QR1K1 w - - 2 14",
+"moves": "e2f1 d6h2 g1h1 g4f2",
+"themes": "deflection kingsideAttack mate mateIn2 middlegame short"
+},
+{
+"id": "01m5k",
+"fen": "4r1k1/pp2rp1p/5Rp1/1q6/8/1P4Q1/P4PPP/5RK1 w - - 1 22",
+"moves": "a2a4 b5f1 g1f1 e7e1",
+"themes": "attraction endgame mate mateIn2 sacrifice short"
+},
+{
+"id": "01mLC",
+"fen": "7k/p1q4p/5Pp1/1ppb4/3n1PQ1/2KP4/PP6/2R4R w - - 0 27",
+"moves": "h1e1 c7a5 b2b4 a5b4",
+"themes": "endgame mate mateIn2 short"
+},
+{
+"id": "01mxD",
+"fen": "rn3rk1/p1b2ppp/1p1qp3/3p2n1/1P1P4/PN1QPN2/5PPP/R3BRK1 w - - 6 17",
+"moves": "b4b5 g5f3 g2f3 d6h2",
+"themes": "kingsideAttack mate mateIn2 opening short"
+},
+{
+"id": "01p5M",
+"fen": "1r6/p1p2n2/1pk2Pp1/6r1/8/2N5/PPP4K/3R1R2 w - - 2 24",
+"moves": "f1g1 b8h8",
+"themes": "endgame mate mateIn1 oneMove"
+},
+{
+"id": "01q3y",
+"fen": "rnb2r2/ppp2B1k/3p3p/2b4Q/4P3/3P4/PP1NKPPP/q7 b - - 0 14",
+"moves": "a1b2 h5g6 h7h8 g6h6",
+"themes": "deflection mate mateIn2 middlegame short"
+},
+{
+"id": "01qh2",
+"fen": "r1b1r1k1/pp1p1Npp/2p2q2/2bn3Q/2B5/3P4/PPP2PPP/R1B2RK1 w - - 0 12",
+"moves": "c4d5 f6f2 g1h1 f2f1",
+"themes": "deflection kingsideAttack mate mateIn2 opening short"
+},
+{
+"id": "01riG",
+"fen": "8/8/6kp/2R1PNp1/2P5/1P4K1/r7/4n3 w - - 5 35",
+"moves": "e5e6 a2g2 g3h3 g5g4 h3h4 e1f3",
+"themes": "cornerMate endgame exposedKing long master mate mateIn3"
+},
+{
+"id": "01t6f",
+"fen": "r4rk1/2qb2pp/p2bp3/1p1nnN2/1P2Q3/P1P3N1/2B2PPP/R1B2RK1 b - - 0 21",
+"moves": "d5c3 f5h6 g7h6 e4h7",
+"themes": "discoveredAttack kingsideAttack mate mateIn2 middlegame sacrifice short"
+},
+{
+"id": "01w3s",
+"fen": "r4r1k/ppp1q1pp/6N1/5Q2/2B5/2P5/P1P2PPP/2KR4 b - - 2 21",
+"moves": "h7g6 f5h3 e7h4 h3h4",
+"themes": "endgame mate mateIn2 short"
+},
+{
+"id": "01wET",
+"fen": "6k1/1P1B1p2/4p3/3pP1Pp/P4K1P/2r5/1R3QP1/2q5 w - - 5 39",
+"moves": "f2d2 c1f1 d2f2 f1c4 f2d4 c4d4",
+"themes": "endgame long mate mateIn3"
+},
+{
+"id": "01wIv",
+"fen": "3r4/p5R1/8/2p2p1k/2K1rB2/2P2bR1/PP3P2/8 w - - 3 40",
+"moves": "c4b3 f3d1 b3a3 e4a4",
+"themes": "endgame mate mateIn2 operaMate short"
+}
+]

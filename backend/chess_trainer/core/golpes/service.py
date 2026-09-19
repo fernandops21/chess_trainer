@@ -12,8 +12,9 @@ from sqlalchemy.orm import Session
 
 from chess_trainer.config import set_setting
 from chess_trainer.core.golpes.assinatura import VERSAO_ASSINATURA, Assinatura, Trecho, assinar, assinar_com_trechos, trechos
+from chess_trainer.core.golpes.mates import padrao_do_exercicio
 from chess_trainer.core.models import (
-    LichessPuzzle, LichessPuzzleSignature, LichessPuzzleTrecho, Puzzle, PuzzleSignature,
+    LichessPuzzle, LichessPuzzleSignature, LichessPuzzleTheme, LichessPuzzleTrecho, Puzzle, PuzzleSignature,
 )
 
 ProgressFn = Callable[[str, int, int, str], None]
@@ -295,29 +296,64 @@ def _candidatos_trecho(db: Session, coluna: str, n: int, valor: int, excluir: se
     return [(pid, rating) for pid, rating, _i in linhas], prov
 
 
-def _passos(a: Assinatura, meus_trechos: dict[int, "Trecho"], k: int):
-    """A cascata em degraus (spec golpes trechos §5), na ordem: assinatura inteira → trechos
-    (do maior prefixo ao menor) → espelho inteiro → trechos espelhados → esqueleto inteiro →
-    trechos por esqueleto. `meus_trechos` são os PRÓPRIOS trechos da âncora com `inicio == 0`
-    (os prefixos dela, de `trechos(fen, lances)`); um trecho de tamanho `n` só entra quando a
-    âncora tiver um. Cada item da lista devolvida é `(degrau, nivel, n, espelhado, eh_trecho,
-    valor)`."""
+# maior "mateIn{n}" do Lichess que a subconsulta mais estreita do degrau `padrao-mate` procura
+# (spec golpes design §3.6/§5): mates mais longos caem direto na subconsulta sem esse filtro
+MATE_IN_MAX = 5
+
+
+def _candidatos_padrao_mate(db: Session, tema: str, tag_extra: str | None, excluir: set[str], centro: int,
+                            min_popularity: int, min_plays: int) -> list[tuple[str, int]]:
+    """Candidatos do degrau `padrao-mate` (spec golpes design §3.6/§5): puzzles do Lichess
+    etiquetados com `tema` (um padrão de mate aprovado) em `lichess_puzzle_themes` e, quando
+    `tag_extra` é dado (`mateIn{n}`), também com essa etiqueta — as mesmas exclusões e o mesmo
+    corte `LIMITE_CANDIDATOS` (perto do centro da faixa) dos outros degraus, mas sem tabela de
+    assinatura: quem decide este degrau é a etiqueta do Lichess, não a geometria da solução."""
+    q = (select(LichessPuzzle.id, LichessPuzzle.rating)
+         .join(LichessPuzzleTheme, LichessPuzzleTheme.puzzle_id == LichessPuzzle.id)
+         .where(LichessPuzzleTheme.theme == tema, LichessPuzzle.popularity >= min_popularity,
+               LichessPuzzle.nb_plays >= min_plays))
+    if tag_extra is not None:
+        sub = select(LichessPuzzleTheme.puzzle_id).where(LichessPuzzleTheme.theme == tag_extra)
+        q = q.where(LichessPuzzle.id.in_(sub))
+    q = q.order_by(func.abs(LichessPuzzle.rating - centro), LichessPuzzle.id).limit(LIMITE_CANDIDATOS)
+    return [(pid, rating) for pid, rating in db.execute(q) if pid not in excluir]
+
+
+def _passos(a: Assinatura, meus_trechos: dict[int, "Trecho"], k: int, mate: tuple[str, int] | None = None):
+    """A cascata em degraus (spec golpes trechos §5; padrão de mate: spec golpes design §3.6),
+    na ordem: assinatura inteira → trechos (do maior prefixo ao segundo lance) → PADRÃO DE MATE
+    (quando o exercício termina num mate com padrão aprovado: `mateIn{n}` primeiro, depois o
+    tema sozinho) → trecho de um lance → espelho inteiro → trechos espelhados → esqueleto
+    inteiro → trechos por esqueleto. Para um exercício de mate, "mesmo padrão nomeado" é um
+    irmão melhor que "um lance idêntico" (`trecho1`) — os votos confirmam ou refutam essa
+    ordem. `meus_trechos` são os PRÓPRIOS trechos da âncora com `inicio == 0` (os prefixos
+    dela, de `trechos(fen, lances)`); um trecho de tamanho `n` só entra quando a âncora tiver
+    um. Cada item da lista devolvida é `(degrau, nivel, n, espelhado, tipo, valor)`, onde `tipo`
+    é `"inteira"` | `"trecho"` | `"padrao_mate"` (nesse caso `nivel` é o tema e `valor` a
+    etiqueta extra `mateIn{n}` a exigir junto, ou `None` na segunda subconsulta)."""
     h = a.hashes()
-    passos = [("inteira", "destinos", k, False, False, h["destinos"])]
-    for n in range(k, 0, -1):
-        t = meus_trechos.get(n)
-        if t is not None:
-            passos.append((f"trecho{n}", "destinos", n, False, True, t.assinatura.hashes()["destinos"]))
-    passos.append(("espelho", "destinos_esp", k, True, False, h["destinos_esp"]))
+    passos = [("inteira", "destinos", k, False, "inteira", h["destinos"])]
     for n in range(k, 1, -1):
         t = meus_trechos.get(n)
         if t is not None:
-            passos.append((f"espelho-trecho{n}", "destinos_esp", n, True, True, t.assinatura.hashes()["destinos_esp"]))
-    passos.append(("esqueleto", "esqueleto", k, False, False, h["esqueleto"]))
+            passos.append((f"trecho{n}", "destinos", n, False, "trecho", t.assinatura.hashes()["destinos"]))
+    if mate is not None:
+        tema, n_mate = mate
+        passos.append(("padrao-mate", tema, n_mate, False, "padrao_mate", f"mateIn{min(n_mate, MATE_IN_MAX)}"))
+        passos.append(("padrao-mate", tema, n_mate, False, "padrao_mate", None))
+    t1 = meus_trechos.get(1)
+    if t1 is not None:
+        passos.append(("trecho1", "destinos", 1, False, "trecho", t1.assinatura.hashes()["destinos"]))
+    passos.append(("espelho", "destinos_esp", k, True, "inteira", h["destinos_esp"]))
     for n in range(k, 1, -1):
         t = meus_trechos.get(n)
         if t is not None:
-            passos.append((f"esqueleto-trecho{n}", "esqueleto", n, False, True, t.assinatura.hashes()["esqueleto"]))
+            passos.append((f"espelho-trecho{n}", "destinos_esp", n, True, "trecho", t.assinatura.hashes()["destinos_esp"]))
+    passos.append(("esqueleto", "esqueleto", k, False, "inteira", h["esqueleto"]))
+    for n in range(k, 1, -1):
+        t = meus_trechos.get(n)
+        if t is not None:
+            passos.append((f"esqueleto-trecho{n}", "esqueleto", n, False, "trecho", t.assinatura.hashes()["esqueleto"]))
     return passos
 
 
@@ -327,13 +363,16 @@ def _meus_trechos(fen: str, lances: list[str]) -> dict[int, "Trecho"]:
     return {t.n: t for t in trechos(fen, lances) if t.inicio == 0}
 
 
-def _executar_passo(db: Session, nivel: str, n: int, eh_trecho: bool, valor: int, zona_rei: str,
+def _executar_passo(db: Session, nivel: str, n: int, tipo: str, valor, zona_rei: str,
                     excluir: set[str], centro: int, min_popularity: int, min_plays: int):
     """Roda um degrau da cascata: devolve os candidatos (id, rating) e, se for um degrau de
     trecho, a procedência bruta (`inicio`, `posicao`) de cada um — `None` num degrau de
-    assinatura inteira, onde a posição do casamento é sempre a solução inteira."""
+    assinatura inteira ou de padrão de mate, onde a posição do casamento é sempre a solução
+    inteira."""
+    if tipo == "padrao_mate":
+        return _candidatos_padrao_mate(db, nivel, valor, excluir, centro, min_popularity, min_plays), None
     coluna = "esqueleto" if nivel == "esqueleto" else "destinos"
-    if eh_trecho:
+    if tipo == "trecho":
         return _candidatos_trecho(db, coluna, n, valor, excluir, centro, min_popularity, min_plays)
     cond = getattr(LichessPuzzleSignature, coluna) == valor
     if nivel == "esqueleto":
@@ -343,24 +382,27 @@ def _executar_passo(db: Session, nivel: str, n: int, eh_trecho: bool, valor: int
 
 def irmaos(db: Session, fen: str, lances: list[str], *, rating: int, abaixo: int = 100, acima: int = 500,
           excluir: set[str], k: int = 5, min_popularity: int = 50, min_plays: int = 50) -> list[Irmao]:
-    """Cascata (spec golpes trechos §5): assinatura inteira → trechos (prefixos da âncora, do
-    maior ao menor) → espelho inteiro → trechos espelhados → esqueleto inteiro → trechos por
-    esqueleto. A busca ignora rating (quem decide o degrau é o golpe); o rating só escolhe quem
-    aparece no bloco, preferindo a faixa `[rating - abaixo, rating + acima]` e completando de
-    fora dela quando falta (`escolher_por_rating`). O que já saiu num degrau não volta nos
-    seguintes. Ids primeiro, linhas completas só dos escolhidos no final: a tabela do Lichess tem
-    milhões de linhas. O bloco final fica em ordem ascendente de rating, mesmo cruzando degraus."""
+    """Cascata (spec golpes trechos §5; padrão de mate: spec golpes design §3.6): assinatura
+    inteira → trechos (prefixos da âncora, do maior ao segundo lance) → padrão de mate (quando o
+    exercício termina em xeque-mate com um padrão aprovado) → trecho de um lance → espelho
+    inteiro → trechos espelhados → esqueleto inteiro → trechos por esqueleto. A busca ignora
+    rating (quem decide o degrau é o golpe); o rating só escolhe quem aparece no bloco,
+    preferindo a faixa `[rating - abaixo, rating + acima]` e completando de fora dela quando
+    falta (`escolher_por_rating`). O que já saiu num degrau não volta nos seguintes. Ids
+    primeiro, linhas completas só dos escolhidos no final: a tabela do Lichess tem milhões de
+    linhas. O bloco final fica em ordem ascendente de rating, mesmo cruzando degraus."""
     a = assinar(fen, lances)
     k_ = min(len(a.lances), 3)
-    passos = _passos(a, _meus_trechos(fen, lances), k_)
+    mate = padrao_do_exercicio(fen, lances)
+    passos = _passos(a, _meus_trechos(fen, lances), k_, mate)
     lo, hi = rating - abaixo, rating + acima
     centro = (lo + hi) // 2
     escolhidos: list[tuple[str, str, Procedencia]] = []
     usados = set(excluir)
-    for nome, nivel, n, espelhado, eh_trecho, valor in passos:
+    for nome, nivel, n, espelhado, tipo, valor in passos:
         if len(escolhidos) >= k:
             break
-        cands, prov = _executar_passo(db, nivel, n, eh_trecho, valor, a.zona_rei, usados, centro,
+        cands, prov = _executar_passo(db, nivel, n, tipo, valor, a.zona_rei, usados, centro,
                                       min_popularity, min_plays)
         for pid in escolher_por_rating(cands, k - len(escolhidos), lo, hi):
             posicao = "inteira" if prov is None else prov[pid][1]

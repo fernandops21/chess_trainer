@@ -323,7 +323,9 @@ class GolpeLabel(Base):
     # rótulos gravados antes deste ciclo, quando só existia a cascata de três camadas
     n_lances: Mapped[int | None] = mapped_column(Integer, default=None)
     posicao: Mapped[str | None] = mapped_column(String(8), default=None)
-    nivel: Mapped[str | None] = mapped_column(String(10), default=None)
+    # "destinos" | "destinos_esp" | "esqueleto" nos degraus de assinatura, ou o tema do
+    # Lichess (ex. "smotheredMate", 13 letras) no degrau `padrao-mate` (spec golpes design §3.6)
+    nivel: Mapped[str | None] = mapped_column(String(24), default=None)
     espelhado: Mapped[bool | None] = mapped_column(Boolean, default=None)
 
 
