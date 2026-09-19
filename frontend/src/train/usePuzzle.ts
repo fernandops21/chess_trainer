@@ -393,8 +393,12 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
       };
 
       /** O lance serve tanto quanto o do exercício: volta ao tabuleiro sem contar como erro. */
-      const alternativa = (evalBefore: number) => {
-        const elogio = evalAfter >= evalBefore
+      const alternativa = (evalBefore: number, melhorUci?: string) => {
+        // "até prefere" também quando o lance jogado é o primeiro da engine na
+        // posição de antes: duas buscas da mesma posição oscilam alguns centipeões,
+        // e a comparação seca de avaliações esconderia o elogio merecido.
+        const ehOMelhor = !!melhorUci && melhorUci.slice(0, 4) === uci.slice(0, 4);
+        const elogio = evalAfter >= evalBefore || ehOMelhor
           ? `${wrongSan} também serve, e a engine até prefere (${formatEval(evalAfter)}).`
           : `${wrongSan} também serve (${formatEval(evalAfter)}).`;
         refutaRef.current = [];
@@ -413,7 +417,7 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
           const linhaAntes = antes.lines?.[0];
           if (!linhaAntes) { refutado(); return; }
           const folga = opts.altGapCp ?? 150;
-          if (evalAfter >= linhaAntes.score - folga) alternativa(linhaAntes.score);
+          if (evalAfter >= linhaAntes.score - folga) alternativa(linhaAntes.score, linhaAntes.move);
           else refutado(linhaAntes.score);
         }, () => { if (vale()) refutado(); });
         return;

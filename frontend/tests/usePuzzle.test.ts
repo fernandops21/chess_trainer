@@ -680,6 +680,18 @@ test("lance melhor que o do exercício ganha o 'até prefere'", async () => {
   expect(result.current.state.wrong).toBe(false);
 });
 
+test("o lance jogado é o primeiro da engine: 'até prefere' mesmo com a avaliação oscilando para baixo", async () => {
+  // a posição de antes diz que o melhor é h2h3 (+9.00); a de depois voltou +8.80
+  const analyse = vi.fn(async (fen: string) => (fen === ONE_MOVE.fen_start
+    ? analiseOut(fen, [{ ...LINHA_ANTES, move: "h2h3", san: "h3" }])
+    : depoisValendo(-880)));
+  const { result } = setup(ONE_MOVE, { refute: true, analyse });
+  act(() => result.current.tryMove("h2", "h3"));
+  await escoar();
+  expect(result.current.state.message.text)
+    .toBe("h3 também serve, e a engine até prefere (+8.80). O exercício segue por outro lance: procure o dele.");
+});
+
 test("candidata fora da folga é refutada como sempre, com uma análise da posição de antes", async () => {
   const analyse = engineDuble(depoisValendo(-500));
   const { result } = setup(ONE_MOVE, { refute: true, analyse });
