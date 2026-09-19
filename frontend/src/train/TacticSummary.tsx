@@ -4,8 +4,8 @@ import { storage } from "../lib/storage";
 
 export interface TacticDone { tactic: TacticOut; attempt: AttemptOut }
 
-export function TacticSummary({ done, elapsedLabel, reason, ratingStart, ratingEnd, onNew, onVoltar }:
-  { done: TacticDone[]; elapsedLabel: string; reason: string; ratingStart: number; ratingEnd: number; onNew: () => void; onVoltar?: () => void }) {
+export function TacticSummary({ done, elapsedLabel, reason, ratingStart, ratingEnd, onNew, onVoltar, voltarLabel }:
+  { done: TacticDone[]; elapsedLabel: string; reason: string; ratingStart: number; ratingEnd: number; onNew: () => void; onVoltar?: () => void; voltarLabel?: string }) {
   const clean = (d: TacticDone) => d.attempt.correct && !d.attempt.used_hint;
   const ok = done.filter(clean);
   const failed = done.filter((d) => !clean(d));
@@ -37,7 +37,7 @@ export function TacticSummary({ done, elapsedLabel, reason, ratingStart, ratingE
         {/* o cartão do golpe trocou a sessão em andamento pelo bloco de irmãos (spec §6):
            "Voltar ao treino" retoma de onde o bloco interrompeu, em vez de descartá-la */}
         {onVoltar
-          ? <button className="primary" onClick={onVoltar}>Voltar ao treino</button>
+          ? <button className="primary" onClick={onVoltar}>{voltarLabel ?? "Voltar ao treino"}</button>
           : <button className="primary" onClick={onNew}>Nova sessão</button>}
         {noCandidates && <button onClick={() => { storage.set("train.themes", []); onNew(); }}>Nova sessão sem temas</button>}
       </div>

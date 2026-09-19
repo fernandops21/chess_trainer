@@ -129,3 +129,50 @@ test("ao fim do bloco, 'Voltar ao treino' retoma a sessão que estava em andamen
   await screen.findByText("resolver");
   expect(next).toHaveBeenCalledTimes(2);
 });
+
+// --- o bloco aberto a partir de OUTRA tela (Revisar, exercício avulso) -------------------------
+
+import { Route, Routes, useLocation } from "react-router-dom";
+import { BlocoGlobal, useBloco } from "../src/train/BlocoContext";
+
+function Onde() {
+  const l = useLocation();
+  return <div>{`onde:${l.pathname}`}</div>;
+}
+
+test("fora da tela Treinar, o botão do cartão leva para lá com o bloco e o caminho de volta", async () => {
+  const bloco = { anchorId: "p1", anchorOrigem: "own" as const, itens: [tactic("a"), tactic("b")], tiers: { a: "mesmo", b: "mesmo" }, procedencias: {} };
+  function Botao() {
+    const { iniciar } = useBloco();
+    return <button onClick={() => iniciar(bloco)}>abrir bloco</button>;
+  }
+  const next = vi.spyOn(api, "nextTactic");
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter initialEntries={["/revisar"]}>
+        <BlocoGlobal>
+          <Routes>
+            <Route path="/revisar" element={<><Onde /><Botao /></>} />
+            <Route path="/treinar" element={<TrainPage />} />
+          </Routes>
+        </BlocoGlobal>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  expect(screen.getByText("onde:/revisar")).toBeTruthy();
+  fireEvent.click(screen.getByText("abrir bloco"));
+
+  // cai na tela de treino já dentro do bloco, sem passar pela tela de início nem pela fila do Lichess
+  expect(await screen.findByText("Repetir o golpe")).toBeInTheDocument();
+  expect(screen.getByText("1 de 2")).toBeTruthy();
+  expect(next).not.toHaveBeenCalled();
+
+  // resolve os dois e o resumo oferece voltar para a revisão, que é de onde o bloco saiu
+  fireEvent.click(screen.getByText("resolver"));
+  fireEvent.click(await screen.findByRole("button", { name: "Próximo" }));
+  await screen.findByText("2 de 2");
+  fireEvent.click(screen.getByText("resolver"));
+  fireEvent.click(await screen.findByRole("button", { name: "Próximo" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Voltar à revisão" }));
+  expect(await screen.findByText("onde:/revisar")).toBeTruthy();
+});

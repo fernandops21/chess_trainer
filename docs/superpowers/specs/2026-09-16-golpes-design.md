@@ -401,6 +401,13 @@ com assinatura tem irmãos.
   o usuário erra: viriam a conta-gotas e enviesados para o que ele acha difícil.
   Sem resultado registrado (enviando, ou falha ao registrar), só a imagem. Sem
   irmãos, o cartão não existe.
+- **O botão funciona de qualquer tela.** Na tela Treinar o bloco troca a sessão
+  em andamento no lugar e, no fim, "Voltar ao treino" a retoma. Em qualquer
+  outra tela que mostre o painel de resultado (Revisar, exercício avulso) um
+  provedor do App inteiro (`BlocoGlobal`) leva para `/treinar` com o bloco e o
+  caminho de volta no estado da navegação; o resumo do bloco oferece "Voltar à
+  revisão" (ou "Voltar"). Um padrão vazio e silencioso aqui já causou o botão
+  não fazer nada fora da tela Treinar.
 - **Bloco**: o botão abre a sessão de táticas existente com a lista fixa dos
   irmãos, na ordem do fácil ao difícil. Cada tentativa é registrada como hoje
   (`tactics/attempts`, rating de táticas). No fim, resumo "4 de 5" e volta.

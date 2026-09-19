@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import { useJobWatcher } from "./api/queries";
 import { Nav } from "./components/Nav";
+import { BlocoGlobal } from "./train/BlocoContext";
 import { AnalysisPage } from "./pages/AnalysisPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { GamesPage } from "./pages/GamesPage";
@@ -21,6 +22,7 @@ export function App() {
     <div className="app">
       <Nav />
       <main className="content">
+        <BlocoGlobal>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/revisar" element={<ReviewPage />} />
@@ -37,6 +39,7 @@ export function App() {
           <Route path="/config" element={<SettingsPage />} />
           <Route path="*" element={<DashboardPage />} />
         </Routes>
+        </BlocoGlobal>
       </main>
     </div>
   );

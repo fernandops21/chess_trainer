@@ -1,9 +1,9 @@
-import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { usePuzzleQuery } from "../api/queries";
 import { ErrorBox } from "../components/ErrorBox";
 import { configDoBloco } from "./bloco";
-import { type Bloco, BlocoProvider } from "./BlocoContext";
+import { type Bloco, BlocoProvider, type ChegadaDoBloco } from "./BlocoContext";
 import { Session, SessionPuzzle } from "./Session";
 import { SessionStart, type SessionConfig } from "./SessionStart";
 import { SessionSummary, type Done } from "./SessionSummary";
@@ -33,7 +33,7 @@ export function TrainPage() {
   // `undefined` é "não veio de um bloco" (não oferece o botão); `null` é um valor válido
   // (o bloco abriu direto da tela de início, sem sessão em andamento antes dele).
   const [configAntesDoBloco, setConfigAntesDoBloco] = useState<SessionConfig | null | undefined>(undefined);
-  const restart = () => { setSummary(null); setTacticSummary(null); setConfig(null); setConfigAntesDoBloco(undefined); };
+  const restart = () => { setSummary(null); setTacticSummary(null); setConfig(null); setConfigAntesDoBloco(undefined); setVoltarPara(null); };
   const voltarAoBloco = () => {
     setTacticSummary(null);
     setConfig(configAntesDoBloco ?? null);
@@ -45,10 +45,29 @@ export function TrainPage() {
   // de começar a sessão do bloco do zero)
   const iniciar = (bloco: Bloco) => { setConfigAntesDoBloco(config); setConfig(configDoBloco(bloco)); };
 
-  if (single) return <><h1>Treinar</h1><SingleTrain id={single} seen={params.get("seen") === "1"} /></>;
+  // o bloco aberto a partir de OUTRA tela (Revisar, exercício avulso) chega no estado da
+  // navegação: começa direto nele e guarda para onde voltar. O estado é limpo em seguida, para
+  // um F5 ou o "voltar" do navegador não reabrirem o mesmo bloco.
+  const navegar = useNavigate();
+  const onde = useLocation();
+  const chegada = onde.state as ChegadaDoBloco | null;
+  const [voltarPara, setVoltarPara] = useState<string | null>(null);
+  useEffect(() => {
+    if (!chegada?.bloco) return;
+    setSummary(null);
+    setTacticSummary(null);
+    setConfigAntesDoBloco(undefined);
+    setConfig(configDoBloco(chegada.bloco));
+    setVoltarPara(chegada.voltarPara);
+    navegar("/treinar", { replace: true, state: null });
+  }, [chegada, navegar]);
+  const voltarParaOrigem = voltarPara === null ? undefined : () => navegar(voltarPara);
+  const rotuloDeVolta = voltarPara?.startsWith("/revisar") ? "Voltar à revisão" : voltarPara !== null ? "Voltar" : undefined;
+
+  if (single && !chegada?.bloco) return <><h1>Treinar</h1><SingleTrain id={single} seen={params.get("seen") === "1"} /></>;
 
   let body;
-  if (tacticSummary) body = <TacticSummary {...tacticSummary} onNew={restart} onVoltar={configAntesDoBloco !== undefined ? voltarAoBloco : undefined} />;
+  if (tacticSummary) body = <TacticSummary {...tacticSummary} onNew={restart} onVoltar={voltarParaOrigem ?? (configAntesDoBloco !== undefined ? voltarAoBloco : undefined)} voltarLabel={rotuloDeVolta} />;
   else if (summary) body = <SessionSummary {...summary} onNew={restart} />;
   else if (config?.source === "tactics") body = <TacticSession key={config.bloco ? `bloco-${config.bloco.anchorId}` : "tactics"} config={config} onFinish={setTacticSummary} />;
   else if (config) body = <Session config={config} onFinish={(done, elapsedLabel, reason) => setSummary({ done, elapsedLabel, reason })} />;
