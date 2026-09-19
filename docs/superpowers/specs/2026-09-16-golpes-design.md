@@ -175,7 +175,7 @@ precisão de cada detector contra a etiqueta correspondente do Lichess.
 | --- | --- | --- | --- |
 | sufocado | 100% | 100% | — |
 | árabe | 100% | 77% | pillsbury, vukovic, outros mates de canto sem etiqueta |
-| corredor | 100% | 26% | a regra tolera UMA casa vazia à frente do rei quando o adversário a cobre (o exercício real que motivou o degrau é assim: f7 e g7 com peões, h7 vazia e coberta pela dama); com as três casas ocupadas a precisão era 58%, e nos dois casos o que sobra são corredores que o Lichess não etiquetou. O detector só classifica o exercício do usuário; os irmãos vêm sempre da etiqueta do Lichess |
+| corredor | 100% | 26% | a regra tolera UMA casa vazia à frente do rei quando o adversário a cobre (o exercício real que motivou o degrau é assim: f7 e g7 com peões, h7 vazia e coberta pela dama); com as três casas ocupadas a precisão era 58%, e o que sobra o Lichess exclui por regra (§3.6.1), não por esquecimento. O detector só classifica o exercício do usuário; os irmãos vêm sempre da etiqueta do Lichess |
 
 Só estes três foram aprovados. Protótipos de **dovetail**, **epaulette** e
 **boden** não bateram com a definição do Lichess (recall abaixo do piso) e
@@ -201,6 +201,32 @@ Correção honesta: uma afirmação anterior dizia que esses 9 224 extras eram
 era — era outra ideia, uma torre ou dama presa por cravada bem na frente do
 rei, não bloqueando por ser um peão dele. A regra frouxa não distingue as duas
 situações.
+
+**A regra exata do Lichess**, reconstruída e conferida contra as etiquetas dele
+nos 242 413 mates (cobertura 100%, zero extras): rei na primeira fila, xeque de
+torre ou dama pela fila, toda casa à frente ocupada por peça própria **e
+nenhuma dessas casas atacada por quem dá mate**. Ou seja, para o Lichess só é
+corredor quando o rei está preso EXCLUSIVAMENTE pelas próprias peças. Os extras
+das nossas regras não foram "esquecidos": foram excluídos por essa condição.
+Ela junta dois casos que para o jogador são diferentes:
+
+- um **peão** do escudo atacado de passagem (`Qe8#` contra f7/g7/h7 com uma
+  torre branca em f1 mirando f7): continua sendo corredor — o peão não recua
+  para bloquear e o rei não toma o próprio peão, então o ataque não muda nada;
+- uma **peça** à frente do rei que só não ajuda porque está cravada (`Rxd8#`
+  com a torre de f7 cravada pelo bispo de d5, puzzle `oMSgP`): aí a cravada é
+  a ideia e o corredor é o cenário; o Lichess etiqueta `pin`.
+
+Exigir PEÕES à frente (a regra apertada abaixo) separa exatamente esses dois.
+
+**As etiquetas não se excluem.** No Lichess um puzzle leva vários temas: dos
+12 813 `backRankMate`, 52% também são `sacrifice`, 12% `xRayAttack`, 11%
+`deflection`, 11% `fork`, 2% `pin` (a cravada no caminho, com o mate final
+limpo); 1 415 puzzles têm dois mates nomeados. Por isso `padroes_de_mate` /
+`padroes_do_exercicio` devolvem a LISTA de padrões (do mais específico ao mais
+geral), a cascata roda o degrau para cada um, e o cartão mostra
+"mate árabe + mate do corredor". Os nomes no singular (`padrao_de_mate`…)
+ficam como atalho para o mais específico.
 
 A resposta foi separar a regra em duas, para dois usos diferentes:
 

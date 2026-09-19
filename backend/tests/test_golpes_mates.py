@@ -215,3 +215,18 @@ def test_precisao_100_do_sufocado_nos_outros_mates_da_amostra():
     for item in outros:
         detectado = padrao_de_mate(_final(item["fen"], item["moves"].split()))
         assert detectado != "smotheredMate", item["id"]
+
+
+def test_um_mate_pode_ter_mais_de_um_padrao():
+    """Rei no canto, torre colada dando mate apoiada pelo cavalo (árabe) E preso na última fila
+    atrás dos próprios peões (corredor): as etiquetas não se excluem, como no próprio Lichess."""
+    import chess
+    from chess_trainer.core.golpes.mates import padrao_de_mate, padroes_de_mate, padroes_do_exercicio
+    final = chess.Board("6Rk/6pp/5N2/8/8/8/8/6K1 b - - 0 1")
+    assert final.is_checkmate()
+    assert padroes_de_mate(final) == ["arabianMate", "backRankMate"]
+    assert padrao_de_mate(final) == "arabianMate"  # o mais específico continua sendo o primeiro
+    assert padroes_de_mate(chess.Board()) == []
+    # pelo exercício inteiro: a torre toma o bispo que tapava o rei, Rf8xg8#
+    assert padroes_do_exercicio("5Rbk/6pp/5N2/8/8/8/8/6K1 w - - 0 1", ["f8g8"]) == (["arabianMate", "backRankMate"], 1)
+    assert padroes_do_exercicio("5Rbk/6pp/5N2/8/8/8/8/6K1 w - - 0 1", ["f8f7"]) is None

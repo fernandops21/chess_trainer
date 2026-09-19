@@ -75,18 +75,26 @@ PADROES: tuple[tuple[str, Callable[[chess.Board, int, chess.Color, list[int]], b
 NOME_PT = {"smotheredMate": "mate sufocado", "arabianMate": "mate árabe", "backRankMate": "mate do corredor"}
 
 
-def padrao_de_mate(board: chess.Board) -> str | None:
-    """O primeiro padrão aprovado (de `PADROES`, do mais específico) que a posição de xeque-mate
-    satisfaz; `None` fora do xeque-mate ou sem padrão nomeado nela."""
+def _detectados(board: chess.Board, detectores) -> list[str]:
     if not board.is_checkmate():
-        return None
+        return []
     dono = board.turn
     rei = board.king(dono)
     xeques = list(board.checkers())
-    for nome, detector in PADROES:
-        if detector(board, rei, dono, xeques):
-            return nome
-    return None
+    return [nome for nome, detector in detectores if detector(board, rei, dono, xeques)]
+
+
+def padroes_de_mate(board: chess.Board) -> list[str]:
+    """TODOS os padrões aprovados (de `PADROES`, do mais específico ao mais geral) que a posição
+    de xeque-mate satisfaz: as etiquetas não se excluem — um mate árabe na última fila atrás dos
+    próprios peões também é corredor, como no Lichess, em que um puzzle leva vários temas."""
+    return _detectados(board, PADROES)
+
+
+def padrao_de_mate(board: chess.Board) -> str | None:
+    """O mais específico dos `padroes_de_mate`, ou `None`."""
+    achados = padroes_de_mate(board)
+    return achados[0] if achados else None
 
 
 def corredor_apertado(b: chess.Board, rei: int, dono: chess.Color, xeques: list[int]) -> bool:
@@ -130,25 +138,23 @@ PADROES_PARA_CANDIDATOS: tuple[tuple[str, Callable[[chess.Board, int, chess.Colo
 VERSAO_PADROES = 1
 
 
-def padrao_para_candidato(board: chess.Board) -> str | None:
-    """Como `padrao_de_mate`, mas com os detectores candidatos (`PADROES_PARA_CANDIDATOS`) que
+def padroes_para_candidato(board: chess.Board) -> list[str]:
+    """Como `padroes_de_mate`, mas com os detectores candidatos (`PADROES_PARA_CANDIDATOS`), que
     geram etiqueta PRÓPRIA em vez de classificar o exercício do usuário: hoje só o corredor
-    apertado. `None` fora do xeque-mate ou sem nenhum detector candidato batendo."""
-    if not board.is_checkmate():
-        return None
-    dono = board.turn
-    rei = board.king(dono)
-    xeques = list(board.checkers())
-    for nome, detector in PADROES_PARA_CANDIDATOS:
-        if detector(board, rei, dono, xeques):
-            return nome
-    return None
+    apertado."""
+    return _detectados(board, PADROES_PARA_CANDIDATOS)
 
 
-def padrao_do_exercicio(fen: str, lances_uci: Sequence[str]) -> tuple[str, int] | None:
-    """Joga a solução inteira a partir de `fen`; quando ela termina em xeque-mate com um padrão
-    aprovado, devolve `(tema, quantos lances quem soluciona jogou)`. `None` sem mate, sem padrão
-    aprovado, FEN inválida ou lance ilegal — nunca levanta (degrau opcional da cascata, spec §5)."""
+def padrao_para_candidato(board: chess.Board) -> str | None:
+    achados = padroes_para_candidato(board)
+    return achados[0] if achados else None
+
+
+def padroes_do_exercicio(fen: str, lances_uci: Sequence[str]) -> tuple[list[str], int] | None:
+    """Joga a solução inteira a partir de `fen`; quando ela termina em xeque-mate com ao menos um
+    padrão aprovado, devolve `(temas, quantos lances quem soluciona jogou)`, os temas do mais
+    específico ao mais geral. `None` sem mate, sem padrão aprovado, FEN inválida ou lance ilegal —
+    nunca levanta (degrau opcional da cascata, spec §5)."""
     try:
         board = chess.Board(fen)
     except ValueError:
@@ -166,5 +172,11 @@ def padrao_do_exercicio(fen: str, lances_uci: Sequence[str]) -> tuple[str, int] 
         board.push(mv)
         if i % 2 == 0:
             n_lances += 1
-    tema = padrao_de_mate(board)
-    return None if tema is None else (tema, n_lances)
+    temas = padroes_de_mate(board)
+    return (temas, n_lances) if temas else None
+
+
+def padrao_do_exercicio(fen: str, lances_uci: Sequence[str]) -> tuple[str, int] | None:
+    """Só o padrão mais específico de `padroes_do_exercicio`."""
+    achado = padroes_do_exercicio(fen, lances_uci)
+    return None if achado is None else (achado[0][0], achado[1])

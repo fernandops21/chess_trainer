@@ -14,7 +14,7 @@ from chess_trainer.api.schemas import (
 from chess_trainer.config import get_setting, load_settings
 from chess_trainer.core.golpes.assinatura import VERSAO_ASSINATURA
 from chess_trainer.core.golpes.imagem import svg_do_golpe
-from chess_trainer.core.golpes.mates import NOME_PT, padrao_do_exercicio
+from chess_trainer.core.golpes.mates import NOME_PT, padroes_do_exercicio
 from chess_trainer.core.golpes.service import NOME_TAREFA, assinatura_de, irmaos, preparar
 from chess_trainer.core.golpes.votos import resumo, voto_de, votar
 from chess_trainer.core.models import LichessPuzzle, Puzzle, utcnow
@@ -77,8 +77,9 @@ def golpes_irmaos(origem: str, id: str, k: int | None = None, db: Session = Depe
             itens.append(IrmaoOut(tier=irmao.tier, procedencia=asdict(irmao.procedencia), tactic=asdict(to_tactic(irmao.row))))
         except ValueError:
             continue
-    mate = padrao_do_exercicio(fen, lances)
-    padrao = None if mate is None else NOME_PT.get(mate[0])
+    mate = padroes_do_exercicio(fen, lances)
+    # um mate pode ter mais de um padrão: "mate árabe + mate do corredor"
+    padrao = None if mate is None else (" + ".join(NOME_PT[t] for t in mate[0] if t in NOME_PT) or None)
     return IrmaosOut(assinatura=a.destinos(), itens=itens, padrao=padrao)
 
 

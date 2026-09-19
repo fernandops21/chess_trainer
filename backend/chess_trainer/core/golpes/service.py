@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from chess_trainer.config import get_setting, set_setting
 from chess_trainer.core.golpes.assinatura import VERSAO_ASSINATURA, Assinatura, Trecho, assinar, assinar_com_trechos, trechos
-from chess_trainer.core.golpes.mates import VERSAO_PADROES, padrao_do_exercicio, padrao_para_candidato
+from chess_trainer.core.golpes.mates import VERSAO_PADROES, padroes_do_exercicio, padroes_para_candidato
 from chess_trainer.core.models import (
     LichessPuzzle, LichessPuzzlePadrao, LichessPuzzleSignature, LichessPuzzleTheme, LichessPuzzleTrecho, Puzzle,
     PuzzleSignature,
@@ -242,10 +242,10 @@ def preparar_padroes(db: Session, progress: ProgressFn, should_stop: Callable[[]
             board = _final_lichess(row)
             if board is None:
                 continue
-            tema = padrao_para_candidato(board)
-            if tema is not None and tema not in row.theme_list:
-                db.add(LichessPuzzlePadrao(puzzle_id=row.id, padrao=tema, versao=VERSAO_PADROES))
-                gravados += 1
+            for tema in padroes_para_candidato(board):
+                if tema not in row.theme_list:
+                    db.add(LichessPuzzlePadrao(puzzle_id=row.id, padrao=tema, versao=VERSAO_PADROES))
+                    gravados += 1
         db.commit()
         feitos += len(rows)
         progress(NOME_TAREFA, feitos, total, f"padrões de mate: {feitos}/{total}")
@@ -415,7 +415,7 @@ def _candidatos_padrao_mate(db: Session, tema: str, tag_extra: str | None, exclu
     return do_lichess + da_regra, origem
 
 
-def _passos(a: Assinatura, meus_trechos: dict[int, "Trecho"], k: int, mate: tuple[str, int] | None = None):
+def _passos(a: Assinatura, meus_trechos: dict[int, "Trecho"], k: int, mate: tuple[list[str], int] | None = None):
     """A cascata em degraus (spec golpes trechos §5; padrão de mate: spec golpes design §3.6),
     na ordem: assinatura inteira → trechos (do maior prefixo ao segundo lance) → PADRÃO DE MATE
     (quando o exercício termina num mate com padrão aprovado: `mateIn{n}` primeiro, depois o
@@ -434,9 +434,13 @@ def _passos(a: Assinatura, meus_trechos: dict[int, "Trecho"], k: int, mate: tupl
         if t is not None:
             passos.append((f"trecho{n}", "destinos", n, False, "trecho", t.assinatura.hashes()["destinos"]))
     if mate is not None:
-        tema, n_mate = mate
-        passos.append(("padrao-mate", tema, n_mate, False, "padrao_mate", f"mateIn{min(n_mate, MATE_IN_MAX)}"))
-        passos.append(("padrao-mate", tema, n_mate, False, "padrao_mate", None))
+        # um mate pode ter mais de um padrão (árabe E corredor): primeiro cada tema com o mesmo
+        # `mateIn{n}`, do mais específico ao mais geral, depois cada tema sem exigir o mateIn
+        temas, n_mate = mate
+        for tema in temas:
+            passos.append(("padrao-mate", tema, n_mate, False, "padrao_mate", f"mateIn{min(n_mate, MATE_IN_MAX)}"))
+        for tema in temas:
+            passos.append(("padrao-mate", tema, n_mate, False, "padrao_mate", None))
     t1 = meus_trechos.get(1)
     if t1 is not None:
         passos.append(("trecho1", "destinos", 1, False, "trecho", t1.assinatura.hashes()["destinos"]))
@@ -489,7 +493,7 @@ def irmaos(db: Session, fen: str, lances: list[str], *, rating: int, abaixo: int
     linhas. O bloco final fica em ordem ascendente de rating, mesmo cruzando degraus."""
     a = assinar(fen, lances)
     k_ = min(len(a.lances), 3)
-    mate = padrao_do_exercicio(fen, lances)
+    mate = padroes_do_exercicio(fen, lances)
     passos = _passos(a, _meus_trechos(fen, lances), k_, mate)
     lo, hi = rating - abaixo, rating + acima
     centro = (lo + hi) // 2
