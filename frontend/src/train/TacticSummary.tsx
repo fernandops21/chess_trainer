@@ -13,8 +13,10 @@ export function TacticSummary({ done, elapsedLabel, reason, ratingStart, ratingE
   const noCandidates = reason.toLowerCase().includes("nenhuma tática disponível");
   return (
     <div className="card">
-      <h2 style={{ marginTop: 0 }}>Sessão encerrada</h2>
-      <div className="muted">{reason}</div>
+      {/* `onVoltar` só existe quando este resumo é o de um bloco de irmãos: aí quem acabou foi o
+         bloco, não o treino — "Sessão encerrada" dava a entender o contrário */}
+      <h2 style={{ marginTop: 0 }}>{onVoltar ? "Bloco concluído" : "Sessão encerrada"}</h2>
+      <div className="muted">{onVoltar ? "Os irmãos entraram na sua fila de repetição. O botão abaixo leva de volta para onde você estava." : reason}</div>
       <div className="row" style={{ marginTop: 10, gap: 24 }}>
         <div><div className="stat">{done.length}</div><div className="muted">táticas</div></div>
         <div><div className="stat">{ok.length}</div><div className="muted">sem erro</div></div>

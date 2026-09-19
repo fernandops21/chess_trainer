@@ -262,6 +262,24 @@ test("resumo com outro motivo não oferece a nova sessão sem temas", () => {
   expect(screen.queryByText("Nova sessão sem temas")).toBeNull();
 });
 
+test("resumo de um bloco de irmãos: diz que o bloco acabou e para onde se volta, não que a sessão encerrou", () => {
+  const onVoltar = vi.fn();
+  render(
+    <TacticSummary done={[]} elapsedLabel="02:10" reason="bloco concluído"
+      ratingStart={1303} ratingEnd={1316} onNew={() => {}} onVoltar={onVoltar} voltarLabel="Voltar à revisão" />,
+  );
+  expect(screen.getByRole("heading", { name: "Bloco concluído" })).toBeTruthy();
+  expect(screen.queryByText("Sessão encerrada")).toBeNull();
+  expect(screen.getByText(/Os irmãos entraram na sua fila de repetição/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Voltar à revisão" }));
+  expect(onVoltar).toHaveBeenCalledTimes(1);
+});
+
+test("resumo de uma sessão comum de táticas mantém o título de sempre", () => {
+  render(<TacticSummary done={[]} elapsedLabel="00:10" reason="Sessão encerrada." ratingStart={1200} ratingEnd={1200} onNew={() => {}} />);
+  expect(screen.getByRole("heading", { name: "Sessão encerrada" })).toBeTruthy();
+});
+
 test("a tática abre na posição de antes do lance do adversário e depois anima até a do puzzle", async () => {
   vi.spyOn(api, "nextTactic").mockResolvedValue(tactic("t1"));
   renderSession();
