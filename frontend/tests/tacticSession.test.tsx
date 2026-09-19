@@ -348,6 +348,26 @@ test("bloco: o irmão não entrar na fila não bloqueia nem repete a tentativa",
   expect(warn).toHaveBeenCalled();
 });
 
+test("bloco: o irmão já entrou na fila sozinho, então o botão diz 'Guardado ✓' em vez de pedir para guardar", async () => {
+  vi.spyOn(api, "saveTactic").mockResolvedValue({} as never);
+  const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")], tiers: { a: "mesmo", b: "mesmo" }, procedencias: {} });
+  renderBloco(blocoConfig);
+  await solve();
+  expect(await screen.findByRole("button", { name: "Guardado ✓" })).toBeDisabled();
+  expect(screen.queryByText("Guardar para repetir")).toBeNull();
+});
+
+test("bloco: se o irmão não entrou na fila, 'Guardar para repetir' continua à mão", async () => {
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.spyOn(api, "saveTactic").mockRejectedValue(new Error("sem conexão"));
+  const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")], tiers: { a: "mesmo", b: "mesmo" }, procedencias: {} });
+  renderBloco(blocoConfig);
+  await solve();
+  expect(await screen.findByText("Rating 1200 → 1216 (+16)")).toBeTruthy();
+  expect(screen.getByText("Guardar para repetir")).toBeTruthy();
+  expect(screen.queryByText("Guardado ✓")).toBeNull();
+});
+
 // --- voto sobre o irmão do bloco ("tem a ver com o seu erro?") -----------
 
 test("bloco: o cartão de voto aparece depois de resolver, com a procedência do irmão", async () => {

@@ -32,6 +32,9 @@ function TacticPuzzle({ tactic, sessionId, clockLabel, orderInfo, onDone, nextDi
   // o tempo de resolução não volta na tentativa: guardamos o que foi enviado
   // para que "Guardar para repetir" mande o resultado completo
   const durationRef = useRef<number | undefined>(undefined);
+  // no bloco o irmão entra na fila sozinho: o painel mostra "Guardado ✓" em vez de oferecer
+  // "Guardar para repetir" (no último irmão, votar já leva ao resumo e o botão parecia perdido)
+  const [guardado, setGuardado] = useState(false);
   const submit = useCallback(async (body: ReviewIn) => {
     durationRef.current = body.duration_ms;
     const out = await api.attempt(body);
@@ -44,6 +47,7 @@ function TacticPuzzle({ tactic, sessionId, clockLabel, orderInfo, onDone, nextDi
     if (bloco) {
       try {
         await api.saveTactic(tactic.id, corpoDoSalvamento(bloco, { ...out, duration_ms: body.duration_ms ?? 0, session_id: body.session_id }, tactic.id));
+        setGuardado(true);
       } catch (e) {
         console.warn("irmão não entrou na fila", e);
       }
@@ -61,7 +65,7 @@ function TacticPuzzle({ tactic, sessionId, clockLabel, orderInfo, onDone, nextDi
     : undefined;
   if (state.phase === "result" || state.phase === "submit_error" || state.phase === "submitting") {
     return <TacticResultPanel tactic={tactic} attempt={state.review} played={state.played} durationMs={durationRef.current} error={state.error} onRetry={ctl.retrySubmit}
-      onNext={() => state.review && onDone({ tactic, attempt: state.review })} nextDisabled={nextDisabled} clockLabel={clockLabel} voto={voto} />;
+      onNext={() => state.review && onDone({ tactic, attempt: state.review })} nextDisabled={nextDisabled} clockLabel={clockLabel} voto={voto} jaGuardado={guardado} />;
   }
   return <PuzzleView puzzle={tactic} ctl={ctl} clockLabel={clockLabel} orderInfo={orderInfo} />;
 }

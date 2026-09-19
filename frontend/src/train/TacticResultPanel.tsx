@@ -21,8 +21,8 @@ export interface VotoDoResultado {
   tier: string;
 }
 
-export function TacticResultPanel({ tactic, attempt, played, durationMs, error, onRetry, onNext, nextDisabled, clockLabel, voto }:
-  { tactic: TacticOut; attempt?: AttemptOut; played?: string[]; durationMs?: number; error?: unknown; onRetry: () => void; onNext: () => void; nextDisabled?: boolean; clockLabel?: string; voto?: VotoDoResultado }) {
+export function TacticResultPanel({ tactic, attempt, played, durationMs, error, onRetry, onNext, nextDisabled, clockLabel, voto, jaGuardado }:
+  { tactic: TacticOut; attempt?: AttemptOut; played?: string[]; durationMs?: number; error?: unknown; onRetry: () => void; onNext: () => void; nextDisabled?: boolean; clockLabel?: string; voto?: VotoDoResultado; jaGuardado?: boolean }) {
   const clean = attempt && attempt.correct && !attempt.used_hint;
   const { data: golpes } = useGolpesStatus();
   const exploreHref = `/analise?fen=${encodeURIComponent(tactic.fen_start)}&orientation=${tactic.side_to_move}&back=${encodeURIComponent("/treinar")}`;
@@ -56,7 +56,7 @@ export function TacticResultPanel({ tactic, attempt, played, durationMs, error, 
           <a href={tactic.lichess_url} target="_blank" rel="noopener noreferrer">ver no Lichess</a>
           <a href={exploreHref} target="_blank" rel="noopener noreferrer">Explorar</a>
           {/* guardar leva o resultado da tentativa: a tática já entra agendada */}
-          <QueueButtons puzzle={tactic} attempt={attempt} durationMs={durationMs} />
+          <QueueButtons puzzle={tactic} attempt={attempt} durationMs={durationMs} jaGuardado={jaGuardado} />
           {attempt && <button className="primary" style={{ marginLeft: "auto" }} disabled={nextDisabled} onClick={onNext}>{nextDisabled ? "Carregando…" : "Próximo"}</button>}
         </div>
       </div>

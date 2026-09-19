@@ -12,10 +12,10 @@ import type { AttemptOut, PuzzleOut, SaveTacticIn, TacticOut, Trainable } from "
  * `attempt` é o resultado da tentativa que está na tela: com ele a tática
  * guardada já entra agendada (a tentativa vale como primeira revisão).
  */
-export function QueueButtons({ puzzle, attempt, durationMs }:
-  { puzzle: Trainable; attempt?: AttemptOut; durationMs?: number }) {
+export function QueueButtons({ puzzle, attempt, durationMs, jaGuardado }:
+  { puzzle: Trainable; attempt?: AttemptOut; durationMs?: number; jaGuardado?: boolean }) {
   return puzzle.kind === "tactic"
-    ? <SaveTactic tactic={puzzle} attempt={attempt} durationMs={durationMs} />
+    ? <SaveTactic tactic={puzzle} attempt={attempt} durationMs={durationMs} jaGuardado={jaGuardado} />
     : <ToggleQueue puzzle={puzzle} />;
 }
 
@@ -37,10 +37,12 @@ function ToggleQueue({ puzzle }: { puzzle: PuzzleOut }) {
   );
 }
 
-function SaveTactic({ tactic, attempt, durationMs }: { tactic: TacticOut; attempt?: AttemptOut; durationMs?: number }) {
+function SaveTactic({ tactic, attempt, durationMs, jaGuardado }: { tactic: TacticOut; attempt?: AttemptOut; durationMs?: number; jaGuardado?: boolean }) {
   const [saved, setSaved] = useState(tactic.saved);
   const m = useSaveTactic();
-  if (saved) return <button disabled>Guardado ✓</button>;
+  // `jaGuardado`: quem chamou já pôs a tática na fila (o bloco de irmãos faz isso sozinho a cada
+  // tentativa) — chega depois da montagem, por isso não pode ser só o valor inicial do estado
+  if (saved || jaGuardado) return <button disabled>Guardado ✓</button>;
   const body: SaveTacticIn | undefined = attempt
     ? { correct: attempt.correct, used_hint: attempt.used_hint, duration_ms: durationMs }
     : undefined;
