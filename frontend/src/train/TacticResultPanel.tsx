@@ -7,7 +7,7 @@ import { ErrorBox } from "../components/ErrorBox";
 import { themeLabel } from "../lib/format";
 import { GolpeCard } from "./GolpeCard";
 import { QueueButtons } from "./QueueButtons";
-import { VotoDoGolpe } from "./VotoDoGolpe";
+import { VotoDoGolpe, type VotoLabel } from "./VotoDoGolpe";
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 
@@ -21,8 +21,8 @@ export interface VotoDoResultado {
   tier: string;
 }
 
-export function TacticResultPanel({ tactic, attempt, played, durationMs, error, onRetry, onNext, nextDisabled, clockLabel, voto, jaGuardado }:
-  { tactic: TacticOut; attempt?: AttemptOut; played?: string[]; durationMs?: number; error?: unknown; onRetry: () => void; onNext: () => void; nextDisabled?: boolean; clockLabel?: string; voto?: VotoDoResultado; jaGuardado?: boolean }) {
+export function TacticResultPanel({ tactic, attempt, played, durationMs, error, onRetry, onNext, nextDisabled, clockLabel, voto, jaGuardado, onVoto }:
+  { tactic: TacticOut; attempt?: AttemptOut; played?: string[]; durationMs?: number; error?: unknown; onRetry: () => void; onNext: () => void; nextDisabled?: boolean; clockLabel?: string; voto?: VotoDoResultado; jaGuardado?: boolean; onVoto?: (label: VotoLabel) => void | Promise<void> }) {
   const clean = attempt && attempt.correct && !attempt.used_hint;
   const { data: golpes } = useGolpesStatus();
   const exploreHref = `/analise?fen=${encodeURIComponent(tactic.fen_start)}&orientation=${tactic.side_to_move}&back=${encodeURIComponent("/treinar")}`;
@@ -65,7 +65,8 @@ export function TacticResultPanel({ tactic, attempt, played, durationMs, error, 
           cartão "Repetir o golpe" — votar é opcional, "Próximo" funciona sem votar */}
       {voto && attempt && (
         <VotoDoGolpe anchorOrigem={voto.anchorOrigem} anchorId={voto.anchorId} candidateId={tactic.id}
-          procedencia={voto.procedencia} tier={voto.tier} onVotado={nextDisabled ? undefined : onNext} />
+          procedencia={voto.procedencia} tier={voto.tier}
+          onVotado={async (label) => { await onVoto?.(label); if (!nextDisabled) onNext(); }} />
       )}
       {/* dentro do bloco (`voto`), só a imagem: "Treinar N parecidos" ali abriria OUTRO bloco, com
           os irmãos deste irmão, e largaria o bloco em andamento — ao lado do "Próximo", confunde */}

@@ -3,7 +3,9 @@ import { useGolpeVoto, useVotarGolpe } from "../api/queries";
 import type { Procedencia } from "../api/types";
 
 /** Um botão de voto: o texto visível e o valor gravado. */
-const ROTULOS: { label: "mesmo" | "parecido" | "nada"; texto: string }[] = [
+export type VotoLabel = "mesmo" | "parecido" | "nada";
+
+const ROTULOS: { label: VotoLabel; texto: string }[] = [
   { label: "mesmo", texto: "mesmo golpe" },
   { label: "parecido", texto: "parecido" },
   { label: "nada", texto: "nada a ver" },
@@ -20,14 +22,14 @@ const ROTULOS: { label: "mesmo" | "parecido" | "nada"; texto: string }[] = [
  */
 export function VotoDoGolpe({ anchorOrigem, anchorId, candidateId, procedencia, tier, onVotado }:
   { anchorOrigem: "own" | "lichess"; anchorId: string; candidateId: string; procedencia?: Procedencia; tier: string;
-    /** chamado depois que o voto grava: no bloco, votar já leva ao próximo irmão */
-    onVotado?: () => void }) {
+    /** chamado depois que o voto grava, com a resposta: no bloco, votar já leva ao próximo irmão */
+    onVotado?: (label: VotoLabel) => void }) {
   const { data } = useGolpeVoto(anchorOrigem, anchorId, candidateId);
   const votar = useVotarGolpe();
   const [erro, setErro] = useState(false);
   const escolhido = data?.label ?? null;
 
-  async function votarEm(label: "mesmo" | "parecido" | "nada") {
+  async function votarEm(label: VotoLabel) {
     setErro(false);
     try {
       await votar.mutateAsync({
@@ -41,7 +43,7 @@ export function VotoDoGolpe({ anchorOrigem, anchorId, candidateId, procedencia, 
         nivel: procedencia?.nivel,
         espelhado: procedencia?.espelhado,
       });
-      onVotado?.();
+      onVotado?.(label);
     } catch {
       // a marca anterior fica como está: só o aviso muda
       setErro(true);

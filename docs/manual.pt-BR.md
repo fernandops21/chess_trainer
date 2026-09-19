@@ -351,8 +351,10 @@ de mate nomeado** quando o exercício termina em xeque-mate (sufocado, árabe ou
 cartão mostra "Padrão: mate do corredor" embaixo da imagem, e os irmãos desse tipo vêm direto da
 etiqueta do Lichess) ou, faltando ainda, o espelhado (a mesma ideia do outro lado do tabuleiro) ou
 o mesmo esqueleto com o rei adversário na mesma zona. O app também reconhece por conta própria
-mates do corredor que o Lichess não etiquetou. Cada puzzle do bloco que você tenta — acerte
-ou erre — entra na sua fila de repetição espaçada, junto com os outros exercícios.
+mates do corredor que o Lichess não etiquetou. Os puzzles do bloco que você **erra** (ou
+resolve com dica) entram na sua fila de repetição espaçada, junto com os outros exercícios — menos
+os que você marcar como "nada a ver". O que você resolve sem erro não entra sozinho, mas o botão
+"Guardar para repetir" continua ali.
 
 Os irmãos são procurados em qualquer rating — quem decide se é "o mesmo golpe" é a geometria da
 solução, não a dificuldade. O rating só escolhe **quais** aparecem no bloco: a faixa preferida vai

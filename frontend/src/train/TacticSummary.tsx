@@ -16,7 +16,7 @@ export function TacticSummary({ done, elapsedLabel, reason, ratingStart, ratingE
       {/* `onVoltar` só existe quando este resumo é o de um bloco de irmãos: aí quem acabou foi o
          bloco, não o treino — "Sessão encerrada" dava a entender o contrário */}
       <h2 style={{ marginTop: 0 }}>{onVoltar ? "Bloco concluído" : "Sessão encerrada"}</h2>
-      <div className="muted">{onVoltar ? "Os irmãos entraram na sua fila de repetição. O botão abaixo leva de volta para onde você estava." : reason}</div>
+      <div className="muted">{onVoltar ? "Os irmãos que você errou entraram na sua fila de repetição, menos os que marcou como nada a ver. O botão abaixo leva de volta para onde você estava." : reason}</div>
       <div className="row" style={{ marginTop: 10, gap: 24 }}>
         <div><div className="stat">{done.length}</div><div className="muted">táticas</div></div>
         <div><div className="stat">{ok.length}</div><div className="muted">sem erro</div></div>

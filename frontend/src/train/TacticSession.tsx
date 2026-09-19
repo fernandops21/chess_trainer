@@ -10,6 +10,7 @@ import type { Bloco } from "./BlocoContext";
 import { PuzzleView } from "./PuzzleView";
 import type { SessionConfig } from "./SessionStart";
 import { TacticResultPanel } from "./TacticResultPanel";
+import type { VotoLabel } from "./VotoDoGolpe";
 import type { TacticDone } from "./TacticSummary";
 import { useEndOnExit } from "./useEndOnExit";
 import { usePuzzle } from "./usePuzzle";
@@ -32,21 +33,24 @@ function TacticPuzzle({ tactic, sessionId, clockLabel, orderInfo, onDone, nextDi
   // o tempo de resolução não volta na tentativa: guardamos o que foi enviado
   // para que "Guardar para repetir" mande o resultado completo
   const durationRef = useRef<number | undefined>(undefined);
-  // no bloco o irmão entra na fila sozinho: o painel mostra "Guardado ✓" em vez de oferecer
-  // "Guardar para repetir" (no último irmão, votar já leva ao resumo e o botão parecia perdido)
+  // no bloco, o irmão ERRADO entra na fila sozinho (e sai se levar "nada a ver"): o painel mostra
+  // "Guardado ✓" em vez de oferecer "Guardar para repetir". O resolvido sem erro não entra: a fila
+  // é para o que ainda não está fixado, e 5 irmãos por bloco inchariam a repetição à toa
   const [guardado, setGuardado] = useState(false);
+  const guardadoId = useRef<string | null>(null);
   const submit = useCallback(async (body: ReviewIn) => {
     durationRef.current = body.duration_ms;
     const out = await api.attempt(body);
     // a tentativa mexe no rating e nas estatísticas por tema
     void qc.invalidateQueries({ queryKey: ["tactics"] });
     void qc.invalidateQueries({ queryKey: ["stats"] });
-    // no bloco de irmãos a tentativa já entra na fila com o vínculo para a âncora — melhor-esforço:
+    // no bloco de irmãos a tentativa errada já entra na fila com o vínculo para a âncora — melhor-esforço:
     // a tentativa já está registrada (linha acima), então uma falha aqui não pode virar erro do
     // submit (isso repetiria o `api.attempt` no "Tentar registrar de novo" e duplicaria a tentativa)
-    if (bloco) {
+    if (bloco && !(out.correct && !out.used_hint)) {
       try {
-        await api.saveTactic(tactic.id, corpoDoSalvamento(bloco, { ...out, duration_ms: body.duration_ms ?? 0, session_id: body.session_id }, tactic.id));
+        const salvo = await api.saveTactic(tactic.id, corpoDoSalvamento(bloco, { ...out, duration_ms: body.duration_ms ?? 0, session_id: body.session_id }, tactic.id));
+        guardadoId.current = salvo?.id ?? null;
         setGuardado(true);
       } catch (e) {
         console.warn("irmão não entrou na fila", e);
@@ -60,12 +64,25 @@ function TacticPuzzle({ tactic, sessionId, clockLabel, orderInfo, onDone, nextDi
   const { state } = ctl;
   // o voto ("tem a ver com o seu erro?") só existe em modo bloco: a âncora e a procedência
   // deste irmão específico (spec golpes trechos §8, revisão "o voto mora no bloco")
+  // "nada a ver" tira da fila o que este bloco acabou de pôr lá — nunca uma tática que o usuário
+  // já tinha guardado por conta própria (`tactic.saved`). Melhor-esforço, como o salvamento
+  const aoVotar = useCallback(async (label: VotoLabel) => {
+    if (label !== "nada" || tactic.saved || !guardadoId.current) return;
+    try {
+      await api.setQueue(guardadoId.current, false);
+      guardadoId.current = null;
+      setGuardado(false);
+      void qc.invalidateQueries({ queryKey: ["stats"] });
+    } catch (e) {
+      console.warn("irmão não saiu da fila", e);
+    }
+  }, [qc, tactic.saved]);
   const voto = bloco
     ? { anchorOrigem: bloco.anchorOrigem, anchorId: bloco.anchorId, procedencia: bloco.procedencias[tactic.id], tier: bloco.tiers[tactic.id] }
     : undefined;
   if (state.phase === "result" || state.phase === "submit_error" || state.phase === "submitting") {
     return <TacticResultPanel tactic={tactic} attempt={state.review} played={state.played} durationMs={durationRef.current} error={state.error} onRetry={ctl.retrySubmit}
-      onNext={() => state.review && onDone({ tactic, attempt: state.review })} nextDisabled={nextDisabled} clockLabel={clockLabel} voto={voto} jaGuardado={guardado} />;
+      onNext={() => state.review && onDone({ tactic, attempt: state.review })} nextDisabled={nextDisabled} clockLabel={clockLabel} voto={voto} jaGuardado={guardado} onVoto={aoVotar} />;
   }
   return <PuzzleView puzzle={tactic} ctl={ctl} clockLabel={clockLabel} orderInfo={orderInfo} />;
 }

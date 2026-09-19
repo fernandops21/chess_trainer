@@ -270,7 +270,7 @@ test("resumo de um bloco de irmãos: diz que o bloco acabou e para onde se volta
   );
   expect(screen.getByRole("heading", { name: "Bloco concluído" })).toBeTruthy();
   expect(screen.queryByText("Sessão encerrada")).toBeNull();
-  expect(screen.getByText(/Os irmãos entraram na sua fila de repetição/)).toBeTruthy();
+  expect(screen.getByText(/Os irmãos que você errou entraram na sua fila de repetição/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Voltar à revisão" }));
   expect(onVoltar).toHaveBeenCalledTimes(1);
 });
@@ -309,7 +309,8 @@ test("bloco: não chama nextTactic e mostra o primeiro irmão", async () => {
   expect(next).not.toHaveBeenCalled();
 });
 
-test("bloco: percorre a lista fixa e acaba no fim, salvando o irmão com o vínculo da âncora", async () => {
+test("bloco: percorre a lista fixa e acaba no fim, salvando o irmão errado com o vínculo da âncora", async () => {
+  vi.spyOn(api, "attempt").mockResolvedValue(attempt({ correct: false, rating_after: 1184, delta: -16 }));
   const next = vi.spyOn(api, "nextTactic");
   const save = vi.spyOn(api, "saveTactic").mockResolvedValue({} as never);
   const onFinish = vi.fn();
@@ -321,11 +322,11 @@ test("bloco: percorre a lista fixa e acaba no fim, salvando o irmão com o vínc
   );
   expect(await screen.findByText("1 de 2")).toBeTruthy();
   await solve();
-  expect(save).toHaveBeenCalledWith("a", expect.objectContaining({ correct: true, used_hint: false, sibling_of: "p1", sibling_tier: "mesmo" }));
+  expect(save).toHaveBeenCalledWith("a", expect.objectContaining({ correct: false, used_hint: false, sibling_of: "p1", sibling_tier: "mesmo" }));
   fireEvent.click(await screen.findByText("Próximo"));
   expect(await screen.findByText("2 de 2")).toBeTruthy();
   await solve();
-  expect(save).toHaveBeenLastCalledWith("b", expect.objectContaining({ correct: true, used_hint: false, sibling_of: "p1", sibling_tier: "trecho2" }));
+  expect(save).toHaveBeenLastCalledWith("b", expect.objectContaining({ correct: false, used_hint: false, sibling_of: "p1", sibling_tier: "trecho2" }));
   fireEvent.click(await screen.findByText("Próximo"));
   await waitFor(() => expect(onFinish).toHaveBeenCalled());
   expect(next).not.toHaveBeenCalled();
@@ -333,13 +334,13 @@ test("bloco: percorre a lista fixa e acaba no fim, salvando o irmão com o vínc
 
 test("bloco: o irmão não entrar na fila não bloqueia nem repete a tentativa", async () => {
   const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-  const attempt = vi.spyOn(api, "attempt");
+  const attempt = vi.spyOn(api, "attempt").mockResolvedValue({ id: "a1", puzzle_id: "t1", correct: false, used_hint: false, rating_before: 1200, rating_after: 1184, delta: -16, puzzle_rating: 1500 });
   vi.spyOn(api, "saveTactic").mockRejectedValue(new Error("sem conexão"));
   const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")], tiers: { a: "mesmo", b: "mesmo" }, procedencias: {} });
   renderBloco(blocoConfig);
   await solve();
   // a tentativa já foi registrada: o painel mostra o resultado, não o erro de envio
-  expect(await screen.findByText("Rating 1200 → 1216 (+16)")).toBeTruthy();
+  expect(await screen.findByText("Rating 1200 → 1184 (-16)")).toBeTruthy();
   expect(attempt).toHaveBeenCalledTimes(1);
   fireEvent.click(await screen.findByText("Próximo"));
   expect(await screen.findByText("2 de 2")).toBeTruthy();
@@ -348,7 +349,8 @@ test("bloco: o irmão não entrar na fila não bloqueia nem repete a tentativa",
   expect(warn).toHaveBeenCalled();
 });
 
-test("bloco: o irmão já entrou na fila sozinho, então o botão diz 'Guardado ✓' em vez de pedir para guardar", async () => {
+test("bloco: o irmão errado já entrou na fila sozinho, então o botão diz 'Guardado ✓' em vez de pedir para guardar", async () => {
+  vi.spyOn(api, "attempt").mockResolvedValue(attempt({ correct: false, rating_after: 1184, delta: -16 }));
   vi.spyOn(api, "saveTactic").mockResolvedValue({} as never);
   const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")], tiers: { a: "mesmo", b: "mesmo" }, procedencias: {} });
   renderBloco(blocoConfig);
@@ -358,14 +360,81 @@ test("bloco: o irmão já entrou na fila sozinho, então o botão diz 'Guardado 
 });
 
 test("bloco: se o irmão não entrou na fila, 'Guardar para repetir' continua à mão", async () => {
+  vi.spyOn(api, "attempt").mockResolvedValue(attempt({ correct: false, rating_after: 1184, delta: -16 }));
   vi.spyOn(console, "warn").mockImplementation(() => {});
   vi.spyOn(api, "saveTactic").mockRejectedValue(new Error("sem conexão"));
   const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")], tiers: { a: "mesmo", b: "mesmo" }, procedencias: {} });
   renderBloco(blocoConfig);
   await solve();
-  expect(await screen.findByText("Rating 1200 → 1216 (+16)")).toBeTruthy();
+  expect(await screen.findByText("Rating 1200 → 1184 (-16)")).toBeTruthy();
   expect(screen.getByText("Guardar para repetir")).toBeTruthy();
   expect(screen.queryByText("Guardado ✓")).toBeNull();
+});
+
+// só entra na fila o irmão que foi errado e que não levou "nada a ver" (decisão do usuário)
+
+test("bloco: irmão resolvido sem erro não entra na fila; guardar fica à mão", async () => {
+  const save = vi.spyOn(api, "saveTactic").mockResolvedValue({} as never);
+  const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")], tiers: { a: "mesmo", b: "mesmo" }, procedencias: {} });
+  renderBloco(blocoConfig);
+  await solve();
+  expect(await screen.findByText("Rating 1200 → 1216 (+16)")).toBeTruthy();
+  expect(save).not.toHaveBeenCalled();
+  expect(screen.getByText("Guardar para repetir")).toBeTruthy();
+});
+
+test("bloco: resolvido com dica conta como erro e entra na fila", async () => {
+  vi.spyOn(api, "attempt").mockResolvedValue(attempt({ used_hint: true }));
+  const save = vi.spyOn(api, "saveTactic").mockResolvedValue({} as never);
+  const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")], tiers: { a: "mesmo", b: "mesmo" }, procedencias: {} });
+  renderBloco(blocoConfig);
+  await solve();
+  await waitFor(() => expect(save).toHaveBeenCalledWith("a", expect.objectContaining({ used_hint: true, sibling_of: "p1" })));
+});
+
+test("bloco: irmão errado que leva 'nada a ver' sai da fila", async () => {
+  vi.spyOn(api, "attempt").mockResolvedValue(attempt({ correct: false, rating_after: 1184, delta: -16 }));
+  vi.spyOn(api, "saveTactic").mockResolvedValue({ id: "pz-a" } as never);
+  vi.spyOn(api, "golpeVoto").mockResolvedValue({ label: null });
+  vi.spyOn(api, "votarGolpe").mockResolvedValue({ ok: true, label: "nada" });
+  const setQueue = vi.spyOn(api, "setQueue").mockResolvedValue({} as never);
+  const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")], tiers: { a: "mesmo", b: "mesmo" }, procedencias: {} });
+  renderBloco(blocoConfig);
+  await solve();
+  await screen.findByRole("button", { name: "Guardado ✓" });
+  fireEvent.click(screen.getByRole("button", { name: "nada a ver" }));
+  await waitFor(() => expect(setQueue).toHaveBeenCalledWith("pz-a", false));
+  // e o voto continua levando ao próximo irmão
+  expect(await screen.findByText("2 de 2")).toBeTruthy();
+});
+
+test("bloco: irmão errado que leva 'parecido' fica na fila", async () => {
+  vi.spyOn(api, "attempt").mockResolvedValue(attempt({ correct: false, rating_after: 1184, delta: -16 }));
+  vi.spyOn(api, "saveTactic").mockResolvedValue({ id: "pz-a" } as never);
+  vi.spyOn(api, "golpeVoto").mockResolvedValue({ label: null });
+  vi.spyOn(api, "votarGolpe").mockResolvedValue({ ok: true, label: "parecido" });
+  const setQueue = vi.spyOn(api, "setQueue").mockResolvedValue({} as never);
+  const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [tactic("a"), tactic("b")], tiers: { a: "mesmo", b: "mesmo" }, procedencias: {} });
+  renderBloco(blocoConfig);
+  await solve();
+  await screen.findByRole("button", { name: "Guardado ✓" });
+  fireEvent.click(screen.getByRole("button", { name: "parecido" }));
+  expect(await screen.findByText("2 de 2")).toBeTruthy();
+  expect(setQueue).not.toHaveBeenCalled();
+});
+
+test("bloco: tática que o usuário já tinha guardado antes não sai da fila por causa de um 'nada a ver'", async () => {
+  vi.spyOn(api, "attempt").mockResolvedValue(attempt({ correct: false, rating_after: 1184, delta: -16 }));
+  vi.spyOn(api, "saveTactic").mockResolvedValue({ id: "pz-a" } as never);
+  vi.spyOn(api, "golpeVoto").mockResolvedValue({ label: null });
+  vi.spyOn(api, "votarGolpe").mockResolvedValue({ ok: true, label: "nada" });
+  const setQueue = vi.spyOn(api, "setQueue").mockResolvedValue({} as never);
+  const blocoConfig = configDoBloco({ anchorId: "p1", anchorOrigem: "own", itens: [{ ...tactic("a"), saved: true }, tactic("b")], tiers: { a: "mesmo", b: "mesmo" }, procedencias: {} });
+  renderBloco(blocoConfig);
+  await solve();
+  fireEvent.click(await screen.findByRole("button", { name: "nada a ver" }));
+  expect(await screen.findByText("2 de 2")).toBeTruthy();
+  expect(setQueue).not.toHaveBeenCalled();
 });
 
 // --- voto sobre o irmão do bloco ("tem a ver com o seu erro?") -----------

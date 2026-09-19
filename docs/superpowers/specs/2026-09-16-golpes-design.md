@@ -416,8 +416,14 @@ com assinatura tem irmãos.
 - **Bloco**: o botão abre a sessão de táticas existente com a lista fixa dos
   irmãos, na ordem do fácil ao difícil. Cada tentativa é registrada como hoje
   (`tactics/attempts`, rating de táticas). No fim, resumo "4 de 5" e volta.
-- **Repetição espaçada**: cada irmão do bloco é salvo na fila do usuário pelo
-  mecanismo que já salva táticas do Lichess (`tactics/{id}/save`), com
+- **Repetição espaçada**: só entra na fila o irmão que o usuário **errou** (ou
+  resolveu com dica) e que **não** levou o voto "nada a ver" (decisão do usuário,
+  2026-09-19: guardar os cinco de cada bloco inchava a fila com o que já estava
+  fixado e com irmãos ruins). O irmão errado é salvo logo depois da tentativa;
+  se o voto for "nada a ver", sai da fila (`in_queue = false`), exceto quando o
+  usuário já tinha guardado aquela tática por conta própria. O resolvido sem
+  erro continua com "Guardar para repetir" à mão. O salvamento usa o mecanismo
+  que já salva táticas do Lichess (`tactics/{id}/save`), com
   `sibling_of` apontando para a âncora e `sibling_tier` gravando o degrau da
   cascata (§5) que o trouxe. A partir daí é revisado como qualquer exercício,
   misturado e espaçado; `sibling_tier` fica disponível para o perfil futuro
