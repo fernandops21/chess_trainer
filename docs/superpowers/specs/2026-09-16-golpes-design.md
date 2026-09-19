@@ -437,9 +437,14 @@ com assinatura tem irmãos.
 
 Rota `GET /api/golpes/{origem}/{id}/imagem.svg` (`origem` = `own | lichess`):
 o servidor desenha o tabuleiro com `chess.svg`, solucionador embaixo, os lances
-do solucionador em setas verdes, descobertas e ataques em setas vermelhas, casa
-do rei adversário e casas de destino marcadas. Estática, cacheável, serve no
-cartão e, mais adiante, para salvar ou compartilhar.
+do solucionador em setas verdes, descobertas e ataques em setas vermelhas, casas
+de destino com fundo verde claro. A casa do rei adversário ganha fundo âmbar só
+quando algum lance do solucionador dá xeque ou mate: ela entra na assinatura
+sempre, mas no desenho só ensina quando o golpe passa pelo rei (num final de
+torres, o rei realçado sugeria uma participação que não existe). O realce é cor
+translúcida por baixo da peça, nunca o X do `squares=` do `chess.svg`, que lia
+como "riscado". Estática, cacheável, serve no cartão e, mais adiante, para
+salvar ou compartilhar.
 
 ### 6.2 API
 
