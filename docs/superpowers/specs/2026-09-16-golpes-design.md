@@ -91,7 +91,7 @@ Garfo de cavalo com xeque:                  rei g8 | N e7 + ataca Q c8 | N xc8
 | --- | --- | --- |
 | esqueleto | zona do rei; por lance: peça, captura (tipo), xeque, promoção, descoberta e ataques só por tipo de peça; sem casas | camada mais larga da busca; calibração |
 | destinos (padrão) | esqueleto com casa do rei e casas de destino, descobertas e ataques com casa | "mesmo golpe nas mesmas casas"; classe do contraste |
-| completo | destinos mais a casa de origem | depuração e rotulagem; fino demais para treino |
+| completo | destinos mais a casa de origem | depuração e julgamento manual; fino demais para treino |
 
 Zona do rei: coluna (a–c ala da dama, d–e centro, f–h ala do rei) × fila (7–8
 fundo, outras exposto): seis zonas.
@@ -199,10 +199,7 @@ lances da âncora):
    (o que já existia); depois `esqueleto-trecho{n}` para `n = k … 2` (por
    trecho; o esqueleto de um lance só nunca entra, §3.5).
 
-Cada degrau exclui os puzzles que um degrau anterior já devolveu. Só a
-**rotulagem** (§8) enxerga um degrau a mais, `espelho-trecho1`: o esqueleto
-espelhado de um lance é ruído demais para o bloco, mas vale medir o quanto
-erra.
+Cada degrau exclui os puzzles que um degrau anterior já devolveu.
 
 Dentro de cada degrau a busca **ignora rating**: só `popularity ≥ 50` e
 `nb_plays ≥ 50` para evitar puzzles ruins, excluídos os já vistos
@@ -241,6 +238,12 @@ com assinatura tem irmãos.
   cascata (§5) que o trouxe. A partir daí é revisado como qualquer exercício,
   misturado e espaçado; `sibling_tier` fica disponível para o perfil futuro
   medir se golpes achados por trecho se fixam tão bem quanto os "inteira".
+- **Voto**: no painel de resultado de cada irmão do bloco, depois da tentativa
+  registrada, um cartão opcional "Tem a ver com o seu erro?" com três respostas
+  (mesmo golpe, parecido, nada a ver) grava o julgamento em `golpe_labels`
+  (§8) — o voto mora no bloco, não numa tela à parte, porque julgar "é o
+  mesmo golpe?" exige jogar o irmão, e é isso que o bloco já faz. "Próximo"
+  funciona sem votar.
 - **Configurações**: `golpes_enabled` (padrão ligado), `golpes_bloco` (padrão
   5, de 3 a 10), `golpes_faixa_abaixo` (padrão 100, de 0 a 1000) e
   `golpes_faixa_acima` (padrão 500, de 0 a 2000) — a faixa preferida do bloco
@@ -263,7 +266,8 @@ cartão e, mais adiante, para salvar ou compartilhar.
   opcionais.
 - `POST /api/golpes/preparar` dispara a tarefa; o status vem pelo executor
   (`GET /api/golpes/status` traz `trechos`, a contagem de linhas de trecho).
-- Rotas de rotulagem (§8) só com `CHESS_TRAINER_ROTULAGEM=1`.
+- `POST /api/golpes/voto` e `GET /api/golpes/voto` (§8): parte do produto,
+  atrás só de `golpes_enabled`, sem portão de desenvolvimento.
 
 ## 7. Codificador (fase B, `ml/golpes/`)
 
@@ -313,29 +317,46 @@ solucionador. A rede vê posição e golpe juntos, como a assinatura.
 - A camada 3 da busca só liga depois do portão (§9) e do arquivo de pesos
   presente.
 
-## 8. Rotulagem e conjunto de ouro (só em dev)
+## 8. Votos no bloco e conjunto de ouro
 
-- Tela `/rotulagem`, atrás de `CHESS_TRAINER_ROTULAGEM=1`: uma âncora (exercício
-  próprio ou puzzle do Lichess) com a imagem do golpe, e candidatos de todos os
-  degraus da cascata (§5) — incluindo `espelho-trecho1`, que nunca entra no
-  bloco — embaralhados, sem dizer a origem. Para cada candidato, uma de três
-  respostas: **mesmo golpe**, **parecido**, **nada a ver**.
+Revisão de 2026-09-18: a tela `/rotulagem` separada saiu. Ela pedia para
+julgar "é o mesmo golpe?" olhando duas posições paradas lado a lado — mas
+julgar isso de verdade exige **jogar** o irmão, e é isso que o bloco de
+repetição (§6) já faz. A decisão do usuário: "jogo, aparecem os irmãos, vou
+jogando e votando em cada um; o módulo de rotulagem pode ser junto com prod,
+apenas um botão a mais de voto". O voto entrou no produto, atrás só de
+`golpes_enabled` (sem portão de desenvolvimento); `CHESS_TRAINER_ROTULAGEM`,
+a tela, a rota `proximo_item` (sorteio de âncora) e o degrau só-de-medição
+`espelho-trecho1` (§5) saíram junto — sem uma tela cega e embaralhada, não
+havia mais uso para eles.
+
+- No painel de resultado de cada irmão do bloco, depois da tentativa
+  registrada, um cartão pergunta "Tem a ver com o seu erro?" com três
+  respostas: **mesmo golpe**, **parecido**, **nada a ver** (`VotoDoGolpe`).
+  Opcional — "Próximo" funciona sem votar — e nunca mostra a `tier` nem a
+  procedência a quem vota; elas só viajam junto do voto para agregar depois.
+- `POST /api/golpes/voto` grava o voto; `GET /api/golpes/voto` devolve o já
+  gravado para o par, para marcar o botão escolhido ao reabrir a tática.
 - `golpe_labels`: `id`, `anchor_origem`, `anchor_id`, `candidate_id`,
   `tier_na_hora`, `versao_assinatura`, `label`, `created_at`, e a procedência
   do candidato na hora (spec trechos §5): `n_lances`, `posicao`, `nivel`,
-  `espelhado`. A tela nunca mostra essa procedência a quem rotula; ela só
-  serve para agregar depois. Exportado por comando para
-  `ml/golpes/gold/<data>.jsonl` (as mesmas colunas de procedência vão junto),
-  versionado no repositório.
-- **Placar por procedência**: `GET /api/golpes/rotulagem/resumo` (mesmo portão
-  de `CHESS_TRAINER_ROTULAGEM=1`) devolve, agrupado por `(tier, posicao,
-  n_lances)`, quantos rótulos de cada resposta aquela combinação já recebeu
-  (`mesmo`, `parecido`, `nada`, `total`). A tela de rotulagem mostra essa
-  tabela embaixo do contador, atualizada a cada rótulo — é o primeiro sinal
-  visível de qual degrau (e qual posição do trecho) é ruído.
-- Meta: ~300 julgamentos nas primeiras sessões. Com a rede treinada, a tela
-  passa a priorizar os pares em que regra e rede discordam (**aprendizado
-  ativo**), onde cada resposta vale mais.
+  `espelhado`. **Uma linha por par** (âncora, candidato) — índice único em
+  `(anchor_origem, anchor_id, candidate_id)`: votar de novo no mesmo par
+  atualiza o rótulo e a procedência em vez de duplicar (upsert). Exportado
+  por comando para `ml/golpes/gold/<data>.jsonl` (as mesmas colunas de
+  procedência vão junto), versionado no repositório — sem mudança nesse
+  formato.
+- **Placar por procedência**: `GET /api/golpes/votos/resumo` devolve,
+  agrupado por `(tier, posicao, n_lances)`, quantos votos de cada resposta
+  aquela combinação já recebeu (`mesmo`, `parecido`, `nada`, `total`). Mostrado
+  em **Configurações → Golpes**, dentro de um `<details>` "Votos por
+  procedência" — é o mesmo sinal de qual degrau (e qual posição do trecho) é
+  ruído, só que alimentado pelo uso normal do treino em vez de uma sessão de
+  rotulagem à parte.
+- Meta: ~300 julgamentos nas primeiras sessões, agora espalhados pelo uso
+  normal. Com a rede treinada, um destino futuro é priorizar no bloco os
+  pares em que regra e rede discordam (**aprendizado ativo**); ainda não
+  implementado.
 
 ## 9. Medição e portão de entrada
 
@@ -382,13 +403,14 @@ Cada passo é utilizável sozinho.
 
 Passos 1 a 4 implementados em 2026-09-17 (plano `docs/superpowers/plans/2026-09-16-golpes-fase-a.md`).
 Trechos (§3.5, §5, §8) — busca por pedaço da solução, com procedência em cada
-irmão e placar por procedência na rotulagem — implementados em 2026-09-17,
-dentro do passo 4.
+irmão e placar por procedência no julgamento — implementados em 2026-09-17,
+dentro do passo 4. Voto no bloco (§8, revisão de 2026-09-18) substituiu a tela
+de rotulagem separada pelo botão de voto no resultado.
 
 1. Assinatura, tarefa de preparo, cobertura.
 2. Rota de irmãos, imagem, cartão de resultado.
 3. Bloco de N e entrada na repetição espaçada com `sibling_of`.
-4. Tela de rotulagem, exportação do ouro, primeira calibração do nível com o
+4. Voto no bloco, exportação do ouro, primeira calibração do nível com o
    usuário.
 5. Preparo dos dados e scripts de treino; treino executado pelo usuário.
 6. Avaliação automática e no ouro, relatório, decisão.

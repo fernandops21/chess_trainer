@@ -360,10 +360,11 @@ próximos de fora dela.
 Em **Configurações → Golpes** dá para desligar o cartão ("Mostrar 'Repetir o golpe' no resultado
 dos exercícios") e ajustar o tamanho do bloco em **"Irmãos por bloco"** (de 3 a 10, padrão 5).
 
-A tela `/rotulagem` é uma ferramenta de desenvolvimento, ligada com `CHESS_TRAINER_ROTULAGEM=1`:
-nela um humano compara uma âncora com candidatos e marca "mesmo golpe", "parecido" ou "nada a
-ver", montando um conjunto de referência que hoje calibra a assinatura e, mais adiante, serve para
-avaliar um modelo de semelhança aprendido. O conjunto se exporta com
+Ao final de cada irmão do bloco, depois de resolver, um cartão pergunta **"Tem a ver com o seu
+erro?"** com três respostas — mesmo golpe, parecido, nada a ver. Votar é opcional ("Próximo"
+funciona sem votar) e alimenta um conjunto de referência que hoje calibra a assinatura e, mais
+adiante, serve para avaliar um modelo de semelhança aprendido. O placar por procedência aparece em
+**Configurações → Golpes → "Votos por procedência"**, e o conjunto se exporta com
 `uv run python -m chess_trainer.core.golpes.exportar_ouro`, rodado em `backend/`.
 
 ## Treinador (IA)

@@ -439,11 +439,12 @@ In **"Configurações" → "Golpes"** you can turn the card off ("Mostrar 'Repet
 dos exercícios" — Show "Repeat the pattern" on the exercise result) and set the block size in **"Irmãos
 por bloco"** (Siblings per block, 3 to 10, default 5).
 
-The `/rotulagem` (labelling) screen is a development tool, enabled with `CHESS_TRAINER_ROTULAGEM=1`:
-in it, a human compares an anchor puzzle against candidates and marks each one "mesmo golpe" (same
-pattern), "parecido" (similar) or "nada a ver" (unrelated), building a reference set that today
-calibrates the signature and, later on, will be used to evaluate a learned similarity model. The set is
-exported with `uv run python -m chess_trainer.core.golpes.exportar_ouro`, run from `backend/`.
+After solving each sibling in the block, a card asks **"Tem a ver com o seu erro?"** (Is this related
+to your mistake?) with three answers — same pattern, similar, unrelated. Voting is optional ("Próximo"
+works without it) and feeds a reference set that today calibrates the signature and, later on, will be
+used to evaluate a learned similarity model. The scoreboard by provenance shows up in
+**"Configurações" → "Golpes" → "Votos por procedência"**, and the set is exported with
+`uv run python -m chess_trainer.core.golpes.exportar_ouro`, run from `backend/`.
 
 ### AI coach
 
