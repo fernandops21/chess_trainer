@@ -303,6 +303,19 @@ class LichessPuzzleTrecho(Base):
     esqueleto: Mapped[int | None] = mapped_column(BigInteger, default=None)
 
 
+class LichessPuzzlePadrao(Base):
+    """Etiqueta PRÓPRIA de padrão de mate para um puzzle do Lichess que ele mesmo não etiquetou
+    (spec golpes design §3.6/§4, "etiquetas próprias"): gravada por `preparar_padroes`
+    (`core/golpes/service.py`) quando `padrao_para_candidato` acha um padrão candidato
+    (`core/golpes/mates.py`) que ainda não está entre os temas do Lichess desse puzzle. Chave
+    (puzzle_id, padrao): hoje só um padrão candidato existe, mas a chave já comporta mais de um."""
+    __tablename__ = "lichess_puzzle_padroes"
+    __table_args__ = (Index("ix_lpp_padrao", "padrao"),)
+    puzzle_id: Mapped[str] = mapped_column(ForeignKey("lichess_puzzles.id", ondelete="CASCADE"), primary_key=True)
+    padrao: Mapped[str] = mapped_column(String(24), primary_key=True)
+    versao: Mapped[int] = mapped_column(Integer)
+
+
 class GolpeLabel(Base):
     """Voto do usuário sobre um irmão do bloco: "é o mesmo golpe do meu erro?" (spec golpes
     trechos §8, revisão "o voto mora no bloco"). Uma linha por par (âncora, candidato) — votar de

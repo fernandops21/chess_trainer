@@ -40,7 +40,8 @@ def golpes_status(db: Session = Depends(get_db)):
     return GolpesStatusOut(enabled=s.golpes_enabled, versao=VERSAO_ASSINATURA,
                            assinados=int(get_setting(db, "golpes_assinados", 0) or 0), total=int(total),
                            cobertura=get_setting(db, "golpes_cobertura", None),
-                           trechos=int(get_setting(db, "golpes_trechos", 0) or 0))
+                           trechos=int(get_setting(db, "golpes_trechos", 0) or 0),
+                           padroes=int(get_setting(db, "golpes_padroes", 0) or 0))
 
 
 @router.post("/preparar", status_code=202, dependencies=[Depends(golpes_ligado)])

@@ -30,13 +30,16 @@ def client(tmp_path):
 def test_status_e_preparar(client):
     s = client.get("/api/golpes/status").json()
     assert s["enabled"] is True and s["versao"] == 2 and s["assinados"] == 0 and s["cobertura"] is None
-    assert s["trechos"] == 0
+    assert s["trechos"] == 0 and s["padroes"] == 0
     assert client.post("/api/golpes/preparar").status_code == 202
     client.app.state.jobs.wait()
     assert client.get("/api/status").json()["job"]["state"] == "idle"
     s = client.get("/api/golpes/status").json()
     assert s["assinados"] == 6 and s["cobertura"]["destinos"]["ge5"] == 6
     assert s["trechos"] > 0
+    # nenhum puzzle do fixture tem o tema geral "mate" na tabela de junção: a varredura das
+    # etiquetas próprias roda (mesmo clique) mas não acha nada para rotular
+    assert s["padroes"] == 0
 
 
 def test_desligado_da_404(client):
@@ -171,4 +174,5 @@ def test_votos_resumo(client):
     r = client.get("/api/golpes/votos/resumo")
     assert r.status_code == 200
     linhas = r.json()
-    assert linhas == [{"tier": "inteira", "posicao": "inteira", "n_lances": 1, "mesmo": 1, "parecido": 0, "nada": 0, "total": 1}]
+    assert linhas == [{"tier": "inteira", "posicao": "inteira", "n_lances": 1, "nivel": "destinos",
+                       "mesmo": 1, "parecido": 0, "nada": 0, "total": 1}]

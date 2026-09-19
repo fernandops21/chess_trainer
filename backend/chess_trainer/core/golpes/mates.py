@@ -89,6 +89,62 @@ def padrao_de_mate(board: chess.Board) -> str | None:
     return None
 
 
+def corredor_apertado(b: chess.Board, rei: int, dono: chess.Color, xeques: list[int]) -> bool:
+    """Mate do corredor, versão APERTADA: gera etiqueta própria para puzzles do Lichess que ele
+    não etiquetou (spec golpes design §3.6, "etiquetas próprias"), nunca classifica o exercício
+    do usuário (isso continua com `corredor`, que tolera uma casa vazia coberta). Rei na própria
+    última fila; torre ou dama dando xeque nela, sem estar adjacente ao rei (`square_distance ==
+    1`, que seria outro padrão); as casas à frente do rei (fora da última fila) formam uma lista
+    não vazia e TODAS ocupadas por PEÕES da própria cor — sem tolerância nenhuma, ao contrário de
+    `corredor`.
+
+    Medido contra as 242 413 mates do Lichess (`evals/golpes/medir_mates.py`): recall 93,8% da
+    etiqueta `backRankMate` (12 004/12 802) e 4 451 extras sem etiqueta — amostra inspecionada à
+    mão, textbook (`Qe8#` contra f7/g7/h7, `Rf8#` com o rei em h8 atrás de g7/h7). A regra frouxa
+    (qualquer peça própria à frente, sem exigir peão) achava o dobro de extras, mas metade era
+    outra ideia (uma torre presa por cravada na frente do rei, não um corredor); por isso a
+    exigência de peão."""
+    fila_casa = 0 if dono == chess.WHITE else 7
+    if chess.square_rank(rei) != fila_casa:
+        return False
+    checadores = [x for x in xeques if b.piece_type_at(x) in (chess.ROOK, chess.QUEEN)
+                 and chess.square_rank(x) == fila_casa]
+    if not checadores or any(chess.square_distance(x, rei) == 1 for x in checadores):
+        return False
+    frente = [s for s in vizinhas(rei) if chess.square_rank(s) != fila_casa]
+    if not frente:
+        return False
+    return all((p := b.piece_at(s)) is not None and p.piece_type == chess.PAWN and p.color == dono for s in frente)
+
+
+# detectores ainda não aprovados para o produto (não entram em `PADROES`/`padrao_de_mate`): só
+# geram etiqueta própria em `lichess_puzzle_padroes` (`preparar_padroes`, spec golpes design
+# §3.6/§4) para puzzles do Lichess que ele mesmo não etiquetou. Um detector novo só entra aqui
+# depois da mesma régua de aprovação (recall ≥ 95%, sobras inspecionadas à mão)
+PADROES_PARA_CANDIDATOS: tuple[tuple[str, Callable[[chess.Board, int, chess.Color, list[int]], bool]], ...] = (
+    ("backRankMate", corredor_apertado),
+)
+
+# versão da régua de `padrao_para_candidato`: sobe quando um detector candidato muda ou entra;
+# `preparar_padroes` refaz a tabela inteira quando a versão gravada em `settings` não bate
+VERSAO_PADROES = 1
+
+
+def padrao_para_candidato(board: chess.Board) -> str | None:
+    """Como `padrao_de_mate`, mas com os detectores candidatos (`PADROES_PARA_CANDIDATOS`) que
+    geram etiqueta PRÓPRIA em vez de classificar o exercício do usuário: hoje só o corredor
+    apertado. `None` fora do xeque-mate ou sem nenhum detector candidato batendo."""
+    if not board.is_checkmate():
+        return None
+    dono = board.turn
+    rei = board.king(dono)
+    xeques = list(board.checkers())
+    for nome, detector in PADROES_PARA_CANDIDATOS:
+        if detector(board, rei, dono, xeques):
+            return nome
+    return None
+
+
 def padrao_do_exercicio(fen: str, lances_uci: Sequence[str]) -> tuple[str, int] | None:
     """Joga a solução inteira a partir de `fen`; quando ela termina em xeque-mate com um padrão
     aprovado, devolve `(tema, quantos lances quem soluciona jogou)`. `None` sem mate, sem padrão

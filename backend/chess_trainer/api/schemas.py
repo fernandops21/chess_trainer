@@ -606,6 +606,9 @@ class GolpesStatusOut(BaseModel):
     total: int
     cobertura: dict[str, dict[str, int]] | None
     trechos: int = 0
+    # quantas etiquetas próprias de padrão de mate já foram calculadas (spec golpes design
+    # §3.6/§4, "etiquetas próprias"): puzzles do Lichess que ele não etiquetou
+    padroes: int = 0
 
 
 class ProcedenciaOut(BaseModel):
@@ -656,11 +659,12 @@ class VotoConsultaOut(BaseModel):
 
 
 class VotosResumoLinha(BaseModel):
-    """Placar dos votos por procedência (spec golpes trechos §8): agrega os votos já
-    gravados por degrau/posição/tamanho do trecho."""
+    """Placar dos votos por procedência (spec golpes trechos §8; padrão de mate: spec golpes
+    design §3.6, C): agrega os votos já gravados por degrau/posição/tamanho do trecho/nível."""
     tier: str
     posicao: str | None
     n_lances: int | None
+    nivel: str | None = None
     mesmo: int
     parecido: int
     nada: int

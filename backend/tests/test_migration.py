@@ -498,6 +498,21 @@ def test_migracao_cria_golpes(tmp_path):
     assert {"lichess_puzzle_signatures", "puzzle_signatures", "golpe_labels"} <= tabelas
 
 
+def test_migracao_cria_a_tabela_das_etiquetas_proprias(tmp_path):
+    """`lichess_puzzle_padroes` (spec golpes design §3.6/§4, "etiquetas próprias") é tabela nova:
+    o `create_all` de `init_db` sozinho já cria em cima de um banco no esquema bem antigo, sem
+    precisar de um `ALTER TABLE` dedicado."""
+    caminho = tmp_path / "old.db"
+    con = sqlite3.connect(caminho); con.executescript(OLD_SCHEMA); con.close()
+    init_db(make_engine(str(caminho)))
+    con = sqlite3.connect(caminho)
+    tabelas = {r[0] for r in con.execute("select name from sqlite_master where type='table'")}
+    colunas = {r[1] for r in con.execute("PRAGMA table_info(lichess_puzzle_padroes)")}
+    con.close()
+    assert "lichess_puzzle_padroes" in tabelas
+    assert {"puzzle_id", "padrao", "versao"} <= colunas
+
+
 # --- trechos: colunas de procedência e a tabela nova (spec golpes trechos) ----
 
 

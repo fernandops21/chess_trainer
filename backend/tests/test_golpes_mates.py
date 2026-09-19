@@ -3,7 +3,9 @@ from pathlib import Path
 
 import chess
 
-from chess_trainer.core.golpes.mates import NOME_PT, PADROES, padrao_de_mate, padrao_do_exercicio
+from chess_trainer.core.golpes.mates import (
+    NOME_PT, PADROES, corredor_apertado, padrao_de_mate, padrao_do_exercicio, padrao_para_candidato,
+)
 
 FIXTURE = Path(__file__).parent / "data" / "mates_lichess_amostra.json"
 TEMAS_APROVADOS = ("smotheredMate", "arabianMate", "backRankMate")
@@ -46,6 +48,79 @@ def test_corredor_tolera_uma_casa_coberta_e_so_uma():
     # com duas casas só cobertas já não é "rei preso atrás dos próprios peões"
     b = chess.Board("4R1k1/5p2/8/8/8/3B4/8/Q5K1 b - - 0 1")
     assert b.is_checkmate() and padrao_de_mate(b) is None
+
+
+# --- corredor apertado (etiqueta própria, spec golpes design §3.6/§4) --------
+
+
+def _detectar_apertado(board: chess.Board) -> bool:
+    dono = board.turn
+    rei = board.king(dono)
+    xeques = list(board.checkers())
+    return corredor_apertado(board, rei, dono, xeques)
+
+
+def test_corredor_apertado_textbook_dama():
+    """`Qe8#` contra um rei fechado só por peões em f7/g7/h7: textbook, aprovado na amostra
+    inspecionada à mão (4 451 extras do corpus do Lichess, spec golpes design §3.6)."""
+    board = chess.Board("4Q1k1/3p1ppp/8/8/8/8/8/6K1 b - - 0 1")
+    assert board.is_valid() and board.is_checkmate()
+    assert _detectar_apertado(board) is True
+    assert padrao_para_candidato(board) == "backRankMate"
+
+
+def test_corredor_apertado_textbook_torre():
+    """`Rf8#` com o rei em h8 atrás de g7/h7: o outro textbook citado na spec."""
+    board = chess.Board("5R1k/6pp/8/8/8/8/8/6K1 b - - 0 1")
+    assert board.is_valid() and board.is_checkmate()
+    assert _detectar_apertado(board) is True
+    assert padrao_para_candidato(board) == "backRankMate"
+
+
+def test_corredor_apertado_nega_peca_nao_peao_na_frente():
+    """Mate real, mas a casa f7 é ocupada por uma TORRE (presa pela cravada do bispo de d5), não
+    por um peão: a regra frouxa (qualquer peça própria) contava isso como corredor — metade dos
+    9 224 extras eram assim, e a regra apertada os rejeita."""
+    board = chess.Board("4R1k1/5rpp/8/3B4/8/8/8/6K1 b - - 0 1")
+    assert board.is_valid() and board.is_checkmate()
+    assert _detectar_apertado(board) is False
+    assert padrao_para_candidato(board) is None
+    # a regra tolerante do exercício do usuário, ao contrário, aceita (qualquer peça própria)
+    assert padrao_de_mate(board) == "backRankMate"
+
+
+def test_corredor_apertado_nega_torre_dama_adjacente():
+    """Torre/dama adjacente ao rei não conta: seria outro padrão (o corredor exige a peça
+    atacando de longe pela última fila, não encostada)."""
+    board = chess.Board("6Qk/6pp/8/8/2B5/8/8/K7 b - - 0 1")
+    assert board.is_valid() and board.is_checkmate()
+    assert _detectar_apertado(board) is False
+
+
+def test_corredor_apertado_nega_a_posicao_real_do_usuario():
+    """A posição real do exercício (h7 vazia, coberta de longe pela dama): a regra tolerante
+    (`corredor`) aceita, a apertada não — ela nunca classifica o exercício do usuário, só gera
+    etiqueta própria para o Lichess."""
+    fen = "6k1/5pp1/5n1p/2pqp3/r1N5/2PQ1P1P/6P1/1R4K1 w - - 0 36"
+    board = chess.Board(fen)
+    for uci in ["b1b8", "d5d8", "b8d8", "f6e8", "d8e8"]:
+        board.push(chess.Move.from_uci(uci))
+    assert board.is_checkmate()
+    assert padrao_de_mate(board) == "backRankMate"
+    assert _detectar_apertado(board) is False
+    assert padrao_para_candidato(board) is None
+
+
+def test_corredor_apertado_nega_duas_casas_cobertas():
+    """A mesma posição do near-miss de `corredor` (duas casas vazias, cobertas a distância): a
+    regra apertada nega junto com a tolerante."""
+    board = chess.Board("4R1k1/5p2/8/8/8/3B4/8/Q5K1 b - - 0 1")
+    assert board.is_checkmate()
+    assert _detectar_apertado(board) is False
+
+
+def test_padrao_para_candidato_fora_do_xeque_mate_e_none():
+    assert padrao_para_candidato(chess.Board(chess.STARTING_FEN)) is None
 
 
 # --- sufocado (mate sufocado) ------------------------------------------------

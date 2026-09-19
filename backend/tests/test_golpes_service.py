@@ -406,9 +406,11 @@ def test_padrao_mate_entra_antes_do_trecho1_e_prefere_o_mate_in_da_ancora(db_ses
     ids = {x.row.id for x in r}
     assert ids == {"m3", "m2"}  # o degrau padrao-mate preenche o bloco antes de sobrar vez para o trecho1
     proc = {x.row.id: x.procedencia for x in r}
-    assert proc["m3"].degrau == "padrao-mate" and proc["m3"].nivel == "backRankMate"
+    # os dois vêm da etiqueta do Lichess (`_marcar_temas`): nivel leva o sufixo ":lichess"
+    # (spec golpes design §3.6, C — de onde veio a etiqueta do padrão)
+    assert proc["m3"].degrau == "padrao-mate" and proc["m3"].nivel == "backRankMate:lichess"
     assert proc["m3"].n == 3 and proc["m3"].posicao == "inteira" and proc["m3"].espelhado is False
-    assert proc["m2"].degrau == "padrao-mate" and proc["m2"].nivel == "backRankMate" and proc["m2"].n == 3
+    assert proc["m2"].degrau == "padrao-mate" and proc["m2"].nivel == "backRankMate:lichess" and proc["m2"].n == 3
 
 
 def test_padrao_mate_nao_repete_quem_ja_saiu_na_subconsulta_anterior(db_session):
@@ -445,16 +447,160 @@ def test_padrao_mate_ausente_num_exercicio_que_nao_termina_em_mate(db_session):
 
 def test_padrao_mate_no_placar_de_votos(db_session):
     """O voto sobre um irmão do degrau `padrao-mate` é gravado com esse tier e agrupado à
-    parte no placar (spec golpes trechos §8) — o tema (`nivel`), até 13 letras
-    (`smotheredMate`), cabe na coluna alargada de `GolpeLabel.nivel`."""
+    parte no placar (spec golpes trechos §8) — o tema com o sufixo de procedência (`nivel`,
+    spec golpes design §3.6, C), até 21 letras (`smotheredMate:lichess`), cabe na coluna
+    alargada de `GolpeLabel.nivel` (24)."""
     from chess_trainer.core.golpes.votos import resumo, votar
     from chess_trainer.core.models import GolpeLabel
     db_session.add(pastor("anc", rating=800))
     db_session.add(pastor("cand", rating=850))
     db_session.commit()
     votar(db_session, anchor_origem="lichess", anchor_id="anc", candidate_id="cand", tier="padrao-mate",
-         label="mesmo", n_lances=3, posicao="inteira", nivel="backRankMate", espelhado=False)
+         label="mesmo", n_lances=3, posicao="inteira", nivel="backRankMate:lichess", espelhado=False)
     linha = db_session.query(GolpeLabel).one()
-    assert linha.nivel == "backRankMate"
+    assert linha.nivel == "backRankMate:lichess"
     por_tier = {l["tier"]: l for l in resumo(db_session)}
     assert por_tier["padrao-mate"]["mesmo"] == 1 and por_tier["padrao-mate"]["total"] == 1
+    assert por_tier["padrao-mate"]["nivel"] == "backRankMate:lichess"
+
+
+# --- etiquetas próprias de padrão de mate: candidatos e placar (spec golpes design §3.6/C) ---
+
+
+def test_padrao_mate_inclui_candidatos_da_regra_propria(db_session):
+    """Candidatos do degrau `padrao-mate` vêm da etiqueta do Lichess OU da tabela de etiquetas
+    próprias (`lichess_puzzle_padroes`, spec golpes design §3.6/§4/C): um puzzle que o Lichess
+    não etiquetou `backRankMate`, mas que a regra apertada classificou (linha na tabela própria),
+    entra do mesmo jeito no bloco — com `nivel` marcando de onde veio a etiqueta."""
+    from chess_trainer.core.models import LichessPuzzlePadrao
+    db_session.add(lichess("lic", FEN_PASTOR_ANTES, MOVES_PASTOR, rating=1000))
+    db_session.add(lichess("regra", FEN_PASTOR_ANTES, MOVES_PASTOR, rating=1000))
+    db_session.commit()
+    _marcar_temas(db_session, "lic", "backRankMate", "mateIn3")
+    _marcar_temas(db_session, "regra", "mateIn3")  # sem a etiqueta específica do Lichess
+    db_session.add(LichessPuzzlePadrao(puzzle_id="regra", padrao="backRankMate", versao=1))
+    db_session.commit()
+
+    r = irmaos(db_session, FEN_CORREDOR_USUARIO, MOVES_CORREDOR_USUARIO, rating=1000, abaixo=500, acima=500,
+              excluir=set(), k=2)
+    ids = {x.row.id for x in r}
+    assert ids == {"lic", "regra"}
+    proc = {x.row.id: x.procedencia for x in r}
+    assert proc["lic"].nivel == "backRankMate:lichess"
+    assert proc["regra"].nivel == "backRankMate:regra"
+    assert proc["lic"].degrau == "padrao-mate" and proc["regra"].degrau == "padrao-mate"
+
+
+def test_padrao_mate_sem_duplicar_quando_tem_as_duas_etiquetas(db_session):
+    """Um puzzle com a etiqueta do Lichess E uma linha na tabela própria (redundante, pode
+    acontecer se a regra achar o mesmo padrão que o Lichess já etiquetou antes da versão nova
+    excluir o que já tem etiqueta) entra só UMA vez, pela etiqueta do Lichess."""
+    from chess_trainer.core.models import LichessPuzzlePadrao
+    db_session.add(lichess("ambos", FEN_PASTOR_ANTES, MOVES_PASTOR, rating=1000))
+    db_session.commit()
+    _marcar_temas(db_session, "ambos", "backRankMate", "mateIn3")
+    db_session.add(LichessPuzzlePadrao(puzzle_id="ambos", padrao="backRankMate", versao=1))
+    db_session.commit()
+
+    r = irmaos(db_session, FEN_CORREDOR_USUARIO, MOVES_CORREDOR_USUARIO, rating=1000, abaixo=500, acima=500,
+              excluir=set(), k=5)
+    assert [x.row.id for x in r] == ["ambos"]
+    assert r[0].procedencia.nivel == "backRankMate:lichess"
+
+
+# --- preparar_padroes: etiquetas próprias de padrão de mate (spec golpes design §3.6/§4) -----
+
+FEN_TEXTBOOK_ANTES = "6k1/p4ppp/8/8/8/8/5PPP/4R1K1 b - - 0 1"
+MOVES_TEXTBOOK = "a7a6 e1e8"  # 1...a6?? 2.Re8# (corredor apertado: f7/g7/h7 são peões pretos)
+FEN_PINNED_ANTES = "6k1/p4rpp/8/3B4/8/8/8/4R1K1 b - - 0 1"
+MOVES_PINNED = "a7a6 e1e8"  # mesmo mate, mas f7 é uma TORRE presa pela cravada do bispo
+
+
+def _puzzle_mate(pid: str, fen: str, moves: str, themes: str, rating: int = 1000) -> LichessPuzzle:
+    return LichessPuzzle(id=pid, fen=fen, moves=moves, rating=rating, rating_deviation=50, popularity=90,
+                         nb_plays=500, themes=themes, opening_tags="")
+
+
+def test_preparar_padroes_grava_so_o_puzzle_sem_a_etiqueta(db_session):
+    from chess_trainer.config import get_setting
+    from chess_trainer.core.golpes.mates import VERSAO_PADROES
+    from chess_trainer.core.golpes.service import preparar_padroes
+    from chess_trainer.core.models import LichessPuzzlePadrao
+
+    tagged = _puzzle_mate("tagged", FEN_TEXTBOOK_ANTES, MOVES_TEXTBOOK, "mate backRankMate mateIn1")
+    untagged = _puzzle_mate("untagged", FEN_TEXTBOOK_ANTES, MOVES_TEXTBOOK, "mate mateIn1")
+    pinned = _puzzle_mate("pinnedrook", FEN_PINNED_ANTES, MOVES_PINNED, "mate mateIn1")
+    naomate = lichess("naomate", FEN_FRANCESA_ANTES, MOVES_FRANCESA)  # sem tema "mate": fora da varredura
+    db_session.add_all([tagged, untagged, pinned, naomate])
+    db_session.commit()
+    _marcar_temas(db_session, "tagged", "mate", "backRankMate", "mateIn1")
+    _marcar_temas(db_session, "untagged", "mate", "mateIn1")
+    _marcar_temas(db_session, "pinnedrook", "mate", "mateIn1")
+    db_session.commit()
+
+    n = preparar_padroes(db_session, lambda *a: None)
+    assert n == 3  # só os três com o tema geral "mate" entram na varredura
+    linhas = db_session.query(LichessPuzzlePadrao).all()
+    assert [(l.puzzle_id, l.padrao) for l in linhas] == [("untagged", "backRankMate")]
+    assert get_setting(db_session, "golpes_padroes_versao", None) == VERSAO_PADROES
+    assert get_setting(db_session, "golpes_padroes", None) == 1
+
+    # segunda rodada: a versão já bate, não faz nada (nem varre de novo)
+    assert preparar_padroes(db_session, lambda *a: None) == 0
+    assert db_session.query(LichessPuzzlePadrao).count() == 1
+
+
+def test_preparar_padroes_versao_nova_refaz(db_session, monkeypatch):
+    from chess_trainer.config import get_setting
+    from chess_trainer.core.golpes.service import preparar_padroes
+    from chess_trainer.core.models import LichessPuzzlePadrao
+
+    untagged = _puzzle_mate("untagged", FEN_TEXTBOOK_ANTES, MOVES_TEXTBOOK, "mate mateIn1")
+    db_session.add(untagged)
+    db_session.commit()
+    _marcar_temas(db_session, "untagged", "mate", "mateIn1")
+    db_session.commit()
+
+    assert preparar_padroes(db_session, lambda *a: None) == 1
+    assert db_session.query(LichessPuzzlePadrao).count() == 1
+
+    monkeypatch.setattr("chess_trainer.core.golpes.service.VERSAO_PADROES", 2)
+    n = preparar_padroes(db_session, lambda *a: None)
+    assert n == 1
+    assert get_setting(db_session, "golpes_padroes_versao", None) == 2
+    assert db_session.query(LichessPuzzlePadrao).count() == 1  # refeita, não duplicada
+
+
+def test_preparar_padroes_cancelamento_nao_grava_versao(db_session):
+    from chess_trainer.config import get_setting
+    from chess_trainer.core.golpes.service import preparar_padroes
+    from chess_trainer.core.models import LichessPuzzlePadrao
+
+    untagged = _puzzle_mate("untagged", FEN_TEXTBOOK_ANTES, MOVES_TEXTBOOK, "mate mateIn1")
+    db_session.add(untagged)
+    db_session.commit()
+    _marcar_temas(db_session, "untagged", "mate", "mateIn1")
+    db_session.commit()
+
+    n = preparar_padroes(db_session, lambda *a: None, should_stop=lambda: True)
+    assert n == 0
+    assert get_setting(db_session, "golpes_padroes_versao", None) is None
+    assert db_session.query(LichessPuzzlePadrao).count() == 0
+
+
+def test_preparar_chama_preparar_padroes_mesmo_sem_pendentes(db_session, monkeypatch):
+    """`preparar` (assinaturas/trechos) chama `preparar_padroes` no fim mesmo quando não havia
+    NADA pendente na primeira parte (banco vazio, `total == 0`) — um clique em "Preparar
+    golpes" faz as duas coisas."""
+    import chess_trainer.core.golpes.service as golpes_service
+
+    chamadas = []
+    original = golpes_service.preparar_padroes
+
+    def _espiao(db, progress, should_stop=None, lote=5000):
+        chamadas.append(True)
+        return original(db, progress, should_stop, lote)
+
+    monkeypatch.setattr(golpes_service, "preparar_padroes", _espiao)
+    assert preparar(db_session, lambda *a: None) == 0  # nada no banco: zero pendentes
+    assert chamadas == [True]

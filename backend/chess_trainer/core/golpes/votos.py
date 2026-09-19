@@ -56,18 +56,24 @@ def voto_de(db: Session, *, anchor_origem: str, anchor_id: str, candidate_id: st
 
 
 def resumo(db: Session) -> list[dict]:
-    """Placar dos votos por procedência (spec golpes trechos §8): quantos votos de cada resposta
-    ("mesmo"/"parecido"/"nada") cada combinação (degrau, posição, tamanho do trecho) já
-    recebeu, para mostrar o quanto cada tipo de casamento é ruído."""
+    """Placar dos votos por procedência (spec golpes trechos §8; padrão de mate: spec golpes
+    design §3.6, C): quantos votos de cada resposta ("mesmo"/"parecido"/"nada") cada combinação
+    (degrau, posição, tamanho do trecho, nível) já recebeu, para mostrar o quanto cada tipo de
+    casamento é ruído. `nivel` entra no agrupamento porque o degrau `padrao-mate` usa a MESMA
+    `tier_na_hora` ("padrao-mate") para qualquer tema de mate e qualquer procedência da etiqueta
+    (`"backRankMate:lichess"`, `"backRankMate:regra"`...); sem `nivel` na chave, votos de temas
+    e procedências diferentes ficariam somados na mesma linha."""
     linhas = db.execute(select(GolpeLabel.tier_na_hora, GolpeLabel.posicao, GolpeLabel.n_lances,
-                              GolpeLabel.label, func.count())
-                        .group_by(GolpeLabel.tier_na_hora, GolpeLabel.posicao, GolpeLabel.n_lances, GolpeLabel.label)).all()
+                              GolpeLabel.nivel, GolpeLabel.label, func.count())
+                        .group_by(GolpeLabel.tier_na_hora, GolpeLabel.posicao, GolpeLabel.n_lances,
+                                 GolpeLabel.nivel, GolpeLabel.label)).all()
     agregados: dict[tuple, dict[str, int]] = {}
-    for tier, posicao, n_lances, label, n in linhas:
-        agregados.setdefault((tier, posicao, n_lances), {"mesmo": 0, "parecido": 0, "nada": 0})[label] = n
+    for tier, posicao, n_lances, nivel, label, n in linhas:
+        agregados.setdefault((tier, posicao, n_lances, nivel), {"mesmo": 0, "parecido": 0, "nada": 0})[label] = n
     saida = []
-    for (tier, posicao, n_lances), contagem in sorted(agregados.items(), key=lambda kv: (kv[0][0], kv[0][1] or "")):
-        saida.append({"tier": tier, "posicao": posicao, "n_lances": n_lances, **contagem, "total": sum(contagem.values())})
+    for (tier, posicao, n_lances, nivel), contagem in sorted(agregados.items(), key=lambda kv: (kv[0][0], kv[0][1] or "")):
+        saida.append({"tier": tier, "posicao": posicao, "n_lances": n_lances, "nivel": nivel,
+                      **contagem, "total": sum(contagem.values())})
     return saida
 
 

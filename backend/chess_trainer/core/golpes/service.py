@@ -10,11 +10,12 @@ import chess
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from chess_trainer.config import set_setting
+from chess_trainer.config import get_setting, set_setting
 from chess_trainer.core.golpes.assinatura import VERSAO_ASSINATURA, Assinatura, Trecho, assinar, assinar_com_trechos, trechos
-from chess_trainer.core.golpes.mates import padrao_do_exercicio
+from chess_trainer.core.golpes.mates import VERSAO_PADROES, padrao_do_exercicio, padrao_para_candidato
 from chess_trainer.core.models import (
-    LichessPuzzle, LichessPuzzleSignature, LichessPuzzleTheme, LichessPuzzleTrecho, Puzzle, PuzzleSignature,
+    LichessPuzzle, LichessPuzzlePadrao, LichessPuzzleSignature, LichessPuzzleTheme, LichessPuzzleTrecho, Puzzle,
+    PuzzleSignature,
 )
 
 ProgressFn = Callable[[str, int, int, str], None]
@@ -182,6 +183,75 @@ def preparar(db: Session, progress: ProgressFn, should_stop: Callable[[], bool] 
     set_setting(db, "golpes_assinados", db.scalar(select(func.count()).select_from(LichessPuzzleSignature)) or 0)
     set_setting(db, "golpes_trechos", db.scalar(select(func.count()).select_from(LichessPuzzleTrecho)) or 0)
     progress(NOME_TAREFA, total, total, "concluído")
+    # etiquetas próprias de padrão de mate (spec golpes design §3.6/§4): mesmo clique, mesmo
+    # nome de tarefa; roda mesmo quando não havia nada pendente acima (banco já assinado)
+    preparar_padroes(db, progress, should_stop, lote)
+    return feitos
+
+
+def _final_lichess(row: LichessPuzzle) -> chess.Board | None:
+    """A posição final da solução INTEIRA de um puzzle do Lichess (`fen` mais TODOS os lances de
+    `moves`, incluindo o de preparo do adversário): `None` num dado inválido (FEN ruim ou lance
+    ilegal), sem levantar — mesma tolerância de `_lances_lichess`."""
+    try:
+        board = chess.Board(row.fen)
+    except ValueError:
+        return None
+    for uci in row.moves.split():
+        try:
+            mv = chess.Move.from_uci(uci)
+        except ValueError:
+            return None
+        if not board.is_legal(mv):
+            return None
+        board.push(mv)
+    return board
+
+
+def preparar_padroes(db: Session, progress: ProgressFn, should_stop: Callable[[], bool] | None = None,
+                     lote: int = 5000) -> int:
+    """Etiquetas próprias de padrão de mate (spec golpes design §3.6/§4, "etiquetas próprias")
+    para puzzles do Lichess que ELE mesmo não etiquetou: varre só os puzzles com o tema geral
+    `mate` (o resto nunca termina em xeque-mate, não vale gastar a rejogada da solução), rejoga a
+    solução inteira e, quando `padrao_para_candidato` acha um padrão que ainda não está entre os
+    temas do Lichess desse puzzle, grava uma linha em `lichess_puzzle_padroes`. Não faz nada
+    quando `golpes_padroes_versao` já bate com `VERSAO_PADROES` — subir a versão (um detector
+    candidato novo ou mudado) refaz a tabela inteira do zero. Cancelar não grava a versão: a
+    varredura toda leva uns 60 segundos, sem cursor de retomada por puzzle — a próxima chamada
+    recomeça do zero. Devolve quantos puzzles foram rejogados (com padrão gravado ou não)."""
+    if get_setting(db, "golpes_padroes_versao", None) == VERSAO_PADROES:
+        return 0
+    db.execute(delete(LichessPuzzlePadrao))
+    db.commit()
+    ids_mate = select(LichessPuzzleTheme.puzzle_id).where(LichessPuzzleTheme.theme == "mate")
+    total = db.scalar(select(func.count()).select_from(LichessPuzzle).where(LichessPuzzle.id.in_(ids_mate))) or 0
+    progress(NOME_TAREFA, 0, total, "padrões de mate: contando")
+    feitos = 0
+    gravados = 0
+    ultimo = ""
+    while True:
+        if should_stop is not None and should_stop():
+            progress(NOME_TAREFA, feitos, total, "padrões de mate: cancelado")
+            return feitos
+        rows = db.scalars(select(LichessPuzzle).where(LichessPuzzle.id.in_(ids_mate), LichessPuzzle.id > ultimo)
+                          .order_by(LichessPuzzle.id).limit(lote)).all()
+        if not rows:
+            break
+        ultimo = rows[-1].id
+        for row in rows:
+            board = _final_lichess(row)
+            if board is None:
+                continue
+            tema = padrao_para_candidato(board)
+            if tema is not None and tema not in row.theme_list:
+                db.add(LichessPuzzlePadrao(puzzle_id=row.id, padrao=tema, versao=VERSAO_PADROES))
+                gravados += 1
+        db.commit()
+        feitos += len(rows)
+        progress(NOME_TAREFA, feitos, total, f"padrões de mate: {feitos}/{total}")
+    set_setting(db, "golpes_padroes_versao", VERSAO_PADROES)
+    set_setting(db, "golpes_padroes", gravados)
+    progress(NOME_TAREFA, total, total, "padrões de mate: concluído")
     return feitos
 
 
@@ -205,7 +275,10 @@ class Procedencia:
     """De onde veio um irmão na cascata (spec golpes trechos §5): o degrau, o nível de
     assinatura comparado (`destinos` | `destinos_esp` | `esqueleto`), quantos lances do
     solucionador entraram na comparação, a posição do trecho combinado na solução do
-    CANDIDATO ("inteira" para os degraus de assinatura inteira) e se foi por espelho."""
+    CANDIDATO ("inteira" para os degraus de assinatura inteira) e se foi por espelho. No degrau
+    `padrao-mate` (spec golpes design §3.6, C), `nivel` é `"{tema}:lichess"` ou `"{tema}:regra"`
+    conforme a etiqueta do padrão veio do Lichess ou só da tabela própria (`lichess_puzzle_padroes`)
+    — até 24 caracteres (`"smotheredMate:lichess"`), o tamanho de `GolpeLabel.nivel`."""
     degrau: str
     nivel: str
     n: int
@@ -302,21 +375,44 @@ MATE_IN_MAX = 5
 
 
 def _candidatos_padrao_mate(db: Session, tema: str, tag_extra: str | None, excluir: set[str], centro: int,
-                            min_popularity: int, min_plays: int) -> list[tuple[str, int]]:
-    """Candidatos do degrau `padrao-mate` (spec golpes design §3.6/§5): puzzles do Lichess
-    etiquetados com `tema` (um padrão de mate aprovado) em `lichess_puzzle_themes` e, quando
-    `tag_extra` é dado (`mateIn{n}`), também com essa etiqueta — as mesmas exclusões e o mesmo
-    corte `LIMITE_CANDIDATOS` (perto do centro da faixa) dos outros degraus, mas sem tabela de
-    assinatura: quem decide este degrau é a etiqueta do Lichess, não a geometria da solução."""
-    q = (select(LichessPuzzle.id, LichessPuzzle.rating)
-         .join(LichessPuzzleTheme, LichessPuzzleTheme.puzzle_id == LichessPuzzle.id)
-         .where(LichessPuzzleTheme.theme == tema, LichessPuzzle.popularity >= min_popularity,
-               LichessPuzzle.nb_plays >= min_plays))
-    if tag_extra is not None:
+                            min_popularity: int, min_plays: int) -> tuple[list[tuple[str, int]], dict[str, str]]:
+    """Candidatos do degrau `padrao-mate` (spec golpes design §3.6/§5, C): puzzles do Lichess
+    etiquetados com `tema` (um padrão de mate aprovado) em `lichess_puzzle_themes` UNIÃO os que só
+    têm uma etiqueta PRÓPRIA (`lichess_puzzle_padroes`, spec golpes design §4) para `tema` — o
+    Lichess não etiquetou o padrão, mas a regra apertada achou. Quando `tag_extra` é dado
+    (`mateIn{n}`), as duas fontes exigem essa etiqueta também: um puzzle rule-tagged continua com
+    a etiqueta geral `mateIn{n}` do Lichess, só falta a etiqueta específica do padrão. Mesmas
+    exclusões e mesmo corte `LIMITE_CANDIDATOS` (perto do centro da faixa) dos outros degraus, um
+    por fonte; um puzzle com as duas etiquetas conta só pela do Lichess (fica de fora da segunda
+    consulta pela exclusão prévia) — sem duplicar no bloco. Devolve os candidatos e, à parte, a
+    procedência de cada um (`"lichess"` ou `"regra"`) para `Procedencia.nivel` marcar `"{tema}:
+    lichess"` ou `"{tema}:regra"`."""
+    def _com_tag_extra(q):
+        if tag_extra is None:
+            return q
         sub = select(LichessPuzzleTheme.puzzle_id).where(LichessPuzzleTheme.theme == tag_extra)
-        q = q.where(LichessPuzzle.id.in_(sub))
-    q = q.order_by(func.abs(LichessPuzzle.rating - centro), LichessPuzzle.id).limit(LIMITE_CANDIDATOS)
-    return [(pid, rating) for pid, rating in db.execute(q) if pid not in excluir]
+        return q.where(LichessPuzzle.id.in_(sub))
+
+    q_lichess = _com_tag_extra(
+        select(LichessPuzzle.id, LichessPuzzle.rating)
+        .join(LichessPuzzleTheme, LichessPuzzleTheme.puzzle_id == LichessPuzzle.id)
+        .where(LichessPuzzleTheme.theme == tema, LichessPuzzle.popularity >= min_popularity,
+              LichessPuzzle.nb_plays >= min_plays)
+    ).order_by(func.abs(LichessPuzzle.rating - centro), LichessPuzzle.id).limit(LIMITE_CANDIDATOS)
+    do_lichess = [(pid, rating) for pid, rating in db.execute(q_lichess) if pid not in excluir]
+    origem = {pid: "lichess" for pid, _rating in do_lichess}
+
+    ja_vistos = excluir | set(origem)
+    q_regra = _com_tag_extra(
+        select(LichessPuzzle.id, LichessPuzzle.rating)
+        .join(LichessPuzzlePadrao, LichessPuzzlePadrao.puzzle_id == LichessPuzzle.id)
+        .where(LichessPuzzlePadrao.padrao == tema, LichessPuzzle.popularity >= min_popularity,
+              LichessPuzzle.nb_plays >= min_plays)
+    ).order_by(func.abs(LichessPuzzle.rating - centro), LichessPuzzle.id).limit(LIMITE_CANDIDATOS)
+    da_regra = [(pid, rating) for pid, rating in db.execute(q_regra) if pid not in ja_vistos]
+    origem.update({pid: "regra" for pid, _rating in da_regra})
+
+    return do_lichess + da_regra, origem
 
 
 def _passos(a: Assinatura, meus_trechos: dict[int, "Trecho"], k: int, mate: tuple[str, int] | None = None):
@@ -366,11 +462,11 @@ def _meus_trechos(fen: str, lances: list[str]) -> dict[int, "Trecho"]:
 def _executar_passo(db: Session, nivel: str, n: int, tipo: str, valor, zona_rei: str,
                     excluir: set[str], centro: int, min_popularity: int, min_plays: int):
     """Roda um degrau da cascata: devolve os candidatos (id, rating) e, se for um degrau de
-    trecho, a procedência bruta (`inicio`, `posicao`) de cada um — `None` num degrau de
-    assinatura inteira ou de padrão de mate, onde a posição do casamento é sempre a solução
-    inteira."""
+    trecho, a procedência bruta (`inicio`, `posicao`) de cada um; num degrau de padrão de mate, a
+    procedência é `"lichess"` ou `"regra"` por id (spec golpes design §3.6, C); `None` num degrau
+    de assinatura inteira, onde a posição do casamento é sempre a solução inteira."""
     if tipo == "padrao_mate":
-        return _candidatos_padrao_mate(db, nivel, valor, excluir, centro, min_popularity, min_plays), None
+        return _candidatos_padrao_mate(db, nivel, valor, excluir, centro, min_popularity, min_plays)
     coluna = "esqueleto" if nivel == "esqueleto" else "destinos"
     if tipo == "trecho":
         return _candidatos_trecho(db, coluna, n, valor, excluir, centro, min_popularity, min_plays)
@@ -405,8 +501,14 @@ def irmaos(db: Session, fen: str, lances: list[str], *, rating: int, abaixo: int
         cands, prov = _executar_passo(db, nivel, n, tipo, valor, a.zona_rei, usados, centro,
                                       min_popularity, min_plays)
         for pid in escolher_por_rating(cands, k - len(escolhidos), lo, hi):
-            posicao = "inteira" if prov is None else prov[pid][1]
-            escolhidos.append((pid, nome, Procedencia(degrau=nome, nivel=nivel, n=n, posicao=posicao, espelhado=espelhado)))
+            if tipo == "padrao_mate":
+                # aqui `nivel` é o tema do Lichess e `prov[pid]` é "lichess" | "regra" (spec
+                # golpes design §3.6, C): a procedência marca de onde veio a etiqueta do padrão
+                posicao, nivel_item = "inteira", f"{nivel}:{prov[pid]}"
+            else:
+                posicao = "inteira" if prov is None else prov[pid][1]
+                nivel_item = nivel
+            escolhidos.append((pid, nome, Procedencia(degrau=nome, nivel=nivel_item, n=n, posicao=posicao, espelhado=espelhado)))
             usados.add(pid)
     linhas = {r.id: r for r in db.scalars(
         select(LichessPuzzle).where(LichessPuzzle.id.in_([pid for pid, _nome, _proc in escolhidos])))}
