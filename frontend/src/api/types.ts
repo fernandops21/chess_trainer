@@ -354,11 +354,12 @@ export interface GolpesStatus {
 }
 
 /** De onde veio um irmão na cascata (spec golpes trechos §5): o degrau, o nível de
- *  assinatura comparado, quantos lances entraram na comparação, a posição do trecho na
- *  solução do CANDIDATO e se foi por espelho. */
+ *  assinatura comparado (ou, no degrau `padrao-mate`, o tema do Lichess — spec golpes design
+ *  §3.6), quantos lances entraram na comparação, a posição do trecho na solução do CANDIDATO
+ *  e se foi por espelho. */
 export interface Procedencia {
   degrau: string;
-  nivel: "destinos" | "destinos_esp" | "esqueleto";
+  nivel: "destinos" | "destinos_esp" | "esqueleto" | string;
   n: number;
   posicao: "inteira" | "inicio" | "meio" | "fim";
   espelhado: boolean;
@@ -374,6 +375,9 @@ export interface IrmaoOut {
 export interface IrmaosOut {
   assinatura: string;
   itens: IrmaoOut[];
+  /** Nome em português do padrão de mate da âncora (spec golpes design §3.6), só quando a
+   *  solução dela termina num xeque-mate com padrão aprovado. */
+  padrao?: string | null;
 }
 
 /** Corpo do `POST /api/golpes/voto`: o voto do usuário sobre um irmão do bloco — "tem a ver

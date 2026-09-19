@@ -626,6 +626,9 @@ class IrmaoOut(BaseModel):
 class IrmaosOut(BaseModel):
     assinatura: str
     itens: list[IrmaoOut]
+    # nome em português do padrão de mate da âncora (`NOME_PT`), só quando a solução dela
+    # termina num xeque-mate com padrão aprovado (spec golpes design §3.6)
+    padrao: str | None = None
 
 
 class VotoIn(BaseModel):

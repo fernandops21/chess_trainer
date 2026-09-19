@@ -82,6 +82,22 @@ def test_irmaos_de_um_puzzle_do_lichess(client):
     assert len(client.get("/api/golpes/lichess/p0/irmaos?k=0").json()["itens"]) == 1
 
 
+def test_irmaos_traz_o_padrao_de_mate_da_ancora(client):
+    """A resposta traz o nome em português do padrão de mate da âncora quando a solução dela
+    termina num xeque-mate com padrão aprovado (spec golpes design §3.6); sem padrão (ou sem
+    mate), o campo fica nulo."""
+    db = client.app.state.session_factory()
+    corredor = LichessPuzzle(
+        id="corr1", fen="6k1/p4ppp/8/8/8/8/5PPP/4R1K1 b - - 0 1", moves="a7a6 e1e8", rating=800,
+        rating_deviation=50, popularity=90, nb_plays=500, themes="backRankMate mateIn1", opening_tags="")
+    db.add(corredor)
+    db.commit()
+    db.close()
+    assert client.get("/api/golpes/lichess/corr1/irmaos").json()["padrao"] == "mate do corredor"
+    # p0 é o mate do pastor: xeque-mate, mas sem nenhum dos três padrões aprovados
+    assert client.get("/api/golpes/lichess/p0/irmaos").json()["padrao"] is None
+
+
 def test_imagem_svg(client):
     client.post("/api/golpes/preparar"); client.app.state.jobs.wait()
     r = client.get("/api/golpes/lichess/p0/imagem.svg")

@@ -43,6 +43,16 @@ describe("GolpeCard", () => {
     expect(await screen.findByAltText("O golpe desenhado")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /parecidos/ })).toBeNull();
   });
+  it("com padrão de mate: mostra a linha em português", async () => {
+    vi.spyOn(api, "golpesIrmaos").mockResolvedValue({ ...irmaos, padrao: "mate do corredor" });
+    montar({ errou: false });
+    expect(await screen.findByText("Padrão: mate do corredor")).toBeInTheDocument();
+  });
+  it("sem padrão de mate: não mostra a linha", async () => {
+    montar({ errou: false });
+    await screen.findByAltText("O golpe desenhado");
+    expect(screen.queryByText(/^Padrão:/)).toBeNull();
+  });
   it("sem assinatura (404): nada", async () => {
     vi.spyOn(api, "golpesIrmaos").mockResolvedValue(null);
     const { container } = render(

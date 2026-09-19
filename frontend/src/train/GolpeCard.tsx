@@ -19,6 +19,7 @@ export function GolpeCard({ origem, id, errou }: { origem: "own" | "lichess"; id
     <div className="card">
       <h3 style={{ marginTop: 0 }}>Repetir o golpe</h3>
       <img alt="O golpe desenhado" src={golpeImagemUrl(origem, id)} style={{ width: "100%", maxWidth: 320 }} />
+      {data.padrao && <p className="muted">Padrão: {data.padrao}</p>}
       {errou && itens.length > 0 && (
         <button onClick={() => iniciar({ anchorId: id, anchorOrigem: origem, itens, tiers, procedencias })}>Treinar {itens.length} parecidos</button>
       )}
