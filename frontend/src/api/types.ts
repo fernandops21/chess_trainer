@@ -351,6 +351,9 @@ export interface GolpesStatus {
   cobertura: Record<string, { ge5: number; ge2: number; sozinhos: number }> | null;
   /** Quantas linhas de trecho já foram calculadas (spec golpes trechos §4.1). */
   trechos: number;
+  /** Quantas etiquetas próprias de padrão de mate já foram calculadas (spec golpes design
+   *  §3.6/§4, "etiquetas próprias"): puzzles do Lichess que ele não etiquetou. */
+  padroes: number;
 }
 
 /** De onde veio um irmão na cascata (spec golpes trechos §5): o degrau, o nível de
@@ -410,6 +413,9 @@ export interface VotosResumoLinha {
   tier: string;
   posicao: string | null;
   n_lances: number | null;
+  /** No degrau `padrao-mate`, o tema com a procedência da etiqueta (spec golpes design §3.6,
+   *  C): `"backRankMate:lichess"` ou `"backRankMate:regra"`. */
+  nivel: string | null;
   mesmo: number;
   parecido: number;
   nada: number;

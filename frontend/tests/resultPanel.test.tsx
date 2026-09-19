@@ -82,7 +82,7 @@ beforeEach(() => {
   // treinador desligado (o padrão): o cartão dele não entra; estes testes são sobre o resultado
   vi.spyOn(api, "coachStatus").mockResolvedValue(coachStatus({ enabled: false, configured: false }));
   // encoder de golpes desligado (o padrão): sem o cartão "Repetir o golpe" nestes testes
-  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: false, versao: 0, assinados: 0, total: 0, cobertura: null, trechos: 0 });
+  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: false, versao: 0, assinados: 0, total: 0, cobertura: null, trechos: 0, padroes: 0 });
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -234,7 +234,7 @@ test("resolvido pela linha principal: nada muda no resultado", () => {
 // --- cartão "Repetir o golpe": dica conta como erro (achado 7) -----------
 
 test("resolvido com dica: o cartão do golpe oferece o bloco (dica conta como erro)", async () => {
-  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: true, versao: 1, assinados: 1, total: 1, cobertura: null, trechos: 0 });
+  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: true, versao: 1, assinados: 1, total: 1, cobertura: null, trechos: 0, padroes: 0 });
   const irmaos: IrmaosOut = { assinatura: "Ke8 | Q xP f7 #", itens: [{ tier: "mesmo", tactic: { id: "a" } as never }] };
   vi.spyOn(api, "golpesIrmaos").mockResolvedValue(irmaos);
   render(

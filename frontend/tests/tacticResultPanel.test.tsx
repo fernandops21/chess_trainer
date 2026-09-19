@@ -44,7 +44,7 @@ beforeEach(() => {
   vi.spyOn(api, "openings").mockRejectedValue(new Error("sem livro"));
   vi.spyOn(api, "settings").mockRejectedValue(new Error("sem configurações"));
   // encoder de golpes desligado (o padrão): sem o cartão "Repetir o golpe" nestes testes
-  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: false, versao: 0, assinados: 0, total: 0, cobertura: null, trechos: 0 });
+  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: false, versao: 0, assinados: 0, total: 0, cobertura: null, trechos: 0, padroes: 0 });
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -137,7 +137,7 @@ test("guardar para repetir manda o resultado da tentativa mostrada", async () =>
 // --- cartão "Repetir o golpe" --------------------------------------------
 
 test("sem tentativa registrada ainda (enviando ou erro ao enviar), o cartão do golpe não presume erro", async () => {
-  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: true, versao: 1, assinados: 1, total: 1, cobertura: null, trechos: 0 });
+  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: true, versao: 1, assinados: 1, total: 1, cobertura: null, trechos: 0, padroes: 0 });
   const irmaos: IrmaosOut = { assinatura: "Ke8 | Q xP f7 #", itens: [{ tier: "mesmo", tactic: baseTactic({ id: "a" }) }] };
   vi.spyOn(api, "golpesIrmaos").mockResolvedValue(irmaos);
   renderPanel(baseTactic());

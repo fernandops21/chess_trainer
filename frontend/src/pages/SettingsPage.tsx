@@ -281,7 +281,8 @@ export function SettingsPage() {
         </p>
         <p className="muted">{golpes ? `${nf.format(golpes.assinados)} de ${nf.format(golpes.total)} puzzles com assinatura` : ""}
           {golpes?.cobertura ? ` · ${nf.format(golpes.cobertura.destinos.ge5)} com cinco ou mais irmãos` : ""}
-          {golpes && golpes.trechos > 0 ? ` · ${nf.format(golpes.trechos)} trechos` : ""}</p>
+          {golpes && golpes.trechos > 0 ? ` · ${nf.format(golpes.trechos)} trechos` : ""}
+          {golpes && golpes.padroes > 0 ? ` · ${nf.format(golpes.padroes)} padrões de mate próprios` : ""}</p>
         <button onClick={() => start.mutate({ kind: "golpes_preparar" })} disabled={status?.job.state === "running"}>Preparar golpes</button>
         <JobStatusLine job="golpes_preparar" />
         <details style={{ marginTop: 12 }}>
@@ -290,14 +291,14 @@ export function SettingsPage() {
             <table style={{ marginTop: 8 }}>
               <thead>
                 <tr>
-                  <th>degrau</th><th>posição</th><th>lances</th><th>mesmo golpe</th><th>parecido</th>
+                  <th>degrau</th><th>posição</th><th>lances</th><th>nível</th><th>mesmo golpe</th><th>parecido</th>
                   <th>nada a ver</th><th>total</th><th>% nada a ver</th>
                 </tr>
               </thead>
               <tbody>
                 {votosResumo.map((l) => (
-                  <tr key={`${l.tier}-${l.posicao}-${l.n_lances}`}>
-                    <td>{l.tier}</td><td>{l.posicao ?? "—"}</td><td>{l.n_lances ?? "—"}</td>
+                  <tr key={`${l.tier}-${l.posicao}-${l.n_lances}-${l.nivel}`}>
+                    <td>{l.tier}</td><td>{l.posicao ?? "—"}</td><td>{l.n_lances ?? "—"}</td><td>{l.nivel ?? "—"}</td>
                     <td>{l.mesmo}</td><td>{l.parecido}</td><td>{l.nada}</td><td>{l.total}</td>
                     <td>{l.total > 0 ? `${Math.round((l.nada / l.total) * 100)}%` : "—"}</td>
                   </tr>

@@ -33,7 +33,7 @@ const coachStatus = (over: Partial<CoachStatus> = {}): CoachStatus => ({
 });
 
 const golpesStatus = (over: Partial<GolpesStatus> = {}): GolpesStatus => ({
-  enabled: true, versao: 1, assinados: 800, total: 1000, cobertura: null, trechos: 0, ...over,
+  enabled: true, versao: 1, assinados: 800, total: 1000, cobertura: null, trechos: 0, padroes: 0, ...over,
 });
 
 function renderPage() {
@@ -291,6 +291,18 @@ test("sem trechos (zero) o texto extra não aparece", async () => {
   expect(screen.queryByText(/trechos/)).toBeNull();
 });
 
+test("os padrões de mate próprios aparecem quando o status traz mais de zero", async () => {
+  vi.spyOn(api, "golpesStatus").mockResolvedValue(golpesStatus({ padroes: 4451 }));
+  renderPage();
+  expect(await screen.findByText(/4\.451 padrões de mate próprios/)).toBeTruthy();
+});
+
+test("sem padrões de mate próprios (zero) o texto extra não aparece", async () => {
+  renderPage();
+  await screen.findByText("800 de 1.000 puzzles com assinatura");
+  expect(screen.queryByText(/padrões de mate próprios/)).toBeNull();
+});
+
 test("Preparar golpes dispara o job", async () => {
   renderPage();
   fireEvent.click(await screen.findByRole("button", { name: "Preparar golpes" }));
@@ -346,7 +358,7 @@ test("a faixa do bloco fora do intervalo mostra a mensagem de validação", asyn
 // --- placar "Votos por procedência" --------------------------------------
 
 const votosLinha = (over: Partial<VotosResumoLinha> = {}): VotosResumoLinha => ({
-  tier: "inteira", posicao: "inteira", n_lances: 1, mesmo: 3, parecido: 1, nada: 1, total: 5, ...over,
+  tier: "inteira", posicao: "inteira", n_lances: 1, nivel: "destinos", mesmo: 3, parecido: 1, nada: 1, total: 5, ...over,
 });
 
 test("sem votos ainda, o placar mostra a mensagem de vazio", async () => {
@@ -363,6 +375,18 @@ test("com votos, o placar mostra a tabela por procedência", async () => {
   expect(screen.queryByText("Ainda sem votos. Vote nos irmãos ao fim de cada puzzle do bloco.")).toBeNull();
   const linha = screen.getAllByText("inteira")[0].closest("tr");
   expect(linha).not.toBeNull();
+  expect(linha!.textContent).toContain("destinos"); // coluna "nível"
   expect(linha!.textContent).toContain("5");
   expect(linha!.textContent).toContain("20%"); // 1 de 5 é "nada a ver"
+});
+
+test("a coluna nível mostra a procedência do padrão de mate (lichess ou regra)", async () => {
+  vi.spyOn(api, "votosResumo").mockResolvedValue([
+    votosLinha({ tier: "padrao-mate", nivel: "backRankMate:lichess" }),
+    votosLinha({ tier: "padrao-mate", nivel: "backRankMate:regra" }),
+  ]);
+  renderPage();
+  fireEvent.click(await screen.findByText("Votos por procedência"));
+  expect(await screen.findByText("backRankMate:lichess")).toBeTruthy();
+  expect(await screen.findByText("backRankMate:regra")).toBeTruthy();
 });
