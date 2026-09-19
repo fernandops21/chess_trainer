@@ -30,8 +30,10 @@ read and build annotated studies, and trains tactics with a local rating.
 - **Progress.** Rating over time, reviews per day, accuracy by theme and by source, streaks. Light and
   dark themes, sounds, keyboard navigation, mobile layout.
 - **Patterns and siblings.** Every Lichess tactic gets a signature (the geometry of its solution), used
-  to find "siblings" — other puzzles with the same tactical pattern. Miss an exercise and a "repeat the
-  pattern" card offers a block of siblings, easy to hard, that feed back into the spaced-repetition queue.
+  to find "siblings" — other puzzles with the same tactical pattern, plus named mate patterns (smothered,
+  arabian, back-rank) detected by rule and matched against the Lichess tag. Miss an exercise and a
+  "repeat the pattern" card offers a block of siblings, easy to hard, that feed back into the
+  spaced-repetition queue.
 - **AI coach** (in development, off by default; start the server with `CHESS_TRAINER_COACH=1` to enable
   it locally). After an exercise, "Explain" asks an LLM agent (engine, game context, your stats and a
   search over your own studies) to explain the mistake in Portuguese. Every line it cites is replayed on
@@ -423,10 +425,12 @@ On the result screen of an exercise — one of your own or a Lichess tactic — 
 red arrows for what they uncover or attack. When you **miss** the exercise, the card also shows a
 **"Treinar N parecidos"** (Train N similar) button, which opens a block of N Lichess puzzles with the
 same pattern, from easiest to hardest. A sibling may share the whole combination, or just a stretch of
-it — the opening move, the final blow, or a run in the middle — and, when siblings are still short, the
-search falls back to the mirrored pattern (the same idea on the other side of the board) or the same
-skeleton with the opponent's king in the same zone. Every puzzle in the block that you attempt — right
-or wrong — joins your spaced-repetition queue alongside the other exercises.
+it — the opening move, the final blow, or a run in the middle —, a **named mate pattern** when the
+exercise ends in checkmate (smothered, arabian or back-rank — the card shows "Padrão: mate do corredor"
+under the image, and siblings of that kind come straight from the Lichess tag) or, when siblings are
+still short, the search falls back to the mirrored pattern (the same idea on the other side of the
+board) or the same skeleton with the opponent's king in the same zone. Every puzzle in the block that
+you attempt — right or wrong — joins your spaced-repetition queue alongside the other exercises.
 
 Siblings are searched across every rating — the pattern's geometry decides "same pattern", not
 difficulty. Rating only picks which siblings make the block: the preferred range climbs from your

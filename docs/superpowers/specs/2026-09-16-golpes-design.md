@@ -136,6 +136,61 @@ irmãos (só o início: 85; só o fim: 76). Essa é a motivação dos trechos.
   gravado nem entra numa busca por esqueleto — só o nível `destinos` (e seu
   espelho) usa trechos de um lance.
 
+### 3.6 Padrões de mate (`core/golpes/mates.py`, puro)
+
+Motivação: um exercício do usuário que termina em mate ("36.Rb8+ Qd8 37.Rxd8+
+Ne8 38.Rxe8#") tem uma assinatura específica demais para achar irmãos por
+geometria exata — o golpe todo bate com zero puzzles do Lichess, os dois
+primeiros lances com 25 — mas é um **padrão nomeado** ("rei preso atrás dos
+próprios peões, torre entra na última fila"), o nível que o usuário reconhece
+("mate de Philidor", não "mate em 2"). O Lichess já etiqueta esse padrão em
+`lichess_puzzle_themes`; o exercício do usuário, não. A solução: detectar o
+padrão na posição final do exercício por regra e buscar os irmãos pela
+etiqueta do Lichess, sem passar pela assinatura.
+
+`padrao_de_mate(board)` roda, na posição final de xeque-mate, os detectores
+abaixo — só peças, casas e python-chess, sem heurística de avaliação — na
+ordem do mais específico ao mais geral, e devolve o primeiro tema (nome do
+Lichess) que bater, ou `None` fora do xeque-mate ou sem padrão aprovado:
+
+1. **`smotheredMate`** (mate sufocado): xeque de cavalo só, todas as oito
+   casas ao redor do rei ocupadas por peças da própria cor (nenhuma fuga nem
+   bloqueio possível).
+2. **`arabianMate`** (mate árabe): rei num canto do tabuleiro, torre
+   adjacente (distância 1) dando o único xeque, protegida por um cavalo.
+3. **`backRankMate`** (mate do corredor): rei na própria última fila, torre
+   ou dama dando xeque nela, e as três casas à frente do rei (fora da última
+   fila) todas ocupadas por peças da própria cor.
+
+`padrao_do_exercicio(fen, lances)` repete a solução inteira a partir de `fen`
+e, terminando em xeque-mate com um padrão aprovado, devolve `(tema, n)` — `n`
+é quantos lances o solucionador jogou; `None` sem mate, sem padrão, FEN
+inválida ou lance ilegal (nunca levanta — é um degrau opcional da cascata).
+
+**Medição** (script de leitura `evals/golpes/medir_mates.py`, contra as
+242 413 posições de mate do Lichess, prototipagem fora do produto): recall e
+precisão de cada detector contra a etiqueta correspondente do Lichess.
+
+| padrão | recall | precisão | as sobras da precisão |
+| --- | --- | --- | --- |
+| sufocado | 100% | 100% | — |
+| árabe | 100% | 77% | pillsbury, vukovic, outros mates de canto sem etiqueta |
+| corredor | 100% | 58% | corredores estruturalmente corretos que o Lichess não etiquetou |
+
+Só estes três foram aprovados. Protótipos de **dovetail**, **epaulette** e
+**boden** não bateram com a definição do Lichess (recall abaixo do piso) e
+ficam de fora. Regra para aprovar um detector novo: recall ≥ 95% contra a
+etiqueta do Lichess, com as sobras da precisão inspecionadas à mão — precisão
+baixa sozinha não reprova um detector quando as sobras são estruturalmente
+corretas (o caso do corredor e do árabe acima); recall abaixo do piso, sim.
+
+Achado ao portar os detectores: a regra do corredor exige as três casas à
+frente do rei OCUPADAS por peça própria, não só cobertas a distância — uma
+posição real onde a fuga é coberta por uma peça de longo alcance em vez de
+bloqueada por um peão não bate com a regra literal, mesmo sendo um corredor
+"na ideia". Aceito (mesma régua de precisão/recall acima) e não resolvido
+para não arriscar as taxas medidas com uma condição mais frouxa.
+
 ## 4. Dados e tarefa de preparo
 
 ### 4.1 Tabelas
@@ -188,18 +243,37 @@ lances da âncora):
 
 1. `inteira` — `destinos` da solução inteira da âncora igual ao do candidato
    (o que já existia, antes chamado "mesmo").
-2. `trecho{n}`, para `n = k … 1` — o prefixo de `n` lances da âncora (de
+2. `trecho{n}`, para `n = k … 2` — o prefixo de `n` lances da âncora (de
    `trechos(fen, lances)` com `inicio == 0`) igual a um trecho de tamanho `n`
    **em qualquer posição** da solução do candidato. Casando em mais de uma
    posição, fica o de menor `inicio`.
-3. `espelho` — `destinos_esp` da âncora igual ao `destinos` do candidato
+3. `padrao-mate` — só quando `padrao_do_exercicio(fen, lances)` acha um
+   padrão aprovado (§3.6): duas subconsultas contra `lichess_puzzle_themes`
+   (sem tabela de assinatura), na ordem — primeiro o tema junto de
+   `mateIn{n}` (`n` capado em 5), depois o tema sozinho. Fica ANTES de
+   `trecho1` e DEPOIS de todo `trecho{n}` com `n ≥ 2`: medido no exemplo que
+   motivou este degrau (36.Rb8+ Qd8 37.Rxd8+ Ne8 38.Rxe8#), a solução inteira
+   bate com zero puzzles do Lichess e os dois primeiros lances com 25 — pouco
+   —, enquanto só a etiqueta `backRankMate` já tem 12 813 puzzles. Para um
+   exercício de mate, "mesmo padrão nomeado" é um irmão melhor do que "um
+   lance idêntico" (`trecho1`, o degrau mais frouxo da família de trechos);
+   os votos (§8) confirmam ou refutam essa ordem.
+4. `trecho1` — o mesmo `trecho{n}` acima, para `n = 1`.
+5. `espelho` — `destinos_esp` da âncora igual ao `destinos` do candidato
    (o espelho esquerda-direita); depois `espelho-trecho{n}` para `n = k … 2`
    (mesma ideia, por trecho).
-4. `esqueleto` — `esqueleto` e `zona_rei` da âncora iguais aos do candidato
+6. `esqueleto` — `esqueleto` e `zona_rei` da âncora iguais aos do candidato
    (o que já existia); depois `esqueleto-trecho{n}` para `n = k … 2` (por
    trecho; o esqueleto de um lance só nunca entra, §3.5).
 
-Cada degrau exclui os puzzles que um degrau anterior já devolveu.
+Cada degrau exclui os puzzles que um degrau anterior já devolveu — inclusive
+as duas subconsultas do `padrao-mate` entre si.
+
+A procedência do `padrao-mate` usa os mesmos campos com outro sentido:
+`nivel` é o tema do Lichess (ex. `"backRankMate"`, até 13 letras — por isso
+`GolpeLabel.nivel` é `String(24)`, não mais `String(10)`), `n` é quantos
+lances o solucionador jogou até o mate, `posicao` é sempre `"inteira"` e
+`espelhado` é sempre `False`.
 
 Dentro de cada degrau a busca **ignora rating**: só `popularity ≥ 50` e
 `nb_plays ≥ 50` para evitar puzzles ruins, excluídos os já vistos

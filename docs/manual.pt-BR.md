@@ -345,10 +345,12 @@ cartão **"Repetir o golpe"** com a imagem do golpe desenhada no tabuleiro: seta
 lances do solucionador, setas vermelhas para o que eles descobrem ou atacam. Quando você **erra**,
 o cartão traz o botão **"Treinar N parecidos"**, que abre um bloco de N puzzles do Lichess com o
 mesmo golpe, do mais fácil ao mais difícil. Um irmão pode compartilhar a combinação inteira ou só
-um trecho dela — o lance de abertura do golpe, o golpe final, ou um pedaço do meio — e, faltando
-ainda, o espelhado (a mesma ideia do outro lado do tabuleiro) ou o mesmo esqueleto com o rei
-adversário na mesma zona. Cada puzzle do bloco que você tenta — acerte ou erre — entra na sua fila
-de repetição espaçada, junto com os outros exercícios.
+um trecho dela — o lance de abertura do golpe, o golpe final, ou um pedaço do meio —, um **padrão
+de mate nomeado** quando o exercício termina em xeque-mate (sufocado, árabe ou do corredor — o
+cartão mostra "Padrão: mate do corredor" embaixo da imagem, e os irmãos desse tipo vêm direto da
+etiqueta do Lichess) ou, faltando ainda, o espelhado (a mesma ideia do outro lado do tabuleiro) ou
+o mesmo esqueleto com o rei adversário na mesma zona. Cada puzzle do bloco que você tenta — acerte
+ou erre — entra na sua fila de repetição espaçada, junto com os outros exercícios.
 
 Os irmãos são procurados em qualquer rating — quem decide se é "o mesmo golpe" é a geometria da
 solução, não a dificuldade. O rating só escolhe **quais** aparecem no bloco: a faixa preferida vai
