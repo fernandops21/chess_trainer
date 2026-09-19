@@ -28,26 +28,24 @@ def test_corredor_positivo():
     assert padrao_de_mate(_final(FEN_CORREDOR, ["e1e8"])) == "backRankMate"
 
 
-def test_corredor_quase_com_casa_livre_na_frente():
-    """A casa g7 está vazia (nenhum peão), mesmo coberta a distância por um bispo: o rei está
-    mesmo assim em xeque-mate, mas o corredor exige as casas à frente OCUPADAS por peças
-    próprias, não só cobertas — near-miss."""
-    fen = "4R1k1/5p1p/8/8/8/8/1B6/6K1 b - - 0 1"
-    board = chess.Board(fen)
-    assert board.is_checkmate()
-    assert padrao_de_mate(board) is None
-
-
 def test_a_linha_do_usuario_e_um_corredor():
-    """36.Rb8+ Qd8 37.Rxd8+ Ne8 38.Rxe8# (spec golpes design §3.6/Why): mate do corredor com três
-    lances de quem soluciona. A posição real do usuário tem a casa h7 vazia (peão já trocado
-    antes do lance 36; a fuga do rei para lá é coberta pela dama à distância, não bloqueada por
-    peão) e por isso NÃO bate com a regra literal (as casas à frente exigem peça própria, não só
-    cobertura) — achado ao portar o detector; aqui a posição é ajustada para o abrigo de peões
-    completo (f7/g7/h7), que é o cenário que a regra cobre e o que a spec mede como corredor."""
-    fen = "6k1/5ppp/5n2/2pqp3/r1N5/2PQ1P1P/6P1/1R4K1 w - - 0 36"
+    """36.Rb8+ Qd8 37.Rxd8+ Ne8 38.Rxe8#, a posição REAL do exercício que motivou o degrau: peões
+    em f7 e g7, h7 vazia (o peão está em h6) e coberta de longe pela dama de d3. Para o jogador é
+    mate do corredor; a regra tolera uma casa vazia à frente do rei quando o adversário a cobre."""
+    fen = "6k1/5pp1/5n1p/2pqp3/r1N5/2PQ1P1P/6P1/1R4K1 w - - 0 36"
     lances = ["b1b8", "d5d8", "b8d8", "f6e8", "d8e8"]
     assert padrao_do_exercicio(fen, lances) == ("backRankMate", 3)
+
+
+def test_corredor_tolera_uma_casa_coberta_e_so_uma():
+    import chess
+    from chess_trainer.core.golpes.mates import padrao_de_mate
+    # h7 vazia e coberta pelo bispo de d3: corredor
+    assert padrao_de_mate(chess.Board("4R1k1/5pp1/8/8/8/3B4/8/6K1 b - - 0 1")) == "backRankMate"
+    # g7 e h7 vazias, as duas cobertas (bispo em d3 cobre h7, dama em a1 cobre g7): mate, mas
+    # com duas casas só cobertas já não é "rei preso atrás dos próprios peões"
+    b = chess.Board("4R1k1/5p2/8/8/8/3B4/8/Q5K1 b - - 0 1")
+    assert b.is_checkmate() and padrao_de_mate(b) is None
 
 
 # --- sufocado (mate sufocado) ------------------------------------------------

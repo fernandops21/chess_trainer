@@ -14,8 +14,11 @@ def pastor(pid, rating=800):
 
 
 @pytest.fixture
-def client():
-    app = create_app(db_path=":memory:", engine_factory=lambda s: FakeEngine(default=first_legal_default(0)))
+def client(tmp_path):
+    # banco em arquivo, não ":memory:": em memória todas as sessões dividem UMA conexão, e o
+    # rollback do fim da requisição derrubava o lote que a tarefa em segundo plano ainda não
+    # tinha gravado (falha intermitente de ~1 em 6). No app real cada sessão tem a sua conexão.
+    app = create_app(db_path=str(tmp_path / "golpes.db"), engine_factory=lambda s: FakeEngine(default=first_legal_default(0)))
     with TestClient(app) as c:
         db = app.state.session_factory()
         for i in range(6):

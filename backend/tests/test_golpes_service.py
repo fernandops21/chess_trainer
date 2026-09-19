@@ -367,9 +367,9 @@ def test_espelho_trecho1_nunca_entra_no_bloco(db_session):
 # --- padrão de mate na cascata (spec golpes design §3.6) ---------------------
 
 # 36.Rb8+ Qd8 37.Rxd8+ Ne8 38.Rxe8#: mate do corredor com três lances de quem soluciona
-# (a linha real do usuário, com o abrigo de peões completo — ver nota em test_golpes_mates.py
-# sobre a versão exata do jogo, cuja casa h7 vazia não bate com a regra literal do corredor)
-FEN_CORREDOR_USUARIO = "6k1/5ppp/5n2/2pqp3/r1N5/2PQ1P1P/6P1/1R4K1 w - - 0 36"
+# (a posição real do exercício: h7 vazia e coberta pela dama de d3 — a regra do corredor tolera
+# uma casa vazia à frente do rei quando o adversário a cobre)
+FEN_CORREDOR_USUARIO = "6k1/5pp1/5n1p/2pqp3/r1N5/2PQ1P1P/6P1/1R4K1 w - - 0 36"
 MOVES_CORREDOR_USUARIO = ["b1b8", "d5d8", "b8d8", "f6e8", "d8e8"]
 
 

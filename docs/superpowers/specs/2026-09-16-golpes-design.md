@@ -175,7 +175,7 @@ precisão de cada detector contra a etiqueta correspondente do Lichess.
 | --- | --- | --- | --- |
 | sufocado | 100% | 100% | — |
 | árabe | 100% | 77% | pillsbury, vukovic, outros mates de canto sem etiqueta |
-| corredor | 100% | 58% | corredores estruturalmente corretos que o Lichess não etiquetou |
+| corredor | 100% | 26% | a regra tolera UMA casa vazia à frente do rei quando o adversário a cobre (o exercício real que motivou o degrau é assim: f7 e g7 com peões, h7 vazia e coberta pela dama); com as três casas ocupadas a precisão era 58%, e nos dois casos o que sobra são corredores que o Lichess não etiquetou. O detector só classifica o exercício do usuário; os irmãos vêm sempre da etiqueta do Lichess |
 
 Só estes três foram aprovados. Protótipos de **dovetail**, **epaulette** e
 **boden** não bateram com a definição do Lichess (recall abaixo do piso) e

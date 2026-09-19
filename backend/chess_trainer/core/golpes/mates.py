@@ -6,7 +6,7 @@ spec §5) vêm direto da etiqueta do Lichess, sem precisar de assinatura.
 Só estes três padrões foram aprovados. Medido (script de leitura em
 `evals/golpes/medir_mates.py`) contra as 242 413 mates do Lichess: sufocado (recall 100%,
 precisão 100%), árabe (recall 100%, precisão 77% — sobra pillsbury/vukovic/canto sem
-etiqueta) e corredor (recall 100%, precisão 58% — o resto é corredor estrutural que o
+etiqueta) e corredor (recall 100%, precisão 26%, tolerando uma casa vazia coberta — o resto é corredor estrutural que o
 Lichess deixou sem etiqueta). Protótipos de dovetail, epaulette e boden NÃO bateram com a
 definição do Lichess e ficam de fora; um detector novo só entra com recall ≥ 95% contra a
 etiqueta do Lichess, com as sobras inspecionadas à mão (mesma régua do script de medição).
@@ -27,15 +27,21 @@ def vizinhas(sq: int) -> list[int]:
 
 
 def corredor(b: chess.Board, rei: int, dono: chess.Color, xeques: list[int]) -> bool:
-    """Mate do corredor: rei preso na própria última fila, torre ou dama dando xeque nela,
-    e as casas à frente do rei (fora da última fila) todas ocupadas por peças suas."""
+    """Mate do corredor: rei preso na própria última fila, torre ou dama dando xeque nela, e as
+    casas à frente do rei (fora da última fila) bloqueadas por peças suas — tolerando UMA casa
+    vazia desde que o adversário a cubra. O caso real que motivou o degrau é assim: peões em f7 e
+    g7, h7 vazia (o peão foi a h6) e coberta pela dama de longe; para o jogador continua sendo
+    mate do corredor. Exigir as três casas ocupadas deixava esse exercício sem padrão; aceitar
+    qualquer número de casas só cobertas vira "qualquer mate na última fila" (65 mil puzzles)."""
     fila_casa = 0 if dono == chess.WHITE else 7
     if chess.square_rank(rei) != fila_casa:
         return False
     if not any(b.piece_type_at(x) in (chess.ROOK, chess.QUEEN) and chess.square_rank(x) == fila_casa for x in xeques):
         return False
     frente = [s for s in vizinhas(rei) if chess.square_rank(s) != fila_casa]
-    return bool(frente) and all((p := b.piece_at(s)) is not None and p.color == dono for s in frente)
+    proprias = [s for s in frente if (p := b.piece_at(s)) is not None and p.color == dono]
+    livres = [s for s in frente if s not in proprias]
+    return bool(proprias) and len(livres) <= 1 and all(b.is_attacked_by(not dono, s) for s in livres)
 
 
 def sufocado(b: chess.Board, rei: int, dono: chess.Color, xeques: list[int]) -> bool:

@@ -7,7 +7,7 @@ Lichess, e as contagens brutas.
 Regra para aprovar um detector novo (a mesma que aprovou os três atuais): recall ≥ 95% contra
 a etiqueta do Lichess correspondente, com as sobras (falsos positivos) inspecionadas à mão.
 Precisão baixa sozinha NÃO reprova um detector quando as sobras são estruturalmente corretas e
-o Lichess só deixou de etiquetar (foi o caso do corredor, 58%, e do árabe, 77%); recall abaixo
+o Lichess só deixou de etiquetar (foi o caso do corredor, 26% com a tolerância de uma casa coberta, e do árabe, 77%); recall abaixo
 do piso, sim — foi o que descartou os protótipos de dovetail, epaulette e boden (§3.6).
 
 Uso: `cd backend && uv run python -m evals.golpes.medir_mates` (lê `CHESS_TRAINER_DB`, ou o
