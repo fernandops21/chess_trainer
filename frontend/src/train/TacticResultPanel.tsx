@@ -67,7 +67,7 @@ export function TacticResultPanel({ tactic, attempt, played, durationMs, error, 
         <VotoDoGolpe anchorOrigem={voto.anchorOrigem} anchorId={voto.anchorId} candidateId={tactic.id}
           procedencia={voto.procedencia} tier={voto.tier} />
       )}
-      {golpes?.enabled && <GolpeCard origem="lichess" id={tactic.id} errou={!!attempt && (!attempt.correct || !!attempt.used_hint)} />}
+      {golpes?.enabled && <GolpeCard origem="lichess" id={tactic.id} resultado={!attempt ? null : attempt.correct && !attempt.used_hint ? "acerto" : "erro"} />}
     </>
   );
   return <AnalysisBoard tree={tree} initialNodeId={alternativa ?? "last"} engine={false} allowSetup={false} sidePanel={lateral} />;

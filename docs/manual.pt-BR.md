@@ -342,8 +342,9 @@ já assinados ganham os trechos que ainda não tinham.
 
 Na tela de resultado de um exercício — dos seus próprios ou de uma tática do Lichess — aparece o
 cartão **"Repetir o golpe"** com a imagem do golpe desenhada no tabuleiro: setas verdes para os
-lances do solucionador, setas vermelhas para o que eles descobrem ou atacam. Quando você **erra**,
-o cartão traz o botão **"Treinar N parecidos"**, que abre um bloco de N puzzles do Lichess com o
+lances do solucionador, setas vermelhas para o que eles descobrem ou atacam. O cartão
+traz o botão **"Treinar N parecidos"** — em destaque quando você erra, e também quando acerta,
+porque repetir é uma oferta e não um castigo —, que abre um bloco de N puzzles do Lichess com o
 mesmo golpe, do mais fácil ao mais difícil. Um irmão pode compartilhar a combinação inteira ou só
 um trecho dela — o lance de abertura do golpe, o golpe final, ou um pedaço do meio —, um **padrão
 de mate nomeado** quando o exercício termina em xeque-mate (sufocado, árabe ou do corredor — o

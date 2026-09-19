@@ -15,10 +15,10 @@ const irmaos: IrmaosOut = { assinatura: "Ke8 | Q xP f7 #", itens: [
   { tier: "mesmo", tactic: tactic("b", 900), procedencia: procedencia(2) },
 ] };
 
-function montar(props: { errou: boolean }, iniciar = vi.fn()) {
+function montar(props: { resultado: "acerto" | "erro" | null }, iniciar = vi.fn()) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <BlocoProvider value={{ iniciar }}><GolpeCard origem="own" id="p1" errou={props.errou} /></BlocoProvider>
+      <BlocoProvider value={{ iniciar }}><GolpeCard origem="own" id="p1" resultado={props.resultado} /></BlocoProvider>
     </QueryClientProvider>,
   );
   return iniciar;
@@ -29,7 +29,7 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("GolpeCard", () => {
   it("erro: imagem e botão que abre o bloco com os irmãos", async () => {
-    const iniciar = montar({ errou: true });
+    const iniciar = montar({ resultado: "erro" });
     expect(await screen.findByAltText("O golpe desenhado")).toHaveAttribute("src", "/api/golpes/own/p1/imagem.svg");
     await userEvent.click(screen.getByRole("button", { name: "Treinar 2 parecidos" }));
     expect(iniciar).toHaveBeenCalledWith({
@@ -38,25 +38,37 @@ describe("GolpeCard", () => {
       procedencias: { a: procedencia(1), b: procedencia(2) },
     });
   });
-  it("acerto: só a imagem", async () => {
-    montar({ errou: false });
+  it("acerto: o botão também aparece (repetir é oferta, não castigo), sem o destaque do erro", async () => {
+    const iniciar = montar({ resultado: "acerto" });
+    expect(await screen.findByAltText("O golpe desenhado")).toBeInTheDocument();
+    const botao = screen.getByRole("button", { name: "Treinar 2 parecidos" });
+    expect(botao).not.toHaveClass("primary");
+    await userEvent.click(botao);
+    expect(iniciar).toHaveBeenCalledTimes(1);
+  });
+  it("erro: o botão vem destacado", async () => {
+    montar({ resultado: "erro" });
+    expect(await screen.findByRole("button", { name: "Treinar 2 parecidos" })).toHaveClass("primary");
+  });
+  it("sem resultado registrado ainda: só a imagem", async () => {
+    montar({ resultado: null });
     expect(await screen.findByAltText("O golpe desenhado")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /parecidos/ })).toBeNull();
   });
   it("com padrão de mate: mostra a linha em português", async () => {
     vi.spyOn(api, "golpesIrmaos").mockResolvedValue({ ...irmaos, padrao: "mate do corredor" });
-    montar({ errou: false });
+    montar({ resultado: "acerto" });
     expect(await screen.findByText("Padrão: mate do corredor")).toBeInTheDocument();
   });
   it("sem padrão de mate: não mostra a linha", async () => {
-    montar({ errou: false });
+    montar({ resultado: "acerto" });
     await screen.findByAltText("O golpe desenhado");
     expect(screen.queryByText(/^Padrão:/)).toBeNull();
   });
   it("sem assinatura (404): nada", async () => {
     vi.spyOn(api, "golpesIrmaos").mockResolvedValue(null);
     const { container } = render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><GolpeCard origem="lichess" id="x" errou /></QueryClientProvider>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><GolpeCard origem="lichess" id="x" resultado="erro" /></QueryClientProvider>,
     );
     await waitFor(() => expect(api.golpesIrmaos).toHaveBeenCalled());
     expect(container.querySelector("img")).toBeNull();
@@ -64,7 +76,7 @@ describe("GolpeCard", () => {
   it("sem irmãos: o cartão não existe (spec §6)", async () => {
     vi.spyOn(api, "golpesIrmaos").mockResolvedValue({ assinatura: "Ke8 | Q xP f7 #", itens: [] });
     const { container } = render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><GolpeCard origem="lichess" id="x" errou /></QueryClientProvider>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><GolpeCard origem="lichess" id="x" resultado="erro" /></QueryClientProvider>,
     );
     await waitFor(() => expect(api.golpesIrmaos).toHaveBeenCalled());
     // a resposta chega antes de checar: sem isto, a asserção passaria mesmo com o bug

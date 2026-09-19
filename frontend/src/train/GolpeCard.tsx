@@ -2,8 +2,10 @@ import { golpeImagemUrl } from "../api/client";
 import { useIrmaos } from "../api/queries";
 import { useBloco } from "./BlocoContext";
 
-/** Cartão "Repetir o golpe": o golpe desenhado e, no erro, o bloco de irmãos (spec golpes §6). */
-export function GolpeCard({ origem, id, errou }: { origem: "own" | "lichess"; id: string; errou: boolean }) {
+/** Cartão "Repetir o golpe": o golpe desenhado e o botão do bloco de irmãos (spec golpes §6). O
+ *  botão aparece assim que o resultado está registrado, no erro (destacado) e no acerto: repetir
+ *  é oferta, não castigo — e os votos do bloco não podem vir só dos golpes que o usuário erra. */
+export function GolpeCard({ origem, id, resultado }: { origem: "own" | "lichess"; id: string; resultado: "acerto" | "erro" | null }) {
   const { data } = useIrmaos(origem, id);
   const { iniciar } = useBloco();
   // sem irmãos o cartão não existe (spec §6): nada para repetir, nada para mostrar
@@ -20,8 +22,9 @@ export function GolpeCard({ origem, id, errou }: { origem: "own" | "lichess"; id
       <h3 style={{ marginTop: 0 }}>Repetir o golpe</h3>
       <img alt="O golpe desenhado" src={golpeImagemUrl(origem, id)} style={{ width: "100%", maxWidth: 320 }} />
       {data.padrao && <p className="muted">Padrão: {data.padrao}</p>}
-      {errou && itens.length > 0 && (
-        <button onClick={() => iniciar({ anchorId: id, anchorOrigem: origem, itens, tiers, procedencias })}>Treinar {itens.length} parecidos</button>
+      {resultado !== null && (
+        <button className={resultado === "erro" ? "primary" : undefined}
+          onClick={() => iniciar({ anchorId: id, anchorOrigem: origem, itens, tiers, procedencias })}>Treinar {itens.length} parecidos</button>
       )}
     </div>
   );

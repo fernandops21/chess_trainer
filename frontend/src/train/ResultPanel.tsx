@@ -80,7 +80,7 @@ export function ResultPanel({ puzzle, review, played, error, onRetry, onNext, ne
         </div>
       </div>
       {comErro && <MistakeCard puzzle={comErro} />}
-      {golpes?.enabled && <GolpeCard origem="own" id={puzzle.id} errou={!!review && !clean} />}
+      {golpes?.enabled && <GolpeCard origem="own" id={puzzle.id} resultado={!review ? null : clean ? "acerto" : "erro"} />}
       {coach?.enabled && <CoachCard puzzle={puzzle} reviewId={review?.id} />}
     </>
   );

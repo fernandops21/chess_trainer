@@ -394,9 +394,13 @@ com assinatura tem irmãos.
 ## 6. Fluxo no treino
 
 - **Cartão "Repetir o golpe"** na tela de resultado de um exercício da fila e na
-  de uma tática do Lichess. Quando o usuário **erra**: a imagem do golpe (§6.1)
-  e o botão "Treinar N parecidos" (N = tamanho do bloco, padrão 5). Quando
-  acerta: só a imagem. Sem irmãos, o cartão não existe.
+  de uma tática do Lichess: a imagem do golpe (§6.1) e, assim que o resultado
+  está registrado, o botão "Treinar N parecidos" (N = tamanho do bloco, padrão
+  5) — **no erro, destacado; no acerto, também**, sem destaque. Repetir é
+  oferta, não castigo, e os votos do bloco (§8) não podem vir só dos golpes que
+  o usuário erra: viriam a conta-gotas e enviesados para o que ele acha difícil.
+  Sem resultado registrado (enviando, ou falha ao registrar), só a imagem. Sem
+  irmãos, o cartão não existe.
 - **Bloco**: o botão abre a sessão de táticas existente com a lista fixa dos
   irmãos, na ordem do fácil ao difícil. Cada tentativa é registrada como hoje
   (`tactics/attempts`, rating de táticas). No fim, resumo "4 de 5" e volta.

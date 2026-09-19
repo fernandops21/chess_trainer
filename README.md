@@ -422,8 +422,9 @@ missing.
 
 On the result screen of an exercise — one of your own or a Lichess tactic — a **"Repetir o golpe"**
 (Repeat the pattern) card shows the pattern drawn on the board: green arrows for the solver's moves,
-red arrows for what they uncover or attack. When you **miss** the exercise, the card also shows a
-**"Treinar N parecidos"** (Train N similar) button, which opens a block of N Lichess puzzles with the
+red arrows for what they uncover or attack. The card also shows a
+**"Treinar N parecidos"** (Train N similar) button — highlighted when you miss the exercise, and
+present when you solve it too, since repeating is an offer rather than a penalty —, which opens a block of N Lichess puzzles with the
 same pattern, from easiest to hardest. A sibling may share the whole combination, or just a stretch of
 it — the opening move, the final blow, or a run in the middle —, a **named mate pattern** when the
 exercise ends in checkmate (smothered, arabian or back-rank — the card shows "Padrão: mate do corredor"
