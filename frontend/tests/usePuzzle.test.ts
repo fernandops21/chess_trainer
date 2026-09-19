@@ -419,23 +419,26 @@ const analiseOut = (fen: string, lines: AnalyseLine[], terminal: string | null =
 const engineDuble = (depois = analiseOut(FEN_ERRO, [LINHA_DEPOIS])) =>
   vi.fn(async (fen: string) => (fen === ONE_MOVE.fen_start ? analiseOut(fen, [LINHA_ANTES]) : depois));
 
-/** Deixa as promessas do dublê chegarem ao estado. */
-const escoar = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); }); };
+/** Deixa as promessas do dublê chegarem ao estado (duas análises encadeadas cabem aqui). */
+const escoar = async () => { await act(async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); }); };
 
 test("lance errado com refutação entra numa cópia, a engine responde e a avaliação aparece", async () => {
   const analyse = engineDuble();
   const { result } = setup(ONE_MOVE, { refute: true, analyse });
   act(() => result.current.tryMove("h2", "h3"));
   // o lance errado está no tabuleiro, mas não no exercício: a engine ainda pensa
+  // e nada foi julgado ainda (nem erro, nem som, nem "?" na mensagem)
   expect(result.current.state.phase).toBe("refuting");
   expect(result.current.state.fen).toBe(FEN_ERRO);
-  expect(result.current.state.wrong).toBe(true);
+  expect(result.current.state.wrong).toBe(false);
   expect(result.current.state.lastMove).toEqual(["h2", "h3"]);
-  expect(result.current.state.message).toEqual({ text: "h3? Vendo a resposta…", tone: "bad", fen: ONE_MOVE.fen_start });
+  expect(result.current.state.message).toEqual({ text: "h3: vendo a resposta…", tone: "", fen: ONE_MOVE.fen_start });
+  expect(sons()).toEqual([]);
   expect(result.current.dests.size).toBe(0);
 
   await escoar();
   expect(result.current.state.phase).toBe("refuted");
+  expect(result.current.state.wrong).toBe(true);
   expect(result.current.state.fen).toBe(FEN_REPLICA);
   expect(result.current.state.lastMove).toEqual(["d5", "g2"]);
   expect(result.current.state.refutation).toMatchObject({ wrongSan: "h3", replySan: "Qg2", evalAfter: -500, evalBefore: 900, pvSan: [] });
@@ -539,7 +542,8 @@ test("resposta atrasada de uma tentativa anterior não volta ao tabuleiro", asyn
   expect(result.current.state.phase).toBe("awaiting_move");
   expect(result.current.state.fen).toBe(ONE_MOVE.fen_start);
   expect(result.current.state.refutation).toBeUndefined();
-  expect(sons()).toEqual(["wrong"]);
+  // o veredito nunca saiu: nenhum som de erro tocou
+  expect(sons()).toEqual([]);
 });
 
 test("desmontar com a engine pensando não mexe mais no estado", async () => {
@@ -553,10 +557,11 @@ test("desmontar com a engine pensando não mexe mais no estado", async () => {
   expect(analyse).toHaveBeenCalledTimes(1);
   unmount();
   await act(async () => { caixa.responder?.(analiseOut(FEN_ERRO, [LINHA_DEPOIS])); await Promise.resolve(); });
-  // a réplica que chegou depois do desmonte não foi aplicada: nem som de lance,
-  // nem a pergunta seguinte à engine (o `result` congela em `unmount`, então o
-  // guarda de verdade é o que a resposta atrasada deixou de fazer)
-  expect(sons()).toEqual(["wrong"]);
+  // a réplica que chegou depois do desmonte não foi aplicada: nenhum som (nem o
+  // de erro, que só sai no veredito), nem a pergunta seguinte à engine (o
+  // `result` congela em `unmount`, então o guarda de verdade é o que a resposta
+  // atrasada deixou de fazer)
+  expect(sons()).toEqual([]);
   expect(analyse).toHaveBeenCalledTimes(1);
 });
 
@@ -625,4 +630,172 @@ test("lance errado de peão à última fila é refutado promovendo a dama", asyn
   expect(result.current.state.fen).toBe("q3k3/8/8/8/8/2N5/7P/4K3 w - - 0 2");
   expect(analyse).toHaveBeenCalledWith(FEN_PROMO, 1);
   expect(sons()).toEqual(["wrong", "capture"]);
+});
+
+// --- lance tão bom quanto o melhor ----------------------------------------
+
+// A posição de antes vale +9.00 para quem resolve (LINHA_ANTES). O que muda de
+// um caso para o outro é a avaliação da posição DEPOIS do lance jogado: a
+// análise responde do ponto de vista de quem joga ali (as pretas), então um
+// score negativo é uma posição que continua boa para o aluno.
+const depoisValendo = (score: number) => analiseOut(FEN_ERRO, [{ ...LINHA_DEPOIS, score }]);
+/** Quantas vezes a posição de antes do lance foi analisada. */
+const analisesDoAntes = (analyse: { mock: { calls: unknown[][] } }) =>
+  analyse.mock.calls.filter((c) => c[0] === ONE_MOVE.fen_start).length;
+
+test("lance tão bom quanto o melhor volta sem contar como erro", async () => {
+  const analyse = engineDuble(depoisValendo(-800));
+  const { result, submit } = setup(ONE_MOVE, { refute: true, analyse });
+  act(() => result.current.tryMove("h2", "h3"));
+  await escoar();
+
+  // o tabuleiro volta como no "Tentar de novo", e a tentativa não conta como erro
+  expect(result.current.state.phase).toBe("awaiting_move");
+  expect(result.current.state.fen).toBe(ONE_MOVE.fen_start);
+  expect(result.current.state.lastMove).toBeUndefined();
+  expect(result.current.state.wrong).toBe(false);
+  expect(result.current.state.refutation).toBeUndefined();
+  expect(result.current.state.message).toEqual({
+    text: "h3 também serve (+8.00). O exercício segue por outro lance: procure o dele.",
+    tone: "ok",
+    fen: ONE_MOVE.fen_start,
+  });
+  expect(result.current.history.map((h) => h.fen)).toEqual([ONE_MOVE.fen_start]);
+  expect(sons()).toEqual([]);
+  expect(result.current.dests.get("c3")).toContain("d5");
+
+  // a linha roteirizada segue intacta: o lance do exercício conclui como acerto limpo
+  await act(async () => { result.current.tryMove("c3", "d5"); await Promise.resolve(); });
+  expect(result.current.state.phase).toBe("result");
+  expect(submit).toHaveBeenCalledWith(expect.objectContaining({ correct: true, used_hint: false }));
+});
+
+test("lance melhor que o do exercício ganha o 'até prefere'", async () => {
+  const { result } = setup(ONE_MOVE, { refute: true, analyse: engineDuble(depoisValendo(-950)) });
+  act(() => result.current.tryMove("h2", "h3"));
+  await escoar();
+  expect(result.current.state.phase).toBe("awaiting_move");
+  expect(result.current.state.message.text)
+    .toBe("h3 também serve, e a engine até prefere (+9.50). O exercício segue por outro lance: procure o dele.");
+  expect(result.current.state.wrong).toBe(false);
+});
+
+test("candidata fora da folga é refutada como sempre, com uma análise da posição de antes", async () => {
+  const analyse = engineDuble(depoisValendo(-500));
+  const { result } = setup(ONE_MOVE, { refute: true, analyse });
+  act(() => result.current.tryMove("h2", "h3"));
+  await escoar();
+  expect(result.current.state.phase).toBe("refuted");
+  expect(result.current.state.wrong).toBe(true);
+  expect(result.current.state.fen).toBe(FEN_REPLICA);
+  expect(result.current.state.refutation).toMatchObject({ evalAfter: 500, evalBefore: 900 });
+  expect(result.current.state.message.text).toBe("h3? Qg2 — avaliação cai de +9.00 para +5.00");
+  expect(sons()).toEqual(["wrong", "move"]);
+  // a avaliação de antes já veio da segunda análise: ninguém a pede de novo
+  expect(analisesDoAntes(analyse)).toBe(1);
+});
+
+test("candidata segura a réplica até a segunda análise chegar", async () => {
+  const caixa: { responder?: (o: AnalyseOut) => void } = {};
+  const analyse = vi.fn((fen: string) => (fen === ONE_MOVE.fen_start
+    ? new Promise<AnalyseOut>((res) => { caixa.responder = res; })
+    : Promise.resolve(depoisValendo(-800))));
+  const { result } = setup(ONE_MOVE, { refute: true, analyse });
+  act(() => result.current.tryMove("h2", "h3"));
+  await escoar();
+  // nada decidido ainda: o lance jogado continua na tela, sem réplica e sem som
+  expect(result.current.state.phase).toBe("refuting");
+  expect(result.current.state.fen).toBe(FEN_ERRO);
+  expect(sons()).toEqual([]);
+
+  await act(async () => { caixa.responder?.(analiseOut(ONE_MOVE.fen_start, [LINHA_ANTES])); await Promise.resolve(); });
+  expect(result.current.state.phase).toBe("awaiting_move");
+  expect(result.current.state.wrong).toBe(false);
+});
+
+test("lance ruim não é candidato: a réplica sai com uma análise só", async () => {
+  const caixa: { responder?: (o: AnalyseOut) => void } = {};
+  const analyse = vi.fn((fen: string) => (fen === ONE_MOVE.fen_start
+    ? new Promise<AnalyseOut>((res) => { caixa.responder = res; })
+    : Promise.resolve(depoisValendo(500))));
+  const { result } = setup(ONE_MOVE, { refute: true, analyse });
+  act(() => result.current.tryMove("h2", "h3"));
+  expect(analyse).toHaveBeenCalledTimes(1);
+  await escoar();
+  // a avaliação de antes ainda não chegou e a réplica já está na tela
+  expect(result.current.state.phase).toBe("refuted");
+  expect(result.current.state.fen).toBe(FEN_REPLICA);
+  expect(result.current.state.wrong).toBe(true);
+  expect(result.current.state.refutation?.evalBefore).toBeUndefined();
+  expect(sons()).toEqual(["wrong", "move"]);
+});
+
+test("segunda análise que falha cai na refutação de sempre", async () => {
+  const analyse = vi.fn((fen: string) => (fen === ONE_MOVE.fen_start
+    ? Promise.reject(new Error("engine não encontrada"))
+    : Promise.resolve(depoisValendo(-800))));
+  const { result } = setup(ONE_MOVE, { refute: true, analyse });
+  act(() => result.current.tryMove("h2", "h3"));
+  await escoar();
+  expect(result.current.state.phase).toBe("refuted");
+  expect(result.current.state.wrong).toBe(true);
+  expect(result.current.state.message.text).toBe("h3? Qg2 — avaliação +8.00");
+  expect(sons()).toEqual(["wrong", "move"]);
+});
+
+test("segunda análise sem linha cai na refutação de sempre", async () => {
+  const analyse = vi.fn(async (fen: string) => (fen === ONE_MOVE.fen_start
+    ? analiseOut(fen, [])
+    : depoisValendo(-800)));
+  const { result } = setup(ONE_MOVE, { refute: true, analyse });
+  act(() => result.current.tryMove("h2", "h3"));
+  await escoar();
+  expect(result.current.state.phase).toBe("refuted");
+  expect(result.current.state.message.text).toBe("h3? Qg2 — avaliação +8.00");
+});
+
+test("lance com comentário do autor nunca vira alternativa", async () => {
+  const comAutor: PuzzleOut = { ...ONE_MOVE, id: "p10",
+    solution: { ...ONE_MOVE.solution, wrong_moves: { h2h3: "Perde o tempo." } } };
+  const { result } = setup(comAutor, { refute: true, analyse: engineDuble(depoisValendo(-800)) });
+  act(() => result.current.tryMove("h2", "h3"));
+  await escoar();
+  expect(result.current.state.phase).toBe("refuted");
+  expect(result.current.state.wrong).toBe(true);
+  expect(result.current.state.message.text).toBe("h3? Qg2 — avaliação cai de +9.00 para +8.00 — Perde o tempo.");
+  expect(sons()).toEqual(["wrong", "move"]);
+});
+
+test("'Tentar de novo' durante a segunda análise descarta a resposta atrasada", async () => {
+  const caixa: { responder?: (o: AnalyseOut) => void } = {};
+  const analyse = vi.fn((fen: string) => (fen === ONE_MOVE.fen_start
+    ? new Promise<AnalyseOut>((res) => { caixa.responder = res; })
+    : Promise.resolve(depoisValendo(-800))));
+  const { result } = setup(ONE_MOVE, { refute: true, analyse });
+  act(() => result.current.tryMove("h2", "h3"));
+  await escoar();
+  expect(result.current.state.phase).toBe("refuting");
+
+  act(() => result.current.retryMove());
+  expect(result.current.state.message).toEqual({ text: "Tente de novo.", tone: "bad" });
+  await act(async () => { caixa.responder?.(analiseOut(ONE_MOVE.fen_start, [LINHA_ANTES])); await Promise.resolve(); });
+  expect(result.current.state.phase).toBe("awaiting_move");
+  expect(result.current.state.message).toEqual({ text: "Tente de novo.", tone: "bad" });
+  expect(sons()).toEqual([]);
+});
+
+test("a folga do lance único manda: 300 aceita o que 150 recusa", async () => {
+  const estreita = setup(ONE_MOVE, { refute: true, analyse: engineDuble(depoisValendo(-650)) });
+  act(() => estreita.result.current.tryMove("h2", "h3"));
+  await escoar();
+  expect(estreita.result.current.state.phase).toBe("refuted");
+  estreita.unmount();
+
+  const larga = setup(ONE_MOVE, { refute: true, analyse: engineDuble(depoisValendo(-650)), altGapCp: 300 });
+  act(() => larga.result.current.tryMove("h2", "h3"));
+  await escoar();
+  expect(larga.result.current.state.phase).toBe("awaiting_move");
+  expect(larga.result.current.state.wrong).toBe(false);
+  expect(larga.result.current.state.message.text)
+    .toBe("h3 também serve (+6.50). O exercício segue por outro lance: procure o dele.");
 });

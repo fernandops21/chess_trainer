@@ -364,8 +364,9 @@ test("a prévia aberta na espera da réplica some quando ela chega", async () =>
   }
   render(<LentaHost />);
   fireEvent.click(screen.getByText("errar"));
-  // enquanto a engine pensa, o lance errado já é um link: a prévia abre nele
-  fireEvent.click(await screen.findByRole("button", { name: "h3?" }));
+  // enquanto a engine pensa, o lance jogado já é um link: a prévia abre nele
+  // (a mensagem da espera é neutra, sem o "?" que prejulga)
+  fireEvent.click(await screen.findByRole("button", { name: "h3" }));
   expect(screen.getByText(/prévia: h3 ·/)).toBeTruthy();
 
   responder(analiseOut(FEN_ERRO, "d5g2", "Qg2", 500));

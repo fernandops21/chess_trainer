@@ -27,7 +27,7 @@ export function SessionPuzzle({ puzzle, sessionId, clockLabel, orderInfo, onDone
   }, [qc]);
   // enquanto as configurações não chegam, a refutação fica ligada (é o padrão)
   const { data: settings } = useSettings();
-  const ctl = usePuzzle(puzzle, { sessionId, submit, presetHint, refute: settings?.refute_wrong_moves ?? true });
+  const ctl = usePuzzle(puzzle, { sessionId, submit, presetHint, refute: settings?.refute_wrong_moves ?? true, altGapCp: settings?.unique_gap_cp });
   const { state } = ctl;
   if (state.phase === "result" || state.phase === "submit_error" || state.phase === "submitting") {
     return <ResultPanel puzzle={puzzle} review={state.review} played={state.played} error={state.error} onRetry={ctl.retrySubmit}

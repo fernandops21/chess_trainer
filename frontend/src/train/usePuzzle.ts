@@ -99,6 +99,10 @@ export interface UsePuzzleOptions<R = ReviewOut> {
   now?: () => number;
   /** Ligada, ao errar o lance entra no tabuleiro e a engine mostra a refutação (padrão desligada). */
   refute?: boolean;
+  /** Folga (em centipeões) para o lance jogado contar como "tão bom quanto o melhor"
+   *  e voltar sem contar como erro; os chamadores passam `settings.unique_gap_cp`
+   *  (padrão 150). Só vale com `refute` ligada. */
+  altGapCp?: number;
   /** Injetável para os testes; por padrão a análise de verdade da API. */
   analyse?: (fen: string, multipv?: number) => Promise<AnalyseOut>;
 }
@@ -305,7 +309,10 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
   // `voltar`, desfaz também o que a refutação já tinha posto na tela. A dica
   // volta ao estágio 0 nos dois casos, para o lance errado se comportar igual
   // com a refutação ligada ou desligada.
+  // O som de erro é daqui: com a refutação ligada ele só soa quando se sabe que
+  // o lance não serve (o lance que "também serve" volta calado).
   const recusar = useCallback((authored?: string, voltar = false) => {
+    play("wrong");
     if (voltar) refutaRef.current = [];
     setState((p) => ({
       ...p,
@@ -338,10 +345,13 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
     const erroLast: [Key, Key] = [mv.from as Key, mv.to as Key];
     refutaRef.current = [{ fen: fenDepois, lastMove: erroLast }];
     const tentativa = ++tentativaRef.current;
+    // Enquanto a engine pensa nada está decidido: o lance ainda pode ser tão bom
+    // quanto o do exercício. Por isso a mensagem é neutra (sem o "?" que
+    // prejulga), `wrong` fica como estava e o som de erro só sai no veredito.
     setState((p) => ({
-      ...p, phase: "refuting", wrong: true, hintStage: 0, hint: undefined, pendingPromotion: undefined,
+      ...p, phase: "refuting", hintStage: 0, hint: undefined, pendingPromotion: undefined,
       fen: fenDepois, turn: turnOf(copia), check: copia.inCheck(), lastMove: erroLast,
-      refutation: undefined, message: { text: `${wrongSan}? Vendo a resposta…`, tone: "bad", fen: fenAntes },
+      refutation: undefined, message: { text: `${wrongSan}: vendo a resposta…`, tone: "", fen: fenAntes },
     }));
 
     const analyse = opts.analyse ?? api.analyse;
@@ -352,8 +362,9 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
       const terminal = terminalDe(out.terminal);
       if (terminal) {
         // o lance errado terminou a partida: não há réplica para mostrar
+        play("wrong");
         const r: Refutation = { wrongSan, pvSan: [], authored, terminal };
-        setState((p) => ({ ...p, phase: "refuted", refutation: r, message: { text: refutationMessage(r), tone: "bad", fen: fenAntes } }));
+        setState((p) => ({ ...p, phase: "refuted", wrong: true, refutation: r, message: { text: refutationMessage(r), tone: "bad", fen: fenAntes } }));
         return;
       }
       const linha = out.lines?.[0];
@@ -363,17 +374,52 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
       }
       if (!linha || !resposta) { recusar(authored, true); return; }
       const rep = resposta;
-      play(sanSound(rep.san));
-      const r: Refutation = {
-        wrongSan, replySan: rep.san, evalAfter: -linha.score,
-        pvSan: (linha.pv_san ?? []).slice(1, 6), authored,
-      };
+      const evalAfter = -linha.score;
       const replicaLast: [Key, Key] = [rep.from as Key, rep.to as Key];
-      refutaRef.current = [...refutaRef.current, { fen: copia.fen(), lastMove: replicaLast }];
-      setState((p) => ({
-        ...p, phase: "refuted", refutation: r, fen: copia.fen(), turn: turnOf(copia), check: copia.inCheck(),
-        lastMove: replicaLast, message: { text: refutationMessage(r), tone: "bad", fen: fenAntes },
-      }));
+
+      /** Veredito "refutado": a réplica entra na tela e a tentativa vira erro. */
+      const refutado = (evalBefore?: number) => {
+        play("wrong");
+        play(sanSound(rep.san));
+        const r: Refutation = {
+          wrongSan, replySan: rep.san, evalAfter, evalBefore,
+          pvSan: (linha.pv_san ?? []).slice(1, 6), authored,
+        };
+        refutaRef.current = [...refutaRef.current, { fen: copia.fen(), lastMove: replicaLast }];
+        setState((p) => ({
+          ...p, phase: "refuted", wrong: true, refutation: r, fen: copia.fen(), turn: turnOf(copia), check: copia.inCheck(),
+          lastMove: replicaLast, message: { text: refutationMessage(r), tone: "bad", fen: fenAntes },
+        }));
+      };
+
+      /** O lance serve tanto quanto o do exercício: volta ao tabuleiro sem contar como erro. */
+      const alternativa = (evalBefore: number) => {
+        const elogio = evalAfter >= evalBefore
+          ? `${wrongSan} também serve, e a engine até prefere (${formatEval(evalAfter)}).`
+          : `${wrongSan} também serve (${formatEval(evalAfter)}).`;
+        refutaRef.current = [];
+        setState((p) => ({
+          ...p, phase: "awaiting_move", ...restaurar(),
+          message: { text: `${elogio} O exercício segue por outro lance: procure o dele.`, tone: "ok", fen: fenAntes },
+        }));
+      };
+
+      // Candidato a alternativa: sem fim de partida, sem comentário do autor
+      // (quem escreveu o estudo já disse que este lance não serve) e com a
+      // posição ainda boa para quem resolve.
+      if (!authored && evalAfter >= 100) {
+        void analyse(fenAntes, 1).then((antes) => {
+          if (!vale()) return;
+          const linhaAntes = antes.lines?.[0];
+          if (!linhaAntes) { refutado(); return; }
+          const folga = opts.altGapCp ?? 150;
+          if (evalAfter >= linhaAntes.score - folga) alternativa(linhaAntes.score);
+          else refutado(linhaAntes.score);
+        }, () => { if (vale()) refutado(); });
+        return;
+      }
+
+      refutado();
       // A avaliação de antes só serve para a frase "cai de X para Y", e a engine
       // atende uma posição por vez: pedida só depois da réplica, ela não atrasa
       // o que interessa. Se falhar, a mensagem fica com a avaliação de agora.
@@ -387,7 +433,8 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
         });
       }, () => { /* sem a avaliação de antes a mensagem continua servindo */ });
     }, () => { if (vale()) recusar(authored, true); });
-  }, [opts.analyse, recusar]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opts.analyse, opts.altGapCp, recusar]);
 
   const judge = useCallback((orig: Key, dest: Key, promotion?: Promotion) => {
     const expected = puzzle.solution.moves[state.idx];
@@ -397,7 +444,8 @@ export function usePuzzle<R = ReviewOut>(puzzle: PuzzleInput, opts: UsePuzzleOpt
     if (!ok) {
       // erro previsto pelo autor do estudo: a mensagem vira o comentário dele
       const authored = puzzle.solution.wrong_moves?.[uci];
-      play("wrong");
+      // o som de erro sai de `recusar`/do veredito "refutado": com a refutação
+      // ligada, o lance ainda pode ser tão bom quanto o do exercício
       if (opts.refute) refutar(uci, authored);
       else recusar(authored);
       return;

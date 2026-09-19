@@ -60,7 +60,7 @@ function TacticPuzzle({ tactic, sessionId, clockLabel, orderInfo, onDone, nextDi
   }, [qc, bloco, tactic.id]);
   // enquanto as configurações não chegam, a refutação fica ligada (é o padrão)
   const { data: settings } = useSettings();
-  const ctl = usePuzzle<AttemptOut>(tactic, { sessionId, submit, refute: settings?.refute_wrong_moves ?? true });
+  const ctl = usePuzzle<AttemptOut>(tactic, { sessionId, submit, refute: settings?.refute_wrong_moves ?? true, altGapCp: settings?.unique_gap_cp });
   const { state } = ctl;
   // o voto ("tem a ver com o seu erro?") só existe em modo bloco: a âncora e a procedência
   // deste irmão específico (spec golpes trechos §8, revisão "o voto mora no bloco")

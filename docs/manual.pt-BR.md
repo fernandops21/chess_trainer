@@ -316,6 +316,15 @@ réplica e o app explica por que não serve: `h3? Qg2 — avaliação cai de +9.
 continuação e, nos estudos, o comentário do autor para aquele lance errado). O botão **Tentar de
 novo** desfaz tudo e devolve a posição do exercício. A tentativa continua contando como erro.
 
+Às vezes o lance jogado é tão bom quanto o do exercício — a solução gravada é uma linha só, e no
+meio dela outro lance pode valer o mesmo ou mais. Enquanto a engine pensa, a mensagem fica neutra
+(`h3: vendo a resposta…`); se a avaliação depois do lance ficar dentro da folga de **Configurações
+→ lance único: distância mínima para a 2ª linha (cp)** em relação à posição de antes, o lance volta
+sozinho, sem som de erro e **sem contar como erro**, com um aviso do tipo `Rd1 também serve (+2.86).
+O exercício segue por outro lance: procure o dele.` A linha gravada continua a mesma: é o lance dela
+que faz o exercício andar. Lances que o autor do estudo já comentou como errados nunca entram nessa
+regra.
+
 Os lances escritos na mensagem (o lance errado, a réplica e a continuação) são links: clicar mostra
 a posição no tabuleiro, e a faixa "prévia" traz o "voltar". O mesmo vale para o comentário do autor
 no "Certo! — …" dos estudos.
