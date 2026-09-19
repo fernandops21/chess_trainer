@@ -73,7 +73,19 @@ def _is_trivial_punish(board_after: chess.Board, move_uci: str, solver_eval: int
     return solver_eval <= net * 100 + 200
 
 
-def build_drafts(pos: Position, engine: EngineLike, cfg: PuzzleConfig) -> list[tuple[str, PuzzleDraft]]:
+def _ja_punido_na_partida(pos: Position, punish: PuzzleDraft, reply_uci: str | None) -> bool:
+    """O erro do adversário que o usuário castigou na própria partida não vira exercício:
+    ele já achou o lance, e a fila encheria de blunders alheios resolvidos. Vale só para
+    erro do adversário; o "punir" irmão de um erro do próprio usuário continua existindo."""
+    if pos.mistake_by != "opponent" or not reply_uci or not punish.moves:
+        return False
+    primeiro = punish.moves[0]
+    return reply_uci in {primeiro.uci, *primeiro.alternatives}
+
+
+def build_drafts(pos: Position, engine: EngineLike, cfg: PuzzleConfig,
+                 reply_uci: str | None = None) -> list[tuple[str, PuzzleDraft]]:
+    """`reply_uci` é o lance que veio na partida logo depois de `pos` (a resposta ao erro)."""
     board_before = chess.Board(pos.fen)
     board_after = board_before.copy()
     board_after.push_uci(pos.move_uci)
@@ -83,7 +95,7 @@ def build_drafts(pos: Position, engine: EngineLike, cfg: PuzzleConfig) -> list[t
         if is_mate_for(solver_eval) or solver_eval >= cfg.min_solver_eval_cp:
             if not _is_trivial_punish(board_after, pos.move_uci, solver_eval):
                 punish = generate_punish(board_after, pos.eval_before - pos.eval_after, engine, cfg)
-                if punish is not None:
+                if punish is not None and not _ja_punido_na_partida(pos, punish, reply_uci):
                     drafts.append(("punish", punish))
     if pos.mistake_by == "me":
         avoid = generate_avoid(board_before, engine, cfg, played_uci=pos.move_uci)
@@ -101,10 +113,13 @@ def draft_puzzles(
     deve persistir nada desta partida.
     """
     drafts: list[Draft] = []
+    positions = list(positions)
+    # a resposta a cada erro é o lance do meio-lance seguinte da mesma partida
+    resposta = {(p.game_id, p.ply): p.move_uci for p in positions}
     for pos in positions:
         if not pos.is_mistake:
             continue
-        for kind, draft in build_drafts(pos, engine, cfg):
+        for kind, draft in build_drafts(pos, engine, cfg, reply_uci=resposta.get((pos.game_id, pos.ply + 1))):
             drafts.append((pos, kind, draft))
         if should_stop is not None and should_stop():
             return None

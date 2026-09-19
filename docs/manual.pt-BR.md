@@ -459,6 +459,11 @@ Nos exercícios dos seus erros, a resposta do adversário dentro da solução é
 resistente** na mesma profundidade (e no mesmo tempo de busca) do lance do solver — as duas buscas
 são a mesma, então a solução não mostra uma defesa mais fraca que a apontada pela Análise.
 
+**Erro do adversário só vira exercício quando você deixou passar.** Se na partida a sua resposta
+foi o lance da solução (ou uma alternativa aceita), o app não cria o "punir": você já achou o castigo,
+e a fila não enche de blunders alheios resolvidos. Erro seu continua gerando os dois exercícios
+("evitar" e o "punir" irmão). Vale para as análises novas; os exercícios antigos ficam como estão.
+
 ### Continuação enquanto o lance for único
 
 Um exercício de ganho de material não para na captura: a solução segue enquanto **só houver um

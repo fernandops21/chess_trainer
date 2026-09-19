@@ -12,7 +12,10 @@ from chess_trainer.core.puzzles.service import regenerate_all, regenerate_avoid
 from tests.fakes import FakeEngine, first_legal_default, no_more_lines
 from tests.test_models import _game
 
-SCHOLAR = "1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0"
+# a partida acaba no erro do adversário (ele abandona): sem resposta do usuário no registro, o
+# erro vira exercício. Com o 4.Qxf7# jogado, o usuário já teria castigado e nada seria criado.
+SCHOLAR = "1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 1-0"
+SCHOLAR_COM_O_MATE = "1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0"
 SETTINGS = AppSettings(analysis_depth=6, puzzle_depth=8)
 
 
@@ -41,7 +44,7 @@ def test_analyze_pending_classifies_and_generates_puzzle(db_session):
     assert n == 1
     assert game.analyzed_at is not None and game.analysis_depth == 6
     positions = db_session.scalars(select(Position).order_by(Position.ply)).all()
-    assert len(positions) == 7
+    assert len(positions) == 6
     mistakes = [p for p in positions if p.is_mistake]
     assert [(p.ply, p.mistake_level, p.mistake_by) for p in mistakes] == [(6, "blunder", "opponent")]
     puzzles = db_session.scalars(select(Puzzle)).all()
@@ -372,3 +375,12 @@ def test_lichess_puzzle_with_same_fen_does_not_suppress_own_puzzle(db_session):
     proprio = db_session.scalars(select(Puzzle).where(Puzzle.source == "own")).one()
     assert proprio.fen_start == guardada.fen_start and proprio.kind == guardada.kind
     assert db_session.get(Puzzle, guardada.id) is not None
+
+
+def test_erro_do_adversario_castigado_na_partida_nao_vira_exercicio(db_session):
+    db_session.add(_game(pgn=SCHOLAR_COM_O_MATE, my_color="white"))
+    db_session.commit()
+    assert analyze_pending(db_session, _engine(), SETTINGS) == 1
+    mistakes = db_session.scalars(select(Position).where(Position.is_mistake)).all()
+    assert [(p.ply, p.mistake_by) for p in mistakes] == [(6, "opponent")]
+    assert db_session.scalar(select(func.count(Puzzle.id))) == 0

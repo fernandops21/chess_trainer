@@ -43,7 +43,7 @@ def test_games_list_and_detail(ready):
     assert client.get("/api/games", params={"category": "blitz"}).json() == []
     assert client.get("/api/games", params={"analyzed": "false"}).json() == []
     detail = client.get(f"/api/games/{games[0]['id']}").json()
-    assert len(detail["positions"]) == 7 and detail["pgn"].startswith("[Event")
+    assert len(detail["positions"]) == 6 and detail["pgn"].startswith("[Event")
     ply6 = detail["positions"][5]
     assert ply6["is_mistake"] and ply6["mistake_level"] == "blunder" and len(ply6["puzzle_ids"]) == 1
     assert client.get("/api/games/nope").status_code == 404
@@ -184,28 +184,26 @@ def test_puzzle_out_carries_mistake_and_siblings(ready):
 
 def test_punir_traz_a_resposta_que_voce_deu_na_partida(ready):
     """No "punir" o cartão do resultado mostra o que o usuário respondeu ao erro
-    do adversário: a posição do ply seguinte, na mesma partida."""
-    app, client = ready
-    positions = _positions(app)
-    seguinte = positions[6]
-    assert seguinte["ply"] == 7
-    puzzle = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]
-    reply = puzzle["mistake"]["my_reply"]
-    assert reply["ply"] == 7 and reply["move_uci"] == seguinte["move_uci"]
-    assert reply["move_played"] and "eval_before" in reply and "eval_after" in reply
-
-
-def test_punir_no_ultimo_lance_da_partida_nao_tem_resposta(ready):
-    """Sem ply seguinte (o erro foi o último lance) `my_reply` é nulo."""
-    from sqlalchemy import select
-
+    do adversário: a posição do ply seguinte, na mesma partida. (Na partida de exemplo o
+    registro acaba no erro; a resposta — um lance que deixou o mate passar — entra à mão.)"""
     from chess_trainer.core.models import Position
 
     app, client = ready
-    puzzle_id = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]["id"]
+    puzzle = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]
     with app.state.session_factory() as db:
-        db.delete(db.scalars(select(Position).where(Position.ply == 7)).one())
+        erro = db.get(Position, _positions(app)[5]["id"])
+        db.add(Position(game_id=erro.game_id, ply=7, fen=puzzle["fen_start"], move_played="d3", move_uci="d2d3",
+                        eval_before=99999, eval_after=0, best_move="h5f7", best_eval=99999, is_mistake=False))
         db.commit()
+    reply = client.get(f"/api/puzzles/{puzzle['id']}").json()["mistake"]["my_reply"]
+    assert reply["ply"] == 7 and reply["move_uci"] == "d2d3" and reply["move_played"] == "d3"
+    assert "eval_before" in reply and "eval_after" in reply
+
+
+def test_punir_no_ultimo_lance_da_partida_nao_tem_resposta(ready):
+    """Sem ply seguinte (o erro foi o último lance do registro) `my_reply` é nulo."""
+    app, client = ready
+    puzzle_id = client.get("/api/queue", params={"mode": "new"}).json()["items"][0]["id"]
     assert client.get(f"/api/puzzles/{puzzle_id}").json()["mistake"]["my_reply"] is None
 
 

@@ -1,7 +1,7 @@
 {"games": [
   {
     "url": "https://www.chess.com/game/live/1001",
-    "pgn": "[Event \"Live Chess\"]\n[Site \"Chess.com\"]\n[Date \"2026.08.02\"]\n[White \"therealzibs\"]\n[Black \"opp_one\"]\n[Result \"1-0\"]\n[TimeControl \"600\"]\n[Link \"https://www.chess.com/game/live/1001\"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0\n",
+    "pgn": "[Event \"Live Chess\"]\n[Site \"Chess.com\"]\n[Date \"2026.08.02\"]\n[White \"therealzibs\"]\n[Black \"opp_one\"]\n[Result \"1-0\"]\n[TimeControl \"600\"]\n[Link \"https://www.chess.com/game/live/1001\"]\n\n1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 1-0\n",
     "time_control": "600", "end_time": 1785672000, "rated": true, "time_class": "rapid", "rules": "chess",
     "white": {"username": "therealzibs", "result": "win", "rating": 1200},
     "black": {"username": "opp_one", "result": "checkmated", "rating": 1180}

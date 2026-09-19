@@ -10,7 +10,9 @@ from chess_trainer.core.evals import MATE_SCORE
 from chess_trainer.core.golpes.service import assinar_proprio, garantir_assinatura
 from chess_trainer.core.models import Position, Puzzle, PuzzleSignature, Review
 from chess_trainer.core.puzzles.generator import PuzzleConfig
-from chess_trainer.core.puzzles.service import _is_trivial_punish, build_drafts, extend_all
+from chess_trainer.core.puzzles import service as puzzle_service
+from chess_trainer.core.puzzles.generator import PuzzleDraft, SolutionMove
+from chess_trainer.core.puzzles.service import _is_trivial_punish, build_drafts, draft_puzzles, extend_all
 from tests.fakes import FakeEngine, first_legal_default
 
 CFG = PuzzleConfig(depth=10)
@@ -363,3 +365,54 @@ def test_extend_all_survives_a_move_without_the_by_key(db_session):
     assert [m["uci"] for m in novo.solution_data["moves"]] == [
         "c3d5", "e8d7", "h2h4", "d7e6", "h4h5"]
     assert novo.solver_moves == 2  # só os lances da extensão se dizem do aluno
+
+
+# --- erro do adversário já castigado na partida não vira exercício -----------------------
+
+
+def _punish_fixo(monkeypatch, alternativas=()):
+    """`generate_punish` dublado: a solução começa com Nxd5 (c3d5)."""
+    draft = PuzzleDraft(fen_start="4k3/8/8/3q4/8/2N5/7P/4K3 w - - 0 1", side_to_move="white",
+                        moves=[SolutionMove("c3d5", "solver", list(alternativas))],
+                        end_reason="material_gain", solver_moves=1)
+    monkeypatch.setattr(puzzle_service, "generate_punish", lambda *a, **k: draft)
+    monkeypatch.setattr(puzzle_service, "_is_trivial_punish", lambda *a, **k: False)
+
+
+def _erro_do_adversario(**over) -> Position:
+    return _pos(fen="3qk3/8/8/8/8/2N5/7P/4K3 b - - 0 1", move_played="Qd5", move_uci="d8d5",
+                eval_after=-900, ply=10, **over)
+
+
+def test_erro_do_adversario_que_o_usuario_castigou_nao_vira_punir(monkeypatch):
+    _punish_fixo(monkeypatch)
+    assert build_drafts(_erro_do_adversario(), FakeEngine(), CFG, reply_uci="c3d5") == []
+
+
+def test_erro_do_adversario_que_o_usuario_deixou_passar_vira_punir(monkeypatch):
+    _punish_fixo(monkeypatch)
+    kinds = [k for k, _ in build_drafts(_erro_do_adversario(), FakeEngine(), CFG, reply_uci="h2h3")]
+    assert kinds == ["punish"]
+    # sem resposta conhecida (erro no último lance da partida) o exercício também entra
+    assert [k for k, _ in build_drafts(_erro_do_adversario(), FakeEngine(), CFG)] == ["punish"]
+
+
+def test_resposta_que_e_alternativa_aceita_tambem_conta_como_achada(monkeypatch):
+    _punish_fixo(monkeypatch, alternativas=["e1e2"])
+    assert build_drafts(_erro_do_adversario(), FakeEngine(), CFG, reply_uci="e1e2") == []
+
+
+def test_punir_irmao_de_um_erro_meu_nao_depende_da_resposta(monkeypatch):
+    _punish_fixo(monkeypatch)
+    monkeypatch.setattr(puzzle_service, "generate_avoid", lambda *a, **k: None)
+    kinds = [k for k, _ in build_drafts(_erro_do_adversario(mistake_by="me"), FakeEngine(), CFG, reply_uci="c3d5")]
+    assert kinds == ["punish"]
+
+
+def test_draft_puzzles_passa_o_lance_seguinte_da_partida(monkeypatch):
+    _punish_fixo(monkeypatch)
+    erro = _erro_do_adversario()
+    achou = _pos(ply=11, move_played="Nxd5", move_uci="c3d5", is_mistake=False, mistake_by=None)
+    assert draft_puzzles([erro, achou], FakeEngine(), CFG) == []
+    passou = _pos(ply=11, move_played="h3", move_uci="h2h3", is_mistake=False, mistake_by=None)
+    assert [k for _, k, _ in draft_puzzles([erro, passou], FakeEngine(), CFG)] == ["punish"]
