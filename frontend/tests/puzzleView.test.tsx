@@ -518,7 +518,8 @@ test("durante a refutação ◀ mostra a posição de antes do lance errado", as
   fireEvent.click(setas().anterior);
   expect(last().fen).toBe(own.fen_start);
   expect(screen.getByText(/posição 1 de 3/)).toBeTruthy();
-  expect(screen.getByRole("button", { name: "voltar ao lance atual" })).toBeTruthy();
+  // andar no histórico não abre botão de volta: a seta → resolve
+  expect(screen.queryByRole("button", { name: /voltar ao lance atual/ })).toBeNull();
 });
 
 test("as barras de material capturado ficam em volta do tabuleiro", () => {
@@ -559,4 +560,16 @@ test("clicar fora do seletor de promoção cancela o lance", async () => {
   fireEvent.click(dialogo);
   await waitFor(() => expect(screen.queryByRole("dialog", { name: "Promover a" })).toBeNull());
   expect(last().movableColor).toBe("white");
+});
+
+test("andar no histórico não abre faixa nem botão: volta-se com a seta →", async () => {
+  render(<IntroHost />);
+  await waitFor(() => expect(last().lastMove).toEqual(["d4", "d5"]));
+  fireEvent.keyDown(window, { key: "ArrowLeft" });
+  // a posição fica anunciada só para leitor de tela; nada de faixa com botão
+  expect(screen.getByRole("status")).toHaveTextContent("posição 1 de 2");
+  expect(screen.queryByRole("button", { name: /voltar/ })).toBeNull();
+  expect(document.querySelector(".previa")).toBeNull();
+  fireEvent.keyDown(window, { key: "ArrowRight" });
+  expect(screen.queryByRole("status")).toBeNull();
 });

@@ -195,12 +195,15 @@ export function PuzzleView({ puzzle, ctl, clockLabel, orderInfo, onSkip, skipDis
   return (
     <div className="two-col">
       <div>
-        {previa && (
+        {/* andar no histórico (◀ ▶ e as setas do teclado) não abre faixa nenhuma: quem voltou um
+            lance sabe voltar com a seta →, e a faixa só atrapalhava. A posição fica anunciada só
+            para leitor de tela. A faixa continua para a prévia de uma LINHA clicada no texto, que
+            mostra outra posição e não tem seta que explique como sair dela. */}
+        {previa && previa.idx !== undefined && <span className="so-leitor" role="status">{previa.rotulo.replace(/ · $/, "")}</span>}
+        {previa && previa.idx === undefined && (
           <div className="previa row">
             <span>{previa.rotulo}</span>
-            <button onClick={() => setPrevia(null)}>
-              {previa.idx === undefined ? "voltar" : "voltar ao lance atual"}
-            </button>
+            <button onClick={() => setPrevia(null)}>voltar</button>
           </div>
         )}
         {/* material capturado de cada lado, quem está em cima primeiro */}

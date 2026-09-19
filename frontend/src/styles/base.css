@@ -213,6 +213,8 @@ a.citacao:hover { color: var(--brand); text-decoration: underline; }
 .bloco-rotulo { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 /* faixa acima do tabuleiro enquanto uma prévia está na tela */
 .previa { margin-bottom: 8px; color: var(--muted); }
+/* texto só para leitor de tela: fora da vista, dentro da árvore de acessibilidade */
+.so-leitor { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 .node-menu { position: fixed; z-index: 20; min-width: 220px; padding: 6px; display: flex; flex-direction: column; gap: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
 .node-menu button { text-align: left; min-height: 36px; }
