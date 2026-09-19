@@ -429,7 +429,8 @@ it — the opening move, the final blow, or a run in the middle —, a **named m
 exercise ends in checkmate (smothered, arabian or back-rank — the card shows "Padrão: mate do corredor"
 under the image, and siblings of that kind come straight from the Lichess tag) or, when siblings are
 still short, the search falls back to the mirrored pattern (the same idea on the other side of the
-board) or the same skeleton with the opponent's king in the same zone. Every puzzle in the block that
+board) or the same skeleton with the opponent's king in the same zone. The app also recognizes,
+on its own, back-rank mates that Lichess left untagged. Every puzzle in the block that
 you attempt — right or wrong — joins your spaced-repetition queue alongside the other exercises.
 
 Siblings are searched across every rating — the pattern's geometry decides "same pattern", not

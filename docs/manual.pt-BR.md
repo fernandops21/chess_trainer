@@ -349,7 +349,8 @@ um trecho dela — o lance de abertura do golpe, o golpe final, ou um pedaço do
 de mate nomeado** quando o exercício termina em xeque-mate (sufocado, árabe ou do corredor — o
 cartão mostra "Padrão: mate do corredor" embaixo da imagem, e os irmãos desse tipo vêm direto da
 etiqueta do Lichess) ou, faltando ainda, o espelhado (a mesma ideia do outro lado do tabuleiro) ou
-o mesmo esqueleto com o rei adversário na mesma zona. Cada puzzle do bloco que você tenta — acerte
+o mesmo esqueleto com o rei adversário na mesma zona. O app também reconhece por conta própria
+mates do corredor que o Lichess não etiquetou. Cada puzzle do bloco que você tenta — acerte
 ou erre — entra na sua fila de repetição espaçada, junto com os outros exercícios.
 
 Os irmãos são procurados em qualquer rating — quem decide se é "o mesmo golpe" é a geometria da

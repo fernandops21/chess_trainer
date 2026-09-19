@@ -191,6 +191,44 @@ bloqueada por um peão não bate com a regra literal, mesmo sendo um corredor
 "na ideia". Aceito (mesma régua de precisão/recall acima) e não resolvido
 para não arriscar as taxas medidas com uma condição mais frouxa.
 
+### 3.6.1 Duas regras, dois usos — etiquetas próprias para o Lichess (2026-09-19)
+
+Medido depois, lendo (sem escrever) as 242 413 mates do Lichess: o detector do
+corredor com a regra FROUXA acima (qualquer peça própria à frente do rei, sem
+exigir peão) acha 9 224 mates que o Lichess não etiquetou `backRankMate`.
+Correção honesta: uma afirmação anterior dizia que esses 9 224 extras eram
+"corredores sem etiqueta"; inspecionando uma amostra deles à mão, metade não
+era — era outra ideia, uma torre ou dama presa por cravada bem na frente do
+rei, não bloqueando por ser um peão dele. A regra frouxa não distingue as duas
+situações.
+
+A resposta foi separar a regra em duas, para dois usos diferentes:
+
+- **`corredor`** (`core/golpes/mates.py`), tolerante — continua exatamente
+  como estava: classifica a assinatura do EXERCÍCIO DO USUÁRIO (`padrao_de_mate`
+  /`padrao_do_exercicio`, tema `backRankMate` de `PADROES`), tolerando uma casa
+  vazia coberta a distância, porque é assim que o exercício real que motivou o
+  degrau se parece (§3.6 acima).
+- **`corredor_apertado`** (`PADROES_PARA_CANDIDATOS`, `padrao_para_candidato`),
+  apertada — nunca classifica o exercício do usuário; só GERA UMA ETIQUETA
+  PRÓPRIA para puzzles do Lichess que ele mesmo não etiquetou (§4, tabela
+  `lichess_puzzle_padroes`). Exige toda casa à frente do rei ocupada por um
+  PEÃO da própria cor (não qualquer peça) e a torre/dama do xeque NÃO
+  adjacente ao rei. Medida contra os 242 413 mates: recall 93,8% da etiqueta
+  `backRankMate` (12 004/12 802) e 4 451 extras sem etiqueta — uma amostra
+  desses foi inspecionada à mão e é textbook (`Qe8#` contra f7/g7/h7, `Rf8#`
+  com o rei em h8 atrás de g7/h7), a mesma régua de aprovação usada nos três
+  padrões originais (recall ≥ 95%, sobras inspecionadas à mão). O pool de
+  puzzles com o tema `backRankMate` (etiqueta do Lichess OU própria) sobe de
+  12,8 mil para uns 17,3 mil.
+
+O degrau `padrao-mate` da cascata (§5) passa a buscar irmãos nas DUAS fontes —
+a etiqueta do Lichess em `lichess_puzzle_themes` e a etiqueta própria em
+`lichess_puzzle_padroes` — e `Procedencia.nivel` marca de qual delas veio cada
+irmão: `"{tema}:lichess"` ou `"{tema}:regra"` (ex. `"backRankMate:regra"`).
+Isso deixa o placar de votos (§8) responder se os irmãos rule-tagged são tão
+bons quanto os oficiais do Lichess, em vez de assumir que são.
+
 ## 4. Dados e tarefa de preparo
 
 ### 4.1 Tabelas
@@ -212,6 +250,11 @@ para não arriscar as taxas medidas com uma condição mais frouxa.
   espelhando `Procedencia.degrau` de quando ele entrou (§6).
 - `golpe_labels` (§8), com a procedência do candidato na hora do julgamento:
   `n_lances`, `posicao`, `nivel`, `espelhado` (§8).
+- `lichess_puzzle_padroes` (§3.6.1, "etiquetas próprias"): `puzzle_id` (FK
+  `lichess_puzzles.id`, cascade), `padrao` (`String(24)`), chave primária
+  (`puzzle_id`, `padrao`), `versao`. Índice em `padrao`. Uma linha por puzzle
+  do Lichess que `padrao_para_candidato` classificou com um padrão que ele
+  mesmo não etiquetou (hoje só `backRankMate`, via `corredor_apertado`).
 - Fase B: `lichess_puzzle_vectors` e `puzzle_vectors` (§7).
 
 ### 4.2 Tarefa "Preparar golpes"
@@ -229,6 +272,19 @@ para não arriscar as taxas medidas com uma condição mais frouxa.
   a solução mais vezes — uma por trecho, além da assinatura inteira). O banco
   cresce mais que antes (a tabela de trechos tem uns 4,5× as linhas da de
   assinaturas).
+- **Passada leve das etiquetas próprias** (`preparar_padroes`, §3.6.1): depois
+  da assinatura/trechos acima (mesmo quando não havia nada pendente ali — um
+  clique só faz as duas coisas), varre só os puzzles com o tema geral `mate`
+  em `lichess_puzzle_themes`, rejoga a solução inteira e grava em
+  `lichess_puzzle_padroes` quando `padrao_para_candidato` acha um padrão que
+  o Lichess ainda não etiquetou nesse puzzle. Controlada por uma versão
+  (`VERSAO_PADROES`, `golpes_padroes_versao` em `settings`): sem mudança na
+  versão, não faz nada; mudando (detector candidato novo ou mudado), refaz a
+  tabela inteira do zero. Cerca de um minuto — bem mais rápido que a
+  assinatura porque só varre os puzzles marcados `mate`, não o banco inteiro
+  — e por isso não guarda progresso de retomada: cancelar não grava a versão,
+  a próxima chamada recomeça do zero. `GET /api/golpes/status` traz `padroes`
+  (quantas linhas existem).
 
 ## 5. Busca de irmãos (`core/golpes/service.py`)
 
@@ -248,16 +304,22 @@ lances da âncora):
    **em qualquer posição** da solução do candidato. Casando em mais de uma
    posição, fica o de menor `inicio`.
 3. `padrao-mate` — só quando `padrao_do_exercicio(fen, lances)` acha um
-   padrão aprovado (§3.6): duas subconsultas contra `lichess_puzzle_themes`
-   (sem tabela de assinatura), na ordem — primeiro o tema junto de
-   `mateIn{n}` (`n` capado em 5), depois o tema sozinho. Fica ANTES de
-   `trecho1` e DEPOIS de todo `trecho{n}` com `n ≥ 2`: medido no exemplo que
-   motivou este degrau (36.Rb8+ Qd8 37.Rxd8+ Ne8 38.Rxe8#), a solução inteira
-   bate com zero puzzles do Lichess e os dois primeiros lances com 25 — pouco
-   —, enquanto só a etiqueta `backRankMate` já tem 12 813 puzzles. Para um
-   exercício de mate, "mesmo padrão nomeado" é um irmão melhor do que "um
-   lance idêntico" (`trecho1`, o degrau mais frouxo da família de trechos);
-   os votos (§8) confirmam ou refutam essa ordem.
+   padrão aprovado (§3.6): duas subconsultas (sem tabela de assinatura), na
+   ordem — primeiro o tema junto de `mateIn{n}` (`n` capado em 5), depois o
+   tema sozinho. Cada subconsulta busca nas DUAS fontes (§3.6.1): puzzles
+   etiquetados `tema` em `lichess_puzzle_themes` (pelo Lichess) UNIÃO puzzles
+   com uma linha em `lichess_puzzle_padroes` para `tema` (etiqueta própria) —
+   um puzzle rule-tagged ainda tem a etiqueta geral `mateIn{n}` do Lichess
+   (só falta a etiqueta específica do padrão), então o mesmo filtro de
+   `mateIn{n}` funciona nas duas fontes. Um puzzle com as duas etiquetas conta
+   uma vez só, pela do Lichess. Fica ANTES de `trecho1` e DEPOIS de todo
+   `trecho{n}` com `n ≥ 2`: medido no exemplo que motivou este degrau
+   (36.Rb8+ Qd8 37.Rxd8+ Ne8 38.Rxe8#), a solução inteira bate com zero
+   puzzles do Lichess e os dois primeiros lances com 25 — pouco —, enquanto
+   só a etiqueta `backRankMate` já tem 12 813 puzzles (mais as próprias,
+   §3.6.1). Para um exercício de mate, "mesmo padrão nomeado" é um irmão
+   melhor do que "um lance idêntico" (`trecho1`, o degrau mais frouxo da
+   família de trechos); os votos (§8) confirmam ou refutam essa ordem.
 4. `trecho1` — o mesmo `trecho{n}` acima, para `n = 1`.
 5. `espelho` — `destinos_esp` da âncora igual ao `destinos` do candidato
    (o espelho esquerda-direita); depois `espelho-trecho{n}` para `n = k … 2`
@@ -270,10 +332,16 @@ Cada degrau exclui os puzzles que um degrau anterior já devolveu — inclusive
 as duas subconsultas do `padrao-mate` entre si.
 
 A procedência do `padrao-mate` usa os mesmos campos com outro sentido:
-`nivel` é o tema do Lichess (ex. `"backRankMate"`, até 13 letras — por isso
-`GolpeLabel.nivel` é `String(24)`, não mais `String(10)`), `n` é quantos
+`nivel` é o tema do Lichess MAIS a procedência da etiqueta (§3.6.1), separados
+por `:` — `"{tema}:lichess"` quando o Lichess mesmo etiquetou, `"{tema}:regra"`
+quando só a etiqueta própria achou (ex. `"backRankMate:regra"`, até 19
+letras; `"smotheredMate:lichess"`, o mais longo hoje, tem 21 — por isso
+`GolpeLabel.nivel` é `String(24)`, não mais `String(10)`); `n` é quantos
 lances o solucionador jogou até o mate, `posicao` é sempre `"inteira"` e
-`espelhado` é sempre `False`.
+`espelhado` é sempre `False`. O placar de votos (§8) agrupa por `nivel`
+também, não só por degrau/posição/lances — sem isso, um voto num mate
+sufocado e um voto num corredor cairiam na mesma linha (ambos `tier ==
+"padrao-mate"`).
 
 Dentro de cada degrau a busca **ignora rating**: só `popularity ≥ 50` e
 `nb_plays ≥ 50` para evitar puzzles ruins, excluídos os já vistos
@@ -421,12 +489,16 @@ havia mais uso para eles.
   procedência vão junto), versionado no repositório — sem mudança nesse
   formato.
 - **Placar por procedência**: `GET /api/golpes/votos/resumo` devolve,
-  agrupado por `(tier, posicao, n_lances)`, quantos votos de cada resposta
-  aquela combinação já recebeu (`mesmo`, `parecido`, `nada`, `total`). Mostrado
-  em **Configurações → Golpes**, dentro de um `<details>` "Votos por
-  procedência" — é o mesmo sinal de qual degrau (e qual posição do trecho) é
-  ruído, só que alimentado pelo uso normal do treino em vez de uma sessão de
-  rotulagem à parte.
+  agrupado por `(tier, posicao, n_lances, nivel)`, quantos votos de cada
+  resposta aquela combinação já recebeu (`mesmo`, `parecido`, `nada`,
+  `total`) — `nivel` entra no agrupamento por causa do degrau `padrao-mate`
+  (§5): ele usa a mesma `tier_na_hora` para qualquer tema e procedência de
+  mate, então sem `nivel` na chave os votos de padrões e fontes diferentes
+  ficariam somados numa linha só. Mostrado em **Configurações → Golpes**,
+  dentro de um `<details>` "Votos por procedência" com a coluna "nível" — é o
+  mesmo sinal de qual degrau (e qual posição do trecho, e agora qual
+  procedência do padrão de mate) é ruído, só que alimentado pelo uso normal
+  do treino em vez de uma sessão de rotulagem à parte.
 - Meta: ~300 julgamentos nas primeiras sessões, agora espalhados pelo uso
   normal. Com a rede treinada, um destino futuro é priorizar no bloco os
   pares em que regra e rede discordam (**aprendizado ativo**); ainda não
@@ -479,7 +551,10 @@ Passos 1 a 4 implementados em 2026-09-17 (plano `docs/superpowers/plans/2026-09-
 Trechos (§3.5, §5, §8) — busca por pedaço da solução, com procedência em cada
 irmão e placar por procedência no julgamento — implementados em 2026-09-17,
 dentro do passo 4. Voto no bloco (§8, revisão de 2026-09-18) substituiu a tela
-de rotulagem separada pelo botão de voto no resultado.
+de rotulagem separada pelo botão de voto no resultado. Etiquetas próprias de
+padrão de mate (§3.6.1, §4.2, §5, §8) — o corredor apertado, a tabela
+`lichess_puzzle_padroes`, a passada leve na tarefa de preparo e a procedência
+`:lichess`/`:regra` no degrau `padrao-mate` — implementadas em 2026-09-19.
 
 1. Assinatura, tarefa de preparo, cobertura.
 2. Rota de irmãos, imagem, cartão de resultado.
