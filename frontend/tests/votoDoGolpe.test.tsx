@@ -9,7 +9,7 @@ import { VotoDoGolpe } from "../src/train/VotoDoGolpe";
 
 const procedencia: Procedencia = { degrau: "trecho2", nivel: "destinos", n: 2, posicao: "fim", espelhado: false };
 
-function montar(over: Partial<{ anchorOrigem: "own" | "lichess"; anchorId: string; candidateId: string }> = {}) {
+function montar(over: Partial<{ anchorOrigem: "own" | "lichess"; anchorId: string; candidateId: string; onVotado: () => void }> = {}) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <VotoDoGolpe anchorOrigem="own" anchorId="p1" candidateId="c1" procedencia={procedencia} tier="trecho2" {...over} />
@@ -71,5 +71,20 @@ describe("VotoDoGolpe", () => {
     expect(await screen.findByText("Não consegui gravar o voto.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "mesmo golpe" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "nada a ver" })).toHaveAttribute("aria-pressed", "false");
+  });
+  it("votar avança: com o voto gravado chama onVotado (votei, já vai para o próximo)", async () => {
+    const onVotado = vi.fn();
+    montar({ onVotado });
+    await userEvent.click(screen.getByRole("button", { name: "parecido" }));
+    await waitFor(() => expect(onVotado).toHaveBeenCalledTimes(1));
+    expect(api.votarGolpe).toHaveBeenCalledTimes(1);
+  });
+  it("voto que não gravou não avança", async () => {
+    vi.spyOn(api, "votarGolpe").mockRejectedValue(new Error("sem conexão"));
+    const onVotado = vi.fn();
+    montar({ onVotado });
+    await userEvent.click(screen.getByRole("button", { name: "nada a ver" }));
+    expect(await screen.findByText("Não consegui gravar o voto.")).toBeInTheDocument();
+    expect(onVotado).not.toHaveBeenCalled();
   });
 });

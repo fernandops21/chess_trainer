@@ -19,11 +19,11 @@ vi.mock("../src/board/Board", () => ({
 const last = () => boardProps.at(-1) as unknown as BoardProps;
 
 // o painel traz o botão "Guardar para repetir", que é uma mutation
-function renderPanel(tactic: TacticOut, extra: { attempt?: AttemptOut; durationMs?: number; voto?: VotoDoResultado } = {}) {
+function renderPanel(tactic: TacticOut, extra: { attempt?: AttemptOut; durationMs?: number; voto?: VotoDoResultado; onNext?: () => void } = {}) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <MemoryRouter>
-        <TacticResultPanel tactic={tactic} {...extra} onRetry={() => {}} onNext={() => {}} />
+        <TacticResultPanel tactic={tactic} onNext={() => {}} {...extra} onRetry={() => {}} />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -165,4 +165,32 @@ test("com `voto` e a tentativa registrada, o cartão de voto aparece logo abaixo
   const attempt: AttemptOut = { id: "a1", puzzle_id: "t1", correct: true, used_hint: false, rating_before: 1200, rating_after: 1216, delta: 16, puzzle_rating: 1500 };
   renderPanel(baseTactic(), { attempt, voto });
   expect(await screen.findByText("Tem a ver com o seu erro?")).toBeInTheDocument();
+});
+
+test("dentro do bloco, o cartão do golpe mostra só a imagem: 'Treinar N parecidos' ali abriria OUTRO bloco e largaria o atual", async () => {
+  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: true, versao: 1, assinados: 1, total: 1, cobertura: null, trechos: 0, padroes: 0 });
+  vi.spyOn(api, "golpesIrmaos").mockResolvedValue({ assinatura: "x", itens: [{ tier: "mesmo", tactic: baseTactic({ id: "a" }) }] });
+  vi.spyOn(api, "golpeVoto").mockResolvedValue({ label: null });
+  const attempt: AttemptOut = { id: "a1", puzzle_id: "t1", correct: true, used_hint: false, rating_before: 1200, rating_after: 1216, delta: 16, puzzle_rating: 1500 };
+  renderPanel(baseTactic(), { attempt, voto });
+  expect(await screen.findByAltText("O golpe desenhado")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /parecidos/ })).toBeNull();
+});
+
+test("fora do bloco, com a tentativa registrada, o botão do bloco aparece", async () => {
+  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: true, versao: 1, assinados: 1, total: 1, cobertura: null, trechos: 0, padroes: 0 });
+  vi.spyOn(api, "golpesIrmaos").mockResolvedValue({ assinatura: "x", itens: [{ tier: "mesmo", tactic: baseTactic({ id: "a" }) }] });
+  const attempt: AttemptOut = { id: "a1", puzzle_id: "t1", correct: true, used_hint: false, rating_before: 1200, rating_after: 1216, delta: 16, puzzle_rating: 1500 };
+  renderPanel(baseTactic(), { attempt });
+  expect(await screen.findByRole("button", { name: "Treinar 1 parecidos" })).toBeTruthy();
+});
+
+test("dentro do bloco, votar já leva ao próximo irmão", async () => {
+  vi.spyOn(api, "golpeVoto").mockResolvedValue({ label: null });
+  vi.spyOn(api, "votarGolpe").mockResolvedValue({ ok: true, label: "parecido" });
+  const onNext = vi.fn();
+  const attempt: AttemptOut = { id: "a1", puzzle_id: "t1", correct: true, used_hint: false, rating_before: 1200, rating_after: 1216, delta: 16, puzzle_rating: 1500 };
+  renderPanel(baseTactic(), { attempt, voto, onNext });
+  fireEvent.click(await screen.findByRole("button", { name: "parecido" }));
+  await waitFor(() => expect(onNext).toHaveBeenCalledTimes(1));
 });

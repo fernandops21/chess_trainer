@@ -18,8 +18,10 @@ const ROTULOS: { label: "mesmo" | "parecido" | "nada"; texto: string }[] = [
  * posição do trecho) nem a `tier` — elas só viajam junto do voto para o placar de
  * Configurações, sem aparecer para quem vota.
  */
-export function VotoDoGolpe({ anchorOrigem, anchorId, candidateId, procedencia, tier }:
-  { anchorOrigem: "own" | "lichess"; anchorId: string; candidateId: string; procedencia?: Procedencia; tier: string }) {
+export function VotoDoGolpe({ anchorOrigem, anchorId, candidateId, procedencia, tier, onVotado }:
+  { anchorOrigem: "own" | "lichess"; anchorId: string; candidateId: string; procedencia?: Procedencia; tier: string;
+    /** chamado depois que o voto grava: no bloco, votar já leva ao próximo irmão */
+    onVotado?: () => void }) {
   const { data } = useGolpeVoto(anchorOrigem, anchorId, candidateId);
   const votar = useVotarGolpe();
   const [erro, setErro] = useState(false);
@@ -39,6 +41,7 @@ export function VotoDoGolpe({ anchorOrigem, anchorId, candidateId, procedencia, 
         nivel: procedencia?.nivel,
         espelhado: procedencia?.espelhado,
       });
+      onVotado?.();
     } catch {
       // a marca anterior fica como está: só o aviso muda
       setErro(true);

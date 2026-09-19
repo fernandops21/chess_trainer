@@ -65,9 +65,11 @@ export function TacticResultPanel({ tactic, attempt, played, durationMs, error, 
           cartão "Repetir o golpe" — votar é opcional, "Próximo" funciona sem votar */}
       {voto && attempt && (
         <VotoDoGolpe anchorOrigem={voto.anchorOrigem} anchorId={voto.anchorId} candidateId={tactic.id}
-          procedencia={voto.procedencia} tier={voto.tier} />
+          procedencia={voto.procedencia} tier={voto.tier} onVotado={nextDisabled ? undefined : onNext} />
       )}
-      {golpes?.enabled && <GolpeCard origem="lichess" id={tactic.id} resultado={!attempt ? null : attempt.correct && !attempt.used_hint ? "acerto" : "erro"} />}
+      {/* dentro do bloco (`voto`), só a imagem: "Treinar N parecidos" ali abriria OUTRO bloco, com
+          os irmãos deste irmão, e largaria o bloco em andamento — ao lado do "Próximo", confunde */}
+      {golpes?.enabled && <GolpeCard origem="lichess" id={tactic.id} resultado={voto || !attempt ? null : attempt.correct && !attempt.used_hint ? "acerto" : "erro"} />}
     </>
   );
   return <AnalysisBoard tree={tree} initialNodeId={alternativa ?? "last"} engine={false} allowSetup={false} sidePanel={lateral} />;

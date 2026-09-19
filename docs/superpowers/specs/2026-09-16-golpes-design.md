@@ -408,6 +408,11 @@ com assinatura tem irmãos.
   caminho de volta no estado da navegação; o resumo do bloco oferece "Voltar à
   revisão" (ou "Voltar"). Um padrão vazio e silencioso aqui já causou o botão
   não fazer nada fora da tela Treinar.
+- **Dentro do bloco, votar avança.** Um clique em "mesmo golpe", "parecido" ou
+  "nada a ver" grava o voto e já leva ao próximo irmão (no último, ao resumo);
+  "Próximo" fica para pular sem votar; voto que não gravou não avança. E o
+  cartão do golpe de cada irmão mostra só a imagem: "Treinar N parecidos" ali
+  abriria outro bloco, com os irmãos do irmão, e largaria o bloco em andamento.
 - **Bloco**: o botão abre a sessão de táticas existente com a lista fixa dos
   irmãos, na ordem do fácil ao difícil. Cada tentativa é registrada como hoje
   (`tactics/attempts`, rating de táticas). No fim, resumo "4 de 5" e volta.
