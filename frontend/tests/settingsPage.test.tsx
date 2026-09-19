@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { api } from "../src/api/client";
-import type { CoachStatus, GolpesStatus, Settings, StatusOut, TacticsStatus } from "../src/api/types";
+import type { CoachStatus, GolpesStatus, Settings, StatusOut, TacticsStatus, VotosResumoLinha } from "../src/api/types";
 import { SettingsPage } from "../src/pages/SettingsPage";
 
 const SETTINGS: Settings = {
@@ -33,7 +33,7 @@ const coachStatus = (over: Partial<CoachStatus> = {}): CoachStatus => ({
 });
 
 const golpesStatus = (over: Partial<GolpesStatus> = {}): GolpesStatus => ({
-  enabled: true, versao: 1, assinados: 800, total: 1000, cobertura: null, rotulagem: false, trechos: 0, ...over,
+  enabled: true, versao: 1, assinados: 800, total: 1000, cobertura: null, trechos: 0, ...over,
 });
 
 function renderPage() {
@@ -63,6 +63,7 @@ beforeEach(() => {
   vi.spyOn(api, "extendPuzzles").mockResolvedValue({ queued: true, job: "extend_puzzles" });
   vi.spyOn(api, "golpesStatus").mockResolvedValue(golpesStatus());
   vi.spyOn(api, "golpesPreparar").mockResolvedValue({ queued: true, job: "golpes_preparar" });
+  vi.spyOn(api, "votosResumo").mockResolvedValue([]);
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -340,4 +341,28 @@ test("a faixa do bloco fora do intervalo mostra a mensagem de validação", asyn
   const acima = screen.getByLabelText("Faixa do bloco: pontos acima do meu rating");
   fireEvent.change(acima, { target: { value: "2001" } });
   expect(await screen.findByText(/Faixa do bloco \(acima\): entre 0 e 2000/)).toBeTruthy();
+});
+
+// --- placar "Votos por procedência" --------------------------------------
+
+const votosLinha = (over: Partial<VotosResumoLinha> = {}): VotosResumoLinha => ({
+  tier: "inteira", posicao: "inteira", n_lances: 1, mesmo: 3, parecido: 1, nada: 1, total: 5, ...over,
+});
+
+test("sem votos ainda, o placar mostra a mensagem de vazio", async () => {
+  renderPage();
+  fireEvent.click(await screen.findByText("Votos por procedência"));
+  expect(await screen.findByText("Ainda sem votos. Vote nos irmãos ao fim de cada puzzle do bloco.")).toBeTruthy();
+});
+
+test("com votos, o placar mostra a tabela por procedência", async () => {
+  vi.spyOn(api, "votosResumo").mockResolvedValue([votosLinha()]);
+  renderPage();
+  fireEvent.click(await screen.findByText("Votos por procedência"));
+  await waitFor(() => expect(screen.getAllByText("inteira")).toHaveLength(2)); // colunas "degrau" e "posição"
+  expect(screen.queryByText("Ainda sem votos. Vote nos irmãos ao fim de cada puzzle do bloco.")).toBeNull();
+  const linha = screen.getAllByText("inteira")[0].closest("tr");
+  expect(linha).not.toBeNull();
+  expect(linha!.textContent).toContain("5");
+  expect(linha!.textContent).toContain("20%"); // 1 de 5 é "nada a ver"
 });

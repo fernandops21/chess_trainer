@@ -9,12 +9,12 @@ import type {
   MistakesQuery,
   OpeningsDb,
   QueueFilters,
-  RotuloIn,
   SaveTacticIn,
   SettingsIn,
   StudyImportIn,
   StudyIn,
   StudyUpdateIn,
+  VotoIn,
 } from "./types";
 
 export const keys = {
@@ -38,9 +38,9 @@ export const keys = {
   coachExplanation: (id: string) => ["coach", "explanation", id] as const,
   golpesStatus: ["golpes", "status"] as const,
   irmaos: (origem: "own" | "lichess", id: string) => ["golpes", "irmaos", origem, id] as const,
-  rotulagemProximo: ["golpes", "rotulagem", "proximo"] as const,
-  rotulagemContagem: ["golpes", "rotulagem", "contagem"] as const,
-  rotulagemResumo: ["golpes", "rotulagem", "resumo"] as const,
+  golpeVoto: (anchorOrigem: "own" | "lichess", anchorId: string, candidateId: string) =>
+    ["golpes", "voto", anchorOrigem, anchorId, candidateId] as const,
+  votosResumo: ["golpes", "votos", "resumo"] as const,
 };
 
 export const useStatus = () =>
@@ -103,24 +103,20 @@ export const useGolpesStatus = () => useQuery({ queryKey: keys.golpesStatus, que
 export const useIrmaos = (origem: "own" | "lichess", id: string, enabled = true) =>
   useQuery({ queryKey: keys.irmaos(origem, id), queryFn: () => api.golpesIrmaos(origem, id), enabled, staleTime: 60_000 });
 
-/** Próximo item da fila de rotulagem (âncora cega + candidatos); desligado sem
- *  consultar quando `enabled` é falso (rotulagem fora do ar ou status ainda não chegou). */
-export const useRotulagemProximo = (enabled = true) =>
-  useQuery({ queryKey: keys.rotulagemProximo, queryFn: api.rotulagemProximo, enabled });
-/** Contagem de rótulos já gravados, para o cabeçalho da tela. */
-export const useRotulagemContagem = (enabled = true) =>
-  useQuery({ queryKey: keys.rotulagemContagem, queryFn: api.rotulagemContagem, enabled });
-/** Placar da rotulagem por procedência (spec golpes trechos §8), embaixo do contador. */
-export const useRotulagemResumo = (enabled = true) =>
-  useQuery({ queryKey: keys.rotulagemResumo, queryFn: api.rotulagemResumo, enabled });
-/** Grava um rótulo (mesmo/parecido/nada) e atualiza a contagem e o placar do cabeçalho. */
-export function useRotular() {
+/** Voto já gravado para o par (âncora, candidato), para marcar o botão escolhido no
+ *  resultado do bloco (`VotoDoGolpe`). */
+export const useGolpeVoto = (anchorOrigem: "own" | "lichess", anchorId: string, candidateId: string, enabled = true) =>
+  useQuery({ queryKey: keys.golpeVoto(anchorOrigem, anchorId, candidateId), queryFn: () => api.golpeVoto(anchorOrigem, anchorId, candidateId), enabled });
+/** Placar dos votos por procedência (spec golpes trechos §8), em Configurações. */
+export const useVotosResumo = () => useQuery({ queryKey: keys.votosResumo, queryFn: api.votosResumo });
+/** Grava o voto sobre um irmão do bloco e atualiza a marca do botão e o placar de Configurações. */
+export function useVotarGolpe() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: RotuloIn) => api.rotular(body),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: keys.rotulagemContagem });
-      void qc.invalidateQueries({ queryKey: keys.rotulagemResumo });
+    mutationFn: (body: VotoIn) => api.votarGolpe(body),
+    onSuccess: (res, body) => {
+      qc.setQueryData(keys.golpeVoto(body.anchor_origem, body.anchor_id, body.candidate_id), { label: res.label });
+      void qc.invalidateQueries({ queryKey: keys.votosResumo });
     },
   });
 }

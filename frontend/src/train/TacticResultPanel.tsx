@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { AttemptOut, TacticOut } from "../api/types";
+import type { AttemptOut, Procedencia, TacticOut } from "../api/types";
 import { useGolpesStatus } from "../api/queries";
 import { AnalysisBoard } from "../analysis/AnalysisBoard";
 import { treeFromSolution, withPlayedLine } from "../analysis/solutionTree";
@@ -7,11 +7,22 @@ import { ErrorBox } from "../components/ErrorBox";
 import { themeLabel } from "../lib/format";
 import { GolpeCard } from "./GolpeCard";
 import { QueueButtons } from "./QueueButtons";
+import { VotoDoGolpe } from "./VotoDoGolpe";
 
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 
-export function TacticResultPanel({ tactic, attempt, played, durationMs, error, onRetry, onNext, nextDisabled, clockLabel }:
-  { tactic: TacticOut; attempt?: AttemptOut; played?: string[]; durationMs?: number; error?: unknown; onRetry: () => void; onNext: () => void; nextDisabled?: boolean; clockLabel?: string }) {
+/** Voto sobre o irmão do bloco atual: quem é a âncora (o erro que o bloco repete) e a
+ *  procedência/degrau deste irmão — só existe em modo bloco (spec golpes trechos §8, revisão
+ *  "o voto mora no bloco"). */
+export interface VotoDoResultado {
+  anchorOrigem: "own" | "lichess";
+  anchorId: string;
+  procedencia?: Procedencia;
+  tier: string;
+}
+
+export function TacticResultPanel({ tactic, attempt, played, durationMs, error, onRetry, onNext, nextDisabled, clockLabel, voto }:
+  { tactic: TacticOut; attempt?: AttemptOut; played?: string[]; durationMs?: number; error?: unknown; onRetry: () => void; onNext: () => void; nextDisabled?: boolean; clockLabel?: string; voto?: VotoDoResultado }) {
   const clean = attempt && attempt.correct && !attempt.used_hint;
   const { data: golpes } = useGolpesStatus();
   const exploreHref = `/analise?fen=${encodeURIComponent(tactic.fen_start)}&orientation=${tactic.side_to_move}&back=${encodeURIComponent("/treinar")}`;
@@ -49,6 +60,13 @@ export function TacticResultPanel({ tactic, attempt, played, durationMs, error, 
           {attempt && <button className="primary" style={{ marginLeft: "auto" }} disabled={nextDisabled} onClick={onNext}>{nextDisabled ? "Carregando…" : "Próximo"}</button>}
         </div>
       </div>
+      {/* o voto só faz sentido depois da tentativa registrada (o resultado deste irmão já
+          está decidido) e só existe em modo bloco: fica logo abaixo do resultado, acima do
+          cartão "Repetir o golpe" — votar é opcional, "Próximo" funciona sem votar */}
+      {voto && attempt && (
+        <VotoDoGolpe anchorOrigem={voto.anchorOrigem} anchorId={voto.anchorId} candidateId={tactic.id}
+          procedencia={voto.procedencia} tier={voto.tier} />
+      )}
       {golpes?.enabled && <GolpeCard origem="lichess" id={tactic.id} errou={!!attempt && (!attempt.correct || !!attempt.used_hint)} />}
     </>
   );

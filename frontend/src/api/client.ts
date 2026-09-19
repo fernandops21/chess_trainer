@@ -24,10 +24,6 @@ import type {
   QueueOut,
   ReviewIn,
   ReviewOut,
-  RotulagemContagem,
-  RotulagemItem,
-  RotulagemResumoLinha,
-  RotuloIn,
   SaveTacticIn,
   SessionIn,
   SessionOut,
@@ -43,6 +39,10 @@ import type {
   TacticsStatus,
   ThemeCount,
   ThemeStat,
+  VotoConsultaOut,
+  VotoIn,
+  VotoOut,
+  VotosResumoLinha,
 } from "./types";
 
 /** Item de erro de validação do pydantic (422 do FastAPI): `loc` é o caminho do campo. */
@@ -252,18 +252,14 @@ export const api = {
     }
   },
   golpesPreparar: () => request<JobQueued>("/golpes/preparar", post("")),
-  /** Próximo item da fila de rotulagem (âncora + candidatos); `null` quando não sobra nada (404). */
-  rotulagemProximo: async (): Promise<RotulagemItem | null> => {
-    try {
-      return await request<RotulagemItem>("/golpes/rotulagem/proximo");
-    } catch (e) {
-      if (e instanceof ApiError && e.status === 404) return null;
-      throw e;
-    }
-  },
-  rotular: (body: RotuloIn) => request<unknown>("/golpes/rotulagem", post("", body)),
-  rotulagemContagem: () => request<RotulagemContagem>("/golpes/rotulagem/contagem"),
-  rotulagemResumo: () => request<RotulagemResumoLinha[]>("/golpes/rotulagem/resumo"),
+  /** Grava o voto sobre um irmão do bloco ("tem a ver com o seu erro?"); votar de novo no
+   *  mesmo par atualiza em vez de duplicar (spec golpes trechos §8). */
+  votarGolpe: (body: VotoIn) => request<VotoOut>("/golpes/voto", post("", body)),
+  /** Voto já gravado para o par (âncora, candidato), para marcar o botão escolhido. */
+  golpeVoto: (anchorOrigem: "own" | "lichess", anchorId: string, candidateId: string) =>
+    request<VotoConsultaOut>(`/golpes/voto${qs({ anchor_origem: anchorOrigem, anchor_id: anchorId, candidate_id: candidateId })}`),
+  /** Placar dos votos por procedência (spec golpes trechos §8), em Configurações. */
+  votosResumo: () => request<VotosResumoLinha[]>("/golpes/votos/resumo"),
 };
 
 /** Downloads de PGN: links comuns, o navegador salva pelo Content-Disposition. */

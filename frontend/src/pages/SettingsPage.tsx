@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
-import { useCoachStatus, useGolpesStatus, useSaveSettings, useSettings, useStartJob, useStatus, useTacticsStatus } from "../api/queries";
+import { useCoachStatus, useGolpesStatus, useSaveSettings, useSettings, useStartJob, useStatus, useTacticsStatus, useVotosResumo } from "../api/queries";
 import type { Settings, SettingsIn } from "../api/types";
 import { ErrorBox } from "../components/ErrorBox";
 import { JobStatusLine } from "../components/JobStatusLine";
@@ -40,6 +40,7 @@ export function SettingsPage() {
   const { data: tactics } = useTacticsStatus();
   const { data: coach } = useCoachStatus();
   const { data: golpes } = useGolpesStatus();
+  const { data: votosResumo } = useVotosResumo();
   const save = useSaveSettings();
   const start = useStartJob();
   const [form, setForm] = useState<Settings | null>(null);
@@ -283,6 +284,30 @@ export function SettingsPage() {
           {golpes && golpes.trechos > 0 ? ` · ${nf.format(golpes.trechos)} trechos` : ""}</p>
         <button onClick={() => start.mutate({ kind: "golpes_preparar" })} disabled={status?.job.state === "running"}>Preparar golpes</button>
         <JobStatusLine job="golpes_preparar" />
+        <details style={{ marginTop: 12 }}>
+          <summary>Votos por procedência</summary>
+          {votosResumo && votosResumo.length > 0 ? (
+            <table style={{ marginTop: 8 }}>
+              <thead>
+                <tr>
+                  <th>degrau</th><th>posição</th><th>lances</th><th>mesmo golpe</th><th>parecido</th>
+                  <th>nada a ver</th><th>total</th><th>% nada a ver</th>
+                </tr>
+              </thead>
+              <tbody>
+                {votosResumo.map((l) => (
+                  <tr key={`${l.tier}-${l.posicao}-${l.n_lances}`}>
+                    <td>{l.tier}</td><td>{l.posicao ?? "—"}</td><td>{l.n_lances ?? "—"}</td>
+                    <td>{l.mesmo}</td><td>{l.parecido}</td><td>{l.nada}</td><td>{l.total}</td>
+                    <td>{l.total > 0 ? `${Math.round((l.nada / l.total) * 100)}%` : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="muted">Ainda sem votos. Vote nos irmãos ao fim de cada puzzle do bloco.</p>
+          )}
+        </details>
       </div>
       <div className="card">
         <h3 style={{ marginTop: 0, color: "var(--bad)" }}>Perigo</h3>

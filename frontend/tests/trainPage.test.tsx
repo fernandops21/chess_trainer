@@ -71,7 +71,7 @@ beforeEach(() => {
   vi.spyOn(api, "endSession").mockResolvedValue({ ...session, ended_at: "2026-01-01T00:25:00Z" });
   vi.spyOn(api, "attempt").mockResolvedValue(attempt());
   vi.spyOn(api, "nextTactic").mockResolvedValue(tactic("t1"));
-  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: true, versao: 1, assinados: 1, total: 1, cobertura: null, rotulagem: false, trechos: 0 });
+  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: true, versao: 1, assinados: 1, total: 1, cobertura: null, trechos: 0 });
   vi.spyOn(api, "golpesIrmaos").mockResolvedValue(irmaos);
 });
 afterEach(async () => {

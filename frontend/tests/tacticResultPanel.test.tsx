@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import type { BoardProps } from "../src/board/Board";
 import { api } from "../src/api/client";
-import { TacticResultPanel } from "../src/train/TacticResultPanel";
+import { TacticResultPanel, type VotoDoResultado } from "../src/train/TacticResultPanel";
 import type { AnalyseOut, AttemptOut, IrmaosOut, TacticOut } from "../src/api/types";
 
 // o chessground não roda no jsdom: o dublê guarda as props do tabuleiro
@@ -19,7 +19,7 @@ vi.mock("../src/board/Board", () => ({
 const last = () => boardProps.at(-1) as unknown as BoardProps;
 
 // o painel traz o botão "Guardar para repetir", que é uma mutation
-function renderPanel(tactic: TacticOut, extra: { attempt?: AttemptOut; durationMs?: number } = {}) {
+function renderPanel(tactic: TacticOut, extra: { attempt?: AttemptOut; durationMs?: number; voto?: VotoDoResultado } = {}) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <MemoryRouter>
@@ -44,7 +44,7 @@ beforeEach(() => {
   vi.spyOn(api, "openings").mockRejectedValue(new Error("sem livro"));
   vi.spyOn(api, "settings").mockRejectedValue(new Error("sem configurações"));
   // encoder de golpes desligado (o padrão): sem o cartão "Repetir o golpe" nestes testes
-  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: false, versao: 0, assinados: 0, total: 0, cobertura: null, rotulagem: false, trechos: 0 });
+  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: false, versao: 0, assinados: 0, total: 0, cobertura: null, trechos: 0 });
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -137,10 +137,32 @@ test("guardar para repetir manda o resultado da tentativa mostrada", async () =>
 // --- cartão "Repetir o golpe" --------------------------------------------
 
 test("sem tentativa registrada ainda (enviando ou erro ao enviar), o cartão do golpe não presume erro", async () => {
-  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: true, versao: 1, assinados: 1, total: 1, cobertura: null, rotulagem: false, trechos: 0 });
+  vi.spyOn(api, "golpesStatus").mockResolvedValue({ enabled: true, versao: 1, assinados: 1, total: 1, cobertura: null, trechos: 0 });
   const irmaos: IrmaosOut = { assinatura: "Ke8 | Q xP f7 #", itens: [{ tier: "mesmo", tactic: baseTactic({ id: "a" }) }] };
   vi.spyOn(api, "golpesIrmaos").mockResolvedValue(irmaos);
   renderPanel(baseTactic());
   expect(await screen.findByAltText("O golpe desenhado")).toBeTruthy();
   expect(screen.queryByRole("button", { name: /parecidos/ })).toBeNull();
+});
+
+// --- voto sobre o irmão do bloco ("tem a ver com o seu erro?") -----------
+
+const voto: VotoDoResultado = { anchorOrigem: "own", anchorId: "p1", tier: "trecho2", procedencia: { degrau: "trecho2", nivel: "destinos", n: 2, posicao: "fim", espelhado: false } };
+
+test("sem `voto` (fora do bloco), o cartão de voto não aparece mesmo com a tentativa registrada", async () => {
+  const attempt: AttemptOut = { id: "a1", puzzle_id: "t1", correct: true, used_hint: false, rating_before: 1200, rating_after: 1216, delta: 16, puzzle_rating: 1500 };
+  renderPanel(baseTactic(), { attempt });
+  expect(screen.queryByText("Tem a ver com o seu erro?")).toBeNull();
+});
+
+test("com `voto` mas sem tentativa ainda, o cartão de voto não aparece", async () => {
+  renderPanel(baseTactic(), { voto });
+  expect(screen.queryByText("Tem a ver com o seu erro?")).toBeNull();
+});
+
+test("com `voto` e a tentativa registrada, o cartão de voto aparece logo abaixo do resultado", async () => {
+  vi.spyOn(api, "golpeVoto").mockResolvedValue({ label: null });
+  const attempt: AttemptOut = { id: "a1", puzzle_id: "t1", correct: true, used_hint: false, rating_before: 1200, rating_after: 1216, delta: 16, puzzle_rating: 1500 };
+  renderPanel(baseTactic(), { attempt, voto });
+  expect(await screen.findByText("Tem a ver com o seu erro?")).toBeInTheDocument();
 });

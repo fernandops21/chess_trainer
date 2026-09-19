@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import type { TacticOut } from "../src/api/types";
+import type { Procedencia, TacticOut } from "../src/api/types";
 import { configDoBloco, corpoDoSalvamento, itemDoBloco } from "../src/train/bloco";
 
 const t = (id: string): TacticOut => ({ id } as unknown as TacticOut);
-const bloco = { anchorId: "p1", anchorOrigem: "own" as const, itens: [t("a"), t("b")], tiers: { a: "mesmo", b: "trecho2" } };
+const proc = (n: number): Procedencia => ({ degrau: "inteira", nivel: "destinos", n, posicao: "inteira", espelhado: false });
+const bloco = {
+  anchorId: "p1", anchorOrigem: "own" as const, itens: [t("a"), t("b")],
+  tiers: { a: "mesmo", b: "trecho2" }, procedencias: { a: proc(1), b: proc(2) },
+};
 
 describe("bloco de irmãos", () => {
   it("percorre a lista fixa e acaba", () => {

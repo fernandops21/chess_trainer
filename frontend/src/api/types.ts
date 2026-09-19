@@ -341,7 +341,7 @@ export interface SaveTacticIn {
   sibling_tier?: string;
 }
 
-/** Estado do encoder de golpes: cobre a assinatura, os irmãos e a rotulagem (spec golpes). */
+/** Estado do encoder de golpes: cobre a assinatura, os irmãos e o preparo (spec golpes). */
 export interface GolpesStatus {
   enabled: boolean;
   versao: number;
@@ -349,7 +349,6 @@ export interface GolpesStatus {
   total: number;
   /** Por tema: quantos golpes já têm irmãos suficientes (`ge5`/`ge2`) e quantos ficaram sozinhos. */
   cobertura: Record<string, { ge5: number; ge2: number; sozinhos: number }> | null;
-  rotulagem: boolean;
   /** Quantas linhas de trecho já foram calculadas (spec golpes trechos §4.1). */
   trechos: number;
 }
@@ -377,15 +376,10 @@ export interface IrmaosOut {
   itens: IrmaoOut[];
 }
 
-/** Próximo item da fila de rotulagem: a âncora e os candidatos, sem revelar a
- *  camada (`tier`) de cada um — ela só volta no `POST` (spec golpes, fase A). */
-export interface RotulagemItem {
-  anchor: { origem: "own" | "lichess"; id: string; assinatura: string };
-  candidatos: { id: string; tier: string; procedencia?: Procedencia; tactic: TacticOut }[];
-}
-
-/** Corpo do `POST /api/golpes/rotulagem`: um rótulo humano para um par âncora/candidato. */
-export interface RotuloIn {
+/** Corpo do `POST /api/golpes/voto`: o voto do usuário sobre um irmão do bloco — "tem a ver
+ *  com o seu erro?" (spec golpes trechos §8, revisão "o voto mora no bloco"). Votar de novo no
+ *  mesmo par (âncora, candidato) atualiza o voto em vez de duplicar. */
+export interface VotoIn {
   anchor_origem: "own" | "lichess";
   anchor_id: string;
   candidate_id: string;
@@ -397,13 +391,18 @@ export interface RotuloIn {
   espelhado?: boolean;
 }
 
-export interface RotulagemContagem {
-  total: number;
-  por_label: Record<string, number>;
+export interface VotoOut {
+  ok: boolean;
+  label: string;
 }
 
-/** Uma linha do placar da rotulagem por procedência (spec golpes trechos §8). */
-export interface RotulagemResumoLinha {
+/** Resposta de `GET /api/golpes/voto`: o rótulo já gravado para o par, ou `null` sem voto. */
+export interface VotoConsultaOut {
+  label: "mesmo" | "parecido" | "nada" | null;
+}
+
+/** Uma linha do placar dos votos por procedência (spec golpes trechos §8), em Configurações. */
+export interface VotosResumoLinha {
   tier: string;
   posicao: string | null;
   n_lances: number | null;

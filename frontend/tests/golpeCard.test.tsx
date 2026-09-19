@@ -4,12 +4,16 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../src/api/client";
-import type { IrmaosOut, TacticOut } from "../src/api/types";
+import type { IrmaosOut, Procedencia, TacticOut } from "../src/api/types";
 import { BlocoProvider } from "../src/train/BlocoContext";
 import { GolpeCard } from "../src/train/GolpeCard";
 
 const tactic = (id: string, rating: number): TacticOut => ({ id, fen_start: "8/8/8/8/8/8/8/K6k w - - 0 1", side_to_move: "white", solution: { moves: [], explanation_pv: [] }, rating, themes: [], saved: false } as unknown as TacticOut);
-const irmaos: IrmaosOut = { assinatura: "Ke8 | Q xP f7 #", itens: [{ tier: "mesmo", tactic: tactic("a", 800) }, { tier: "mesmo", tactic: tactic("b", 900) }] };
+const procedencia = (n: number): Procedencia => ({ degrau: "inteira", nivel: "destinos", n, posicao: "inteira", espelhado: false });
+const irmaos: IrmaosOut = { assinatura: "Ke8 | Q xP f7 #", itens: [
+  { tier: "mesmo", tactic: tactic("a", 800), procedencia: procedencia(1) },
+  { tier: "mesmo", tactic: tactic("b", 900), procedencia: procedencia(2) },
+] };
 
 function montar(props: { errou: boolean }, iniciar = vi.fn()) {
   render(
@@ -31,6 +35,7 @@ describe("GolpeCard", () => {
     expect(iniciar).toHaveBeenCalledWith({
       anchorId: "p1", anchorOrigem: "own", itens: irmaos.itens.map((i) => i.tactic),
       tiers: { a: "mesmo", b: "mesmo" },
+      procedencias: { a: procedencia(1), b: procedencia(2) },
     });
   });
   it("acerto: só a imagem", async () => {

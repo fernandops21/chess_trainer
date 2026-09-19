@@ -54,9 +54,14 @@ function TacticPuzzle({ tactic, sessionId, clockLabel, orderInfo, onDone, nextDi
   const { data: settings } = useSettings();
   const ctl = usePuzzle<AttemptOut>(tactic, { sessionId, submit, refute: settings?.refute_wrong_moves ?? true });
   const { state } = ctl;
+  // o voto ("tem a ver com o seu erro?") só existe em modo bloco: a âncora e a procedência
+  // deste irmão específico (spec golpes trechos §8, revisão "o voto mora no bloco")
+  const voto = bloco
+    ? { anchorOrigem: bloco.anchorOrigem, anchorId: bloco.anchorId, procedencia: bloco.procedencias[tactic.id], tier: bloco.tiers[tactic.id] }
+    : undefined;
   if (state.phase === "result" || state.phase === "submit_error" || state.phase === "submitting") {
     return <TacticResultPanel tactic={tactic} attempt={state.review} played={state.played} durationMs={durationRef.current} error={state.error} onRetry={ctl.retrySubmit}
-      onNext={() => state.review && onDone({ tactic, attempt: state.review })} nextDisabled={nextDisabled} clockLabel={clockLabel} />;
+      onNext={() => state.review && onDone({ tactic, attempt: state.review })} nextDisabled={nextDisabled} clockLabel={clockLabel} voto={voto} />;
   }
   return <PuzzleView puzzle={tactic} ctl={ctl} clockLabel={clockLabel} orderInfo={orderInfo} />;
 }

@@ -12,7 +12,6 @@ import { StudiesPage } from "./pages/StudiesPage";
 import { StudyDetailPage } from "./pages/StudyDetailPage";
 import { ChapterEditorPage } from "./pages/ChapterEditorPage";
 import { ChapterViewPage } from "./pages/ChapterViewPage";
-import { RotulagemPage } from "./pages/RotulagemPage";
 import { ReviewPage } from "./train/ReviewPage";
 import { TrainPage } from "./train/TrainPage";
 
@@ -36,7 +35,6 @@ export function App() {
           <Route path="/erros" element={<MistakesPage />} />
           <Route path="/progresso" element={<ProgressPage />} />
           <Route path="/config" element={<SettingsPage />} />
-          <Route path="/rotulagem" element={<RotulagemPage />} />
           <Route path="*" element={<DashboardPage />} />
         </Routes>
       </main>
