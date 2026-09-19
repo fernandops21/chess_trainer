@@ -26,7 +26,7 @@ def client():
 
 def test_status_e_preparar(client):
     s = client.get("/api/golpes/status").json()
-    assert s["enabled"] is True and s["versao"] == 2 and s["assinados"] == 0 and s["cobertura"] is None and s["rotulagem"] is False
+    assert s["enabled"] is True and s["versao"] == 2 and s["assinados"] == 0 and s["cobertura"] is None
     assert s["trechos"] == 0
     assert client.post("/api/golpes/preparar").status_code == 202
     client.app.state.jobs.wait()
@@ -110,24 +110,46 @@ def test_imagem_svg_de_exercicio_proprio_nao_tem_cache_longo(client):
     assert r.headers["cache-control"] == "no-cache"
 
 
-def test_rotulagem_desligada_por_padrao(client):
-    assert client.get("/api/golpes/rotulagem/proximo").status_code == 404
-    assert client.post("/api/golpes/rotulagem", json={"anchor_origem": "lichess", "anchor_id": "p0", "candidate_id": "p1", "tier": "mesmo", "label": "mesmo"}).status_code == 404
+def voto_body(**over):
+    body = {"anchor_origem": "lichess", "anchor_id": "p0", "candidate_id": "p1", "tier": "inteira", "label": "mesmo"}
+    body.update(over)
+    return body
 
 
-def test_rotulagem_ligada(tmp_path):
-    app = create_app(db_path=":memory:", engine_factory=lambda s: FakeEngine(default=first_legal_default(0)), rotulagem_enabled=True)
-    with TestClient(app) as c:
-        db = app.state.session_factory()
-        for i in range(6):
-            db.add(pastor(f"p{i}", 700 + 100 * i))
-        db.commit(); db.close()
-        c.post("/api/golpes/preparar"); app.state.jobs.wait()
-        assert c.get("/api/golpes/status").json()["rotulagem"] is True
-        item = c.get("/api/golpes/rotulagem/proximo").json()
-        cand = item["candidatos"][0]
-        r = c.post("/api/golpes/rotulagem", json={"anchor_origem": "lichess", "anchor_id": item["anchor"]["id"], "candidate_id": cand["id"], "tier": cand["tier"], "label": "nada"})
-        assert r.status_code == 201
-        assert c.get("/api/golpes/rotulagem/contagem").json() == {"total": 1, "por_label": {"nada": 1}}
-        ouro = c.get("/api/golpes/rotulagem/ouro")
-        assert ouro.status_code == 200 and ouro.text.count("\n") == 1
+def test_voto_grava_e_consulta(client):
+    client.post("/api/golpes/preparar"); client.app.state.jobs.wait()
+    assert client.get("/api/golpes/voto", params={"anchor_origem": "lichess", "anchor_id": "p0", "candidate_id": "p1"}).json() == {"label": None}
+    r = client.post("/api/golpes/voto", json=voto_body(n_lances=1, posicao="inteira", nivel="destinos", espelhado=False))
+    assert r.status_code == 200 and r.json() == {"ok": True, "label": "mesmo"}
+    assert client.get("/api/golpes/voto", params={"anchor_origem": "lichess", "anchor_id": "p0", "candidate_id": "p1"}).json() == {"label": "mesmo"}
+
+
+def test_votar_de_novo_atualiza_sem_duplicar(client):
+    client.post(f"/api/golpes/voto", json=voto_body(label="nada"))
+    r = client.post("/api/golpes/voto", json=voto_body(label="parecido"))
+    assert r.status_code == 200 and r.json()["label"] == "parecido"
+    assert client.get("/api/golpes/voto", params={"anchor_origem": "lichess", "anchor_id": "p0", "candidate_id": "p1"}).json()["label"] == "parecido"
+
+
+def test_voto_rotulo_invalido_422(client):
+    assert client.post("/api/golpes/voto", json=voto_body(label="talvez")).status_code == 422
+
+
+def test_voto_ancora_ou_candidato_desconhecido_404(client):
+    assert client.post("/api/golpes/voto", json=voto_body(anchor_id="nao-existe")).status_code == 404
+    assert client.post("/api/golpes/voto", json=voto_body(candidate_id="nao-existe")).status_code == 404
+    assert client.post("/api/golpes/voto", json=voto_body(anchor_origem="own", anchor_id="nao-existe")).status_code == 404
+
+
+def test_voto_desligado_da_404(client):
+    client.put("/api/settings", json={"golpes_enabled": False})
+    assert client.post("/api/golpes/voto", json=voto_body()).status_code == 404
+    assert client.get("/api/golpes/voto", params={"anchor_origem": "lichess", "anchor_id": "p0", "candidate_id": "p1"}).status_code == 404
+
+
+def test_votos_resumo(client):
+    client.post("/api/golpes/voto", json=voto_body(n_lances=1, posicao="inteira", nivel="destinos", espelhado=False))
+    r = client.get("/api/golpes/votos/resumo")
+    assert r.status_code == 200
+    linhas = r.json()
+    assert linhas == [{"tier": "inteira", "posicao": "inteira", "n_lances": 1, "mesmo": 1, "parecido": 0, "nada": 0, "total": 1}]

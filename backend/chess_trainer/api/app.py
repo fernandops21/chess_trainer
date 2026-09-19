@@ -84,7 +84,6 @@ def create_app(
     coach_llm_factory=None,
     coach_checagem_factory=None,
     coach_enabled: bool | None = None,
-    rotulagem_enabled: bool | None = None,
 ) -> FastAPI:
     # tudo o que é dado local (banco, banco de táticas, modelo de embeddings) mora aqui
     data_dir = Path(os.environ.get("CHESS_TRAINER_DATA", str(BACKEND_DIR / "data")))
@@ -152,11 +151,6 @@ def create_app(
     if coach_enabled is None:
         coach_enabled = os.environ.get("CHESS_TRAINER_COACH") == "1"
     app.state.coach_enabled = bool(coach_enabled)
-    # rotulagem de golpes (spec golpes §8): mesmo padrão do treinador com IA, ainda em
-    # desenvolvimento, desligada por padrão e ligada só com `CHESS_TRAINER_ROTULAGEM=1`
-    if rotulagem_enabled is None:
-        rotulagem_enabled = os.environ.get("CHESS_TRAINER_ROTULAGEM") == "1"
-    app.state.rotulagem_enabled = bool(rotulagem_enabled)
 
     app.include_router(system.router)
     app.include_router(games.router)

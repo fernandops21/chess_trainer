@@ -4,7 +4,7 @@ chess_trainer.core.golpes.exportar_ouro [caminho.jsonl]`; sem argumento, grava e
 `ml/golpes/gold/<AAAA-MM-DD>.jsonl` na raiz do repositório."""
 from __future__ import annotations
 
-from chess_trainer.core.golpes.rotulagem import exportar_ouro
+from chess_trainer.core.golpes.votos import exportar_ouro
 
 
 def main() -> None:

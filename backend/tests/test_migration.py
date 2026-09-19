@@ -527,6 +527,100 @@ def db_sem_trechos(tmp_path):
     return path
 
 
+# --- voto: uma linha por par (âncora, candidato) ("o voto mora no bloco") ----
+
+
+@pytest.fixture
+def db_golpe_labels_duplicado(tmp_path):
+    """Banco de antes do voto: a rotulagem podia gravar mais de uma linha para o mesmo par
+    (âncora, candidato) — sem o índice único que a revisão do voto exige. Recria
+    `golpe_labels` sem a `UNIQUE` para simular esse estado e insere duas linhas do mesmo par,
+    a mais nova com um rótulo diferente."""
+    path = tmp_path / "labels_duplicados.db"
+    engine = make_engine(str(path))
+    init_db(engine)
+    engine.dispose()
+    conn = sqlite3.connect(path)
+    conn.execute("DROP TABLE golpe_labels")
+    conn.execute("""
+        CREATE TABLE golpe_labels (
+            id VARCHAR(36) NOT NULL,
+            anchor_origem VARCHAR(8) NOT NULL,
+            anchor_id VARCHAR(36) NOT NULL,
+            candidate_id VARCHAR(8) NOT NULL,
+            tier_na_hora VARCHAR(16) NOT NULL,
+            versao_assinatura INTEGER NOT NULL,
+            label VARCHAR(8) NOT NULL,
+            created_at DATETIME NOT NULL,
+            n_lances INTEGER,
+            posicao VARCHAR(8),
+            nivel VARCHAR(10),
+            espelhado BOOLEAN,
+            PRIMARY KEY (id)
+        )
+    """)
+    conn.execute(
+        "INSERT INTO golpe_labels VALUES ('l1','lichess','a','b','inteira',2,'nada','2026-09-01 10:00:00',NULL,NULL,NULL,NULL)"
+    )
+    conn.execute(
+        "INSERT INTO golpe_labels VALUES ('l2','lichess','a','b','inteira',2,'mesmo','2026-09-02 10:00:00',NULL,NULL,NULL,NULL)"
+    )
+    # um par diferente, sem duplicata: não pode sumir na limpeza
+    conn.execute(
+        "INSERT INTO golpe_labels VALUES ('l3','lichess','a','c','inteira',2,'nada','2026-09-01 10:00:00',NULL,NULL,NULL,NULL)"
+    )
+    conn.commit()
+    conn.close()
+    return path
+
+
+def test_migracao_deduplica_golpe_labels_mantendo_o_mais_novo(db_golpe_labels_duplicado):
+    engine = make_engine(str(db_golpe_labels_duplicado))
+    init_db(engine)
+    try:
+        conn = sqlite3.connect(db_golpe_labels_duplicado)
+        linhas = conn.execute(
+            "SELECT id, label FROM golpe_labels WHERE anchor_id='a' AND candidate_id='b'"
+        ).fetchall()
+        total = conn.execute("SELECT count(*) FROM golpe_labels").fetchone()[0]
+        indices = {row[1] for row in conn.execute("PRAGMA index_list(golpe_labels)")}
+        conn.close()
+        assert linhas == [("l2", "mesmo")]  # o mais novo venceu
+        assert total == 2  # a duplicata some, o par "a"/"c" fica
+        assert "uq_golpe_labels_par" in indices
+    finally:
+        engine.dispose()
+
+
+def test_migracao_deduplica_golpe_labels_e_e_idempotente(db_golpe_labels_duplicado):
+    engine = make_engine(str(db_golpe_labels_duplicado))
+    init_db(engine)
+    init_db(engine)
+    try:
+        conn = sqlite3.connect(db_golpe_labels_duplicado)
+        total = conn.execute("SELECT count(*) FROM golpe_labels").fetchone()[0]
+        conn.close()
+        assert total == 2
+    finally:
+        engine.dispose()
+
+
+def test_migracao_cria_o_indice_unico_num_banco_novo(tmp_path):
+    """Banco criado do zero já tem a `UniqueConstraint` do modelo: o `CREATE UNIQUE INDEX IF
+    NOT EXISTS` da migração não pode falhar por cima dela (mesmo nome)."""
+    path = tmp_path / "novo.db"
+    engine = make_engine(str(path))
+    init_db(engine)
+    init_db(engine)
+    try:
+        conn = sqlite3.connect(path)
+        indices = {row[1] for row in conn.execute("PRAGMA index_list(golpe_labels)")}
+        conn.close()
+        assert "uq_golpe_labels_par" in indices
+    finally:
+        engine.dispose()
+
+
 def test_migracao_acrescenta_as_colunas_e_a_tabela_dos_trechos(db_sem_trechos):
     assert "sibling_tier" not in _colunas(db_sem_trechos, "puzzles")
     assert "lichess_puzzle_trechos" not in {

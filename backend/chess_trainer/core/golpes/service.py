@@ -219,8 +219,8 @@ class Irmao:
     procedencia: Procedencia
 
 
-# cortados pelos mais próximos do centro da faixa preferida (ou do fácil ao difícil, em
-# `candidatos_por_camada`); 5000 é mais do que qualquer bloco espalha e cabe na memória
+# cortados pelos mais próximos do centro da faixa preferida; 5000 é mais do que qualquer
+# bloco espalha e cabe na memória
 LIMITE_CANDIDATOS = 5000
 
 
@@ -295,15 +295,13 @@ def _candidatos_trecho(db: Session, coluna: str, n: int, valor: int, excluir: se
     return [(pid, rating) for pid, rating, _i in linhas], prov
 
 
-def _passos(a: Assinatura, meus_trechos: dict[int, "Trecho"], k: int, incluir_extra_rotulagem: bool):
+def _passos(a: Assinatura, meus_trechos: dict[int, "Trecho"], k: int):
     """A cascata em degraus (spec golpes trechos §5), na ordem: assinatura inteira → trechos
     (do maior prefixo ao menor) → espelho inteiro → trechos espelhados → esqueleto inteiro →
     trechos por esqueleto. `meus_trechos` são os PRÓPRIOS trechos da âncora com `inicio == 0`
     (os prefixos dela, de `trechos(fen, lances)`); um trecho de tamanho `n` só entra quando a
-    âncora tiver um. `incluir_extra_rotulagem` acrescenta `espelho-trecho1`, único degrau que
-    usa o esqueleto de um lance só — bom demais para achar pares (ruído) para entrar no bloco,
-    mas útil para a rotulagem medir o quanto ele erra (spec §8). Cada item da lista devolvida é
-    `(degrau, nivel, n, espelhado, eh_trecho, valor)`."""
+    âncora tiver um. Cada item da lista devolvida é `(degrau, nivel, n, espelhado, eh_trecho,
+    valor)`."""
     h = a.hashes()
     passos = [("inteira", "destinos", k, False, False, h["destinos"])]
     for n in range(k, 0, -1):
@@ -320,10 +318,6 @@ def _passos(a: Assinatura, meus_trechos: dict[int, "Trecho"], k: int, incluir_ex
         t = meus_trechos.get(n)
         if t is not None:
             passos.append((f"esqueleto-trecho{n}", "esqueleto", n, False, True, t.assinatura.hashes()["esqueleto"]))
-    if incluir_extra_rotulagem:
-        t1 = meus_trechos.get(1)
-        if t1 is not None:
-            passos.append(("espelho-trecho1", "destinos_esp", 1, True, True, t1.assinatura.hashes()["destinos_esp"]))
     return passos
 
 
@@ -358,7 +352,7 @@ def irmaos(db: Session, fen: str, lances: list[str], *, rating: int, abaixo: int
     milhões de linhas. O bloco final fica em ordem ascendente de rating, mesmo cruzando degraus."""
     a = assinar(fen, lances)
     k_ = min(len(a.lances), 3)
-    passos = _passos(a, _meus_trechos(fen, lances), k_, incluir_extra_rotulagem=False)
+    passos = _passos(a, _meus_trechos(fen, lances), k_)
     lo, hi = rating - abaixo, rating + acima
     centro = (lo + hi) // 2
     escolhidos: list[tuple[str, str, Procedencia]] = []
@@ -376,40 +370,3 @@ def irmaos(db: Session, fen: str, lances: list[str], *, rating: int, abaixo: int
         select(LichessPuzzle).where(LichessPuzzle.id.in_([pid for pid, _nome, _proc in escolhidos])))}
     escolhidos.sort(key=lambda item: (linhas[item[0]].rating, item[0]))
     return [Irmao(linhas[pid], nome, proc) for pid, nome, proc in escolhidos]
-
-
-def candidatos_por_camada(db: Session, fen: str, lances: list[str], *, excluir: set[str], k: int,
-                          por_degrau: int | None = None, min_popularity: int = 50,
-                          min_plays: int = 50) -> dict[str, list[Irmao]]:
-    """Todos os degraus da cascata (spec golpes trechos §5) à parte, até `por_degrau` (ou `k`, se
-    omitido) de cada um, espalhados do fácil ao difícil (sem faixa de rating: a rotulagem julga o
-    golpe, não a dificuldade) — diferente de `irmaos`, que cascateia até completar `k` no total e
-    por isso nunca chega aos degraus seguintes quando os primeiros já bastam sozinhos. Inclui
-    `espelho-trecho1` (nunca usado no bloco): a rotulagem precisa medir o quanto esse degrau erra.
-    Quem combina com um degrau mais específico não some dos mais frouxos por não ter sido um dos
-    escolhidos ali (senão o mesmo puzzle apareceria de novo, rotulado uma vez em cada); por isso o
-    que exclui o degrau seguinte é todo mundo que combinou, não só os escolhidos."""
-    a = assinar(fen, lances)
-    k_ = min(len(a.lances), 3)
-    passos = _passos(a, _meus_trechos(fen, lances), k_, incluir_extra_rotulagem=True)
-    n_por_degrau = por_degrau if por_degrau is not None else k
-    usados = set(excluir)
-    por_degrau_bruto: dict[str, tuple[list[str], dict, str, int, bool]] = {}
-    for nome, nivel, n, espelhado, eh_trecho, valor in passos:
-        # `centro=0`: rating nunca é negativo, então `abs(rating - 0) == rating` e a ordem sai
-        # crescente — os candidatos vêm do fácil ao difícil sem precisar de outra consulta.
-        cands, prov = _executar_passo(db, nivel, n, eh_trecho, valor, a.zona_rei, usados, 0,
-                                      min_popularity, min_plays)
-        ids = [pid for pid, _rating in cands]
-        por_degrau_bruto[nome] = (espalhar(ids, n_por_degrau), prov, nivel, n, espelhado)
-        usados |= set(ids)
-    todos_ids = {pid for ids, _p, _nv, _n, _e in por_degrau_bruto.values() for pid in ids}
-    linhas = {r.id: r for r in db.scalars(select(LichessPuzzle).where(LichessPuzzle.id.in_(todos_ids)))}
-    resultado: dict[str, list[Irmao]] = {}
-    for nome, (ids, prov, nivel, n, espelhado) in por_degrau_bruto.items():
-        itens = []
-        for pid in ids:
-            posicao = "inteira" if prov is None else prov[pid][1]
-            itens.append(Irmao(linhas[pid], nome, Procedencia(degrau=nome, nivel=nivel, n=n, posicao=posicao, espelhado=espelhado)))
-        resultado[nome] = itens
-    return resultado

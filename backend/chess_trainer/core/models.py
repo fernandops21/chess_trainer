@@ -304,8 +304,13 @@ class LichessPuzzleTrecho(Base):
 
 
 class GolpeLabel(Base):
-    """Julgamento humano na tela de rotulagem: o conjunto de ouro (spec golpes §8)."""
+    """Voto do usuário sobre um irmão do bloco: "é o mesmo golpe do meu erro?" (spec golpes
+    trechos §8, revisão "o voto mora no bloco"). Uma linha por par (âncora, candidato) — votar de
+    novo no mesmo par atualiza a linha (`uq_golpe_labels_par`), não duplica."""
     __tablename__ = "golpe_labels"
+    __table_args__ = (
+        UniqueConstraint("anchor_origem", "anchor_id", "candidate_id", name="uq_golpe_labels_par"),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     anchor_origem: Mapped[str] = mapped_column(String(8))  # own | lichess
     anchor_id: Mapped[str] = mapped_column(String(36), index=True)

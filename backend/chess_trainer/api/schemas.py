@@ -605,7 +605,6 @@ class GolpesStatusOut(BaseModel):
     assinados: int
     total: int
     cobertura: dict[str, dict[str, int]] | None
-    rotulagem: bool
     trechos: int = 0
 
 
@@ -629,7 +628,9 @@ class IrmaosOut(BaseModel):
     itens: list[IrmaoOut]
 
 
-class RotuloIn(BaseModel):
+class VotoIn(BaseModel):
+    """Corpo de `POST /api/golpes/voto`: o voto do usuário sobre um irmão do bloco (spec
+    golpes trechos §8, revisão "o voto mora no bloco")."""
     anchor_origem: Literal["own", "lichess"]
     anchor_id: str
     candidate_id: str
@@ -641,18 +642,18 @@ class RotuloIn(BaseModel):
     espelhado: bool | None = None
 
 
-class RotuloOut(BaseModel):
-    id: str
+class VotoOut(BaseModel):
+    ok: bool = True
     label: str
 
 
-class ContagemOut(BaseModel):
-    total: int
-    por_label: dict[str, int]
+class VotoConsultaOut(BaseModel):
+    """Resposta de `GET /api/golpes/voto`: o rótulo já gravado para o par, ou `None` sem voto."""
+    label: str | None
 
 
-class RotulagemResumoLinha(BaseModel):
-    """Placar da rotulagem por procedência (spec golpes trechos §8): agrega os rótulos já
+class VotosResumoLinha(BaseModel):
+    """Placar dos votos por procedência (spec golpes trechos §8): agrega os votos já
     gravados por degrau/posição/tamanho do trecho."""
     tier: str
     posicao: str | None

@@ -138,6 +138,30 @@ _PUZZLE_INDEXES: tuple[str, ...] = (
 _PUZZLE_COLUMNS_NULLABLE_AGORA: tuple[str, ...] = ("position_id", "game_id")
 
 
+def _deduplicar_golpe_labels(engine: Engine) -> None:
+    """Antes do voto (spec "o voto mora no bloco"), a rotulagem podia gravar mais de um
+    julgamento para o mesmo par (âncora, candidato) — cada resposta virava uma linha nova. O
+    índice único do voto exige uma só linha por par: mantém a mais recente (`created_at`
+    decrescente, `id` como desempate) e apaga o resto antes de criar o índice. Idempotente
+    (sem duplicata, a `DELETE` não acha nada a apagar) e defensiva num banco sem a tabela."""
+    with engine.connect() as conn:
+        existentes = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(golpe_labels)")}
+    if not existentes:
+        return
+    with engine.begin() as conn:
+        conn.exec_driver_sql("""
+            DELETE FROM golpe_labels WHERE id NOT IN (
+                SELECT id FROM (
+                    SELECT id, ROW_NUMBER() OVER (
+                        PARTITION BY anchor_origem, anchor_id, candidate_id
+                        ORDER BY created_at DESC, id DESC
+                    ) AS rn
+                    FROM golpe_labels
+                ) WHERE rn = 1
+            )
+        """)
+
+
 def _acrescenta_colunas(conn, tabela: str, colunas: tuple[tuple[str, str], ...]) -> None:
     """ALTER TABLE ADD COLUMN para o que faltar. Tabela ausente: nada a fazer."""
     existentes = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({tabela})")}
@@ -242,6 +266,16 @@ def migrate(engine: Engine) -> None:
         conn.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_puzzles_sibling_of ON puzzles (sibling_of)")
         _acrescenta_colunas(conn, "puzzles", _NEW_GOLPES_TRECHOS_PUZZLE_COLUMNS)
         _acrescenta_colunas(conn, "golpe_labels", _NEW_GOLPES_TRECHOS_LABEL_COLUMNS)
+
+    # o índice único do voto (spec "o voto mora no bloco") exige uma linha por par
+    # (âncora, candidato); num banco antigo com duplicatas da rotulagem, a limpeza vem
+    # antes, fora da transação acima (a suas próprias, com begin/commit dela mesma)
+    _deduplicar_golpe_labels(engine)
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_golpe_labels_par "
+            "ON golpe_labels (anchor_origem, anchor_id, candidate_id)"
+        )
 
 
 def init_db(engine: Engine) -> None:

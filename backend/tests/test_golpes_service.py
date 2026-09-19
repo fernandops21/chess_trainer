@@ -347,22 +347,18 @@ def test_esqueleto_de_um_lance_nunca_e_gravado_nem_casa(db_session):
     assert linha.esqueleto is None
 
 
-def test_candidatos_por_camada_inclui_espelho_trecho1_mas_o_bloco_nao(db_session):
-    """`espelho-trecho1` é o único degrau que usa o esqueleto (na verdade o destino) de um
-    lance espelhado só — bom demais para achar pares (ruído): a rotulagem precisa vê-lo para
-    medir isso, mas o bloco (`irmaos`) nunca o usa, mesmo quando é a única coisa que bateria."""
+def test_espelho_trecho1_nunca_entra_no_bloco(db_session):
+    """O trecho de um lance espelhado é ruído demais (bate com quase tudo) para o bloco: mesmo
+    quando é a única coisa que bateria, `irmaos` nunca o usa (a cascata do bloco não tem esse
+    degrau — ele só fazia sentido na rotulagem, removida com "o voto mora no bloco")."""
     from chess_trainer.core.golpes.assinatura import Trecho
-    from chess_trainer.core.golpes.service import candidatos_por_camada, linha_de_trecho
+    from chess_trainer.core.golpes.service import linha_de_trecho
     ancora = assinar(FEN_PASTOR_START, ["h5f7"])
     db_session.add(pastor("esp1", rating=1000))
     db_session.commit()
     # o candidato só tem o trecho espelhado da âncora, nada mais
     db_session.add(linha_de_trecho(Trecho(inicio=0, n=1, posicao="inicio", assinatura=ancora.espelhada()), "esp1"))
     db_session.commit()
-
-    por_degrau = candidatos_por_camada(db_session, FEN_PASTOR_START, ["h5f7"], excluir=set(), k=3)
-    assert "espelho-trecho1" in por_degrau and [i.row.id for i in por_degrau["espelho-trecho1"]] == ["esp1"]
-    assert por_degrau["espelho-trecho1"][0].procedencia.espelhado is True
 
     r = irmaos(db_session, FEN_PASTOR_START, ["h5f7"], rating=1000, abaixo=500, acima=500, excluir=set(), k=5)
     assert "esp1" not in {x.row.id for x in r}
